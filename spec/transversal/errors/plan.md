@@ -1,0 +1,15 @@
+# errors — Plan
+
+## Dependencias
+
+- Constitución y transversales aplicables.
+
+## Diseño técnico
+
+Envelope estándar. Códigos: INVALID_REQUEST, ZIP_REQUIRED, INVALID_ZIP, INVALID_GENERATION_TARGET, PROJECT_NOT_FOUND, PROJECT_VERSION_NOT_FOUND, TEST_RUN_NOT_FOUND, ARTIFACT_NOT_FOUND, PROJECT_NOT_READY, PROJECT_INDEXING_IN_PROGRESS, ANALYSIS_NOT_FINISHED, TEST_RUN_NOT_FINISHED, DIFF_NOT_AVAILABLE, ZIP_TOO_LARGE, UNSUPPORTED_PROJECT, UNRESOLVABLE_TARGET, INDEXING_FAILED, GENERATION_FAILED, ARTIFACT_PERSISTENCE_FAILED, INTERNAL_ERROR, SANDBOX_UNAVAILABLE, STORAGE_UNAVAILABLE, LLM_PROVIDER_UNAVAILABLE.
+
+## Validación
+
+- Pruebas automatizadas para reglas determinísticas y contratos.
+- Casos positivos, negativos y estados terminales relevantes.
+- `lint`, `test` y `build` antes de cierre.

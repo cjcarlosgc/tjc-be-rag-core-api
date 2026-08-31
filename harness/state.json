@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "sddVersion": "1.0",
+  "allowedStatuses": [
+    "SELECTED",
+    "SPEC_VERIFIED",
+    "AWAITING_APPROVAL",
+    "IN_PROGRESS",
+    "IN_REVIEW",
+    "BLOCKED",
+    "DONE"
+  ],
+  "activeWorkItem": null,
+  "lastUpdatedAt": "2026-08-30T00:00:00-05:00"
+}

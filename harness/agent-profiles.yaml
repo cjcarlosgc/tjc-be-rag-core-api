@@ -1,0 +1,18 @@
+# Los nombres son aliases solicitados para el proyecto.
+# exactModelId permanece pendiente hasta mapear cada alias al identificador aceptado por la herramienta usada.
+claude:
+  leader:
+    modelAlias: "Sonnet 5"
+    exactModelId: null
+    reasoningEffort: "max"
+  workers:
+    modelAlias: "Sonnet 5"
+    exactModelId: null
+openai:
+  leader:
+    modelAlias: "Sol"
+    exactModelId: null
+    reasoningEffort: "max"
+  workers:
+    modelAlias: "Terra"
+    exactModelId: null
