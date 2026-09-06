@@ -1,6 +1,6 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.2
+**Versión:** INTEROP-1.3
 **Compatible con:** SYSTEM-1.3
 **Fecha de corte:** 2026-09-06
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
@@ -427,6 +427,30 @@ interface ExperimentResultsResponse {
 Las tasas usan el intervalo `[0,1]`. Un valor no observable se representa con `null`, nunca con cero. La moneda y metodología de `estimatedCost` deben viajar en la configuración persistida del experimento; este campo no implica una divisa universal.
 
 El contrato HTTP queda definido. `DEC-EXP-002` queda `APROBADO` (herramientas, límites y paridad del agente generalista definidos en `spec/features/008-experimental-comparison/spec.md`); implementar HU19 ya no está bloqueado por decisión, solo pendiente de código. `BASELINE` no es un valor válido.
+
+### 6.6 Progreso en tiempo real (WebSockets)
+
+`HU21`/`HU22`: complemento de los endpoints de estado por polling (6.2/6.3), nunca un reemplazo — ambos siguen siendo el fallback funcional si la conexión WebSocket no está disponible.
+
+```ts
+// Eventos cliente -> servidor (namespace Socket.IO por defecto, mismo host que la API HTTP)
+interface SubscribeProjectVersionEvent { projectVersionId: Id } // evento 'subscribe:project-version'
+interface SubscribeTestRunEvent { testRunId: Id }               // evento 'subscribe:test-run'
+interface UnsubscribeProjectVersionEvent { projectVersionId: Id } // evento 'unsubscribe:project-version'
+interface UnsubscribeTestRunEvent { testRunId: Id }               // evento 'unsubscribe:test-run'
+
+// Eventos servidor -> cliente
+// 'project-version:update', payload: ProjectVersionResponse (mismo shape que GET /project-versions/{id})
+// 'test-run:update', payload: TestRunStatusResponse (mismo shape que GET /test-runs/{id})
+```
+
+Reglas:
+
+- El servidor emite `project-version:update`/`test-run:update` únicamente a los clientes suscritos a ese id específico (sin broadcast global); una conexión puede suscribirse a varios ids.
+- Los payloads son exactamente `ProjectVersionResponse`/`TestRunStatusResponse` ya definidos en 6.2/6.3: no se introduce un DTO paralelo para WebSocket.
+- Una desconexión limpia todas las suscripciones de esa conexión sin acción adicional del servidor.
+- No se emite ningún dato ausente de los DTOs HTTP equivalentes (sin prompts, embeddings ni keys de Storage).
+- Los endpoints de navegador —WebSocket incluido— no tienen todavía un contrato de autenticación aprobado (sección 3); antes de validación empresarial aplica `DEC-VAL-001`.
 
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 

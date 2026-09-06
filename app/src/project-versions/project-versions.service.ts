@@ -12,7 +12,7 @@ import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { IndexProjectDto } from './dto/index-project.dto.js';
 import type { IndexAcceptedResponse } from './dto/index-accepted.response.js';
-import type { ProjectVersionResponse } from './dto/project-version.response.js';
+import { toProjectVersionResponse, type ProjectVersionResponse } from './dto/project-version.response.js';
 import type { ProjectVersionResultsResponse } from './dto/project-version-results.response.js';
 import type { TestInventoryResponse } from './dto/test-target.response.js';
 import type { Project, ProjectVersion } from '../generated/prisma/client.js';
@@ -82,7 +82,7 @@ export class ProjectVersionsService {
   }
 
   async getStatus(id: string): Promise<ProjectVersionResponse> {
-    return this.toResponse(await this.findVersionOrThrow(id));
+    return toProjectVersionResponse(await this.findVersionOrThrow(id));
   }
 
   async getResults(id: string): Promise<ProjectVersionResultsResponse> {
@@ -178,22 +178,5 @@ export class ProjectVersionsService {
     }
 
     return this.projectsRepository.create(dto.name?.trim() || 'Proyecto sin nombre');
-  }
-
-  private toResponse(version: ProjectVersion): ProjectVersionResponse {
-    return {
-      id: version.id,
-      projectId: version.projectId,
-      status: version.status,
-      originalFileName: version.originalFileName,
-      sizeBytes: version.sizeBytes,
-      filesProcessed: version.filesProcessed,
-      chunksCount: version.chunksCount,
-      failureReason: version.failureReason,
-      startedAt: version.startedAt?.toISOString() ?? null,
-      completedAt: version.completedAt?.toISOString() ?? null,
-      createdAt: version.createdAt.toISOString(),
-      updatedAt: version.updatedAt.toISOString(),
-    };
   }
 }

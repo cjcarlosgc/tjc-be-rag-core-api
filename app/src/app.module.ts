@@ -4,6 +4,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ObjectStorageModule } from './object-storage/object-storage.module.js';
 import { ProvidersModule } from './providers/providers.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ProjectVersionsModule } from './project-versions/project-versions.module.js';
 import { RetrievalModule } from './retrieval/retrieval.module.js';
@@ -23,6 +24,7 @@ import { validateEnv } from './config/env.validation.js';
     ObjectStorageModule,
     ProvidersModule,
     JobsModule,
+    RealtimeModule,
     ProjectsModule,
     ProjectVersionsModule,
     RetrievalModule,

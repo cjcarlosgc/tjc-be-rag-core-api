@@ -9,12 +9,13 @@ import { ProjectVersionStatus, TestRunStatus } from '../generated/prisma/enums.j
 import { TestGenerationRunsRepository } from './persistence/test-generation-runs.repository.js';
 import { TEST_GENERATION_JOB_TYPE } from './test-generation-job.handler.js';
 import type { CreateTestRunDto } from './dto/create-test-run.dto.js';
-import type {
-  TargetRunResultResponse,
-  TestRunAcceptedResponse,
-  TestRunResultsResponse,
-  TestRunStatusResponse,
-  TestRunSummaryResponse,
+import {
+  toTestRunStatusResponse,
+  type TargetRunResultResponse,
+  type TestRunAcceptedResponse,
+  type TestRunResultsResponse,
+  type TestRunStatusResponse,
+  type TestRunSummaryResponse,
 } from './dto/test-run.response.js';
 import type { Page } from '../common/dto/page.response.js';
 
@@ -96,27 +97,7 @@ export class TestGenerationService {
   }
 
   async getStatus(runId: string): Promise<TestRunStatusResponse> {
-    const run = await this.requireRun(runId);
-
-    return {
-      id: run.id,
-      projectId: run.projectId,
-      projectVersionId: run.projectVersionId,
-      mode: run.mode,
-      status: run.status,
-      totalTargets: run.totalTargets,
-      processedTargets: run.processedTargets,
-      validTargets: run.validTargets,
-      invalidTargets: run.invalidTargets,
-      failedTargets: run.failedTargets,
-      reason: run.reason as 'NO_MISSING_TARGETS' | null,
-      failureCode: run.failureCode,
-      failureMessage: run.failureMessage,
-      startedAt: run.startedAt?.toISOString() ?? null,
-      completedAt: run.completedAt?.toISOString() ?? null,
-      createdAt: run.createdAt.toISOString(),
-      updatedAt: run.updatedAt.toISOString(),
-    };
+    return toTestRunStatusResponse(await this.requireRun(runId));
   }
 
   async getResults(runId: string): Promise<TestRunResultsResponse> {

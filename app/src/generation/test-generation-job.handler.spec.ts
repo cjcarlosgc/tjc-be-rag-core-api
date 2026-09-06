@@ -19,13 +19,33 @@ function makeTarget(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const baseRun = {
+  id: 'run-1',
+  projectId: 'project-1',
+  projectVersionId: 'version-1',
+  mode: 'PROJECT_MISSING',
+  status: 'PENDING',
+  totalTargets: null,
+  processedTargets: 0,
+  validTargets: 0,
+  invalidTargets: 0,
+  failedTargets: 0,
+  reason: null,
+  failureCode: null,
+  failureMessage: null,
+  startedAt: null,
+  completedAt: null,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+};
+
 function makeDeps(overrides: Record<string, unknown> = {}) {
   const cleanup = vi.fn().mockResolvedValue(undefined);
 
   const deps = {
     jobsService: { registerHandler: vi.fn() },
     testGenerationRunsRepository: {
-      findById: vi.fn().mockResolvedValue({ id: 'run-1', status: 'PENDING' }),
+      findById: vi.fn().mockResolvedValue(baseRun),
       markStarted: vi.fn(),
       update: vi.fn(),
       setStatus: vi.fn(),
@@ -85,6 +105,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       extract: vi.fn().mockResolvedValue({ dir: '/tmp/workspace', cleanup }),
     },
     llmProvider: { generate: vi.fn().mockResolvedValue({ content: 'test code', inputTokens: 10, outputTokens: 5 }) },
+    realtimeGateway: { emitTestRunUpdate: vi.fn() },
     ...overrides,
   };
 
@@ -105,6 +126,7 @@ function makeHandler(deps: ReturnType<typeof makeDeps>['deps']): TestGenerationJ
     deps.artifactService as never,
     deps.objectStorageService as never,
     deps.zipExtractionService as never,
+    deps.realtimeGateway as never,
     deps.llmProvider as never,
   );
 }
@@ -150,9 +172,12 @@ describe('TestGenerationJobHandler', () => {
 
   it('processes a target end-to-end, records VALID and completes the run as COMPLETED', async () => {
     const { deps, cleanup } = makeDeps();
-    deps.testGenerationRunsRepository.findById
-      .mockResolvedValueOnce({ id: 'run-1', status: 'PENDING' })
-      .mockResolvedValueOnce({ id: 'run-1', totalTargets: 1, validTargets: 1, invalidTargets: 0 });
+    deps.testGenerationRunsRepository.findById.mockResolvedValue({
+      ...baseRun,
+      totalTargets: 1,
+      validTargets: 1,
+      invalidTargets: 0,
+    });
     const handler = makeHandler(deps);
 
     await handler.handle(payload);
@@ -170,6 +195,10 @@ describe('TestGenerationJobHandler', () => {
     expect(deps.artifactService.persistFinalArtifacts).toHaveBeenCalledWith('run-1', expect.any(Array));
     expect(deps.testGenerationRunsRepository.complete).toHaveBeenCalledWith('run-1', 'COMPLETED');
     expect(cleanup).toHaveBeenCalled();
+    expect(deps.realtimeGateway.emitTestRunUpdate).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({ id: 'run-1' }),
+    );
   });
 
   it('records FAILED/INFRASTRUCTURE and continues when the Sandbox is unavailable', async () => {
@@ -178,9 +207,12 @@ describe('TestGenerationJobHandler', () => {
         execute: vi.fn().mockRejectedValue(new SandboxUnavailableError('no sandbox configured')),
       },
     });
-    deps.testGenerationRunsRepository.findById
-      .mockResolvedValueOnce({ id: 'run-1', status: 'PENDING' })
-      .mockResolvedValueOnce({ id: 'run-1', totalTargets: 1, validTargets: 0, invalidTargets: 0 });
+    deps.testGenerationRunsRepository.findById.mockResolvedValue({
+      ...baseRun,
+      totalTargets: 1,
+      validTargets: 0,
+      invalidTargets: 0,
+    });
     const handler = makeHandler(deps);
 
     await handler.handle(payload);

@@ -25,6 +25,8 @@ import { ArtifactService } from '../artifacts/artifact.service.js';
 import { TestRunStatus } from '../generated/prisma/enums.js';
 import type { TestTarget } from '../generated/prisma/client.js';
 import type { GenerationMode } from './dto/generation-mode.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import { toTestRunStatusResponse } from './dto/test-run.response.js';
 
 export interface TestGenerationJobPayload {
   testRunId: string;
@@ -58,6 +60,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
     private readonly artifactService: ArtifactService,
     private readonly objectStorageService: ObjectStorageService,
     private readonly zipExtractionService: ZipExtractionService,
+    private readonly realtimeGateway: RealtimeGateway,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
   ) {}
 
@@ -76,6 +79,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
 
     try {
       await this.testGenerationRunsRepository.markStarted(payload.testRunId);
+      await this.emitProgress(payload.testRunId);
 
       const version = await this.projectVersionsRepository.findById(payload.projectVersionId);
 
@@ -97,6 +101,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
       const tracker = new WorkspaceFileTracker(workspace.dir);
 
       await this.testGenerationRunsRepository.setStatus(payload.testRunId, TestRunStatus.PROCESSING_TARGETS);
+      await this.emitProgress(payload.testRunId);
 
       for (const target of targets) {
         await this.processTarget({
@@ -108,9 +113,11 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
           target,
           tracker,
         });
+        await this.emitProgress(payload.testRunId);
       }
 
       await this.testGenerationRunsRepository.setStatus(payload.testRunId, TestRunStatus.FINALIZING);
+      await this.emitProgress(payload.testRunId);
       await this.artifactService.persistFinalArtifacts(payload.testRunId, tracker.getFinalFiles());
 
       const refreshed = await this.testGenerationRunsRepository.findById(payload.testRunId);
@@ -125,10 +132,12 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
             : 'FAILED';
 
       await this.testGenerationRunsRepository.complete(payload.testRunId, finalStatus);
+      await this.emitProgress(payload.testRunId);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Fallo desconocido durante la generación.';
       await this.testGenerationRunsRepository.markFailed(payload.testRunId, 'GENERATION_FAILED', message);
+      await this.emitProgress(payload.testRunId);
       throw error;
     } finally {
       if (workspace) {
@@ -239,6 +248,14 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
             ? error.message.slice(0, 2000)
             : 'Error desconocido durante la generación de este target.',
       });
+    }
+  }
+
+  private async emitProgress(testRunId: string): Promise<void> {
+    const run = await this.testGenerationRunsRepository.findById(testRunId);
+
+    if (run) {
+      this.realtimeGateway.emitTestRunUpdate(testRunId, toTestRunStatusResponse(run));
     }
   }
 

@@ -19,11 +19,25 @@ describe('IndexingJobHandler', () => {
   let testTargetExtractorService: { extract: ReturnType<typeof vi.fn> };
   let existingTestResolverService: { resolve: ReturnType<typeof vi.fn> };
   let objectStorageProvider: { get: ReturnType<typeof vi.fn> };
+  let realtimeGateway: { emitProjectVersionUpdate: ReturnType<typeof vi.fn> };
   let embeddingProvider: { embedMany: ReturnType<typeof vi.fn> };
   let cleanup: ReturnType<typeof vi.fn>;
   let handler: IndexingJobHandler;
 
-  const pendingVersion: Partial<ProjectVersion> = { id: 'version-1', status: 'PENDING' };
+  const pendingVersion: Partial<ProjectVersion> = {
+    id: 'version-1',
+    projectId: 'project-1',
+    status: 'PENDING',
+    originalFileName: null,
+    sizeBytes: null,
+    filesProcessed: null,
+    chunksCount: null,
+    failureReason: null,
+    startedAt: null,
+    completedAt: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
   const payload = { projectVersionId: 'version-1', projectId: 'project-1', snapshotKey: 'key' };
 
   beforeEach(() => {
@@ -81,6 +95,7 @@ describe('IndexingJobHandler', () => {
       ]),
     };
     objectStorageProvider = { get: vi.fn().mockResolvedValue(Buffer.from('zip')) };
+    realtimeGateway = { emitProjectVersionUpdate: vi.fn() };
     embeddingProvider = { embedMany: vi.fn().mockResolvedValue([[0.1, 0.2]]) };
 
     handler = new IndexingJobHandler(
@@ -94,6 +109,7 @@ describe('IndexingJobHandler', () => {
       testTargetExtractorService as never,
       existingTestResolverService as never,
       objectStorageProvider as never,
+      realtimeGateway as never,
       embeddingProvider as never,
     );
   });
@@ -136,6 +152,10 @@ describe('IndexingJobHandler', () => {
     });
     expect(cleanup).toHaveBeenCalled();
     expect(projectVersionsRepository.markFailed).not.toHaveBeenCalled();
+    expect(realtimeGateway.emitProjectVersionUpdate).toHaveBeenCalledWith(
+      'version-1',
+      expect.objectContaining({ id: 'version-1' }),
+    );
   });
 
   it('is a no-op when the version is already COMPLETED', async () => {

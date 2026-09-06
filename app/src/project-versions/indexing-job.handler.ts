@@ -17,6 +17,8 @@ import { ObjectStorageService } from '../object-storage/object-storage.service.j
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
 import type { EmbeddingProvider } from '../providers/embedding-provider.interface.js';
 import { ProjectVersionStatus } from '../generated/prisma/enums.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import { toProjectVersionResponse } from './dto/project-version.response.js';
 
 export interface IndexingJobPayload {
   projectVersionId: string;
@@ -40,6 +42,7 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
     private readonly testTargetExtractorService: TestTargetExtractorService,
     private readonly existingTestResolverService: ExistingTestResolverService,
     private readonly objectStorageService: ObjectStorageService,
+    private readonly realtimeGateway: RealtimeGateway,
     @Inject(EMBEDDING_PROVIDER) private readonly embeddingProvider: EmbeddingProvider,
   ) {}
 
@@ -63,6 +66,7 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
 
     try {
       await this.projectVersionsRepository.markStarted(payload.projectVersionId);
+      await this.emitProgress(payload.projectVersionId);
 
       const zipBuffer = await this.objectStorageService.get(payload.snapshotKey);
       workspace = await this.zipExtractionService.extract(zipBuffer);
@@ -71,6 +75,7 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
         payload.projectVersionId,
         ProjectVersionStatus.ANALYZING,
       );
+      await this.emitProgress(payload.projectVersionId);
       const discoveredFiles = await this.fileDiscoveryService.discover(workspace.dir);
       const sourceFiles = discoveredFiles.filter((path) => isSourceFile(path));
       const parsedChunks = this.typeScriptParserService.parse(workspace.dir, sourceFiles);
@@ -79,6 +84,7 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
         payload.projectVersionId,
         ProjectVersionStatus.CHUNKING,
       );
+      await this.emitProgress(payload.projectVersionId);
 
       const testFiles = sourceFiles.filter((path) => isTestFile(path));
       const productionFiles = sourceFiles.filter((path) => !isTestFile(path));
@@ -101,6 +107,7 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
         payload.projectVersionId,
         ProjectVersionStatus.EMBEDDING,
       );
+      await this.emitProgress(payload.projectVersionId);
       const embeddings =
         parsedChunks.length > 0
           ? await this.embeddingProvider.embedMany(parsedChunks.map((chunk) => chunk.content))
@@ -110,6 +117,7 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
         payload.projectVersionId,
         ProjectVersionStatus.PERSISTING,
       );
+      await this.emitProgress(payload.projectVersionId);
       await this.codeChunksRepository.deleteByProjectVersion(payload.projectVersionId);
       await this.codeChunksRepository.insertMany(
         payload.projectVersionId,
@@ -133,15 +141,25 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
           targetsWithTest: resolvedTargets.filter((target) => target.hasTest).length,
         },
       );
+      await this.emitProgress(payload.projectVersionId);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Fallo desconocido durante la indexación.';
       await this.projectVersionsRepository.markFailed(payload.projectVersionId, message);
+      await this.emitProgress(payload.projectVersionId);
       throw error;
     } finally {
       if (workspace) {
         await workspace.cleanup();
       }
+    }
+  }
+
+  private async emitProgress(projectVersionId: string): Promise<void> {
+    const version = await this.projectVersionsRepository.findById(projectVersionId);
+
+    if (version) {
+      this.realtimeGateway.emitProjectVersionUpdate(projectVersionId, toProjectVersionResponse(version));
     }
   }
 

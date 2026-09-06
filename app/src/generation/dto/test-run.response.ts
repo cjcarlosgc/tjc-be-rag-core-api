@@ -1,3 +1,4 @@
+import type { TestGenerationRun } from '../../generated/prisma/client.js';
 import type { GenerationMode } from './generation-mode.js';
 
 export interface TestRunSummaryResponse {
@@ -48,6 +49,28 @@ export interface TestRunStatusResponse {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export function toTestRunStatusResponse(run: TestGenerationRun): TestRunStatusResponse {
+  return {
+    id: run.id,
+    projectId: run.projectId,
+    projectVersionId: run.projectVersionId,
+    mode: run.mode,
+    status: run.status,
+    totalTargets: run.totalTargets,
+    processedTargets: run.processedTargets,
+    validTargets: run.validTargets,
+    invalidTargets: run.invalidTargets,
+    failedTargets: run.failedTargets,
+    reason: run.reason as 'NO_MISSING_TARGETS' | null,
+    failureCode: run.failureCode,
+    failureMessage: run.failureMessage,
+    startedAt: run.startedAt?.toISOString() ?? null,
+    completedAt: run.completedAt?.toISOString() ?? null,
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+  };
 }
 
 export type FailureType =
