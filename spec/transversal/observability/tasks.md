@@ -2,8 +2,8 @@
 
 - [x] Logger estructurado (Nest `Logger` con contexto por clase, sin literales dispersos).
 - [x] Correlation middleware (`x-correlation-id`, propagado a logs y al envelope de error).
-- [ ] Stage timings.
-- [ ] redaction tests.
+- [x] Stage timings (`SandboxExecutionResult.stageDurations`, capturado desde `SandboxExecutionResultResponse` y logueado por `SandboxExecutionService`; `ExperimentRepetition` también captura `generationDurationMs`/`executionDurationMs`/`totalDurationMs` por repetición).
+- [x] redaction tests (`sandbox-execution.service.spec.ts`: confirma que un fallo HTTP no filtra la URL firmada del `EphemeralDownloadRef` en el mensaje de error).
 
 ## Calidad
 

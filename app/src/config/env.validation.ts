@@ -54,6 +54,14 @@ class EnvironmentVariables {
   LLM_MODEL: string = 'gpt-4o-mini';
 
   @IsInt()
+  @Min(1000)
+  OPENAI_TIMEOUT_MS: number = 30_000;
+
+  @IsInt()
+  @Min(0)
+  OPENAI_MAX_RETRIES: number = 2;
+
+  @IsInt()
   @Min(1)
   EMBEDDING_DIMENSIONS: number = 1536;
 

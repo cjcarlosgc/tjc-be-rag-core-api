@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { AppException } from '../../common/errors/app.exception.js';
 import { ErrorCode } from '../../common/errors/error-code.enum.js';
+import { createOpenAiClient } from '../../providers/openai-client.factory.js';
 import { AGENT_TOOL_SCHEMAS, type WorkspaceAgentTools } from './workspace-agent-tools.js';
 
 export interface AgentTrajectoryStep {
@@ -138,7 +139,7 @@ export class GeneralistAgentService {
   }
 
   private getClient(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.configService.get<string>('OPENAI_API_KEY') });
+    this.client ??= createOpenAiClient(this.configService);
     return this.client;
   }
 }

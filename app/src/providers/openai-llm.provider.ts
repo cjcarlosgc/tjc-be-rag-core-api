@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { LLMGenerationResult, LLMProvider } from './llm-provider.interface.js';
+import { createOpenAiClient } from './openai-client.factory.js';
 
 @Injectable()
 export class OpenAiLLMProvider implements LLMProvider {
@@ -37,7 +38,7 @@ export class OpenAiLLMProvider implements LLMProvider {
   }
 
   private getClient(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.configService.get<string>('OPENAI_API_KEY') });
+    this.client ??= createOpenAiClient(this.configService);
     return this.client;
   }
 }

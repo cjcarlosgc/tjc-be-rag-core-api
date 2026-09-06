@@ -154,9 +154,20 @@ export class SandboxExecutionService {
       status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
       facts: SandboxExecutionResult['facts'];
       failure: SandboxFailureFact | null;
+      stageDurations?: SandboxExecutionResult['stageDurations'];
     }>(`${baseUrl}/executions/${executionId}/result`, correlationId);
 
-    return { status: result.status, facts: result.facts, failure: result.failure };
+    const stageDurations = result.stageDurations ?? [];
+
+    if (stageDurations.length > 0) {
+      this.logger.debug(
+        `Ejecución ${executionId} stage timings: ${stageDurations
+          .map((stage) => `${stage.stage}=${stage.durationMs}ms`)
+          .join(', ')}`,
+      );
+    }
+
+    return { status: result.status, facts: result.facts, failure: result.failure, stageDurations };
   }
 
   private async postJson<T>(

@@ -75,6 +75,10 @@ describe('SandboxExecutionService', () => {
             testCasesTruncated: false,
           },
           failure: null,
+          stageDurations: [
+            { stage: 'COMPILING', durationMs: 120 },
+            { stage: 'RUNNING_TESTS', durationMs: 340 },
+          ],
         }),
       );
 
@@ -115,6 +119,36 @@ describe('SandboxExecutionService', () => {
 
     expect(result.status).toBe('COMPLETED');
     expect(result.facts?.passed).toBe(true);
+    expect(result.stageDurations).toEqual([
+      { stage: 'COMPILING', durationMs: 120 },
+      { stage: 'RUNNING_TESTS', durationMs: 340 },
+    ]);
+  });
+
+  it('never leaks the signed download URL into a thrown error message (redaction)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+
+    await expect(
+      service.execute({
+        testRunId: 'run-1',
+        projectVersionId: 'version-1',
+        snapshotKey: 'snapshot-key',
+        snapshotBuffer: Buffer.from('zip'),
+        artifacts: [
+          {
+            artifactId: 'artifact-1',
+            relativePath: 'src/foo.spec.ts',
+            artifactType: 'CREATED',
+            content: Buffer.from('content'),
+          },
+        ],
+        scope: 'TARGET',
+        targetIds: ['target-1'],
+        runnerHint: 'VITEST',
+      }),
+    ).rejects.toMatchObject({ message: expect.not.stringContaining('signed.example') });
   });
 
   it('throws SandboxUnavailableError when the HTTP call fails', async () => {

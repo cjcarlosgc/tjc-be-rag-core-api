@@ -44,10 +44,16 @@ export interface SandboxFailureFact {
   message: string;
 }
 
+export interface StageDuration {
+  stage: SandboxStage;
+  durationMs: number;
+}
+
 export interface SandboxExecutionResult {
   status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
   facts: RunnerFacts | null;
   failure: SandboxFailureFact | null;
+  stageDurations: StageDuration[];
 }
 
 export interface SandboxArtifactInput {

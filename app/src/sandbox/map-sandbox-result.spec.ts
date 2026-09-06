@@ -20,7 +20,7 @@ function makeFacts(overrides: Partial<SandboxExecutionResult['facts']> = {}) {
 
 describe('mapSandboxResult', () => {
   it('maps TIMED_OUT to FAILED/INFRASTRUCTURE', () => {
-    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null });
+    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [] });
 
     expect(outcome).toMatchObject({ status: 'FAILED', valid: false, failureType: 'INFRASTRUCTURE' });
   });
@@ -30,13 +30,14 @@ describe('mapSandboxResult', () => {
       status: 'FAILED',
       facts: null,
       failure: { stage: 'INSTALLING_DEPENDENCIES', category: 'DEPENDENCY', code: 'E1', message: 'npm install failed' },
+      stageDurations: [],
     });
 
     expect(outcome).toMatchObject({ status: 'FAILED', failureType: 'DEPENDENCY', errorSummary: 'npm install failed' });
   });
 
   it('maps a passing execution to VALID/NONE', () => {
-    const outcome = mapSandboxResult({ status: 'COMPLETED', facts: makeFacts(), failure: null });
+    const outcome = mapSandboxResult({ status: 'COMPLETED', facts: makeFacts(), failure: null, stageDurations: [] });
 
     expect(outcome).toEqual({
       status: 'VALID',
@@ -54,6 +55,7 @@ describe('mapSandboxResult', () => {
       status: 'COMPLETED',
       facts: makeFacts({ compiled: false, executed: false, passed: false }),
       failure: null,
+      stageDurations: [],
     });
 
     expect(outcome).toMatchObject({ status: 'INVALID', failureType: 'COMPILATION' });
@@ -69,6 +71,7 @@ describe('mapSandboxResult', () => {
         ],
       }),
       failure: null,
+      stageDurations: [],
     });
 
     expect(outcome).toMatchObject({
