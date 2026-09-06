@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from 
 import { TestGenerationService } from './test-generation.service.js';
 import { CreateTestRunDto } from './dto/create-test-run.dto.js';
 import type {
+  TargetRetryAcceptedResponse,
   TestRunAcceptedResponse,
   TestRunResultsResponse,
   TestRunStatusResponse,
@@ -36,5 +37,14 @@ export class TestGenerationController {
     @Query() query: PaginationQueryDto,
   ): Promise<Page<TestRunSummaryResponse>> {
     return this.testGenerationService.getHistory(id, query.limit, query.cursor);
+  }
+
+  @Post('test-runs/:id/targets/:targetId/retry')
+  @HttpCode(HttpStatus.ACCEPTED)
+  retryTarget(
+    @Param('id') id: string,
+    @Param('targetId') targetId: string,
+  ): Promise<TargetRetryAcceptedResponse> {
+    return this.testGenerationService.retryTarget(id, targetId);
   }
 }

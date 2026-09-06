@@ -33,4 +33,12 @@ export class ArtifactsRepository {
   findById(id: string): Promise<Artifact | null> {
     return this.prisma.artifact.findUnique({ where: { id } });
   }
+
+  findByTestRunAndPath(testRunId: string, relativePath: string): Promise<Artifact | null> {
+    return this.prisma.artifact.findFirst({ where: { testRunId, relativePath } });
+  }
+
+  update(id: string, data: Partial<ArtifactToPersist>): Promise<Artifact> {
+    return this.prisma.artifact.update({ where: { id }, data });
+  }
 }

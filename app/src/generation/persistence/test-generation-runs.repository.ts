@@ -114,6 +114,57 @@ export class TestGenerationRunsRepository {
     });
   }
 
+  findTargetResult(testRunId: string, targetId: string): Promise<TargetRunResult | null> {
+    return this.prisma.targetRunResult.findFirst({ where: { testRunId, targetId } });
+  }
+
+  updateTargetResult(
+    id: string,
+    data: Pick<
+      TargetRunResultInput,
+      'testFilePath' | 'status' | 'compiled' | 'executed' | 'passed' | 'valid' | 'failureType' | 'errorSummary'
+    >,
+  ): Promise<TargetRunResult> {
+    return this.prisma.targetRunResult.update({ where: { id }, data });
+  }
+
+  /**
+   * HU24 (reintento manual): mueve el target retryado de su bucket previo
+   * (`invalidTargets`/`failedTargets`) al bucket del nuevo veredicto y
+   * recalcula el `status` del run con la misma fórmula usada al cerrarlo la
+   * primera vez. `previousStatus` solo puede ser `INVALID`/`FAILED` porque
+   * son los únicos veredictos reintentables (ver `TestGenerationService`).
+   */
+  async applyRetryOutcome(
+    testRunId: string,
+    previousStatus: 'INVALID' | 'FAILED',
+    newStatus: 'VALID' | 'INVALID' | 'FAILED',
+  ): Promise<TestGenerationRun> {
+    const decrementField = previousStatus === 'INVALID' ? 'invalidTargets' : 'failedTargets';
+    const incrementField =
+      newStatus === 'VALID' ? 'validTargets' : newStatus === 'INVALID' ? 'invalidTargets' : 'failedTargets';
+
+    const run = await this.prisma.testGenerationRun.update({
+      where: { id: testRunId },
+      data:
+        decrementField === incrementField
+          ? {}
+          : { [decrementField]: { decrement: 1 }, [incrementField]: { increment: 1 } },
+    });
+
+    const finalStatus =
+      run.validTargets === run.totalTargets && (run.totalTargets ?? 0) > 0
+        ? 'COMPLETED'
+        : run.validTargets > 0 || run.invalidTargets > 0
+          ? 'PARTIAL'
+          : 'FAILED';
+
+    return this.prisma.testGenerationRun.update({
+      where: { id: testRunId },
+      data: { status: finalStatus, completedAt: new Date() },
+    });
+  }
+
   /**
    * Página de runs de una ProjectVersion, más recientes primero. Se pide
    * `take + 1` para saber si hay una página siguiente sin una segunda

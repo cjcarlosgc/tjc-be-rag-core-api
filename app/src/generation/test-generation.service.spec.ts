@@ -101,3 +101,95 @@ describe('TestGenerationService.getHistory', () => {
     expect(findByProjectVersion).toHaveBeenCalledWith('version-1', 10, 'run-5');
   });
 });
+
+describe('TestGenerationService.retryTarget (HU24)', () => {
+  it('throws TEST_RUN_NOT_FOUND when the run does not exist', async () => {
+    const service = makeService({
+      testGenerationRunsRepository: { findById: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(service.retryTarget('missing', 'target-1')).rejects.toMatchObject({
+      code: ErrorCode.TEST_RUN_NOT_FOUND,
+    });
+  });
+
+  it('throws TEST_RUN_NOT_FINISHED when the run is still in progress', async () => {
+    const service = makeService({
+      testGenerationRunsRepository: {
+        findById: vi.fn().mockResolvedValue(makeRun({ status: 'PROCESSING_TARGETS' })),
+      },
+    });
+
+    await expect(service.retryTarget('run-1', 'target-1')).rejects.toMatchObject({
+      code: ErrorCode.TEST_RUN_NOT_FINISHED,
+    });
+  });
+
+  it('throws TARGET_RESULT_NOT_FOUND when the target has no result in this run', async () => {
+    const service = makeService({
+      testGenerationRunsRepository: {
+        findById: vi.fn().mockResolvedValue(makeRun()),
+        findTargetResult: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    await expect(service.retryTarget('run-1', 'target-missing')).rejects.toMatchObject({
+      code: ErrorCode.TARGET_RESULT_NOT_FOUND,
+    });
+  });
+
+  it('throws TARGET_RETRY_NOT_ALLOWED when the target result is VALID', async () => {
+    const service = makeService({
+      testGenerationRunsRepository: {
+        findById: vi.fn().mockResolvedValue(makeRun()),
+        findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'VALID' }),
+      },
+    });
+
+    await expect(service.retryTarget('run-1', 'target-1')).rejects.toMatchObject({
+      code: ErrorCode.TARGET_RETRY_NOT_ALLOWED,
+    });
+  });
+
+  it('enqueues a retry job and returns a 202-style acceptance for an INVALID target', async () => {
+    const enqueue = vi.fn().mockResolvedValue('job-1');
+    const service = makeService({
+      testGenerationRunsRepository: {
+        findById: vi.fn().mockResolvedValue(makeRun({ status: 'PARTIAL' })),
+        findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'INVALID' }),
+      },
+      jobsService: { enqueue },
+    });
+
+    const result = await service.retryTarget('run-1', 'target-1');
+
+    expect(enqueue).toHaveBeenCalledWith('test-run-retry-target', {
+      testRunId: 'run-1',
+      targetId: 'target-1',
+    });
+    expect(result).toEqual({
+      testRunId: 'run-1',
+      targetId: 'target-1',
+      status: 'PENDING',
+      pollAfterMs: 1500,
+    });
+  });
+
+  it('allows retrying a FAILED target', async () => {
+    const enqueue = vi.fn().mockResolvedValue('job-1');
+    const service = makeService({
+      testGenerationRunsRepository: {
+        findById: vi.fn().mockResolvedValue(makeRun({ status: 'FAILED' })),
+        findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'FAILED' }),
+      },
+      jobsService: { enqueue },
+    });
+
+    await service.retryTarget('run-1', 'target-1');
+
+    expect(enqueue).toHaveBeenCalledWith('test-run-retry-target', {
+      testRunId: 'run-1',
+      targetId: 'target-1',
+    });
+  });
+});

@@ -21,6 +21,13 @@ export interface TestRunAcceptedResponse {
   pollAfterMs: number;
 }
 
+export interface TargetRetryAcceptedResponse {
+  testRunId: string;
+  targetId: string;
+  status: 'PENDING';
+  pollAfterMs: number;
+}
+
 export type TestRunStatus =
   | 'PENDING'
   | 'RESOLVING_TARGETS'

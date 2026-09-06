@@ -8,9 +8,11 @@ import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { ProjectVersionStatus, TestRunStatus } from '../generated/prisma/enums.js';
 import { TestGenerationRunsRepository } from './persistence/test-generation-runs.repository.js';
 import { TEST_GENERATION_JOB_TYPE } from './test-generation-job.handler.js';
+import { RETRY_TARGET_JOB_TYPE } from './retry-target-job.handler.js';
 import type { CreateTestRunDto } from './dto/create-test-run.dto.js';
 import {
   toTestRunStatusResponse,
+  type TargetRetryAcceptedResponse,
   type TargetRunResultResponse,
   type TestRunAcceptedResponse,
   type TestRunResultsResponse,
@@ -151,6 +153,49 @@ export class TestGenerationService {
       failedTargets: run.failedTargets,
       targets,
       completedAt: run.completedAt?.toISOString() ?? null,
+    };
+  }
+
+  async retryTarget(testRunId: string, targetId: string): Promise<TargetRetryAcceptedResponse> {
+    const run = await this.requireRun(testRunId);
+
+    if (
+      run.status !== TestRunStatus.COMPLETED &&
+      run.status !== TestRunStatus.PARTIAL &&
+      run.status !== TestRunStatus.FAILED
+    ) {
+      throw new AppException(
+        ErrorCode.TEST_RUN_NOT_FINISHED,
+        'No se puede reintentar un target mientras la generación todavía no terminó.',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const targetResult = await this.testGenerationRunsRepository.findTargetResult(testRunId, targetId);
+
+    if (!targetResult) {
+      throw new AppException(
+        ErrorCode.TARGET_RESULT_NOT_FOUND,
+        `No existe un resultado para el target ${targetId} en el run ${testRunId}.`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (targetResult.status !== 'INVALID' && targetResult.status !== 'FAILED') {
+      throw new AppException(
+        ErrorCode.TARGET_RETRY_NOT_ALLOWED,
+        `El target ${targetId} está en estado ${targetResult.status}; solo se puede reintentar INVALID o FAILED.`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    await this.jobsService.enqueue(RETRY_TARGET_JOB_TYPE, { testRunId, targetId });
+
+    return {
+      testRunId,
+      targetId,
+      status: 'PENDING',
+      pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
     };
   }
 

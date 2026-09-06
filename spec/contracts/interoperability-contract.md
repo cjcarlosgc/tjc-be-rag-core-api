@@ -1,6 +1,6 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.3
+**Versión:** INTEROP-1.4
 **Compatible con:** SYSTEM-1.3
 **Fecha de corte:** 2026-09-06
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
@@ -201,6 +201,7 @@ interface TestInventoryResponse {
 - `GET /test-runs/{runId}` → `200 TestRunStatusResponse`.
 - `GET /test-runs/{runId}/results` → `200 TestRunResultsResponse` en estado terminal.
 - `GET /project-versions/{projectVersionId}/test-runs?cursor&limit` → `200 Page<TestRunSummaryResponse>` (HU20: historial de generaciones de una versión, orden `createdAt` descendente).
+- `POST /test-runs/{runId}/targets/{targetId}/retry` → `202 TargetRetryAcceptedResponse` (HU24: reintento manual de un target `INVALID`/`FAILED`, desde cero, sin ningún mecanismo de corrección automática — ver `009-history-realtime-repair/spec.md`). El run debe estar en un estado terminal (`COMPLETED`/`PARTIAL`/`FAILED`); el target debe tener un resultado en estado `INVALID` o `FAILED`. Actualiza el `TargetRunResultResponse` existente en su lugar (no agrega una fila nueva) y reajusta `validTargets`/`invalidTargets`/`failedTargets`/`status` del run.
 
 ```ts
 type GenerationMode =
@@ -221,6 +222,11 @@ interface TestRunAcceptedResponse extends AsyncAccepted {
   runId: Id
   projectId: Id
   projectVersionId: Id // currentVersion capturada atómicamente
+}
+
+interface TargetRetryAcceptedResponse extends AsyncAccepted {
+  testRunId: Id
+  targetId: Id
 }
 
 type TestRunStatus =

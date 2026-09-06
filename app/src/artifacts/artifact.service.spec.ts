@@ -67,6 +67,66 @@ describe('ArtifactService', () => {
     ]);
   });
 
+  it('persistRetriedArtifact (HU24) updates the existing artifact row in place instead of duplicating it', async () => {
+    const objectStorageService = { put: vi.fn() };
+    const existing = makeArtifact({ id: 'artifact-1', artifactType: 'MODIFIED', valid: false });
+    const artifactsRepository = {
+      findByTestRunAndPath: vi.fn().mockResolvedValue(existing),
+      update: vi.fn(),
+      insertMany: vi.fn(),
+    };
+    const service = new ArtifactService(objectStorageService as never, artifactsRepository as never);
+
+    await service.persistRetriedArtifact('run-1', {
+      relativePath: 'src/foo.spec.ts',
+      content: 'fixed content',
+      isNewFile: false,
+      originalContent: 'original',
+      valid: true,
+    });
+
+    expect(objectStorageService.put).toHaveBeenCalledWith(
+      'test-runs/run-1/artifacts/src/foo.spec.ts',
+      Buffer.from('fixed content', 'utf8'),
+      'text/plain',
+    );
+    expect(artifactsRepository.update).toHaveBeenCalledWith('artifact-1', {
+      relativePath: 'src/foo.spec.ts',
+      artifactType: 'MODIFIED',
+      storageKey: 'test-runs/run-1/artifacts/src/foo.spec.ts',
+      valid: true,
+    });
+    expect(artifactsRepository.insertMany).not.toHaveBeenCalled();
+  });
+
+  it('persistRetriedArtifact (HU24) inserts a new row when no artifact existed yet for that path', async () => {
+    const objectStorageService = { put: vi.fn() };
+    const artifactsRepository = {
+      findByTestRunAndPath: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
+      insertMany: vi.fn(),
+    };
+    const service = new ArtifactService(objectStorageService as never, artifactsRepository as never);
+
+    await service.persistRetriedArtifact('run-1', {
+      relativePath: 'src/new.spec.ts',
+      content: 'new content',
+      isNewFile: true,
+      originalContent: null,
+      valid: true,
+    });
+
+    expect(artifactsRepository.insertMany).toHaveBeenCalledWith('run-1', [
+      {
+        relativePath: 'src/new.spec.ts',
+        artifactType: 'CREATED',
+        storageKey: 'test-runs/run-1/artifacts/src/new.spec.ts',
+        valid: true,
+      },
+    ]);
+    expect(artifactsRepository.update).not.toHaveBeenCalled();
+  });
+
   it('rejects a relativePath that attempts directory traversal', async () => {
     const service = new ArtifactService({ put: vi.fn() } as never, { insertMany: vi.fn() } as never);
 

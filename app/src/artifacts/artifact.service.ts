@@ -40,29 +40,54 @@ export class ArtifactService {
     const toPersist: ArtifactToPersist[] = [];
 
     for (const file of files) {
-      assertSafeRelativePath(file.relativePath);
-
-      const storageKey = `test-runs/${testRunId}/artifacts/${file.relativePath}`;
-      await this.objectStorageService.put(storageKey, Buffer.from(file.content, 'utf8'), 'text/plain');
-
-      if (!file.isNewFile && file.originalContent !== null) {
-        const originalKey = `test-runs/${testRunId}/originals/${file.relativePath}`;
-        await this.objectStorageService.put(
-          originalKey,
-          Buffer.from(file.originalContent, 'utf8'),
-          'text/plain',
-        );
-      }
-
-      toPersist.push({
-        relativePath: file.relativePath,
-        artifactType: file.isNewFile ? 'CREATED' : 'MODIFIED',
-        storageKey,
-        valid: file.valid,
-      });
+      toPersist.push(await this.writeArtifactContent(testRunId, file));
     }
 
     await this.artifactsRepository.insertMany(testRunId, toPersist);
+  }
+
+  /**
+   * HU24 (reintento manual): un solo archivo, re-escrito tras un retry de
+   * target. Si ya existía un `Artifact` para ese `relativePath` en este run
+   * (siempre existe, salvo un caso borde de fallo previo a persistir), lo
+   * actualiza en su lugar en vez de duplicarlo.
+   */
+  async persistRetriedArtifact(testRunId: string, file: FinalArtifactInput): Promise<void> {
+    const toPersist = await this.writeArtifactContent(testRunId, file);
+    const existing = await this.artifactsRepository.findByTestRunAndPath(testRunId, file.relativePath);
+
+    if (existing) {
+      await this.artifactsRepository.update(existing.id, toPersist);
+      return;
+    }
+
+    await this.artifactsRepository.insertMany(testRunId, [toPersist]);
+  }
+
+  private async writeArtifactContent(
+    testRunId: string,
+    file: FinalArtifactInput,
+  ): Promise<ArtifactToPersist> {
+    assertSafeRelativePath(file.relativePath);
+
+    const storageKey = `test-runs/${testRunId}/artifacts/${file.relativePath}`;
+    await this.objectStorageService.put(storageKey, Buffer.from(file.content, 'utf8'), 'text/plain');
+
+    if (!file.isNewFile && file.originalContent !== null) {
+      const originalKey = `test-runs/${testRunId}/originals/${file.relativePath}`;
+      await this.objectStorageService.put(
+        originalKey,
+        Buffer.from(file.originalContent, 'utf8'),
+        'text/plain',
+      );
+    }
+
+    return {
+      relativePath: file.relativePath,
+      artifactType: file.isNewFile ? 'CREATED' : 'MODIFIED',
+      storageKey,
+      valid: file.valid,
+    };
   }
 
   listByTestRun(testRunId: string): Promise<Artifact[]> {

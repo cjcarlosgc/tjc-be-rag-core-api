@@ -112,6 +112,34 @@ async function waitForTerminal(
   throw new Error(`Timed out waiting for status in [${terminalStatuses.join(', ')}] at ${path}`);
 }
 
+/**
+ * A diferencia de `waitForTerminal`, no asume que "cualquier estado
+ * terminal" implica que terminó lo que se está esperando: útil para HU24,
+ * donde el run ya estaba en un estado terminal (`PARTIAL`) antes de
+ * disparar el reintento, así que hay que esperar una condición concreta
+ * (no solo "es terminal") para no leer el estado viejo por una carrera.
+ */
+async function waitForCondition<T>(
+  app: INestApplication,
+  path: string,
+  predicate: (body: T) => boolean,
+  timeoutMs: number,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await request(app.getHttpServer()).get(path);
+
+    if (predicate(response.body as T)) {
+      return response.body as T;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
+  throw new Error(`Timed out waiting for condition at ${path}`);
+}
+
 describe('Test generation (e2e)', () => {
   let app: INestApplication;
 
@@ -263,6 +291,97 @@ describe('Test generation (e2e)', () => {
     expect(secondPage.body.items[0].id).toBe(firstRun.body.runId);
     expect(secondPage.body.nextCursor).toBeNull();
   }, 30000);
+
+  it('retries a manually a failed target (HU24), updating the same artifact in place instead of duplicating it', async () => {
+    const indexResponse = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('name', 'Retry E2E Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+
+    const { projectId, projectVersionId } = indexResponse.body as {
+      projectId: string;
+      projectVersionId: string;
+    };
+
+    await waitForTerminal(app, `/project-versions/${projectVersionId}`, ['COMPLETED', 'FAILED'], 15000);
+
+    // El primer intento falla (assertion fallida); el reintento (mock por
+    // defecto del módulo) pasa.
+    fakeSandboxExecutionService.execute.mockResolvedValueOnce({
+      status: 'COMPLETED',
+      facts: {
+        runner: 'VITEST',
+        compiled: true,
+        executed: true,
+        passed: false,
+        totalTests: 1,
+        passedTests: 0,
+        failedTests: 1,
+        skippedTests: 0,
+        testCases: [
+          { suitePath: null, name: 'subtract works', status: 'FAILED', durationMs: 4, errorMessage: 'expected 2 to be 3' },
+        ],
+        testCasesTruncated: false,
+      },
+      failure: null,
+    });
+
+    const runResponse = await request(app.getHttpServer())
+      .post('/test-runs')
+      .send({ projectId, mode: 'PROJECT_MISSING' })
+      .expect(202);
+    const { runId } = runResponse.body as { runId: string };
+
+    const failedRun = await waitForTerminal(app, `/test-runs/${runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
+    expect(failedRun.status).toBe('PARTIAL');
+
+    const firstResults = await request(app.getHttpServer()).get(`/test-runs/${runId}/results`).expect(200);
+    expect(firstResults.body).toMatchObject({ status: 'PARTIAL', validTargets: 0, invalidTargets: 1 });
+    const target = firstResults.body.targets[0];
+    expect(target.status).toBe('INVALID');
+
+    const firstArtifacts = await request(app.getHttpServer()).get(`/test-runs/${runId}/artifacts`).expect(200);
+    expect(firstArtifacts.body.items).toHaveLength(1);
+    expect(firstArtifacts.body.items[0].valid).toBe(false);
+
+    const retryResponse = await request(app.getHttpServer())
+      .post(`/test-runs/${runId}/targets/${target.targetId}/retry`)
+      .expect(202);
+    expect(retryResponse.body).toMatchObject({ testRunId: runId, targetId: target.targetId, status: 'PENDING' });
+
+    const retriedRun = await waitForCondition<{ status: string }>(
+      app,
+      `/test-runs/${runId}`,
+      (body) => body.status === 'COMPLETED',
+      15000,
+    );
+    expect(retriedRun.status).toBe('COMPLETED');
+
+    const secondResults = await request(app.getHttpServer()).get(`/test-runs/${runId}/results`).expect(200);
+    expect(secondResults.body).toMatchObject({ status: 'COMPLETED', validTargets: 1, invalidTargets: 0 });
+    expect(secondResults.body.targets[0].status).toBe('VALID');
+
+    // el reintento actualiza el mismo artefacto, no agrega uno nuevo
+    const secondArtifacts = await request(app.getHttpServer()).get(`/test-runs/${runId}/artifacts`).expect(200);
+    expect(secondArtifacts.body.items).toHaveLength(1);
+    expect(secondArtifacts.body.items[0].id).toBe(firstArtifacts.body.items[0].id);
+    expect(secondArtifacts.body.items[0].valid).toBe(true);
+
+    // ya no se puede reintentar un target VALID
+    const retryAgain = await request(app.getHttpServer())
+      .post(`/test-runs/${runId}/targets/${target.targetId}/retry`)
+      .expect(409);
+    expect(retryAgain.body.code).toBe('TARGET_RETRY_NOT_ALLOWED');
+  }, 30000);
+
+  it('rejects a retry on a run that does not exist with 404 TEST_RUN_NOT_FOUND', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/test-runs/00000000-0000-0000-0000-000000000000/targets/00000000-0000-0000-0000-000000000000/retry')
+      .expect(404);
+
+    expect(response.body.code).toBe('TEST_RUN_NOT_FOUND');
+  });
 
   it('rejects TARGET mode without targetId with 400 INVALID_GENERATION_TARGET', async () => {
     const indexResponse = await request(app.getHttpServer())
