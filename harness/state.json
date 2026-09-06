@@ -11,29 +11,32 @@
     "DONE"
   ],
   "activeWorkItem": {
-    "id": "004-rag-retrieval-context",
-    "storyIds": ["HU08", "HU09", "HU10", "HU11", "HU12", "HU19"],
+    "id": "005-006-007-generation-pipeline",
+    "storyIds": ["HU08", "HU09", "HU10", "HU11", "HU12", "HU13", "HU14", "HU15", "HU16", "HU17", "HU18"],
     "sprint": "Sprint 2",
     "status": "DONE",
     "specPaths": [
-      "spec/features/004-rag-retrieval-context/spec.md",
-      "spec/features/004-rag-retrieval-context/plan.md",
-      "spec/features/004-rag-retrieval-context/tasks.md",
-      "spec/features/002-project-version-indexing/spec.md",
-      "spec/features/002-project-version-indexing/plan.md",
-      "spec/features/002-project-version-indexing/tasks.md"
+      "spec/features/005-test-generation/spec.md",
+      "spec/features/005-test-generation/plan.md",
+      "spec/features/005-test-generation/tasks.md",
+      "spec/features/006-validation-orchestration/spec.md",
+      "spec/features/006-validation-orchestration/plan.md",
+      "spec/features/006-validation-orchestration/tasks.md",
+      "spec/features/007-artifacts/spec.md",
+      "spec/features/007-artifacts/plan.md",
+      "spec/features/007-artifacts/tasks.md"
     ],
-    "transversalPaths": ["spec/transversal/providers/spec.md"],
+    "transversalPaths": ["spec/contracts/interoperability-contract.md", "spec/contracts/system-contract.md"],
     "approved": true,
     "decisionGate": {
       "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": ["DEC-RAG-001"],
-      "checkedAt": "2026-09-06T01:01:48-05:00"
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-09-06T01:35:54-05:00"
     },
-    "createdAt": "2026-09-06T01:01:48-05:00",
-    "updatedAt": "2026-09-06T01:01:48-05:00",
+    "createdAt": "2026-09-06T01:35:54-05:00",
+    "updatedAt": "2026-09-06T01:35:54-05:00",
     "blockedReason": null
   },
-  "lastUpdatedAt": "2026-09-06T01:01:48-05:00"
+  "lastUpdatedAt": "2026-09-06T01:35:54-05:00"
 }

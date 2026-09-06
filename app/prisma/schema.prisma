@@ -37,6 +37,48 @@ enum TestFramework {
   VITEST
 }
 
+enum GenerationMode {
+  TARGET
+  CLASS_ALL
+  CLASS_MISSING
+  PROJECT_MISSING
+  PROJECT_ALL
+}
+
+enum TestRunStatus {
+  PENDING
+  RESOLVING_TARGETS
+  PROCESSING_TARGETS
+  BATCH_VALIDATING
+  FINALIZING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum TargetRunStatus {
+  VALID
+  INVALID
+  FAILED
+  SKIPPED
+}
+
+enum FailureType {
+  NONE
+  COMPILATION
+  TEST_ASSERTION
+  TEST_RUNTIME
+  DEPENDENCY
+  CONFIGURATION
+  INFRASTRUCTURE
+  UNKNOWN
+}
+
+enum ArtifactType {
+  CREATED
+  MODIFIED
+}
+
 model Project {
   id               String           @id @default(uuid())
   name             String
@@ -109,10 +151,75 @@ model TestTarget {
   endLine          Int
   hasTest          Boolean        @default(false)
   testFilePaths    String[]       @default([])
+  targetRunResults TargetRunResult[]
   createdAt        DateTime       @default(now())
 
   @@index([projectVersionId])
   @@map("test_targets")
+}
+
+model TestGenerationRun {
+  id               String            @id @default(uuid())
+  projectId        String
+  projectVersionId String
+  mode             GenerationMode
+  targetId         String?
+  status           TestRunStatus     @default(PENDING)
+  totalTargets     Int?
+  processedTargets Int               @default(0)
+  validTargets     Int               @default(0)
+  invalidTargets   Int               @default(0)
+  failedTargets    Int               @default(0)
+  reason           String?
+  failureCode      String?
+  failureMessage   String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  targetResults    TargetRunResult[]
+  artifacts        Artifact[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([projectId])
+  @@map("test_generation_runs")
+}
+
+model TargetRunResult {
+  id           String            @id @default(uuid())
+  testRunId    String
+  testRun      TestGenerationRun @relation(fields: [testRunId], references: [id])
+  targetId     String
+  target       TestTarget        @relation(fields: [targetId], references: [id])
+  filePath     String
+  symbolName   String
+  methodName   String?
+  targetType   TestTargetType
+  testFilePath String
+  status       TargetRunStatus
+  compiled     Boolean?
+  executed     Boolean?
+  passed       Boolean?
+  valid        Boolean?
+  failureType  FailureType?
+  errorSummary String?
+  createdAt    DateTime          @default(now())
+
+  @@index([testRunId])
+  @@map("target_run_results")
+}
+
+model Artifact {
+  id           String            @id @default(uuid())
+  testRunId    String
+  testRun      TestGenerationRun @relation(fields: [testRunId], references: [id])
+  relativePath String
+  artifactType ArtifactType
+  storageKey   String
+  valid        Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+
+  @@index([testRunId])
+  @@map("artifacts")
 }
 
 model Job {

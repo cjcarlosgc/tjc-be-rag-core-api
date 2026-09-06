@@ -37,4 +37,22 @@ export class TestTargetsRepository {
       orderBy: [{ filePath: 'asc' }, { symbolName: 'asc' }, { methodName: 'asc' }],
     });
   }
+
+  findById(id: string): Promise<TestTarget | null> {
+    return this.prisma.testTarget.findUnique({ where: { id } });
+  }
+
+  findMethodsOfClass(projectVersionId: string, className: string): Promise<TestTarget[]> {
+    return this.prisma.testTarget.findMany({
+      where: { projectVersionId, symbolName: className, targetType: 'METHOD' },
+      orderBy: [{ filePath: 'asc' }, { methodName: 'asc' }],
+    });
+  }
+
+  findTestableTargets(projectVersionId: string): Promise<TestTarget[]> {
+    return this.prisma.testTarget.findMany({
+      where: { projectVersionId, targetType: { in: ['METHOD', 'FUNCTION'] } },
+      orderBy: [{ filePath: 'asc' }, { symbolName: 'asc' }, { methodName: 'asc' }],
+    });
+  }
 }

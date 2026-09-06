@@ -7,6 +7,7 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ProjectVersionsModule } from './project-versions/project-versions.module.js';
 import { RetrievalModule } from './retrieval/retrieval.module.js';
+import { GenerationModule } from './generation/generation.module.js';
 import { HealthController } from './common/health/health.controller.js';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware.js';
 import { validateEnv } from './config/env.validation.js';
@@ -24,6 +25,7 @@ import { validateEnv } from './config/env.validation.js';
     ProjectsModule,
     ProjectVersionsModule,
     RetrievalModule,
+    GenerationModule,
   ],
   controllers: [HealthController],
 })

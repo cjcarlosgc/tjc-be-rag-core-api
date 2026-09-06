@@ -50,6 +50,9 @@ class EnvironmentVariables {
   @IsString()
   EMBEDDING_MODEL: string = 'text-embedding-3-small';
 
+  @IsString()
+  LLM_MODEL: string = 'gpt-4o-mini';
+
   @IsInt()
   @Min(1)
   EMBEDDING_DIMENSIONS: number = 1536;
@@ -75,6 +78,22 @@ class EnvironmentVariables {
   @Min(0)
   @Max(1)
   RETRIEVAL_STRUCTURAL_WEIGHT: number = 0.3;
+
+  @IsOptional()
+  @IsString()
+  SANDBOX_URL?: string;
+
+  @IsInt()
+  @Min(1)
+  SANDBOX_DOWNLOAD_TTL_SECONDS: number = 300;
+
+  @IsInt()
+  @Min(100)
+  SANDBOX_REQUEST_TIMEOUT_MS: number = 10_000;
+
+  @IsInt()
+  @Min(1)
+  SANDBOX_MAX_POLL_ATTEMPTS: number = 120;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
