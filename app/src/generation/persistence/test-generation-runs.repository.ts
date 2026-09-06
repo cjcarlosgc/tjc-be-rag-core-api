@@ -113,4 +113,22 @@ export class TestGenerationRunsRepository {
       orderBy: { createdAt: 'asc' },
     });
   }
+
+  /**
+   * Página de runs de una ProjectVersion, más recientes primero. Se pide
+   * `take + 1` para saber si hay una página siguiente sin una segunda
+   * consulta; el cursor es el id del último run devuelto.
+   */
+  findByProjectVersion(
+    projectVersionId: string,
+    take: number,
+    cursor?: string,
+  ): Promise<TestGenerationRun[]> {
+    return this.prisma.testGenerationRun.findMany({
+      where: { projectVersionId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+  }
 }

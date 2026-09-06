@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.1
+**Versión:** INTEROP-1.2
 **Compatible con:** SYSTEM-1.3
-**Fecha de corte:** 2026-09-05
+**Fecha de corte:** 2026-09-06
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -200,6 +200,7 @@ interface TestInventoryResponse {
 - `POST /test-runs` → `202 TestRunAcceptedResponse`.
 - `GET /test-runs/{runId}` → `200 TestRunStatusResponse`.
 - `GET /test-runs/{runId}/results` → `200 TestRunResultsResponse` en estado terminal.
+- `GET /project-versions/{projectVersionId}/test-runs?cursor&limit` → `200 Page<TestRunSummaryResponse>` (HU20: historial de generaciones de una versión, orden `createdAt` descendente).
 
 ```ts
 type GenerationMode =
@@ -245,6 +246,18 @@ interface TestRunStatusResponse {
   completedAt: IsoDateTime | null
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
+}
+
+interface TestRunSummaryResponse {
+  id: Id
+  mode: GenerationMode
+  status: TestRunStatus
+  totalTargets: number | null
+  validTargets: number
+  invalidTargets: number
+  failedTargets: number
+  createdAt: IsoDateTime
+  completedAt: IsoDateTime | null
 }
 
 type FailureType =

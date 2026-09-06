@@ -218,6 +218,52 @@ describe('Test generation (e2e)', () => {
     expect(zipDownload.headers['content-type']).toBe('application/zip');
   }, 20000);
 
+  it('paginates the test-run history of a ProjectVersion, most recent first', async () => {
+    const indexResponse = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('name', 'History E2E Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+
+    const { projectId, projectVersionId } = indexResponse.body as {
+      projectId: string;
+      projectVersionId: string;
+    };
+
+    await waitForTerminal(app, `/project-versions/${projectVersionId}`, ['COMPLETED', 'FAILED'], 15000);
+
+    const firstRun = await request(app.getHttpServer())
+      .post('/test-runs')
+      .send({ projectId, mode: 'PROJECT_MISSING' })
+      .expect(202);
+    await waitForTerminal(app, `/test-runs/${firstRun.body.runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
+
+    const secondRun = await request(app.getHttpServer())
+      .post('/test-runs')
+      .send({ projectId, mode: 'PROJECT_ALL' })
+      .expect(202);
+    await waitForTerminal(app, `/test-runs/${secondRun.body.runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
+
+    const firstPage = await request(app.getHttpServer())
+      .get(`/project-versions/${projectVersionId}/test-runs`)
+      .query({ limit: 1 })
+      .expect(200);
+
+    expect(firstPage.body.items).toHaveLength(1);
+    // el más reciente primero
+    expect(firstPage.body.items[0].id).toBe(secondRun.body.runId);
+    expect(firstPage.body.nextCursor).toBe(secondRun.body.runId);
+
+    const secondPage = await request(app.getHttpServer())
+      .get(`/project-versions/${projectVersionId}/test-runs`)
+      .query({ limit: 1, cursor: firstPage.body.nextCursor })
+      .expect(200);
+
+    expect(secondPage.body.items).toHaveLength(1);
+    expect(secondPage.body.items[0].id).toBe(firstRun.body.runId);
+    expect(secondPage.body.nextCursor).toBeNull();
+  }, 30000);
+
   it('rejects TARGET mode without targetId with 400 INVALID_GENERATION_TARGET', async () => {
     const indexResponse = await request(app.getHttpServer())
       .post('/projects/index')

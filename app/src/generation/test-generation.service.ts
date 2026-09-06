@@ -14,9 +14,12 @@ import type {
   TestRunAcceptedResponse,
   TestRunResultsResponse,
   TestRunStatusResponse,
+  TestRunSummaryResponse,
 } from './dto/test-run.response.js';
+import type { Page } from '../common/dto/page.response.js';
 
 const DEFAULT_POLL_AFTER_MS = 1500;
+const DEFAULT_PAGE_LIMIT = 20;
 
 @Injectable()
 export class TestGenerationService {
@@ -168,6 +171,45 @@ export class TestGenerationService {
       targets,
       completedAt: run.completedAt?.toISOString() ?? null,
     };
+  }
+
+  async getHistory(
+    projectVersionId: string,
+    limit: number | undefined,
+    cursor: string | undefined,
+  ): Promise<Page<TestRunSummaryResponse>> {
+    const version = await this.projectVersionsRepository.findById(projectVersionId);
+
+    if (!version) {
+      throw new AppException(
+        ErrorCode.PROJECT_VERSION_NOT_FOUND,
+        `No existe la versión ${projectVersionId}.`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const take = limit ?? DEFAULT_PAGE_LIMIT;
+    const runs = await this.testGenerationRunsRepository.findByProjectVersion(
+      projectVersionId,
+      take,
+      cursor,
+    );
+    const hasMore = runs.length > take;
+    const items = (hasMore ? runs.slice(0, take) : runs).map(
+      (run): TestRunSummaryResponse => ({
+        id: run.id,
+        mode: run.mode,
+        status: run.status,
+        totalTargets: run.totalTargets,
+        validTargets: run.validTargets,
+        invalidTargets: run.invalidTargets,
+        failedTargets: run.failedTargets,
+        createdAt: run.createdAt.toISOString(),
+        completedAt: run.completedAt?.toISOString() ?? null,
+      }),
+    );
+
+    return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
   }
 
   private assertModeTargetIdShape(mode: string, targetId: string | undefined): void {

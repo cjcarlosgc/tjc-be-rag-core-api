@@ -1,6 +1,6 @@
 # Arquitectura
 
-**Contratos compartidos:** SYSTEM-1.3 / INTEROP-1.1
+**Contratos compartidos:** SYSTEM-1.3 / INTEROP-1.2
 
 **Estado:** aprobado con decisiones PENDING explícitas
 

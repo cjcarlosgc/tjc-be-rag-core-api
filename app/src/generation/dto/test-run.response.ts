@@ -1,5 +1,17 @@
 import type { GenerationMode } from './generation-mode.js';
 
+export interface TestRunSummaryResponse {
+  id: string;
+  mode: GenerationMode;
+  status: TestRunStatus;
+  totalTargets: number | null;
+  validTargets: number;
+  invalidTargets: number;
+  failedTargets: number;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export interface TestRunAcceptedResponse {
   runId: string;
   projectId: string;

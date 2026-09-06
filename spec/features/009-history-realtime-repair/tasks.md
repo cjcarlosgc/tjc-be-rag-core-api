@@ -1,6 +1,6 @@
 # 009-history-realtime-repair — Tareas
 
-- [ ] Historial paginado.
+- [x] Historial paginado (HU20: `GET /project-versions/:id/test-runs?cursor&limit` → `Page<TestRunSummaryResponse>`, orden `createdAt` desc; primera implementación real del patrón `Page<T>` del contrato, agregado a `INTEROP-1.2`).
 - [ ] WebSocket progress events.
 - [ ] RepairContext/RepairService.
 - [ ] maxAttempts config.
