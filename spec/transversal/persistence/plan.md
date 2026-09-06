@@ -6,7 +6,7 @@
 
 ## Diseño técnico
 
-Prisma para relacional; pgvector mediante TypedSQL/raw SQL. Transacciones para captura de currentVersion y cambios de estado críticos.
+PostgreSQL + pgvector en Supabase: Prisma para relacional; pgvector mediante TypedSQL/raw SQL. Este almacén conserva datos de dominio, chunks, embeddings vectoriales y jobs; los blobs de snapshots y artefactos corresponden a Supabase Storage. Transacciones para captura de currentVersion y cambios de estado críticos.
 
 ## Validación
 

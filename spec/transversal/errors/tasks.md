@@ -1,14 +1,14 @@
 # errors — Tareas
 
-- [ ] Exception filter.
-- [ ] Catálogo y HTTP mapping.
-- [ ] correlationId.
-- [ ] pruebas de no stack trace.
+- [x] Exception filter (`AllExceptionsFilter`).
+- [x] Catálogo y HTTP mapping (`ErrorCode`, `AppException`).
+- [x] correlationId (`x-correlation-id`, propagado al envelope).
+- [x] pruebas de no stack trace.
 
 ## Calidad
 
-- [ ] Agregar/actualizar pruebas.
-- [ ] Verificar manejo de errores.
-- [ ] Verificar observabilidad mínima.
-- [ ] Ejecutar lint/test/build.
-- [ ] Registrar evidencia de revisión en `harness/reports/`.
+- [x] Agregar/actualizar pruebas.
+- [x] Verificar manejo de errores.
+- [x] Verificar observabilidad mínima.
+- [x] Ejecutar lint/test/build.
+- [x] Registrar evidencia de revisión en `harness/reports/`.

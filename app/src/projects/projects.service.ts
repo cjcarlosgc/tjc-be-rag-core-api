@@ -1,0 +1,41 @@
+import { HttpStatus, Injectable } from '@nestjs/common';
+import { ProjectsRepository } from './projects.repository.js';
+import { CreateProjectDto } from './dto/create-project.dto.js';
+import { ProjectResponse } from './dto/project.response.js';
+import { AppException } from '../common/errors/app.exception.js';
+import { ErrorCode } from '../common/errors/error-code.enum.js';
+import type { Project } from '../generated/prisma/client.js';
+
+@Injectable()
+export class ProjectsService {
+  constructor(private readonly projectsRepository: ProjectsRepository) {}
+
+  async create(dto: CreateProjectDto): Promise<ProjectResponse> {
+    const project = await this.projectsRepository.create(dto.name.trim());
+    return this.toResponse(project);
+  }
+
+  async getById(id: string): Promise<ProjectResponse> {
+    const project = await this.projectsRepository.findById(id);
+
+    if (!project) {
+      throw new AppException(
+        ErrorCode.PROJECT_NOT_FOUND,
+        `No existe un proyecto con id "${id}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return this.toResponse(project);
+  }
+
+  private toResponse(project: Project): ProjectResponse {
+    return {
+      id: project.id,
+      name: project.name,
+      currentVersionId: project.currentVersionId,
+      createdAt: project.createdAt.toISOString(),
+      updatedAt: project.updatedAt.toISOString(),
+    };
+  }
+}

@@ -1,14 +1,14 @@
 # 001-project-management — Tareas
 
-- [ ] Definir modelo Project y DTO de creación.
-- [ ] Implementar servicio/repositorio.
-- [ ] Implementar endpoints mínimos de creación/consulta.
-- [ ] Probar currentVersionId y errores 404.
+- [x] Definir modelo Project y DTO de creación.
+- [x] Implementar servicio/repositorio.
+- [x] Implementar endpoints mínimos de creación/consulta.
+- [x] Probar currentVersionId y errores 404.
 
 ## Calidad
 
-- [ ] Agregar/actualizar pruebas.
-- [ ] Verificar manejo de errores.
-- [ ] Verificar observabilidad mínima.
-- [ ] Ejecutar lint/test/build.
-- [ ] Registrar evidencia de revisión en `harness/reports/`.
+- [x] Agregar/actualizar pruebas.
+- [x] Verificar manejo de errores.
+- [x] Verificar observabilidad mínima.
+- [x] Ejecutar lint/test/build.
+- [x] Registrar evidencia de revisión en `harness/reports/`.

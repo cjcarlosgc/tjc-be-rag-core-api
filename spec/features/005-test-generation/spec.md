@@ -9,7 +9,8 @@ Generar pruebas unitarias en cinco modos sobre la versión congelada del proyect
 
 ## Reglas y comportamiento
 
-- Modes: METHOD, CLASS_ALL, CLASS_MISSING, PROJECT_MISSING, PROJECT_ALL.
+- Modes: TARGET, CLASS_ALL, CLASS_MISSING, PROJECT_MISSING, PROJECT_ALL.
+  - TARGET: modo puntual, resuelve un `TestTarget` exacto de tipo METHOD o FUNCTION (no CLASS) sin excepciones semánticas entre ambos.
 - DTO valida campos requeridos y rechaza target fields incompatibles cuando aplique.
 - Backend captura atómicamente `currentVersionId` en `TestGenerationRun`.
 - Generation while project indexing is active se bloquea para evitar ambigüedad.

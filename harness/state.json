@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "sddVersion": "1.0",
+  "schemaVersion": 2,
+  "sddVersion": "1.3",
   "allowedStatuses": [
     "SELECTED",
     "SPEC_VERIFIED",
@@ -11,5 +11,5 @@
     "DONE"
   ],
   "activeWorkItem": null,
-  "lastUpdatedAt": "2026-08-30T00:00:00-05:00"
+  "lastUpdatedAt": "2026-09-05T19:14:01-05:00"
 }

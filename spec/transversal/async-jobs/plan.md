@@ -6,7 +6,7 @@
 
 ## Diseño técnico
 
-POST 202 crea estado persistido antes de despachar. Prohibido fire-and-forget in-memory. Mecanismo durable PENDING: DB-backed queue vs broker. Workers idempotentes por operationId.
+POST 202 crea estado persistido antes de despachar. Prohibido fire-and-forget in-memory. Mecanismo durable: cola DB-backed en PostgreSQL de Supabase (tabla `jobs`), despacho con `SELECT ... FOR UPDATE SKIP LOCKED`. Workers idempotentes por operationId (p. ej. `projectVersionId`).
 
 ## Validación
 

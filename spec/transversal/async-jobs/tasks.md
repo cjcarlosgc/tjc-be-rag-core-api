@@ -1,14 +1,14 @@
 # async-jobs — Tareas
 
-- [ ] Seleccionar mecanismo durable.
-- [ ] Job dispatcher/worker.
-- [ ] Idempotencia/retry/backoff.
-- [ ] Recuperación tras restart.
+- [x] Seleccionar mecanismo durable (cola DB-backed en PostgreSQL de Supabase).
+- [x] Job dispatcher/worker (`JobsService`, polling con `SELECT ... FOR UPDATE SKIP LOCKED`).
+- [x] Idempotencia/retry/backoff (`operationId` = `projectVersionId`; backoff exponencial acotado).
+- [x] Recuperación tras restart (estado persistido en `jobs`/`project_versions`; el poller retoma trabajo `PENDING` al reiniciar).
 
 ## Calidad
 
-- [ ] Agregar/actualizar pruebas.
-- [ ] Verificar manejo de errores.
-- [ ] Verificar observabilidad mínima.
-- [ ] Ejecutar lint/test/build.
-- [ ] Registrar evidencia de revisión en `harness/reports/`.
+- [x] Agregar/actualizar pruebas.
+- [x] Verificar manejo de errores.
+- [x] Verificar observabilidad mínima.
+- [x] Ejecutar lint/test/build.
+- [x] Registrar evidencia de revisión en `harness/reports/`.

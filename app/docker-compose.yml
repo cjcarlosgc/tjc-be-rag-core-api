@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rag_core
+      POSTGRES_PASSWORD: rag_core
+      POSTGRES_DB: rag_core
+    ports:
+      - '5433:5432'
+    volumes:
+      - rag_core_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  rag_core_postgres_data:

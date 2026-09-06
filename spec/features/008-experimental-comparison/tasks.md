@@ -1,13 +1,15 @@
 # 008-experimental-comparison — Tareas
 
-- [ ] GenerationStrategy RAG|BASELINE.
-- [ ] BaselineContextStrategy.
+- [ ] Resolver `DEC-EXP-002` antes de implementar HU19.
+- [ ] GenerationStrategy `RAG|GENERALIST_AGENT`.
+- [ ] GeneralistAgentGenerationStrategy con exploración read-only controlada y trazable.
 - [ ] ExperimentRun/Result.
 - [ ] Ejecución de 3x2 runs por target.
 - [ ] Captura de tokens/costos/tiempos.
 - [ ] Agregación y endpoint de resultados.
 - [ ] Garantizar auto-repair OFF en experimento.
-- [ ] Tests que comprueben ausencia de retrieval en baseline.
+- [ ] Captura de tool calls/archivos inspeccionados/contexto del agente generalista.
+- [ ] Tests de aislamiento del snapshot, límites de exploración y paridad experimental.
 
 ## Calidad
 

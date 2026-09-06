@@ -6,7 +6,7 @@
 
 ## Diseño técnico
 
-ArtifactService trabaja con ObjectStorageProvider; diff se calcula on demand y no modifica artifact. ZIP de descarga se arma de manera segura preservando rutas relativas.
+ArtifactService trabaja con la abstracción interna `ObjectStorageService`; diff se calcula on demand y no modifica artifact. ZIP de descarga se arma de manera segura preservando rutas relativas.
 
 ## Validación
 

@@ -6,7 +6,7 @@
 
 ## Diseño técnico
 
-`ObjectStorageProvider` con put/get/delete/presign o streaming según necesidad. Keys internas, no confiar en nombres de usuario. Proveedor concreto PENDING.
+`ObjectStorageService` actúa como puerto interno inyectable y expone put/get/delete/presign o streaming según necesidad, sin filtrar tipos del SDK a la lógica de dominio. Un adaptador de infraestructura implementa el contrato con Supabase Storage mediante `@supabase/supabase-js`. Keys internas; no confiar en nombres de usuario.
 
 ## Validación
 

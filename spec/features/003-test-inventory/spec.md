@@ -10,7 +10,7 @@ Construir el inventario de objetivos testables y pruebas existentes por ProjectV
 ## Reglas y comportamiento
 
 - Detectar framework Jest/Vitest cuando sea posible.
-- Identificar clases, métodos y funciones testables.
+- Identificar clases, métodos y funciones testables como `TestTarget` (`targetType` CLASS|METHOD|FUNCTION, ver `004-rag-retrieval-context`).
 - Relacionar pruebas existentes de forma trazable y marcar targets con/sin test.
 - Un proyecto sin detección concluyente no puede inventar framework.
 
