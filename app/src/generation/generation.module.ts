@@ -11,6 +11,7 @@ import { GapAnalyzer } from './gap-analyzer.service.js';
 import { PromptBuilder } from './prompt-builder.service.js';
 import { TestFileMergeService } from './test-file-merge.service.js';
 import { TestGenerationJobHandler } from './test-generation-job.handler.js';
+import { RepairService } from './repair/repair.service.js';
 
 @Module({
   imports: [ProjectsModule, ProjectVersionsModule, RetrievalModule, SandboxModule, ArtifactsModule],
@@ -21,6 +22,7 @@ import { TestGenerationJobHandler } from './test-generation-job.handler.js';
     GapAnalyzer,
     PromptBuilder,
     TestFileMergeService,
+    RepairService,
     TestGenerationJobHandler,
   ],
   exports: [PromptBuilder, TestFileMergeService],

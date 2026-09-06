@@ -215,6 +215,7 @@ model TargetRunResult {
   valid        Boolean?
   failureType  FailureType?
   errorSummary String?
+  repairAttempts Int             @default(0)
   createdAt    DateTime          @default(now())
 
   @@index([testRunId])

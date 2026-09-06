@@ -28,6 +28,7 @@ export interface TargetRunResultInput {
   valid: boolean | null;
   failureType: FailureTypeValue | null;
   errorSummary: string | null;
+  repairAttempts: number;
 }
 
 @Injectable()
