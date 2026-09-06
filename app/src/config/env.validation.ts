@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
   @IsInt()
@@ -39,6 +39,10 @@ class EnvironmentVariables {
   @Min(100)
   INDEXING_POLL_AFTER_MS: number = 1500;
 
+  @IsInt()
+  @Min(1)
+  INDEXING_MAX_CHUNK_TOKENS: number = 1500;
+
   @IsOptional()
   @IsString()
   OPENAI_API_KEY?: string;
@@ -49,6 +53,28 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   EMBEDDING_DIMENSIONS: number = 1536;
+
+  @IsNumber()
+  @Min(0)
+  RETRIEVAL_MINIMUM_SCORE: number = 0;
+
+  @IsInt()
+  @Min(1)
+  RETRIEVAL_TOP_K: number = 10;
+
+  @IsInt()
+  @Min(1)
+  RETRIEVAL_MAX_CONTEXT_TOKENS: number = 6000;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  RETRIEVAL_SEMANTIC_WEIGHT: number = 0.7;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  RETRIEVAL_STRUCTURAL_WEIGHT: number = 0.3;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

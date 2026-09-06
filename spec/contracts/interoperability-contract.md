@@ -413,7 +413,7 @@ interface ExperimentResultsResponse {
 
 Las tasas usan el intervalo `[0,1]`. Un valor no observable se representa con `null`, nunca con cero. La moneda y metodología de `estimatedCost` deben viajar en la configuración persistida del experimento; este campo no implica una divisa universal.
 
-El contrato HTTP queda definido, pero implementar HU19 continúa bloqueado por `DEC-EXP-002`; este documento no decide herramientas ni límites del agente generalista. `BASELINE` no es un valor válido.
+El contrato HTTP queda definido. `DEC-EXP-002` queda `APROBADO` (herramientas, límites y paridad del agente generalista definidos en `spec/features/008-experimental-comparison/spec.md`); implementar HU19 ya no está bloqueado por decisión, solo pendiente de código. `BASELINE` no es un valor válido.
 
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 
@@ -589,8 +589,8 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Las operaciones Sprint 1 indicadas en 6.1 y 6.2 conservan su disponibilidad implementada actual; listado de proyectos y versiones quedan aprobados para implementar.
 - Generación, validación, artefactos y transporte experimental quedan contractualmente aprobados, aunque su código todavía no exista.
 - Core↔Sandbox deja de estar bloqueado por falta de contrato: `DEC-INT-001` queda resuelto por este documento.
-- HU19 continúa bloqueada únicamente por `DEC-EXP-002`.
-- Retrieval definitivo continúa sujeto a `DEC-CHUNK-001` y `DEC-EMB-001`.
+- `DEC-EXP-002` queda `APROBADO`; HU19 ya no está bloqueada por decisión, solo pendiente de implementación.
+- `DEC-CHUNK-001` y `DEC-EMB-001` quedan `APROBADO`; el contrato de retrieval definitivo ya no está sujeto a decisión, solo pendiente de implementación en `004-rag-retrieval-context`.
 - `DEC-SBX-001` y `DEC-SBX-002` conservan sus alcances locales; este contrato no elige package managers.
 - `DEC-MET-001` y `DEC-VAL-001` permanecen PENDING y no bloquean implementación ordinaria.
 

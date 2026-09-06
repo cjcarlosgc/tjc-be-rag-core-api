@@ -8,7 +8,7 @@
 
 Interfaces `LLMProvider.generate` y `EmbeddingProvider.embedMany`. Model IDs/config desde env. Registrar provider/model version y dimensionalidad efectiva en runs experimentales.
 
-La implementación existente de OpenAI, el default `text-embedding-3-small` y la columna `vector(1536)` se consideran materialización provisional, no cierre de `DEC-EMB-001`. Si la decisión final cambia de modelo o dimensión, el plan debe incluir adaptador, migración de esquema, reindexación y pruebas de compatibilidad; no se realiza ese cambio en este corte SDD.
+La implementación existente de OpenAI, `text-embedding-3-small` y la columna `vector(1536)` son ahora la materialización del modelo definitivo (`DEC-EMB-001`, APROBADO); no requieren migración de modelo/dimensión. Si en el futuro una reevaluación con evidencia del experimento cambiara el modelo (ej. `voyage-code-4`), esa nueva decisión debería incluir adaptador, migración de esquema, reindexación y pruebas de compatibilidad.
 
 ## Validación
 

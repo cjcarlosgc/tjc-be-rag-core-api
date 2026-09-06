@@ -89,6 +89,8 @@ Frontend y Sandbox conservan una copia espejo con la misma versión. Una copia l
 
 **Pregunta:** antes del despliegue remoto, comparar y seleccionar un servicio preferentemente gratuito que permita ejecutar Docker Engine y satisfaga CPU, memoria, disco, arquitectura, disponibilidad, límites/cuotas, red privada o exposición HTTPS, autenticación, firewall, observabilidad y tratamiento de datos. Definir también qué ocurre si el nivel gratuito se suspende, duerme o deja de ser suficiente. El implementador no elige silenciosamente un proveedor.
 
+**Checkpoint (2026-09-06):** se confirma humanamente que el entorno local (MacBook con Docker Desktop) sigue siendo suficiente para desarrollo/prevalidación durante Sprint 2, Sprint 3 y Sprint 4; la selección del proveedor remoto se revisita explícitamente después de cerrar Sprint 4, no antes. Si en el futuro se selecciona un proveedor de nivel gratuito y ese nivel se suspende, duerme o resulta insuficiente, se requiere una nueva decisión humana explícita antes de continuar — no hay fallback automático silencioso a otro proveedor. Esta nota no resuelve la decisión: `DEC-INF-001` permanece `PENDING`.
+
 ### DEC-MET-001 — Mutation score y StrykerJS
 
 **Estado:** PENDING

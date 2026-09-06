@@ -3,7 +3,7 @@
 ## Dependencias
 
 - Constitución y transversales aplicables.
-- `spec/transversal/providers/` para el default provisional y `DEC-EMB-001`.
+- `spec/transversal/providers/` para el modelo de embeddings definitivo (`DEC-EMB-001`, APROBADO).
 
 ## Diseño técnico
 
@@ -19,7 +19,7 @@ Responsabilidades implementadas:
 - `CodeChunksRepository` y `TestTargetsRepository`: persistencia separada.
 - `IndexingJobHandler`: estados, orquestación, consistencia terminal y cleanup.
 
-La implementación actual usa IDs nuevos al persistir cada conjunto de chunks, estima tokens aproximadamente y almacena un vector de 1536 dimensiones por compatibilidad con el default provisional existente. `DEC-CHUNK-001` y `DEC-EMB-001` deben resolverse antes de convertir esas elecciones provisionales en el contrato definitivo de retrieval. pgvector siempre se consulta filtrando por `projectVersionId`.
+`DEC-CHUNK-001` y `DEC-EMB-001` quedaron `APROBADO` (ver `spec.md` y `spec/transversal/providers/spec.md`): modelo `text-embedding-3-small` (1536 dimensiones) y diseño de chunking jerárquico + oversized structured chunks. La implementación actual (IDs nuevos por reindexación, estimación heurística de tokens, chunk único por declaración top-level) debe refinarse para: (a) generar chunks hijos por método/constructor con `parentSymbolName`, (b) dividir declaraciones que superen `maxChunkTokens` en partes ordenadas sin overlap, (c) agregar `importsUsed`, (d) calcular `tokenCount` real con tokenizer en vez de heurística. pgvector siempre se consulta filtrando por `projectVersionId`.
 
 ## Validación
 

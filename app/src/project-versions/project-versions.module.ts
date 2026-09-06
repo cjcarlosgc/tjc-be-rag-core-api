@@ -29,5 +29,6 @@ import { IndexingJobHandler } from './indexing-job.handler.js';
     TestTargetsRepository,
     IndexingJobHandler,
   ],
+  exports: [CodeChunksRepository, TestTargetsRepository],
 })
 export class ProjectVersionsModule {}

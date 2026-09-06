@@ -10,7 +10,7 @@
 
 `RetrievalService` obtiene candidatos mediante señales semánticas y estructurales; vector query usa pgvector cosine. `ContextBuilder` aplica selección, deduplicación, orden, etiquetas y presupuesto. Trazar score, procedencia/señales y chunks seleccionados para experimento/UX.
 
-Antes de implementar la consulta semántica y consolidar el contrato de contexto deben resolverse `DEC-EMB-001` y `DEC-CHUNK-001`. `DEC-RAG-001` no bloquea esta base: prohíbe únicamente añadir silenciosamente una señal test-aware sin su investigación y aprobación.
+`DEC-EMB-001` y `DEC-CHUNK-001` quedaron `APROBADO` (ver `spec/transversal/providers/spec.md` y `spec/features/002-project-version-indexing/spec.md`): modelo `text-embedding-3-small`/1536 dimensiones y diseño de chunking jerárquico + oversized structured chunks con `maxChunkTokens` configurable. `ContextBuilder` debe soportar expansión dinámica a partes vecinas (`partIndex`/`partsTotal`) de un chunk oversized cuando lo necesite. `DEC-RAG-001` no bloquea esta base: prohíbe únicamente añadir silenciosamente una señal test-aware sin su investigación y aprobación.
 
 ## Validación
 

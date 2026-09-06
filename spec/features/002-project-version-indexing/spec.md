@@ -25,19 +25,20 @@ Ingerir un ZIP seguro, crear un snapshot versionado e indexarlo para recuperaci�
 
 - `FileDiscoveryService` filtra primero el snapshot y entrega únicamente archivos del pool V1; no todos los archivos del ZIP reciben el mismo tratamiento.
 - `TypeScriptParserService` analiza con ts-morph los `.ts/.tsx` descubiertos, incluyendo archivos de producción y de pruebas.
-- El chunking implementado produce un chunk por declaración top-level `CLASS`, `FUNCTION`, `INTERFACE`, `TYPE_ALIAS` o `ENUM`. Un chunk `CLASS` contiene la declaración completa de la clase, incluidos sus métodos; no crea actualmente chunks independientes por método.
+- **Granularidad jerárquica (definitiva):** una declaración top-level `CLASS` produce un chunk `CLASS` con la declaración completa (imports relevantes, propiedades, herencia, todos sus métodos) **y además** un chunk hijo `METHOD`/`CONSTRUCTOR` por cada método/constructor de la clase, con `parentSymbolName` apuntando al `symbolName` de la clase dueña. `FUNCTION`, `INTERFACE`, `TYPE_ALIAS` y `ENUM` top-level siguen produciendo un único chunk cada uno, sin cambios.
 - Si un archivo TypeScript no contiene alguna de esas declaraciones y su contenido no está vacío, se conserva un único chunk `FILE` con el archivo completo.
-- Cada chunk conserva `filePath`, `symbolKind`, `symbolName`, `startLine`, `endLine`, `content` y una estimación de `tokenCount`; el embedding se persiste en pgvector asociado a la `ProjectVersion` inmutable.
+- **Oversized structured chunks:** cuando una declaración individual (`CLASS`, `METHOD`, `CONSTRUCTOR`, `FUNCTION`) supera `maxChunkTokens` (parámetro configurable, default `1500`, no una constante de arquitectura), se divide en partes ordenadas `PART 1..N` (`partIndex`/`partsTotal`) por bloques lógicos/statements de alto nivel, **sin solapamiento textual entre partes**. Cada parte conserva el mismo `symbolName`/`symbolKind` que el símbolo original y su metadata de adyacencia (`partIndex`, `partsTotal`), de modo que `ContextBuilder` (`004-rag-retrieval-context`) pueda expandir dinámicamente a partes vecinas en tiempo de retrieval si lo necesita; la indexación no decide esa expansión, solo la hace posible.
+- Cada chunk conserva `filePath`, `symbolKind`, `symbolName`, `startLine`, `endLine`, `content`, `parentSymbolName` (nulo salvo en chunks `METHOD`/`CONSTRUCTOR`), `importsUsed` (módulos importados referenciados dentro del chunk) y `tokenCount`. `tokenCount` es un conteo real con el tokenizer del modelo de embeddings vigente (no una estimación heurística), calculado al crear el chunk y recalculado si el proyecto se reindexa.
+- **Identidad del chunk:** queda scoped a `(projectVersionId, filePath, symbolKind, symbolName, partIndex)`. No se exige ni se implementa continuidad de identidad entre `ProjectVersion` distintas: cada versión es inmutable y genera su propio conjunto de chunks independiente; no hay noción de "el mismo chunk" a través de reindexaciones.
+- El embedding se persiste en pgvector asociado a la `ProjectVersion` inmutable.
 - `TestTargetExtractorService` extrae los objetivos testables del código de producción; `ExistingTestResolverService` relaciona esos objetivos con pruebas existentes. El inventario de objetivos y los chunks son productos diferentes de la misma indexación.
 - `EmbeddingProvider` calcula embeddings por lotes y `CodeChunksRepository` persiste chunks/metadata/vector. `IndexingJobHandler` orquesta el pipeline, pero no concentra las reglas internas de discovery, parsing, inventario, embedding o persistencia.
 
 ### DEC-CHUNK-001 — Estrategia definitiva de representación para retrieval
 
-**Estado:** PENDING
+**Estado:** APROBADO
 
-**Blocks:** implementación de retrieval/context de `004-rag-retrieval-context`; no invalida ni bloquea la indexación Sprint 1 ya implementada
-
-**Pregunta:** antes de usar los chunks como contrato experimental, decidir mediante análisis si se conserva el chunking actual o se refina: unidades adicionales (método/constructor/variable), límites para declaraciones extensas, solapamiento si aplica, metadata y relaciones estructurales, cálculo real del presupuesto y estabilidad de identidad entre reindexaciones/versiones.
+**Resolución:** el diseño queda fijado como se describe arriba en "Contrato vigente de análisis y chunking" — granularidad jerárquica (clase completa + chunks por método/constructor), oversized structured chunks con `maxChunkTokens` configurable y sin overlap textual mientras se conserva identidad/orden/adyacencia, metadata mínima adicional (`parentSymbolName`, `importsUsed`), `tokenCount` real vía tokenizer, e identidad de chunk scoped a la `ProjectVersion` sin continuidad entre versiones. Queda pendiente su implementación (ver `tasks.md`); no invalida la indexación Sprint 1 ya implementada, que debe refinarse conforme a este diseño antes de que `004-rag-retrieval-context` lo consuma.
 
 ## Fuera de alcance
 

@@ -24,7 +24,7 @@ Los nombres siguientes expresan responsabilidades verificables, no la obligació
 
 - Ingesta/versionado: `ProjectVersionsService`, `ZipValidationService`, `ObjectStorageService`, `JobsService`, `IndexingJobHandler` y `ZipExtractionService`.
 - Análisis/indexación: `FileDiscoveryService`, `TypeScriptParserService`, `TestTargetExtractorService`, `ExistingTestResolverService`, `EmbeddingProvider`, `CodeChunksRepository` y `TestTargetsRepository`.
-- Retrieval/contexto: `RetrievalService` recupera candidatos; `ContextBuilder` construye el contexto final. Su contrato definitivo está sujeto a `DEC-CHUNK-001` y `DEC-EMB-001`.
+- Retrieval/contexto: `RetrievalService` recupera candidatos; `ContextBuilder` construye el contexto final. Su contrato definitivo queda fijado por `DEC-CHUNK-001` (`002-project-version-indexing/spec.md`) y `DEC-EMB-001` (`transversal/providers/spec.md`), ambas `APROBADO`; pendiente de implementación en `004-rag-retrieval-context`.
 - Generación: `GapAnalyzer`, `PromptBuilder`, `LLMProvider` y las `GenerationStrategy` del producto/experimento.
 - Validación: `TestExecutionService` orquesta y `SandboxExecutionService` adapta HTTP hacia el Sandbox; RAG Core interpreta el resultado sin perder sus evidencias.
 - Artefactos: `ArtifactService` persiste y entrega archivos/diffs detrás de `ObjectStorageService`.
@@ -55,7 +55,7 @@ Target obligatorio + relaciones estructurales (V1 principalmente imports) + bús
 
 - Desarrollo y prevalidación actuales: MacBook del desarrollador encendida, Docker Desktop activo y su VM Linux como motor de containers efímeros.
 - Destino previsto: VM Linux remota con Docker Engine.
-- `DEC-INF-001` mantiene `PENDING` la selección del proveedor remoto, priorizando alternativas gratuitas que cumplan las restricciones técnicas. No bloquea el entorno local.
+- `DEC-INF-001` mantiene `PENDING` la selección del proveedor remoto, priorizando alternativas gratuitas que cumplan las restricciones técnicas. No bloquea el entorno local: se confirma que Docker Desktop local es suficiente para desarrollo/prevalidación durante Sprint 2-4; la selección del proveedor remoto se revisita después de cerrar Sprint 4.
 - La URL del Sandbox es configuración de RAG Core; ningún entorno puede relajar el contrato de autenticación, aislamiento o manejo de secretos.
 
 ## Asincronía

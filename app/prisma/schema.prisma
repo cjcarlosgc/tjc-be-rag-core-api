@@ -82,10 +82,14 @@ model CodeChunk {
   filePath         String
   symbolKind       String
   symbolName       String?
+  parentSymbolName String?
   startLine        Int
   endLine          Int
   content          String
+  importsUsed      String[]       @default([])
   tokenCount       Int?
+  partIndex        Int            @default(1)
+  partsTotal       Int            @default(1)
   embedding        Unsupported("vector(1536)")?
   createdAt        DateTime       @default(now())
 

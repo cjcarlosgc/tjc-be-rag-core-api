@@ -15,7 +15,7 @@ Persistir datos, chunks, embeddings, jobs y resultados autoritativos con trazabi
 - RAG Core es propietario de la persistencia del estado y resultado de ejecución. Sandbox devuelve hechos estructurados y no conecta directamente a esta base por defecto.
 - Si una arquitectura futura exige acceso directo de un worker Sandbox, requiere una decisión separada y un rol PostgreSQL restringido a tablas/operaciones mínimas; nunca el usuario administrador `postgres`.
 - `DATABASE_URL` es configuración de servidor y no se expone a Frontend, Sandbox ni contenedores de código no confiable.
-- La dimensionalidad `1536` refleja el default provisional vigente; no constituye una decisión definitiva independiente de `DEC-EMB-001`.
+- La dimensionalidad `1536` es definitiva conforme a `DEC-EMB-001` (`text-embedding-3-small`), resuelta en `spec/transversal/providers/spec.md`.
 
 
 ## Fuera de alcance

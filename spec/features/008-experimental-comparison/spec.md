@@ -21,7 +21,7 @@ Ejecutar una comparación pareada entre la arquitectura RAG especializada y un a
 - Métricas explicativas del agente generalista: toolCalls,filesInspected y contexto/tokens atribuibles a la exploración cuando el proveedor permita observarlos.
 - Agregados: tasas, diferencia en puntos porcentuales, media/mediana de tiempos/tokens/costo y distribución de failureType.
 - Coverage se evalúa como métrica secundaria en Sprint 4 si resulta homogénea/viable; no bloquea PI1.
-- `INTEROP-1.1` fija el transporte y DTO experimental con `RAG|GENERALIST_AGENT`; esto no resuelve la operación interna pendiente en `DEC-EXP-002`.
+- `INTEROP-1.1` fija el transporte y DTO experimental con `RAG|GENERALIST_AGENT`; la operación interna del agente generalista queda resuelta en `DEC-EXP-002` (APROBADO, ver más abajo).
 
 ### DEC-EXP-001 — Baseline experimental realista
 
@@ -33,11 +33,17 @@ El brazo de referencia es `GENERALIST_AGENT`; el término académico “baseline
 
 ### DEC-EXP-002 — Contrato operativo del agente generalista
 
-**Estado:** PENDING
+**Estado:** APROBADO
 
-**Blocks:** HU19
+**Resolución:**
 
-**Pregunta:** antes de implementar HU19, definir herramientas read-only permitidas, límites de llamadas/archivos/tokens/tiempo, forma de entregar el snapshot, trazabilidad de la trayectoria, política sobre pruebas existentes y reglas de paridad frente al brazo RAG. El implementador no debe simular el agente con un contexto fijo ni darle shell irrestricto por defecto.
+1. **Herramientas** (todas read-only, sin shell/red/escritura, acotadas al snapshot del `ProjectVersion`): listar archivos, leer contenido de un archivo, buscar texto/símbolo (grep), seguir imports/referencias de un archivo, y capacidades de TypeScript language service (ir a definición, buscar referencias, inspeccionar tipos).
+2. **Entrega del snapshot:** se reutiliza el mismo mecanismo de materialización de workspace ya usado por indexación/generación (extracción del ZIP a un directorio temporal); no se inventa un mecanismo de acceso nuevo.
+3. **Trazabilidad de la trayectoria:** se persiste la trayectoria completa del agente — secuencia ordenada de tool calls con argumentos y resultado resumido — como evidencia auditable/reproducible. Las métricas agregadas `toolCalls`/`filesInspected` se derivan de esa trayectoria, no la reemplazan.
+4. **Política sobre pruebas existentes:** los archivos `*.test.ts`/`*.spec.ts` que cubren el target actual quedan excluidos de la vista del snapshot que recibe el agente, para evitar que copie la prueba existente en vez de generarla y mantener comparabilidad con RAG.
+5. **Límites y paridad frente a RAG:** mismo presupuesto de tokens de contexto que usa `ContextBuilder` para RAG (`maxContextTokens`), mismo timeout de generación del pipeline, y un tope de ~20 tool calls para evitar loops de exploración descontrolados.
+
+El implementador no debe simular el agente con un contexto fijo ni darle shell irrestricto por defecto; el diseño anterior es la resolución definitiva, pendiente de implementación.
 
 ## Fuera de alcance
 

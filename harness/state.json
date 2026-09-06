@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "sddVersion": "1.8",
+  "sddVersion": "1.9",
   "allowedStatuses": [
     "SELECTED",
     "SPEC_VERIFIED",
@@ -11,28 +11,29 @@
     "DONE"
   ],
   "activeWorkItem": {
-    "id": "HU19-experimental-comparison",
-    "storyIds": ["HU19"],
+    "id": "004-rag-retrieval-context",
+    "storyIds": ["HU08", "HU09", "HU10", "HU11", "HU12", "HU19"],
     "sprint": "Sprint 2",
-    "status": "BLOCKED",
+    "status": "DONE",
     "specPaths": [
-      "spec/features/008-experimental-comparison/spec.md",
-      "spec/features/008-experimental-comparison/plan.md",
-      "spec/features/008-experimental-comparison/tasks.md"
+      "spec/features/004-rag-retrieval-context/spec.md",
+      "spec/features/004-rag-retrieval-context/plan.md",
+      "spec/features/004-rag-retrieval-context/tasks.md",
+      "spec/features/002-project-version-indexing/spec.md",
+      "spec/features/002-project-version-indexing/plan.md",
+      "spec/features/002-project-version-indexing/tasks.md"
     ],
-    "transversalPaths": [
-      "spec/transversal/experimental-metrics/spec.md"
-    ],
-    "approved": false,
+    "transversalPaths": ["spec/transversal/providers/spec.md"],
+    "approved": true,
     "decisionGate": {
       "checked": true,
-      "blockingDecisionIds": ["DEC-EXP-002"],
-      "nonBlockingDecisionIds": ["DEC-CHUNK-001", "DEC-EMB-001", "DEC-MET-001"],
-      "checkedAt": "2026-09-05T22:26:57-05:00"
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": ["DEC-RAG-001"],
+      "checkedAt": "2026-09-06T01:01:48-05:00"
     },
-    "createdAt": "2026-09-05T22:26:57-05:00",
-    "updatedAt": "2026-09-05T22:26:57-05:00",
-    "blockedReason": "DEC-EXP-002 (spec/features/008-experimental-comparison/spec.md): antes de implementar HU19 falta definir el contrato operativo del agente generalista -- herramientas read-only permitidas, limites de llamadas/archivos/tokens/tiempo, forma de entregar el snapshot, trazabilidad de la trayectoria, politica sobre pruebas existentes y reglas de paridad frente al brazo RAG."
+    "createdAt": "2026-09-06T01:01:48-05:00",
+    "updatedAt": "2026-09-06T01:01:48-05:00",
+    "blockedReason": null
   },
-  "lastUpdatedAt": "2026-09-05T22:26:57-05:00"
+  "lastUpdatedAt": "2026-09-06T01:01:48-05:00"
 }

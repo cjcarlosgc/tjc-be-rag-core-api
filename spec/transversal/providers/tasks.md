@@ -2,8 +2,8 @@
 
 - [x] Interfaces (`EmbeddingProvider.embedMany`).
 - [x] OpenAI implementations iniciales (`OpenAiEmbeddingProvider`, cliente lazy, batching).
-- [ ] Resolver `DEC-EMB-001` antes de implementar definitivamente la consulta vectorial de `004-rag-retrieval-context`.
-- [ ] Si cambia modelo/dimensionalidad, planificar y ejecutar adaptador, migración pgvector y reindexación; no hacerlo por inferencia.
+- [ ] `DEC-EMB-001` ya resuelta (`APROBADO`: `text-embedding-3-small`, 1536); implementar definitivamente la consulta vectorial de `004-rag-retrieval-context` bajo ese modelo.
+- [ ] Si una reevaluación futura con evidencia del experimento cambiara modelo/dimensionalidad, planificar y ejecutar adaptador, migración pgvector y reindexación; no hacerlo por inferencia.
 - [ ] Timeouts/retry policy.
 - [ ] Usage metadata.
 

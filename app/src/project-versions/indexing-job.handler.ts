@@ -24,10 +24,6 @@ export interface IndexingJobPayload {
   snapshotKey: string;
 }
 
-function estimateTokenCount(content: string): number {
-  return Math.ceil(content.length / 4);
-}
-
 @Injectable()
 export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnModuleInit {
   readonly type = INDEXING_JOB_TYPE;
@@ -120,7 +116,6 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
         parsedChunks.map((chunk, index) => ({
           ...chunk,
           embedding: embeddings[index],
-          tokenCount: estimateTokenCount(chunk.content),
         })),
       );
 
