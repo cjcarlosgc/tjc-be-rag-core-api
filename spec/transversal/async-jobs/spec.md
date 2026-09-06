@@ -10,7 +10,7 @@ Garantizar que indexaciones y generaciones sobrevivan al ciclo HTTP y reinicios 
 ## Reglas y comportamiento
 
 - Indexación, generación, experimento y validación sobreviven al request HTTP mediante la cola DB-backed aprobada.
-- Toda aceptación devuelve `202`, identidad estable y `pollAfterMs` según `INTEROP-1.0`.
+- Toda aceptación devuelve `202`, identidad estable y `pollAfterMs` según `INTEROP-1.1`.
 - Los handlers son idempotentes frente a reintentos y los estados terminales permanecen consultables.
 - Los resultados detallados se consultan por una ruta separada y antes de terminar responden `409 *_NOT_FINISHED`.
 

@@ -27,8 +27,8 @@ const { SupabaseObjectStorageAdapter } = await import('./supabase-object-storage
 
 const CONFIG: Record<string, string> = {
   SUPABASE_URL: 'https://project.supabase.co',
-  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
-  OBJECT_STORAGE_BUCKET: 'rag-core',
+  SUPABASE_SECRET_KEY: 'secret-key',
+  SUPABASE_STORAGE_BUCKET: 'repository-zips',
 };
 
 function makeConfigService() {
@@ -41,7 +41,7 @@ describe('SupabaseObjectStorageAdapter', () => {
     downloadMock.mockReset();
     removeMock.mockReset().mockResolvedValue({ error: null });
     createSignedUrlMock.mockReset();
-    getBucketMock.mockReset().mockResolvedValue({ data: { name: 'rag-core' }, error: null });
+    getBucketMock.mockReset().mockResolvedValue({ data: { name: 'repository-zips' }, error: null });
     createBucketMock.mockReset();
     fromMock.mockClear();
   });
@@ -65,7 +65,7 @@ describe('SupabaseObjectStorageAdapter', () => {
 
     await adapter.put('key', Buffer.from('x'));
 
-    expect(createBucketMock).toHaveBeenCalledWith('rag-core', { public: false });
+    expect(createBucketMock).toHaveBeenCalledWith('repository-zips', { public: false });
   });
 
   it('throws when bucket creation fails', async () => {
@@ -76,16 +76,16 @@ describe('SupabaseObjectStorageAdapter', () => {
     await expect(adapter.put('key', Buffer.from('x'))).rejects.toThrow('permission denied');
   });
 
-  it('put() uploads the buffer with upsert and content type', async () => {
+  it('put() uploads the buffer without overwriting and with content type', async () => {
     const adapter = new SupabaseObjectStorageAdapter(makeConfigService());
 
     await adapter.put('some/key.zip', Buffer.from('data'), 'application/zip');
 
-    expect(fromMock).toHaveBeenCalledWith('rag-core');
+    expect(fromMock).toHaveBeenCalledWith('repository-zips');
     expect(uploadMock).toHaveBeenCalledWith(
       'some/key.zip',
       Buffer.from('data'),
-      expect.objectContaining({ contentType: 'application/zip', upsert: true }),
+      expect.objectContaining({ contentType: 'application/zip', upsert: false }),
     );
   });
 

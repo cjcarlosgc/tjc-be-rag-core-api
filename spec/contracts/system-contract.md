@@ -1,6 +1,6 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-1.1
+**Versión del contrato:** SYSTEM-1.3
 **Fecha de corte:** 2026-09-05
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
@@ -26,9 +26,27 @@ Frontend y Sandbox conservan una copia espejo con la misma versión. Una copia l
 ## Persistencia y almacenamiento
 
 - RAG Core usa PostgreSQL + pgvector en Supabase para datos de dominio, chunks, embeddings y la cola DB-backed de jobs.
-- El proveedor de objetos aprobado es Supabase Storage mediante `@supabase/supabase-js`, siempre detrás de una abstracción interna `ObjectStorageService` en los backends que lo consuman.
+- El proveedor de objetos aprobado es Supabase Storage mediante `@supabase/supabase-js`, exclusivamente desde RAG Core y detrás de su abstracción interna `ObjectStorageService`.
 - Supabase Storage conserva snapshots y artefactos; PostgreSQL/pgvector no se sustituye por Storage.
-- El navegador no recibe credenciales de Supabase ni accede directamente al bucket. Las credenciales del host Sandbox nunca se inyectan al container que ejecuta código de terceros.
+- RAG Core conserva las keys internas de Storage, genera URLs firmadas temporales cuando el Sandbox necesita descargar una entrada y persiste el resultado final de la ejecución.
+- El Sandbox no recibe por defecto `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` ni `DATABASE_PASSWORD`; tampoco importa `@supabase/supabase-js` ni consulta PostgreSQL/pgvector directamente.
+- El navegador no recibe credenciales de Supabase ni accede directamente al bucket. No necesita `@supabase/supabase-js` ni `SUPABASE_PUBLISHABLE_KEY` mientras no exista una feature aprobada —por ejemplo Auth— que requiera acceso directo.
+
+## Frontera de ejecución
+
+- RAG Core identifica el objeto por su key interna, genera una URL firmada de vida corta y la entrega al Sandbox dentro de la solicitud autenticada de ejecución.
+- La URL firmada es una capacidad efímera: no se persiste permanentemente, no se registra completa, no se devuelve al frontend y se descarta tras adquirir la entrada.
+- El proceso host del Sandbox descarga y verifica las entradas, prepara el workspace, ejecuta compilación/pruebas en un container sin secretos, captura resultados estructurados y elimina el workspace.
+- El Sandbox devuelve hechos, stdout/stderr acotados y métricas a RAG Core. RAG Core decide la validez de producto y persiste estados, resultados y evidencia.
+- Si un diseño futuro exigiera acceso directo del Sandbox a una base de datos, requiere decisión humana y un rol mínimo dedicado; el usuario administrador `postgres` y las credenciales de RAG Core están prohibidos.
+
+## Despliegue del Sandbox
+
+- El destino operativo previsto es una máquina virtual Linux remota que ejecute el servicio Sandbox y Docker Engine; el proveedor concreto todavía no está seleccionado.
+- La selección futura priorizará servicios con modalidad gratuita o costo cero suficiente para el desarrollo y la evaluación, sin asumir que una oferta gratuita cumple aislamiento, disponibilidad o capacidad.
+- Hasta resolver el proveedor remoto, el entorno aprobado para desarrollo y prevalidación usa la MacBook del desarrollador encendida, con Docker Desktop activo. La VM Linux administrada por Docker Desktop aporta el motor que crea los containers efímeros de ejecución.
+- Este entorno local depende de la disponibilidad física del equipo, energía, conectividad y Docker Desktop; no se considera alta disponibilidad, despliegue empresarial ni evidencia de que el proveedor remoto haya sido elegido.
+- El método para exponer o enrutar el endpoint del Sandbox fuera de la MacBook, si llegara a necesitarse antes de la VM remota, no queda aprobado por esta decisión y debe preservar autenticación, cifrado y mínimo acceso.
 
 ## Experimento
 
@@ -48,12 +66,12 @@ Frontend y Sandbox conservan una copia espejo con la misma versión. Una copia l
 - Código, rutas, logs, diffs y artefactos se tratan como datos no confiables y potencialmente confidenciales.
 - Antes de desplegar o ingerir un repositorio empresarial debe resolverse `DEC-VAL-001`: cuentas/entorno, acceso, autorización, tratamiento frente a proveedores externos, retención/eliminación y evidencia exportable.
 
-## Disponibilidad al corte SYSTEM-1.1
+## Disponibilidad al corte SYSTEM-1.3
 
 - Core↔Frontend implementado: health, crear/consultar proyecto, iniciar/consultar indexación, resultados de `ProjectVersion` e inventario de tests.
-- Core↔Frontend con contrato HTTP `INTEROP-1.0` aprobado: listado, generación, validación, artefactos y experimento; la implementación puede continuar pendiente o bloqueada por decisiones propias de cada feature.
+- Core↔Frontend con contrato HTTP `INTEROP-1.1` aprobado: listado, generación, validación, artefactos y experimento; la implementación puede continuar pendiente o bloqueada por decisiones propias de cada feature.
 - Core↔Sandbox aprobado semánticamente: reconstruir snapshot exacto, materializar artefactos finales, ejecutar en aislamiento y devolver evidencia estructurada.
-- Core↔Sandbox HTTP/DTO aprobado en `INTEROP-1.0` como ejecución asíncrona `202 + polling`, con idempotencia, referencias verificables de Storage y resultado factual.
+- Core↔Sandbox HTTP/DTO aprobado en `INTEROP-1.1` como ejecución asíncrona `202 + polling`, con idempotencia, descargas por URL firmada verificable, cero credenciales Supabase/DB en Sandbox y resultado factual persistido por Core.
 
 ### DEC-INT-001 — Contrato de ejecución Core↔Sandbox
 
@@ -61,7 +79,15 @@ Frontend y Sandbox conservan una copia espejo con la misma versión. Una copia l
 
 **Blocks:** NONE
 
-**Resolución:** `INTEROP-1.0` define `POST /executions`, consulta de estado/resultado, `executionId`, `Idempotency-Key`, correlación, autenticación servicio-a-servicio, `StorageObjectRef`, estados, errores y evidencia. Los límites concretos permanecen configuración del Sandbox y no son controlables por el request.
+**Resolución:** `INTEROP-1.1` define `POST /executions`, consulta de estado/resultado, `executionId`, `Idempotency-Key`, correlación, autenticación servicio-a-servicio, URLs firmadas temporales con integridad, estados, errores y evidencia acotada. RAG Core conserva Storage/PostgreSQL y persiste el resultado; el Sandbox no recibe credenciales Supabase/DB. Los límites concretos permanecen configuración del Sandbox y no son controlables por el request.
+
+### DEC-INF-001 — Proveedor de la VM remota del Sandbox
+
+**Estado:** PENDING
+
+**Blocks:** únicamente el aprovisionamiento y despliegue del Sandbox en una VM remota compartida; no bloquea desarrollo, ejecución ni prevalidación en la MacBook con Docker Desktop, ni trabajo de Core o Frontend que use un endpoint configurable
+
+**Pregunta:** antes del despliegue remoto, comparar y seleccionar un servicio preferentemente gratuito que permita ejecutar Docker Engine y satisfaga CPU, memoria, disco, arquitectura, disponibilidad, límites/cuotas, red privada o exposición HTTPS, autenticación, firewall, observabilidad y tratamiento de datos. Definir también qué ocurre si el nivel gratuito se suspende, duerme o deja de ser suficiente. El implementador no elige silenciosamente un proveedor.
 
 ### DEC-MET-001 — Mutation score y StrykerJS
 
@@ -82,7 +108,7 @@ Frontend y Sandbox conservan una copia espejo con la misma versión. Una copia l
 ## Decisiones compartidas referenciadas
 
 - `DEC-CHUNK-001`, `DEC-EMB-001`, `DEC-RAG-001` y `DEC-EXP-002`: propiedad de RAG Core; solo bloquean sus alcances declarados.
-- `DEC-MET-001` y `DEC-VAL-001` viven en este contrato porque una resolución exige sincronizar los tres componentes.
+- `DEC-INF-001`, `DEC-MET-001` y `DEC-VAL-001` viven en este contrato porque una resolución exige sincronizar los tres componentes.
 
 ## Regla de compatibilidad
 

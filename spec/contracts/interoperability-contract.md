@@ -1,7 +1,7 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.0
-**Compatible con:** SYSTEM-1.1
+**Versión:** INTEROP-1.1
+**Compatible con:** SYSTEM-1.3
 **Fecha de corte:** 2026-09-05
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
@@ -11,7 +11,7 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 ## 1. Compatibilidad y autoridad
 
 - Las rutas Sprint 1 ya implementadas por RAG Core permanecen sin prefijo para no romper el frontend existente.
-- `INTEROP-1.0` versiona el contrato documental. Todo cambio aditivo conserva la versión mayor; un cambio incompatible exige una nueva versión mayor y migración coordinada de consumidores.
+- `INTEROP-1.1` versiona el contrato documental. Todo cambio aditivo conserva la versión mayor; un cambio incompatible exige una nueva versión mayor y migración coordinada de consumidores.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
 - Los nombres de ruta y DTO presentes solo en mocks dejan de ser autoridad cuando contradigan este documento.
@@ -419,23 +419,26 @@ El contrato HTTP queda definido, pero implementar HU19 continúa bloqueado por `
 
 La integración es HTTP interna y asíncrona. RAG Core es el único consumidor.
 
-### 7.1 Referencias de Object Storage
+### 7.1 Entradas mediante URL firmada temporal
 
 ```ts
-type StorageRole = 'PROJECT_SNAPSHOT' | 'GENERATED_ARTIFACT' | 'EXECUTION_EVIDENCE'
+type ExecutionInputRole = 'PROJECT_SNAPSHOT' | 'GENERATED_ARTIFACT'
 
-interface StorageObjectRef {
-  role: StorageRole
-  objectKey: string // key lógica opaca; nunca una ruta local
+interface EphemeralDownloadRef {
+  role: ExecutionInputRole
+  url: string // URL HTTPS firmada; capacidad temporal y sensible
+  expiresAt: IsoDateTime
   sha256: Sha256
   sizeBytes: number
 }
 ```
 
-- `role` se mapea por configuración al bucket real; el contrato no contiene nombres de bucket ni tipos de Supabase.
-- Core y Sandbox resuelven la referencia mediante su propio `ObjectStorageService` y adaptador Supabase Storage.
-- El Sandbox verifica `sha256` y `sizeBytes` antes de extraer o materializar.
-- Una referencia no concede acceso al container; solo el proceso host descarga el objeto.
+- RAG Core conserva bucket y `objectKey`, genera la URL mediante su `ObjectStorageService` y no persiste la URL firmada como dato de dominio.
+- La vigencia es corta y configurable, suficiente para iniciar la adquisición de la entrada; `expiresAt` permite rechazar una capacidad expirada sin intentar ejecutar.
+- El Sandbox acepta únicamente HTTPS y hosts permitidos por configuración; no acepta URLs arbitrarias suministradas por usuarios.
+- El proceso host del Sandbox descarga inmediatamente, verifica `sha256` y `sizeBytes`, descarta la URL y solo entonces materializa el archivo en el workspace.
+- La URL no se entrega al container, no se devuelve en responses, no se registra completa y no forma parte de errores persistidos.
+- El Sandbox no necesita SDK, bucket, key ni credenciales de Supabase para consumir esta referencia.
 
 ### 7.2 Crear ejecución
 
@@ -446,14 +449,14 @@ interface ExecutionArtifactInput {
   artifactId: Id
   relativePath: RelativePath
   artifactType: ArtifactType
-  object: StorageObjectRef
+  download: EphemeralDownloadRef // role GENERATED_ARTIFACT
 }
 
 interface CreateSandboxExecutionRequest {
   requestId: Id // igual a Idempotency-Key
   testRunId: Id
   projectVersionId: Id
-  snapshot: StorageObjectRef // role PROJECT_SNAPSHOT
+  snapshot: EphemeralDownloadRef // role PROJECT_SNAPSHOT
   artifacts: ExecutionArtifactInput[]
   scope: 'TARGET' | 'BATCH'
   targetIds: Id[]
@@ -469,8 +472,9 @@ interface SandboxExecutionAcceptedResponse extends AsyncAccepted {
 
 Reglas:
 
-- No se aceptan comandos arbitrarios, scripts de shell, variables secretas, URLs, credenciales, prompts ni campos de estrategia.
+- No se aceptan comandos arbitrarios, scripts de shell, variables secretas, credenciales, prompts, campos de estrategia ni URLs fuera de `EphemeralDownloadRef`.
 - `snapshot.role` debe ser `PROJECT_SNAPSHOT`; los artefactos deben usar `GENERATED_ARTIFACT`.
+- Para idempotencia se comparan IDs, roles, rutas, hashes y tamaños; la firma o nueva expiración de una URL no cambia por sí sola la identidad lógica del request.
 - `TARGET` requiere uno o más `targetIds`; `BATCH` aplica el conjunto final de artefactos del run actual.
 - `runnerHint` se verifica contra el proyecto. Una incompatibilidad termina como `CONFIGURATION`, no habilita ejecutar comandos suministrados por Core.
 - Los límites de CPU, memoria, output y tiempo son configuración/política del Sandbox, no parámetros controlables por el request.
@@ -535,6 +539,18 @@ interface SandboxFailureFact {
   message: string
 }
 
+type ExecutionEvidenceKind =
+  | 'COMPILER_STDOUT' | 'COMPILER_STDERR'
+  | 'TEST_STDOUT' | 'TEST_STDERR' | 'RUNNER_REPORT'
+
+interface ExecutionEvidenceFact {
+  kind: ExecutionEvidenceKind
+  stage: SandboxStage
+  content: string
+  truncated: boolean
+  originalBytes: number | null
+}
+
 interface SandboxExecutionResultResponse {
   executionId: Id
   requestId: Id
@@ -545,13 +561,13 @@ interface SandboxExecutionResultResponse {
   failure: SandboxFailureFact | null
   stageDurations: StageDuration[]
   appliedArtifactIds: Id[]
-  evidence: StorageObjectRef[] // role EXECUTION_EVIDENCE
+  evidence: ExecutionEvidenceFact[]
   startedAt: IsoDateTime
   completedAt: IsoDateTime
 }
 ```
 
-El Sandbox devuelve hechos. No devuelve `valid`, una estrategia experimental ni una conclusión sobre calidad; RAG Core realiza esa normalización.
+El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrategia experimental ni una conclusión sobre calidad; RAG Core realiza esa normalización y persiste el resultado final en PostgreSQL. La evidencia que exceda el límite no autoriza acceso directo del Sandbox a Storage: se trunca de forma explícita o se entrega a Core mediante un mecanismo futuro aprobado.
 
 ### 7.4 Errores propios de la integración
 
@@ -559,16 +575,16 @@ El Sandbox devuelve hechos. No devuelve `valid`, una estrategia experimental ni 
 - `EXECUTION_NOT_FINISHED` → 409.
 - `IDEMPOTENCY_CONFLICT` → 409.
 - `UNSUPPORTED_PROJECT`, `UNSUPPORTED_RUNNER`, `UNSUPPORTED_PACKAGE_MANAGER` → 422 antes de aceptar cuando puedan detectarse; después del `202` se persisten como resultado `FAILED`/`CONFIGURATION`.
-- `SNAPSHOT_UNAVAILABLE`, `ARTIFACT_UNAVAILABLE`, `INTEGRITY_CHECK_FAILED`, `INVALID_ARCHIVE`, `INVALID_ARTIFACT_PATH` → resultado fallido si ocurren después del `202`.
-- `SANDBOX_UNAVAILABLE`, `STORAGE_UNAVAILABLE` → 503 solo si impiden aceptar o consultar la operación.
+- `INPUT_URL_EXPIRED`, `INPUT_DOWNLOAD_FAILED`, `INTEGRITY_CHECK_FAILED`, `INVALID_ARCHIVE`, `INVALID_ARTIFACT_PATH` → resultado fallido si ocurren después del `202`.
+- Un fallo de Storage al generar la URL ocurre en RAG Core antes de invocar al Sandbox y se normaliza allí; `SANDBOX_UNAVAILABLE` → 503 si el Sandbox no permite aceptar o consultar la operación.
 
 ### 7.5 Health del Sandbox
 
 - `GET /health/live`: proceso activo; no bloquea en dependencias remotas.
-- `GET /health/ready`: confirma que puede aceptar ejecuciones y distingue indisponibilidad de Docker, Storage y capacidad interna.
+- `GET /health/ready`: confirma que puede aceptar ejecuciones y distingue indisponibilidad de Docker, conectividad de adquisición y capacidad interna, sin consultar Supabase mediante credenciales.
 - Estos endpoints no ejecutan código del proyecto ni revelan secretos o configuración sensible.
 
-## 8. Disponibilidad al aprobar INTEROP-1.0
+## 8. Disponibilidad al aprobar INTEROP-1.1
 
 - Las operaciones Sprint 1 indicadas en 6.1 y 6.2 conservan su disponibilidad implementada actual; listado de proyectos y versiones quedan aprobados para implementar.
 - Generación, validación, artefactos y transporte experimental quedan contractualmente aprobados, aunque su código todavía no exista.
@@ -583,6 +599,6 @@ El Sandbox devuelve hechos. No devuelve `valid`, una estrategia experimental ni 
 - Organizar controllers, DTOs, servicios y adapters por feature en ambos backends.
 - Validar todos los requests y serializar respuestas mediante DTOs explícitos.
 - Centralizar correlación y `ErrorEnvelope` en interceptors/filtros; no formatear errores manualmente en cada controller.
-- Usar tokens de inyección para `ObjectStorageService`, clientes HTTP y demás puertos reemplazables.
-- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-1.0` y se verifica mediante contract tests/fixtures versionados.
+- Usar tokens de inyección para `ObjectStorageService` en Core, el downloader HTTP del Sandbox, clientes HTTP y demás puertos reemplazables.
+- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-1.1` y se verifica mediante contract tests/fixtures versionados.
 - Todo cambio de contrato debe actualizar primero el documento canónico, después sus dos espejos y finalmente los adapters/tests afectados.

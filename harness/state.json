@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "sddVersion": "1.6",
+  "sddVersion": "1.8",
   "allowedStatuses": [
     "SELECTED",
     "SPEC_VERIFIED",
@@ -10,6 +10,29 @@
     "BLOCKED",
     "DONE"
   ],
-  "activeWorkItem": null,
-  "lastUpdatedAt": "2026-09-05T21:19:48-05:00"
+  "activeWorkItem": {
+    "id": "HU19-experimental-comparison",
+    "storyIds": ["HU19"],
+    "sprint": "Sprint 2",
+    "status": "BLOCKED",
+    "specPaths": [
+      "spec/features/008-experimental-comparison/spec.md",
+      "spec/features/008-experimental-comparison/plan.md",
+      "spec/features/008-experimental-comparison/tasks.md"
+    ],
+    "transversalPaths": [
+      "spec/transversal/experimental-metrics/spec.md"
+    ],
+    "approved": false,
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": ["DEC-EXP-002"],
+      "nonBlockingDecisionIds": ["DEC-CHUNK-001", "DEC-EMB-001", "DEC-MET-001"],
+      "checkedAt": "2026-09-05T22:26:57-05:00"
+    },
+    "createdAt": "2026-09-05T22:26:57-05:00",
+    "updatedAt": "2026-09-05T22:26:57-05:00",
+    "blockedReason": "DEC-EXP-002 (spec/features/008-experimental-comparison/spec.md): antes de implementar HU19 falta definir el contrato operativo del agente generalista -- herramientas read-only permitidas, limites de llamadas/archivos/tokens/tiempo, forma de entregar el snapshot, trazabilidad de la trayectoria, politica sobre pruebas existentes y reglas de paridad frente al brazo RAG."
+  },
+  "lastUpdatedAt": "2026-09-05T22:26:57-05:00"
 }

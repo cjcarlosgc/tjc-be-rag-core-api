@@ -2,7 +2,7 @@
 
 **Estado:** aprobado
 
-Diseñar e implementar el backend principal que materializa la arquitectura RAG de la tesis. El servicio analiza proyectos TypeScript, versiona snapshots, construye un índice recuperable del código, selecciona contexto relevante, genera pruebas unitarias mediante un LLM, coordina su validación en un Sandbox remoto y persiste resultados y métricas.
+Diseñar e implementar el backend principal que materializa la arquitectura RAG de la tesis. El servicio analiza proyectos TypeScript, versiona snapshots, construye un índice recuperable del código, selecciona contexto relevante, genera pruebas unitarias mediante un LLM, coordina su validación en un Sandbox desplegado localmente de forma temporal o en la VM remota prevista y persiste resultados y métricas.
 
 ## Usuario principal
 

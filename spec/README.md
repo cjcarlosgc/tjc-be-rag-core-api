@@ -6,7 +6,7 @@ Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-
 
 ## Versionado
 
-La especificación vigente se consolida; no se acumulan enmiendas. Los cambios se registran en `CHANGELOG.md` y en Git.
+La especificación vigente se consolida; no se acumulan enmiendas. Los cambios se registran en `CHANGELOG.md` y en Git. `sddVersion` representa la línea base conjunta de los tres repositorios.
 
 ## Estados de decisión
 
@@ -31,4 +31,4 @@ No existe un registro central adicional que duplique decisiones. Cada decisión 
 
 `contracts/system-contract.md` es el propietario canónico de las decisiones que deben compartir RAG Core, Developer Console y Test Execution Sandbox. Las copias espejo declaran `SYSTEM-*`; no sustituyen las specs internas ni cierran operaciones marcadas `PENDING`.
 
-`contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte universales. Su versión `INTEROP-*` evoluciona independientemente de las versiones SDD locales.
+`contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte universales. Su versión `INTEROP-*` evoluciona independientemente de la línea base SDD conjunta.

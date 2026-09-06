@@ -12,10 +12,10 @@ export class SupabaseObjectStorageAdapter extends ObjectStorageService {
 
   constructor(configService: ConfigService) {
     super();
-    this.bucket = configService.getOrThrow<string>('OBJECT_STORAGE_BUCKET');
+    this.bucket = configService.getOrThrow<string>('SUPABASE_STORAGE_BUCKET');
     this.client = createClient(
       configService.getOrThrow<string>('SUPABASE_URL'),
-      configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
+      configService.getOrThrow<string>('SUPABASE_SECRET_KEY'),
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
   }
@@ -25,7 +25,7 @@ export class SupabaseObjectStorageAdapter extends ObjectStorageService {
 
     const { error } = await this.client.storage
       .from(this.bucket)
-      .upload(key, body, { contentType, upsert: true });
+      .upload(key, body, { contentType, upsert: false });
 
     if (error) {
       throw new Error(`No se pudo subir el objeto "${key}": ${error.message}`);

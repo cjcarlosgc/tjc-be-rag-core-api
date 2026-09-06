@@ -7,7 +7,7 @@
 
 ## Diseño técnico
 
-Pipeline asíncrono durable. Snapshot `source.zip` primero; workspace temporal siempre limpiado.
+Pipeline asíncrono durable. Primero se persiste el snapshot en `repositories/{projectId}/versions/{projectVersionId}/original.zip` con `upsert=false`; el workspace temporal siempre se limpia. La base conserva la key interna, no URLs firmadas.
 
 Responsabilidades implementadas:
 

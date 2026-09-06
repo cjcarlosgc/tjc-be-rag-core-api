@@ -1,6 +1,6 @@
 # Arquitectura
 
-**Contratos compartidos:** SYSTEM-1.1 / INTEROP-1.0
+**Contratos compartidos:** SYSTEM-1.3 / INTEROP-1.1
 
 **Estado:** aprobado con decisiones PENDING explícitas
 
@@ -16,7 +16,7 @@ La arquitectura base se materializa en tres proyectos, dos backend y uno fronten
 
 ## Flujo de indexación
 
-`ZIP -> Project/ProjectVersion -> source.zip en Object Storage -> extracción segura -> discovery/filter -> ts-morph/análisis de configuración -> inventario de tests -> chunks -> embeddings -> PostgreSQL/pgvector -> metadata -> COMPLETED|FAILED`.
+`ZIP -> Project/ProjectVersion -> original.zip privado en Object Storage -> extracción segura -> discovery/filter -> ts-morph/análisis de configuración -> inventario de tests -> chunks -> embeddings -> PostgreSQL/pgvector -> metadata -> COMPLETED|FAILED`.
 
 ## Fronteras de servicios de RAG Core
 
@@ -34,7 +34,7 @@ El detalle vigente de cada responsabilidad pertenece al `plan.md` de la feature 
 
 ## Flujo de generación
 
-`ProjectVersion congelada -> targets -> GenerationStrategy -> adquisición de contexto -> LLMProvider -> CREATE/MERGE -> Sandbox remoto -> ValidationResult -> artifacts/metrics`.
+`ProjectVersion congelada -> targets -> GenerationStrategy -> adquisición de contexto -> LLMProvider -> CREATE/MERGE -> Sandbox local temporal o remoto futuro -> ValidationResult -> artifacts/metrics`.
 
 El producto normal utiliza RAG. El modo experimental posee dos brazos conceptuales: `RAG` y `GENERALIST_AGENT`. No se fija `TestContextStrategy` como única frontera porque el agente generalista puede necesitar un ciclo iterativo de búsqueda/lectura antes de generar. Ambos brazos convergen en la misma validación ciega del Sandbox.
 
@@ -45,9 +45,18 @@ Target obligatorio + relaciones estructurales (V1 principalmente imports) + bús
 ## Servicios externos
 
 - PostgreSQL + pgvector en Supabase para datos de dominio, chunks, embeddings vectoriales y la cola DB-backed de jobs.
-- Supabase Storage para snapshots y artefactos, accedido exclusivamente mediante la abstracción interna `ObjectStorageService`.
+- Supabase Storage privado para snapshots y artefactos, accedido exclusivamente por RAG Core mediante la abstracción interna `ObjectStorageService`.
+- Para ejecutar, Core convierte la `snapshotKey` interna en una URL firmada de vida corta y la entrega al host Sandbox junto con SHA-256 y tamaño. La URL no se persiste ni se registra completa.
+- El Sandbox descarga el ZIP sin credenciales Supabase, ejecuta en un workspace efímero y devuelve hechos estructurados. RAG Core interpreta y persiste el estado y resultado autoritativos.
 - LLMProvider y EmbeddingProvider abstractos; proveedor inicial OpenAI.
 - `tjc-be-test-execution-sandbox` por HTTP interno.
+
+## Entornos del Sandbox
+
+- Desarrollo y prevalidación actuales: MacBook del desarrollador encendida, Docker Desktop activo y su VM Linux como motor de containers efímeros.
+- Destino previsto: VM Linux remota con Docker Engine.
+- `DEC-INF-001` mantiene `PENDING` la selección del proveedor remoto, priorizando alternativas gratuitas que cumplan las restricciones técnicas. No bloquea el entorno local.
+- La URL del Sandbox es configuración de RAG Core; ningún entorno puede relajar el contrato de autenticación, aislamiento o manejo de secretos.
 
 ## Asincronía
 

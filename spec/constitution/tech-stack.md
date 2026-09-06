@@ -10,8 +10,9 @@
 - Lenguaje objetivo e input implementable V1: exclusivamente TypeScript (`.ts`/`.tsx`). La redacción académica puede ubicar el trabajo en el ecosistema JavaScript/TypeScript, pero JavaScript puro (`.js`, `.jsx`, `.mjs`, `.cjs`) no está soportado en V1.
 - Test frameworks objetivo: Jest y Vitest.
 - Distancia vectorial: cosine.
-- Configuración: `@nestjs/config`, `.env`, `ConfigService`; secretos nunca hardcodeados.
+- Configuración: `@nestjs/config`, `.env`, `ConfigService`; secretos nunca hardcodeados. El proyecto Supabase aprobado tiene ref `hhapysqvomhvquylhwvt`, URL pública `https://hhapysqvomhvquylhwvt.supabase.co` y host PostgreSQL `db.hhapysqvomhvquylhwvt.supabase.co:5432`; contraseña y keys solo se suministran por entorno.
 - Embeddings/LLM: proveedores por interfaz. OpenAI y `text-embedding-3-small` son el proveedor/modelo provisional vigente para embeddings; la selección definitiva está gobernada por `DEC-EMB-001` en `spec/transversal/providers/spec.md`.
-- Storage: Supabase Storage vía `@supabase/supabase-js`, encapsulado detrás de la abstracción interna `ObjectStorageService`; la lógica de dominio no depende del SDK ni del proveedor concreto.
+- Storage: bucket privado Supabase Storage `repository-zips` vía `@supabase/supabase-js`, consumido solo por RAG Core y encapsulado detrás de `ObjectStorageService`; la lógica de dominio no depende del SDK ni del proveedor concreto.
+- Variables canónicas: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` y `SUPABASE_STORAGE_BUCKET`; `SUPABASE_PUBLISHABLE_KEY` queda opcional y sin uso actual. Frontend y Sandbox no reciben estas credenciales.
 - Package manager: pnpm.
 - Mecanismo durable de jobs: cola DB-backed sobre PostgreSQL de Supabase (tabla `jobs`, despacho con `SELECT ... FOR UPDATE SKIP LOCKED`). Sin broker externo en V1.

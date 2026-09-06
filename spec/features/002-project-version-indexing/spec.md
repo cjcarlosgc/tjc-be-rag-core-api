@@ -11,6 +11,8 @@ Ingerir un ZIP seguro, crear un snapshot versionado e indexarlo para recuperaci�
 
 - `POST /projects/index` multipart `file` + `projectId?` + `name?`; responde 202 con `projectId`, `projectVersionId`, `status=PENDING`, `pollAfterMs`.
 - Nueva carga crea nueva ProjectVersion; nunca sobrescribe.
+- El ZIP original se almacena con `upsert=false` en el bucket privado `repository-zips`; la key interna vigente es `repositories/{projectId}/versions/{projectVersionId}/original.zip`, preservando el versionado inmutable de HU07.
+- PostgreSQL conserva únicamente la `snapshotKey` interna y metadata; nunca una URL firmada. La key no se expone al navegador.
 - Bloquear indexación simultánea del mismo Project con 409 `PROJECT_INDEXING_IN_PROGRESS`.
 - ZIP: extensión/MIME/no vacío/tamaño/safe paths/Zip Slip/cleanup.
 - Estados: PENDING -> EXTRACTING -> ANALYZING -> CHUNKING -> EMBEDDING -> PERSISTING -> COMPLETED; cualquier activo -> FAILED.

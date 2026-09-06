@@ -55,7 +55,7 @@ export class ProjectVersionsService {
       sizeBytes: file.size,
     });
 
-    const snapshotKey = `projects/${project.id}/versions/${version.id}/source.zip`;
+    const snapshotKey = `repositories/${project.id}/versions/${version.id}/original.zip`;
 
     try {
       await this.objectStorageService.put(snapshotKey, file.buffer, 'application/zip');

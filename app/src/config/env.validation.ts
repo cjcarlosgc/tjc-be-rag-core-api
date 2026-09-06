@@ -13,11 +13,15 @@ class EnvironmentVariables {
   @IsString()
   SUPABASE_URL!: string;
 
+  @IsOptional()
   @IsString()
-  SUPABASE_SERVICE_ROLE_KEY!: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
 
   @IsString()
-  OBJECT_STORAGE_BUCKET!: string;
+  SUPABASE_SECRET_KEY!: string;
+
+  @IsString()
+  SUPABASE_STORAGE_BUCKET!: string;
 
   @IsInt()
   @Min(100)

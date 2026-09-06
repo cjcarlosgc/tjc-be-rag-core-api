@@ -134,7 +134,9 @@ describe('ProjectVersionsService', () => {
 
       expect(projectsRepository.create).toHaveBeenCalledWith('demo');
       expect(objectStorageProvider.put).toHaveBeenCalledWith(
-        expect.stringContaining(`projects/${project.id}/versions/${version.id}/source.zip`),
+        expect.stringContaining(
+          `repositories/${project.id}/versions/${version.id}/original.zip`,
+        ),
         file.buffer,
         'application/zip',
       );

@@ -8,7 +8,7 @@
 
 ## Diseño técnico
 
-`TestExecutionService -> SandboxExecutionService -> HTTP tjc-be-test-execution-sandbox`. Implementar `202 + polling` e idempotencia conforme a `INTEROP-1.0`; mapear `SandboxExecutionResultResponse` a `TestValidationResult` sin perder evidence IDs/log refs.
+`TestExecutionService -> ObjectStorageService.presignGet -> SandboxExecutionService -> HTTP tjc-be-test-execution-sandbox`. Implementar `202 + polling` e idempotencia conforme a `INTEROP-1.1`; enviar referencias de descarga efímeras verificables, mapear `SandboxExecutionResultResponse` a `TestValidationResult` y persistirlo en Core sin conservar signed URLs.
 
 ## Validación
 
