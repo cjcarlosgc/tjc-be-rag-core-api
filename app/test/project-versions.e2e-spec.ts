@@ -170,6 +170,45 @@ describe('Project version indexing (e2e)', () => {
     expect(response.body.code).toBe('UNSUPPORTED_PROJECT');
   });
 
+  it('lists the versions of a project, most recent first, marking only the latest as current (HU25)', async () => {
+    const zipBuffer = buildValidProjectZip();
+
+    const first = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('name', 'History Versions E2E Project')
+      .attach('file', zipBuffer, 'project.zip')
+      .expect(202);
+    await waitForStatus(app, first.body.projectVersionId, ['COMPLETED', 'FAILED'], 15000);
+
+    const second = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('projectId', first.body.projectId)
+      .attach('file', zipBuffer, 'project.zip')
+      .expect(202);
+    await waitForStatus(app, second.body.projectVersionId, ['COMPLETED', 'FAILED'], 15000);
+
+    const page = await request(app.getHttpServer())
+      .get(`/projects/${first.body.projectId}/versions`)
+      .query({ limit: 10 })
+      .expect(200);
+
+    expect(page.body.items.map((item: { id: string }) => item.id)).toEqual([
+      second.body.projectVersionId,
+      first.body.projectVersionId,
+    ]);
+    expect(page.body.items[0]).toMatchObject({ current: true, detectedFramework: 'VITEST' });
+    expect(page.body.items[1]).toMatchObject({ current: false, detectedFramework: 'VITEST' });
+    expect(page.body.nextCursor).toBeNull();
+  }, 30000);
+
+  it('returns a 404 PROJECT_NOT_FOUND when listing versions of an unknown project', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/projects/00000000-0000-0000-0000-000000000000/versions')
+      .expect(404);
+
+    expect(response.body.code).toBe('PROJECT_NOT_FOUND');
+  });
+
   it('blocks a second concurrent indexing for the same project with 409', async () => {
     const zipBuffer = buildValidProjectZip();
 

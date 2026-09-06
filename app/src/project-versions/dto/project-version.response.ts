@@ -31,3 +31,28 @@ export function toProjectVersionResponse(version: ProjectVersion): ProjectVersio
     updatedAt: version.updatedAt.toISOString(),
   };
 }
+
+export interface ProjectVersionSummaryResponse extends ProjectVersionResponse {
+  detectedFramework: 'JEST' | 'VITEST' | null;
+  targetsTotal: number | null;
+  targetsWithTest: number | null;
+  targetsMissingTest: number | null;
+  current: boolean;
+}
+
+export function toProjectVersionSummaryResponse(
+  version: ProjectVersion,
+  currentVersionId: string | null,
+): ProjectVersionSummaryResponse {
+  return {
+    ...toProjectVersionResponse(version),
+    detectedFramework: version.detectedFramework,
+    targetsTotal: version.targetsTotal,
+    targetsWithTest: version.targetsWithTest,
+    targetsMissingTest:
+      version.targetsTotal !== null && version.targetsWithTest !== null
+        ? version.targetsTotal - version.targetsWithTest
+        : null,
+    current: version.id === currentVersionId,
+  };
+}

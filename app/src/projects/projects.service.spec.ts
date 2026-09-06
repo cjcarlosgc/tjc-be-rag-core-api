@@ -8,7 +8,11 @@ import type { Project } from '../generated/prisma/client.js';
 
 describe('ProjectsService', () => {
   let service: ProjectsService;
-  let repository: { create: ReturnType<typeof vi.fn>; findById: ReturnType<typeof vi.fn> };
+  let repository: {
+    create: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+    findAll: ReturnType<typeof vi.fn>;
+  };
 
   const project: Project = {
     id: 'project-1',
@@ -19,7 +23,7 @@ describe('ProjectsService', () => {
   };
 
   beforeEach(async () => {
-    repository = { create: vi.fn(), findById: vi.fn() };
+    repository = { create: vi.fn(), findById: vi.fn(), findAll: vi.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [ProjectsService, { provide: ProjectsRepository, useValue: repository }],
@@ -60,6 +64,40 @@ describe('ProjectsService', () => {
       await expect(service.getById('missing')).rejects.toMatchObject<Partial<AppException>>({
         code: ErrorCode.PROJECT_NOT_FOUND,
       });
+    });
+  });
+
+  describe('list (HU25)', () => {
+    it('requests one extra row to detect a next page and strips it from the returned items', async () => {
+      repository.findAll.mockResolvedValue([
+        { ...project, id: 'project-3' },
+        { ...project, id: 'project-2' },
+        { ...project, id: 'project-1' },
+      ]);
+
+      const page = await service.list(2, undefined);
+
+      expect(repository.findAll).toHaveBeenCalledWith(2, undefined);
+      expect(page.items).toHaveLength(2);
+      expect(page.items.map((item) => item.id)).toEqual(['project-3', 'project-2']);
+      expect(page.nextCursor).toBe('project-2');
+    });
+
+    it('returns nextCursor null when there is no further page', async () => {
+      repository.findAll.mockResolvedValue([project]);
+
+      const page = await service.list(20, undefined);
+
+      expect(page.items).toHaveLength(1);
+      expect(page.nextCursor).toBeNull();
+    });
+
+    it('passes the cursor through to the repository and applies the default limit', async () => {
+      repository.findAll.mockResolvedValue([]);
+
+      await service.list(undefined, 'project-5');
+
+      expect(repository.findAll).toHaveBeenCalledWith(20, 'project-5');
     });
   });
 });

@@ -5,6 +5,9 @@ import { ProjectResponse } from './dto/project.response.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { Project } from '../generated/prisma/client.js';
+import type { Page } from '../common/dto/page.response.js';
+
+const DEFAULT_PAGE_LIMIT = 20;
 
 @Injectable()
 export class ProjectsService {
@@ -27,6 +30,17 @@ export class ProjectsService {
     }
 
     return this.toResponse(project);
+  }
+
+  async list(limit: number | undefined, cursor: string | undefined): Promise<Page<ProjectResponse>> {
+    const take = limit ?? DEFAULT_PAGE_LIMIT;
+    const projects = await this.projectsRepository.findAll(take, cursor);
+    const hasMore = projects.length > take;
+    const items = (hasMore ? projects.slice(0, take) : projects).map((project) =>
+      this.toResponse(project),
+    );
+
+    return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
   }
 
   private toResponse(project: Project): ProjectResponse {

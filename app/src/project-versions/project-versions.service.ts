@@ -12,11 +12,19 @@ import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { IndexProjectDto } from './dto/index-project.dto.js';
 import type { IndexAcceptedResponse } from './dto/index-accepted.response.js';
-import { toProjectVersionResponse, type ProjectVersionResponse } from './dto/project-version.response.js';
+import {
+  toProjectVersionResponse,
+  toProjectVersionSummaryResponse,
+  type ProjectVersionResponse,
+  type ProjectVersionSummaryResponse,
+} from './dto/project-version.response.js';
 import type { ProjectVersionResultsResponse } from './dto/project-version-results.response.js';
 import type { TestInventoryResponse } from './dto/test-target.response.js';
 import type { Project, ProjectVersion } from '../generated/prisma/client.js';
 import { ProjectVersionStatus } from '../generated/prisma/enums.js';
+import type { Page } from '../common/dto/page.response.js';
+
+const DEFAULT_PAGE_LIMIT = 20;
 
 @Injectable()
 export class ProjectVersionsService {
@@ -146,6 +154,31 @@ export class ProjectVersionsService {
         testFilePaths: target.testFilePaths,
       })),
     };
+  }
+
+  async listVersions(
+    projectId: string,
+    limit: number | undefined,
+    cursor: string | undefined,
+  ): Promise<Page<ProjectVersionSummaryResponse>> {
+    const project = await this.projectsRepository.findById(projectId);
+
+    if (!project) {
+      throw new AppException(
+        ErrorCode.PROJECT_NOT_FOUND,
+        `No existe un proyecto con id "${projectId}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const take = limit ?? DEFAULT_PAGE_LIMIT;
+    const versions = await this.projectVersionsRepository.findByProject(projectId, take, cursor);
+    const hasMore = versions.length > take;
+    const items = (hasMore ? versions.slice(0, take) : versions).map((version) =>
+      toProjectVersionSummaryResponse(version, project.currentVersionId),
+    );
+
+    return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
   }
 
   private async findVersionOrThrow(id: string): Promise<ProjectVersion> {

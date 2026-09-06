@@ -28,6 +28,20 @@ export class ProjectVersionsRepository {
     return this.prisma.projectVersion.findUnique({ where: { id } });
   }
 
+  /**
+   * HU25: página de versiones de un proyecto, más recientes primero. Se
+   * pide `take + 1` para saber si hay una página siguiente sin una segunda
+   * consulta; el cursor es el id de la última versión devuelta.
+   */
+  findByProject(projectId: string, take: number, cursor?: string): Promise<ProjectVersion[]> {
+    return this.prisma.projectVersion.findMany({
+      where: { projectId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+  }
+
   async hasActiveVersion(projectId: string): Promise<boolean> {
     const active = await this.prisma.projectVersion.findFirst({
       where: {

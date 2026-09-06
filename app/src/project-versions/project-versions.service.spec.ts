@@ -34,6 +34,7 @@ describe('ProjectVersionsService', () => {
     setSnapshot: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
     markFailed: ReturnType<typeof vi.fn>;
+    findByProject: ReturnType<typeof vi.fn>;
   };
   let testTargetsRepository: { findByProjectVersion: ReturnType<typeof vi.fn> };
   let jobsService: { enqueue: ReturnType<typeof vi.fn> };
@@ -76,6 +77,7 @@ describe('ProjectVersionsService', () => {
       setSnapshot: vi.fn(),
       findById: vi.fn(),
       markFailed: vi.fn(),
+      findByProject: vi.fn(),
     };
     testTargetsRepository = { findByProjectVersion: vi.fn().mockResolvedValue([]) };
     jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
@@ -286,6 +288,67 @@ describe('ProjectVersionsService', () => {
         targetsMissingTest: 1,
       });
       expect(result.targets).toHaveLength(2);
+    });
+  });
+
+  describe('listVersions (HU25)', () => {
+    it('throws PROJECT_NOT_FOUND when the project does not exist', async () => {
+      projectsRepository.findById.mockResolvedValue(null);
+
+      await expect(service.listVersions('missing', undefined, undefined)).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_NOT_FOUND,
+      });
+    });
+
+    it('requests one extra row to detect a next page and strips it from the returned items', async () => {
+      projectsRepository.findById.mockResolvedValue({ ...project, currentVersionId: 'version-3' });
+      projectVersionsRepository.findByProject.mockResolvedValue([
+        { ...version, id: 'version-3' },
+        { ...version, id: 'version-2' },
+        { ...version, id: 'version-1' },
+      ]);
+
+      const page = await service.listVersions(project.id, 2, undefined);
+
+      expect(projectVersionsRepository.findByProject).toHaveBeenCalledWith(project.id, 2, undefined);
+      expect(page.items).toHaveLength(2);
+      expect(page.items.map((item) => item.id)).toEqual(['version-3', 'version-2']);
+      expect(page.nextCursor).toBe('version-2');
+    });
+
+    it('marks only the project.currentVersionId as current', async () => {
+      projectsRepository.findById.mockResolvedValue({ ...project, currentVersionId: 'version-2' });
+      projectVersionsRepository.findByProject.mockResolvedValue([
+        { ...version, id: 'version-2' },
+        { ...version, id: 'version-1' },
+      ]);
+
+      const page = await service.listVersions(project.id, 20, undefined);
+
+      expect(page.items.find((item) => item.id === 'version-2')?.current).toBe(true);
+      expect(page.items.find((item) => item.id === 'version-1')?.current).toBe(false);
+    });
+
+    it('computes targetsMissingTest and returns null when totals are not yet known', async () => {
+      projectsRepository.findById.mockResolvedValue(project);
+      projectVersionsRepository.findByProject.mockResolvedValue([
+        { ...version, id: 'version-2', targetsTotal: 5, targetsWithTest: 2 },
+        { ...version, id: 'version-1', targetsTotal: null, targetsWithTest: null },
+      ]);
+
+      const page = await service.listVersions(project.id, 20, undefined);
+
+      expect(page.items[0]).toMatchObject({ targetsTotal: 5, targetsWithTest: 2, targetsMissingTest: 3 });
+      expect(page.items[1]).toMatchObject({ targetsTotal: null, targetsWithTest: null, targetsMissingTest: null });
+    });
+
+    it('returns nextCursor null when there is no further page', async () => {
+      projectsRepository.findById.mockResolvedValue(project);
+      projectVersionsRepository.findByProject.mockResolvedValue([version]);
+
+      const page = await service.listVersions(project.id, 20, undefined);
+
+      expect(page.nextCursor).toBeNull();
     });
   });
 });
