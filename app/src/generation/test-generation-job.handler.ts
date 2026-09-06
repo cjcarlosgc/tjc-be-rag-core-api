@@ -12,16 +12,14 @@ import { PromptBuilder } from './prompt-builder.service.js';
 import { GapAnalyzer } from './gap-analyzer.service.js';
 import { TestFileMergeService } from './test-file-merge.service.js';
 import { WorkspaceFileTracker } from './workspace-file-tracker.js';
-import {
-  TestGenerationRunsRepository,
-  type FailureTypeValue,
-} from './persistence/test-generation-runs.repository.js';
+import { TestGenerationRunsRepository } from './persistence/test-generation-runs.repository.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
 import type { LLMProvider } from '../providers/llm-provider.interface.js';
 import {
   SandboxExecutionService,
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
+import { mapSandboxResult, type MappedSandboxOutcome } from '../sandbox/map-sandbox-result.js';
 import type { SandboxExecutionResult } from '../sandbox/sandbox.types.js';
 import { ArtifactService } from '../artifacts/artifact.service.js';
 import { TestRunStatus } from '../generated/prisma/enums.js';
@@ -36,17 +34,7 @@ export interface TestGenerationJobPayload {
   targetId: string | null;
 }
 
-interface MappedOutcome {
-  status: 'VALID' | 'INVALID' | 'FAILED';
-  compiled: boolean | null;
-  executed: boolean | null;
-  passed: boolean | null;
-  valid: boolean | null;
-  failureType: FailureTypeValue | null;
-  errorSummary: string | null;
-}
-
-function coLocatedSpecPath(filePath: string): string {
+export function coLocatedSpecPath(filePath: string): string {
   return `${filePath.replace(/\.tsx?$/, '')}.spec.ts`;
 }
 
@@ -235,7 +223,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
         return;
       }
 
-      const outcome = this.mapSandboxResult(sandboxResult);
+      const outcome = mapSandboxResult(sandboxResult);
       tracker.setValid(relativePath, outcome.valid === true);
       await this.recordResult(testRunId, target, relativePath, outcome);
     } catch (error) {
@@ -254,64 +242,11 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
     }
   }
 
-  private mapSandboxResult(result: SandboxExecutionResult): MappedOutcome {
-    if (result.status === 'TIMED_OUT') {
-      return {
-        status: 'FAILED',
-        compiled: result.facts?.compiled ?? null,
-        executed: result.facts?.executed ?? null,
-        passed: result.facts?.passed ?? null,
-        valid: false,
-        failureType: 'INFRASTRUCTURE',
-        errorSummary: 'La ejecución en el Sandbox agotó el tiempo límite.',
-      };
-    }
-
-    if (result.status === 'FAILED' || !result.facts) {
-      return {
-        status: 'FAILED',
-        compiled: result.facts?.compiled ?? null,
-        executed: result.facts?.executed ?? null,
-        passed: result.facts?.passed ?? null,
-        valid: false,
-        failureType: result.failure?.category ?? 'UNKNOWN',
-        errorSummary: result.failure?.message ?? 'El Sandbox no pudo completar la ejecución.',
-      };
-    }
-
-    const { facts } = result;
-
-    if (facts.passed) {
-      return {
-        status: 'VALID',
-        compiled: true,
-        executed: true,
-        passed: true,
-        valid: true,
-        failureType: 'NONE',
-        errorSummary: null,
-      };
-    }
-
-    const failureType = !facts.compiled ? 'COMPILATION' : !facts.executed ? 'TEST_RUNTIME' : 'TEST_ASSERTION';
-    const failedCase = facts.testCases.find((testCase) => testCase.status === 'FAILED');
-
-    return {
-      status: 'INVALID',
-      compiled: facts.compiled,
-      executed: facts.executed,
-      passed: facts.passed,
-      valid: false,
-      failureType,
-      errorSummary: failedCase?.errorMessage ?? 'La prueba generada no pasó en el Sandbox.',
-    };
-  }
-
   private async recordResult(
     testRunId: string,
     target: TestTarget,
     testFilePath: string,
-    outcome: MappedOutcome,
+    outcome: MappedSandboxOutcome,
   ): Promise<void> {
     await this.testGenerationRunsRepository.insertTargetResult(testRunId, {
       targetId: target.id,

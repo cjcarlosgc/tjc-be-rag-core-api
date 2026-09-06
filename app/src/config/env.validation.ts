@@ -94,6 +94,22 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   SANDBOX_MAX_POLL_ATTEMPTS: number = 120;
+
+  @IsInt()
+  @Min(1)
+  AGENT_MAX_TOOL_CALLS: number = 20;
+
+  @IsInt()
+  @Min(1000)
+  GENERATION_TIMEOUT_MS: number = 60_000;
+
+  @IsNumber()
+  @Min(0)
+  LLM_INPUT_COST_PER_1K_TOKENS: number = 0.00015;
+
+  @IsNumber()
+  @Min(0)
+  LLM_OUTPUT_COST_PER_1K_TOKENS: number = 0.0006;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

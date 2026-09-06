@@ -3,6 +3,9 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { Prisma, TargetRunResult, TestGenerationRun } from '../../generated/prisma/client.js';
 import { TestRunStatus } from '../../generated/prisma/enums.js';
 import type { GenerationMode } from '../dto/generation-mode.js';
+import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
+
+export type { FailureTypeValue };
 
 export interface CreateTestGenerationRunInput {
   projectId: string;
@@ -10,16 +13,6 @@ export interface CreateTestGenerationRunInput {
   mode: GenerationMode;
   targetId: string | null;
 }
-
-export type FailureTypeValue =
-  | 'NONE'
-  | 'COMPILATION'
-  | 'TEST_ASSERTION'
-  | 'TEST_RUNTIME'
-  | 'DEPENDENCY'
-  | 'CONFIGURATION'
-  | 'INFRASTRUCTURE'
-  | 'UNKNOWN';
 
 export interface TargetRunResultInput {
   targetId: string;

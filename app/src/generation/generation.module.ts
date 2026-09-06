@@ -23,5 +23,6 @@ import { TestGenerationJobHandler } from './test-generation-job.handler.js';
     TestFileMergeService,
     TestGenerationJobHandler,
   ],
+  exports: [PromptBuilder, TestFileMergeService],
 })
 export class GenerationModule {}

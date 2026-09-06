@@ -34,6 +34,7 @@ import { IndexingJobHandler } from './indexing-job.handler.js';
     TestTargetsRepository,
     ProjectVersionsRepository,
     ZipExtractionService,
+    FileDiscoveryService,
   ],
 })
 export class ProjectVersionsModule {}

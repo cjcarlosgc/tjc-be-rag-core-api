@@ -79,6 +79,18 @@ enum ArtifactType {
   MODIFIED
 }
 
+enum ExperimentStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ExperimentStrategy {
+  RAG
+  GENERALIST_AGENT
+}
+
 model Project {
   id               String           @id @default(uuid())
   name             String
@@ -152,6 +164,7 @@ model TestTarget {
   hasTest          Boolean        @default(false)
   testFilePaths    String[]       @default([])
   targetRunResults TargetRunResult[]
+  experimentRuns   ExperimentRun[]
   createdAt        DateTime       @default(now())
 
   @@index([projectVersionId])
@@ -220,6 +233,57 @@ model Artifact {
 
   @@index([testRunId])
   @@map("artifacts")
+}
+
+model ExperimentRun {
+  id                  String             @id @default(uuid())
+  projectId           String
+  projectVersionId    String
+  targetId            String
+  target              TestTarget         @relation(fields: [targetId], references: [id])
+  status              ExperimentStatus   @default(PENDING)
+  completedRepetitions Int               @default(0)
+  totalRepetitions    Int                @default(6)
+  failureCode         String?
+  failureMessage      String?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  repetitions         ExperimentRepetition[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([projectId])
+  @@map("experiment_runs")
+}
+
+model ExperimentRepetition {
+  id                  String             @id @default(uuid())
+  experimentId        String
+  experiment          ExperimentRun      @relation(fields: [experimentId], references: [id])
+  repetition          Int
+  strategy            ExperimentStrategy
+  compiled            Boolean?
+  executed            Boolean?
+  passed              Boolean?
+  valid               Boolean?
+  failureType         FailureType?
+  generationDurationMs Int?
+  executionDurationMs Int?
+  totalDurationMs     Int?
+  inputTokens         Int?
+  outputTokens        Int?
+  totalTokens         Int?
+  estimatedCost       Float?
+  retrievedChunks     Int?
+  selectedChunks      Int?
+  contextTokens       Int?
+  toolCalls           Int?
+  filesInspected      Int?
+  trajectory          Json?
+  createdAt           DateTime           @default(now())
+
+  @@index([experimentId])
+  @@map("experiment_repetitions")
 }
 
 model Job {
