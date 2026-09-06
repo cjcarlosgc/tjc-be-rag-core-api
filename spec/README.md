@@ -2,7 +2,7 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-Orden de lectura: `constitution/project-context.md` -> constitución aplicable -> `backlog.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables.
+Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> constitución aplicable -> `backlog.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables.
 
 ## Versionado
 
@@ -26,3 +26,9 @@ Las decisiones `PENDING` y `PROPOSED` que puedan afectar trabajo futuro deben te
 `Blocks` determina si la decisión impide verificar el work item activo. Una decisión pendiente de otra feature no bloquea globalmente el repositorio. No registrar como decisión técnica bloqueante información académica que no cambie un contrato implementable.
 
 No existe un registro central adicional que duplique decisiones. Cada decisión vive en la spec dueña del contrato; `CHANGELOG.md` registra cuándo cambió y `harness/state.json` conserva únicamente los IDs aplicables al work item activo.
+
+## Contrato entre componentes
+
+`contracts/system-contract.md` es el propietario canónico de las decisiones que deben compartir RAG Core, Developer Console y Test Execution Sandbox. Las copias espejo declaran `SYSTEM-*`; no sustituyen las specs internas ni cierran operaciones marcadas `PENDING`.
+
+`contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte universales. Su versión `INTEROP-*` evoluciona independientemente de las versiones SDD locales.

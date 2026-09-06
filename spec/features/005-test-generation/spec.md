@@ -18,6 +18,7 @@ Generar pruebas unitarias en cinco modos sobre la versión congelada del proyect
 - LLMProvider.generate(prompt) desacoplado.
 - Prompt recibe código/contexto, no embeddings.
 - CREATE si no existe test relevante; MERGE con ts-morph si existe, preservando tests. Múltiples métodos deben fusionarse sobre workspace/artifact evolucionado del run.
+- El transporte externo usa `POST /test-runs`, status y resultados definidos en `spec/contracts/interoperability-contract.md`; los DTO HTTP no exponen prompts, embeddings ni keys de Storage.
 
 ## Fuera de alcance
 

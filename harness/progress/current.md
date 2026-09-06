@@ -12,4 +12,10 @@ Fix aplicado: si falla la subida del snapshot, `setSnapshot` o el encolado del j
 
 Auditoría de completitud actualizada: se documentó el comportamiento real de servicios/chunking de Sprint 1, pero la estrategia definitiva para retrieval continúa en `DEC-CHUNK-001`. Los transversales de providers y métricas ya declaran sus reglas y puertas principales; otros contratos operativos se refinan cuando el work item los necesite. Ver `harness/reports/sdd-1.3-decision-consolidation.md`.
 
-Siguiente paso sugerido: antes de implementar `004-rag-retrieval-context`, resolver humanamente `DEC-CHUNK-001` y `DEC-EMB-001`. `DEC-RAG-001` y `DEC-MET-001` son análisis deseados inmediatamente después del núcleo de Sprint 2 y no lo bloquean. HU19 queda bloqueada específicamente por `DEC-EXP-002` hasta definir el contrato del agente generalista.
+En el corte SDD 1.4 se incorporó `SYSTEM-1.0`, se corrigieron HU06/HU08 para incluir funciones y `DEC-INT-001` registró entonces el contrato HTTP Core↔Sandbox como pendiente.
+
+SDD 1.5 / SYSTEM-1.1 incorpora `INTEROP-1.0`, contrato universal con rutas, DTOs, errores, asincronía, artefactos y ejecución Sandbox. `DEC-INT-001` queda aprobado; no se cierran las puertas de retrieval, agente generalista, mutation testing, package managers o validación empresarial.
+
+SDD 1.6 queda homologada como línea base conjunta de los tres repositorios y formaliza la entrega Git común: cada commit es un cambio coherente con `Refs: HU...`; cada work item conserva su revisión y, antes del push de cierre de sprint, el reviewer debe aprobar y documentar el rango acumulado exacto que se publicará. `SYSTEM-*` e `INTEROP-*` conservan versionado propio. Commit y push continúan requiriendo solicitud humana explícita.
+
+Siguiente paso sugerido: antes de implementar `004-rag-retrieval-context`, resolver humanamente `DEC-CHUNK-001` y `DEC-EMB-001`. `DEC-RAG-001` y `DEC-MET-001` son análisis deseados inmediatamente después del núcleo de Sprint 2 y no lo bloquean. HU19 queda bloqueada específicamente por `DEC-EXP-002`; la integración Sandbox ya dispone de contrato, mientras la validación empresarial continúa sujeta a `DEC-VAL-001`.

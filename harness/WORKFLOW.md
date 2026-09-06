@@ -25,6 +25,8 @@ Antes de pasar a `SPEC_VERIFIED`:
 4. Si existe un ID bloqueante, usar `BLOCKED` y formular una pregunta concreta. Las decisiones de otras features o asuntos académicos no implementables no bloquean el trabajo activo.
 5. Si aparece una decisión bloqueante durante la implementación, detener el punto afectado y volver a `BLOCKED`; no elegir silenciosamente una alternativa.
 
+Ejemplo: si `DEC-MET-001` declara que solo bloquea mutation testing, una tarea ordinaria de generación registra ese ID como no aplicable o no bloqueante y continúa. Si el work item intenta integrar StrykerJS, `decisionGate.blockingDecisionIds=["DEC-MET-001"]`, el estado pasa a `BLOCKED` y se formula la pregunta de la spec.
+
 ## Handoffs externos
 
 Al recibir contexto de ChatGPT, documentos de tesis u otra fuente externa:
@@ -36,4 +38,15 @@ Al recibir contexto de ChatGPT, documentos de tesis u otra fuente externa:
 
 ## Cambios de SDD
 
-No se agregan “enmiendas” acumulativas dentro de una spec. Una decisión aprobada modifica el texto canónico, actualiza plan/tasks afectados, incrementa versión si corresponde y registra el cambio en `CHANGELOG.md`. Git conserva el historial fino.
+No se agregan “enmiendas” acumulativas dentro de una spec. Una decisión aprobada modifica el texto canónico, actualiza plan/tasks afectados, incrementa versión si corresponde y registra el cambio en `CHANGELOG.md`. `sddVersion` representa la línea base conjunta y debe quedar homologada en los tres repositorios antes de commit; `SYSTEM-*` e `INTEROP-*` mantienen versionado propio. Git conserva el historial fino.
+
+## Commits y cierre de sprint
+
+La política canónica está en `spec/constitution/delivery-workflow.md`.
+
+1. Durante `IN_PROGRESS`, dividir el trabajo en commits coherentes y verificables; una HU puede usar varios commits y un commit puede referenciar varias HU.
+2. Usar un asunto compatible con Conventional Commits y añadir al cuerpo `Refs: HUxx[, HUyy...]` con todas las HU afectadas. `Decisions: DEC-...` es opcional y no sustituye las HU.
+3. Completar la revisión de cada work item antes de `DONE`.
+4. Al cerrar el sprint, el reviewer revisa el rango acumulado que se pretende publicar y registra el resultado en `harness/reports/sprint-<N>-review.md`.
+5. Solo un veredicto `APPROVED`, con lint/test/build aplicables en verde y sin cambios posteriores al commit revisado, habilita el push.
+6. Commit y push continúan requiriendo solicitud humana explícita. Un push extraordinario antes de cerrar el sprint requiere la misma revisión previa.

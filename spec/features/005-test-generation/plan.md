@@ -3,6 +3,7 @@
 ## Dependencias
 
 - Constitución y transversales aplicables.
+- `spec/contracts/interoperability-contract.md` para rutas, DTOs y estados externos.
 
 ## Diseño técnico
 

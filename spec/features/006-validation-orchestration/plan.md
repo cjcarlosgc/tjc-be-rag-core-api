@@ -3,10 +3,12 @@
 ## Dependencias
 
 - Constitución y transversales aplicables.
+- `spec/contracts/system-contract.md`, donde `DEC-INT-001` está aprobado.
+- `spec/contracts/interoperability-contract.md` para el transporte Core↔Sandbox.
 
 ## Diseño técnico
 
-`TestExecutionService -> SandboxExecutionService -> HTTP tjc-be-test-execution-sandbox`. Mapear `TestRunnerResult` a `TestValidationResult` sin perder evidence IDs/log refs.
+`TestExecutionService -> SandboxExecutionService -> HTTP tjc-be-test-execution-sandbox`. Implementar `202 + polling` e idempotencia conforme a `INTEROP-1.0`; mapear `SandboxExecutionResultResponse` a `TestValidationResult` sin perder evidence IDs/log refs.
 
 ## Validación
 

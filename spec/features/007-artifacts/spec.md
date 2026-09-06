@@ -13,6 +13,7 @@ Persistir y entregar artefactos generados/modificados de un TestGenerationRun.
 - Storage path `test-runs/{runId}/artifacts/...`.
 - Endpoints: artifact download, download all, diff.
 - Diff compara original congelado vs artifact final; CREATED -> 409 DIFF_NOT_AVAILABLE.
+- Las rutas y DTOs para listar, diff y descargar son los definidos en `spec/contracts/interoperability-contract.md`; `storageKey` nunca se expone al navegador.
 
 ## Fuera de alcance
 

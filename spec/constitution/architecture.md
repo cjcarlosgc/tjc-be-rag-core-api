@@ -1,5 +1,7 @@
 # Arquitectura
 
+**Contratos compartidos:** SYSTEM-1.1 / INTEROP-1.0
+
 **Estado:** aprobado con decisiones PENDING explícitas
 
 ## Topología de la solución

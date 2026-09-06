@@ -22,13 +22,7 @@ El sistema indexa proyectos TypeScript y construye contexto RAG trazable para ge
 - Mantener el alcance implementable exclusivamente en TypeScript. La tesis puede ubicarlo académicamente dentro del ecosistema JavaScript/TypeScript, pero eso no habilita archivos JavaScript puros en V1.
 - Separar las responsabilidades de los tres proyectos: `tjc-fe-rag-developer-console` como frontend/cliente de referencia, `tjc-be-rag-core-api` como backend principal y `tjc-be-test-execution-sandbox` como backend de ejecución aislada. Este repositorio implementa únicamente RAG Core y su código vive en `app/`.
 
-### DEC-VAL-001 — Condiciones técnicas de validación empresarial
-
-**Estado:** PENDING
-
-**Blocks:** únicamente el work item futuro de despliegue y ejecución de la validación en empresa; no bloquea desarrollo o prevalidación local
-
-**Pregunta:** antes de desplegar o ingerir repositorios de la empresa, definir entorno y propiedad de las cuentas, acceso, autorización del repositorio, tratamiento de código privado frente a proveedores externos, retención/eliminación y evidencia exportable sin filtrar información confidencial.
+Las condiciones todavía pendientes para la validación empresarial se rigen por `DEC-VAL-001` en `spec/contracts/system-contract.md`.
 
 ## Dónde vive cada decisión
 

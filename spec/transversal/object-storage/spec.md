@@ -14,6 +14,7 @@ Abstraer snapshots `source.zip` y artifacts sin acoplar a proveedor.
 - `ObjectStorageService` define las operaciones requeridas para almacenar, recuperar, eliminar y entregar snapshots y artefactos, sin exponer tipos específicos del proveedor.
 - Las keys son internas y no se construyen confiando en nombres suministrados por el usuario.
 - PostgreSQL + pgvector en Supabase conserva los datos de dominio, chunks, embeddings vectoriales y la cola DB-backed de jobs; Supabase Storage se limita a snapshots y artefactos.
+- La integración con Sandbox usa `StorageObjectRef` de `INTEROP-1.0`: role lógico, key opaca, SHA-256 y tamaño. El contrato no expone buckets reales, credenciales ni tipos de Supabase.
 
 ## Fuera de alcance
 
