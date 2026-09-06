@@ -47,6 +47,6 @@ La política canónica está en `spec/constitution/delivery-workflow.md`.
 1. Durante `IN_PROGRESS`, dividir el trabajo en commits coherentes y verificables; una HU puede usar varios commits y un commit puede referenciar varias HU.
 2. Usar un asunto compatible con Conventional Commits y añadir al cuerpo `Refs: HUxx[, HUyy...]` con todas las HU afectadas. `Decisions: DEC-...` es opcional y no sustituye las HU.
 3. Completar la revisión de cada work item antes de `DONE`.
-4. Al cerrar el sprint, el reviewer revisa el rango acumulado que se pretende publicar y registra el resultado en `harness/reports/sprint-<N>-review.md`.
-5. Solo un veredicto `APPROVED`, con lint/test/build aplicables en verde y sin cambios posteriores al commit revisado, habilita el push.
+4. Al cerrar el sprint, el reviewer revisa el rango acumulado que se pretende publicar y registra el resultado en `harness/reports/sprint-<N>-review.md`; una entrega extraordinaria usa `harness/reports/delivery-<scope>-review.md`.
+5. Solo un veredicto `APPROVED`, con lint/test/build aplicables en verde y sin cambios posteriores al commit revisado, habilita el push. Se admite después un único commit `docs(review)` que solo incorpore esos reportes, previa comprobación del reviewer; cualquier otra diferencia exige nueva revisión completa.
 6. Commit y push continúan requiriendo solicitud humana explícita. Un push extraordinario antes de cerrar el sprint requiere la misma revisión previa.

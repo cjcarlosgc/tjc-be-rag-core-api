@@ -1,9 +1,9 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.0  
-**Compatible con:** SYSTEM-1.1  
-**Fecha de corte:** 2026-09-05  
-**Estado:** APROBADO salvo decisiones externas referenciadas explícitamente  
+**Versión:** INTEROP-1.0
+**Compatible con:** SYSTEM-1.1
+**Fecha de corte:** 2026-09-05
+**Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
 Este documento define el vocabulario y los contratos HTTP compartidos por Developer Console, RAG Core y Test Execution Sandbox. Los tres repositorios conservan una copia espejo byte por byte. Una spec local puede detallar su implementación, pero no cambiar rutas, DTOs, estados o semántica de este contrato.

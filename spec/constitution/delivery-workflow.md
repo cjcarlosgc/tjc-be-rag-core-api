@@ -1,6 +1,6 @@
 # Entrega y trazabilidad Git
 
-**Estado:** APROBADO  
+**Estado:** APROBADO
 **Alcance:** RAG Core API, Developer Console y Test Execution Sandbox
 
 ## Versión SDD conjunta
@@ -47,12 +47,14 @@ La revisión consolidada comprueba como mínimo:
 - manejo de errores, seguridad, observabilidad y limpieza;
 - resolución y nueva revisión de cualquier hallazgo.
 
-El resultado se registra en `harness/reports/sprint-<N>-review.md` con el rango o commit final revisado, HU incluidas, verificaciones ejecutadas, hallazgos y veredicto `APPROVED` o `CHANGES_REQUESTED`.
+El resultado se registra en `harness/reports/sprint-<N>-review.md` con el rango o commit final revisado, HU incluidas, verificaciones ejecutadas, hallazgos y veredicto `APPROVED` o `CHANGES_REQUESTED`. Para una entrega extraordinaria fuera del cierre se usa `harness/reports/delivery-<scope>-review.md`.
+
+El reporte puede incorporarse después de la aprobación mediante un commit exclusivo de evidencia `docs(review): ...`. Esa única diferencia no invalida el veredicto si el reviewer comprueba antes del push que el commit solo modifica los reportes declarados y conserva las mismas HU; cualquier otro cambio sí exige repetir la revisión completa.
 
 ## Puerta de push
 
 - Por defecto se realiza un push por repositorio al cierre de cada sprint.
-- Solo puede publicarse el commit final exacto que recibió veredicto `APPROVED`; cambios posteriores invalidan la aprobación y requieren una nueva revisión.
+- Solo puede publicarse el commit final exacto que recibió veredicto `APPROVED`, salvo el commit exclusivo de evidencia definido arriba; cualquier otro cambio posterior invalida la aprobación y requiere una nueva revisión.
 - No se hace push con hallazgos abiertos, verificaciones requeridas fallidas ni cambios relevantes sin revisar.
 - Un push extraordinario antes del cierre del sprint requiere autorización humana explícita y debe superar la misma revisión previa.
 - Esta política no autoriza automáticamente a un agente a crear commits o hacer push: ambas acciones siguen requiriendo una solicitud explícita del usuario.

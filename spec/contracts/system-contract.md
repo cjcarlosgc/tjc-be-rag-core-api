@@ -1,8 +1,8 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-1.1  
-**Fecha de corte:** 2026-09-05  
-**Estado:** APROBADO salvo decisiones `PENDING` explícitas  
+**Versión del contrato:** SYSTEM-1.1
+**Fecha de corte:** 2026-09-05
+**Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
 Frontend y Sandbox conservan una copia espejo con la misma versión. Una copia local no puede redefinir este contrato; todo cambio coordinado se consolida primero en el propietario y actualiza los tres `CHANGELOG.md`.

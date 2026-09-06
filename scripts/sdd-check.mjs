@@ -20,12 +20,15 @@ if(state){
     const gate=item.decisionGate;
     if(!gate) errors.push('activeWorkItem requiere decisionGate');
     else {
-      if(!Array.isArray(gate.blockingDecisionIds)||!Array.isArray(gate.nonBlockingDecisionIds)) errors.push('decisionGate requiere listas de IDs');
+      const hasBlockingDecisionIds=Array.isArray(gate.blockingDecisionIds);
+      const hasNonBlockingDecisionIds=Array.isArray(gate.nonBlockingDecisionIds);
+      const blockingDecisionIds=hasBlockingDecisionIds?gate.blockingDecisionIds:[];
+      if(!hasBlockingDecisionIds||!hasNonBlockingDecisionIds) errors.push('decisionGate requiere listas de IDs');
       if(['SPEC_VERIFIED','AWAITING_APPROVAL','IN_PROGRESS','IN_REVIEW','DONE'].includes(item.status)){
         if(gate.checked!==true||!gate.checkedAt) errors.push(`${item.status} requiere decisionGate verificado`);
-        if(gate.blockingDecisionIds.length>0) errors.push(`${item.status} no admite decisiones bloqueantes`);
+        if(blockingDecisionIds.length>0) errors.push(`${item.status} no admite decisiones bloqueantes`);
       }
-      if(gate.blockingDecisionIds.length>0&&(item.status!=='BLOCKED'||!item.blockedReason)) errors.push('decisiones bloqueantes requieren estado BLOCKED y blockedReason');
+      if(blockingDecisionIds.length>0&&(item.status!=='BLOCKED'||!item.blockedReason)) errors.push('decisiones bloqueantes requieren estado BLOCKED y blockedReason');
     }
   }
 }
