@@ -242,41 +242,6 @@ describe('ExperimentJobHandler', () => {
     });
   });
 
-  it('never retries or repairs a failed-assertion result (HU23 autorepair never activates in experimental mode)', async () => {
-    const { deps } = makeDeps({
-      sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue({
-          status: 'COMPLETED',
-          facts: {
-            runner: 'VITEST',
-            compiled: true,
-            executed: true,
-            passed: false,
-            totalTests: 1,
-            passedTests: 0,
-            failedTests: 1,
-            skippedTests: 0,
-            testCases: [{ suitePath: null, name: 'x', status: 'FAILED', durationMs: 1, errorMessage: 'expected 1 to be 2' }],
-            testCasesTruncated: false,
-          },
-          failure: null,
-        }),
-      },
-    });
-    const handler = makeHandler(deps);
-
-    await handler.handle(payload);
-
-    expect(deps.llmProvider.generate).toHaveBeenCalledTimes(3);
-    expect(deps.generalistAgentService.generate).toHaveBeenCalledTimes(3);
-    expect(deps.sandboxExecutionService.execute).toHaveBeenCalledTimes(6);
-    expect(deps.experimentRunsRepository.insertRepetition).toHaveBeenCalledTimes(6);
-    expect(deps.experimentRunsRepository.insertRepetition.mock.calls[0][1]).toMatchObject({
-      valid: false,
-      failureType: 'TEST_ASSERTION',
-    });
-  });
-
   it('marks the experiment FAILED when the target cannot be resolved before any repetition runs', async () => {
     const { deps } = makeDeps({
       testTargetsRepository: { findById: vi.fn().mockResolvedValue(null) },

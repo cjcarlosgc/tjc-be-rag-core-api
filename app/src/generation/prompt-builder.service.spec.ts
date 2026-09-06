@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PromptBuilder } from './prompt-builder.service.js';
 import type { GenerationContext } from '../retrieval/generation-context.js';
-import type { RepairContext } from './repair/repair-context.js';
-import type { RunnerFacts } from '../sandbox/sandbox.types.js';
 
 function makeContext(overrides: Partial<GenerationContext> = {}): GenerationContext {
   return {
@@ -78,58 +76,5 @@ describe('PromptBuilder', () => {
     const prompt = builder.build(makeContext({ metadata: { language: 'typescript', framework: null } }));
 
     expect(prompt).toContain('Jest o Vitest');
-  });
-
-  describe('buildRepair (HU23)', () => {
-    const runnerFacts: RunnerFacts = {
-      runner: 'VITEST',
-      compiled: true,
-      executed: true,
-      passed: false,
-      totalTests: 1,
-      passedTests: 0,
-      failedTests: 1,
-      skippedTests: 0,
-      testCases: [{ suitePath: null, name: 'bar works', status: 'FAILED', durationMs: 5, errorMessage: 'expected 1 to be 2' }],
-      testCasesTruncated: false,
-    };
-
-    function makeRepairContext(overrides: Partial<RepairContext> = {}): RepairContext {
-      return {
-        generationContext: makeContext(),
-        failedTestContent: 'it("bar", () => { expect(1).toBe(2); });',
-        failureType: 'TEST_ASSERTION',
-        errorSummary: 'expected 1 to be 2',
-        runnerFacts,
-        attempt: 1,
-        ...overrides,
-      };
-    }
-
-    it('includes the target code, the failed test and the failure details', () => {
-      const builder = new PromptBuilder();
-      const prompt = builder.buildRepair(makeRepairContext());
-
-      expect(prompt).toContain('Foo.bar');
-      expect(prompt).toContain('bar(): number { return 1; }');
-      expect(prompt).toContain('it("bar", () => { expect(1).toBe(2); });');
-      expect(prompt).toContain('TEST_ASSERTION');
-      expect(prompt).toContain('expected 1 to be 2');
-      expect(prompt).toContain('bar works: expected 1 to be 2');
-    });
-
-    it('omits the failed-cases section when there are no runner facts', () => {
-      const builder = new PromptBuilder();
-      const prompt = builder.buildRepair(makeRepairContext({ runnerFacts: null }));
-
-      expect(prompt).not.toContain('Casos fallidos');
-    });
-
-    it('omits the error summary line when it is null', () => {
-      const builder = new PromptBuilder();
-      const prompt = builder.buildRepair(makeRepairContext({ errorSummary: null }));
-
-      expect(prompt).not.toContain('Resumen del error');
-    });
   });
 });

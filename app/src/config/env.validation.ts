@@ -111,10 +111,6 @@ class EnvironmentVariables {
   @Min(1000)
   GENERATION_TIMEOUT_MS: number = 60_000;
 
-  @IsInt()
-  @Min(0)
-  GENERATION_MAX_REPAIR_ATTEMPTS: number = 2;
-
   @IsNumber()
   @Min(0)
   LLM_INPUT_COST_PER_1K_TOKENS: number = 0.00015;

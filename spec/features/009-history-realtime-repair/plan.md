@@ -6,7 +6,7 @@
 
 ## Diseño técnico
 
-Agregar gateway/event publisher desacoplado del dominio. `RepairService` separado del generation first-shot. Mantener attempts persistidos y evitar loops ilimitados.
+Agregar gateway/event publisher desacoplado del dominio para el progreso en tiempo real (HU21/HU22). Sin mecanismo de autorreparación: una ejecución en el Sandbox por generación, sin loops de corrección automática (ver spec.md).
 
 ## Validación
 

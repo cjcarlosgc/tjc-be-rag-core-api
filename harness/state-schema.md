@@ -5,7 +5,7 @@
 ```json
 {
   "schemaVersion": 2,
-  "sddVersion": "1.10",
+  "sddVersion": "1.11",
   "allowedStatuses": ["SELECTED","SPEC_VERIFIED","AWAITING_APPROVAL","IN_PROGRESS","IN_REVIEW","BLOCKED","DONE"],
   "activeWorkItem": {
     "id": "HUxx-slug",

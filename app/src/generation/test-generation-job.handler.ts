@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
 import { JobsService } from '../jobs/jobs.service.js';
@@ -14,7 +13,6 @@ import { GapAnalyzer } from './gap-analyzer.service.js';
 import { TestFileMergeService } from './test-file-merge.service.js';
 import { WorkspaceFileTracker } from './workspace-file-tracker.js';
 import { TestGenerationRunsRepository } from './persistence/test-generation-runs.repository.js';
-import { RepairService } from './repair/repair.service.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
 import type { LLMProvider } from '../providers/llm-provider.interface.js';
 import {
@@ -29,8 +27,6 @@ import type { TestTarget } from '../generated/prisma/client.js';
 import type { GenerationMode } from './dto/generation-mode.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { toTestRunStatusResponse } from './dto/test-run.response.js';
-
-const DEFAULT_MAX_REPAIR_ATTEMPTS = 2;
 
 export interface TestGenerationJobPayload {
   testRunId: string;
@@ -65,8 +61,6 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
     private readonly objectStorageService: ObjectStorageService,
     private readonly zipExtractionService: ZipExtractionService,
     private readonly realtimeGateway: RealtimeGateway,
-    private readonly repairService: RepairService,
-    private readonly configService: ConfigService,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
   ) {}
 
@@ -181,131 +175,79 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
       const generation = await this.llmProvider.generate(prompt);
 
       const { content: currentContent, isNewFile } = await tracker.getCurrent(relativePath);
-
-      if (!framework) {
-        const mergedContent = isNewFile
-          ? this.testFileMergeService.applyCreate(generation.content)
-          : this.testFileMergeService.applyMerge(currentContent ?? '', generation.content);
-        tracker.set(relativePath, mergedContent);
-        tracker.setValid(relativePath, false);
-        await this.recordResult(
-          testRunId,
-          target,
-          relativePath,
-          {
-            status: 'FAILED',
-            compiled: null,
-            executed: null,
-            passed: null,
-            valid: null,
-            failureType: 'CONFIGURATION',
-            errorSummary: 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
-          },
-          0,
-        );
-        return;
-      }
-
-      const maxRepairAttempts = this.configService.get<number>(
-        'GENERATION_MAX_REPAIR_ATTEMPTS',
-        DEFAULT_MAX_REPAIR_ATTEMPTS,
-      );
-      let attempt = 0;
-      let mergedContent = isNewFile
+      const mergedContent = isNewFile
         ? this.testFileMergeService.applyCreate(generation.content)
         : this.testFileMergeService.applyMerge(currentContent ?? '', generation.content);
-      let outcome: MappedSandboxOutcome;
 
-      for (;;) {
-        tracker.set(relativePath, mergedContent);
+      tracker.set(relativePath, mergedContent);
 
-        let sandboxResult: SandboxExecutionResult;
-
-        try {
-          sandboxResult = await this.sandboxExecutionService.execute({
-            testRunId,
-            projectVersionId,
-            snapshotKey,
-            snapshotBuffer,
-            artifacts: [
-              {
-                artifactId: randomUUID(),
-                relativePath,
-                artifactType: isNewFile ? 'CREATED' : 'MODIFIED',
-                content: Buffer.from(mergedContent, 'utf8'),
-              },
-            ],
-            scope: 'TARGET',
-            targetIds: [target.id],
-            runnerHint: framework,
-          });
-        } catch (error) {
-          tracker.setValid(relativePath, false);
-          await this.recordResult(
-            testRunId,
-            target,
-            relativePath,
-            {
-              status: 'FAILED',
-              compiled: null,
-              executed: null,
-              passed: null,
-              valid: null,
-              failureType: 'INFRASTRUCTURE',
-              errorSummary:
-                error instanceof SandboxUnavailableError
-                  ? error.message
-                  : 'El Sandbox no está disponible.',
-            },
-            attempt,
-          );
-          return;
-        }
-
-        outcome = mapSandboxResult(sandboxResult);
-
-        if (outcome.status !== 'INVALID' || attempt >= maxRepairAttempts) {
-          break;
-        }
-
-        attempt += 1;
-        this.logger.debug(
-          `Reparando target ${target.id} (intento ${attempt}/${maxRepairAttempts}): ${outcome.failureType} - ${outcome.errorSummary}`,
-        );
-        const repaired = await this.repairService.repair({
-          generationContext,
-          failedTestContent: mergedContent,
-          failureType: outcome.failureType ?? 'UNKNOWN',
-          errorSummary: outcome.errorSummary,
-          runnerFacts: sandboxResult.facts,
-          attempt,
-        });
-        mergedContent = isNewFile
-          ? this.testFileMergeService.applyCreate(repaired.content)
-          : this.testFileMergeService.applyMerge(currentContent ?? '', repaired.content);
-      }
-
-      tracker.setValid(relativePath, outcome.valid === true);
-      await this.recordResult(testRunId, target, relativePath, outcome, attempt);
-    } catch (error) {
-      await this.recordResult(
-        testRunId,
-        target,
-        relativePath,
-        {
+      if (!framework) {
+        tracker.setValid(relativePath, false);
+        await this.recordResult(testRunId, target, relativePath, {
           status: 'FAILED',
           compiled: null,
           executed: null,
           passed: null,
           valid: null,
-          failureType: 'UNKNOWN',
+          failureType: 'CONFIGURATION',
+          errorSummary: 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+        });
+        return;
+      }
+
+      let sandboxResult: SandboxExecutionResult;
+
+      try {
+        sandboxResult = await this.sandboxExecutionService.execute({
+          testRunId,
+          projectVersionId,
+          snapshotKey,
+          snapshotBuffer,
+          artifacts: [
+            {
+              artifactId: randomUUID(),
+              relativePath,
+              artifactType: isNewFile ? 'CREATED' : 'MODIFIED',
+              content: Buffer.from(mergedContent, 'utf8'),
+            },
+          ],
+          scope: 'TARGET',
+          targetIds: [target.id],
+          runnerHint: framework,
+        });
+      } catch (error) {
+        tracker.setValid(relativePath, false);
+        await this.recordResult(testRunId, target, relativePath, {
+          status: 'FAILED',
+          compiled: null,
+          executed: null,
+          passed: null,
+          valid: null,
+          failureType: 'INFRASTRUCTURE',
           errorSummary:
-            error instanceof Error
-              ? error.message.slice(0, 2000)
-              : 'Error desconocido durante la generación de este target.',
-        },
-        0,
-      );
+            error instanceof SandboxUnavailableError
+              ? error.message
+              : 'El Sandbox no está disponible.',
+        });
+        return;
+      }
+
+      const outcome = mapSandboxResult(sandboxResult);
+      tracker.setValid(relativePath, outcome.valid === true);
+      await this.recordResult(testRunId, target, relativePath, outcome);
+    } catch (error) {
+      await this.recordResult(testRunId, target, relativePath, {
+        status: 'FAILED',
+        compiled: null,
+        executed: null,
+        passed: null,
+        valid: null,
+        failureType: 'UNKNOWN',
+        errorSummary:
+          error instanceof Error
+            ? error.message.slice(0, 2000)
+            : 'Error desconocido durante la generación de este target.',
+      });
     }
   }
 
@@ -322,7 +264,6 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
     target: TestTarget,
     testFilePath: string,
     outcome: MappedSandboxOutcome,
-    repairAttempts: number,
   ): Promise<void> {
     await this.testGenerationRunsRepository.insertTargetResult(testRunId, {
       targetId: target.id,
@@ -338,7 +279,6 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
       valid: outcome.valid,
       failureType: outcome.failureType,
       errorSummary: outcome.errorSummary,
-      repairAttempts,
     });
     await this.testGenerationRunsRepository.incrementProcessed(testRunId, outcome.status);
   }

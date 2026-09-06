@@ -106,10 +106,6 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     },
     llmProvider: { generate: vi.fn().mockResolvedValue({ content: 'test code', inputTokens: 10, outputTokens: 5 }) },
     realtimeGateway: { emitTestRunUpdate: vi.fn() },
-    repairService: {
-      repair: vi.fn().mockResolvedValue({ content: 'repaired test code', inputTokens: 8, outputTokens: 6 }),
-    },
-    configService: { get: vi.fn((_key: string, defaultValue: unknown) => defaultValue) },
     ...overrides,
   };
 
@@ -131,8 +127,6 @@ function makeHandler(deps: ReturnType<typeof makeDeps>['deps']): TestGenerationJ
     deps.objectStorageService as never,
     deps.zipExtractionService as never,
     deps.realtimeGateway as never,
-    deps.repairService as never,
-    deps.configService as never,
     deps.llmProvider as never,
   );
 }
@@ -195,9 +189,8 @@ describe('TestGenerationJobHandler', () => {
     );
     expect(deps.testGenerationRunsRepository.insertTargetResult).toHaveBeenCalledWith(
       'run-1',
-      expect.objectContaining({ targetId: 'target-1', status: 'VALID', valid: true, repairAttempts: 0 }),
+      expect.objectContaining({ targetId: 'target-1', status: 'VALID', valid: true }),
     );
-    expect(deps.repairService.repair).not.toHaveBeenCalled();
     expect(deps.testGenerationRunsRepository.incrementProcessed).toHaveBeenCalledWith('run-1', 'VALID');
     expect(deps.artifactService.persistFinalArtifacts).toHaveBeenCalledWith('run-1', expect.any(Array));
     expect(deps.testGenerationRunsRepository.complete).toHaveBeenCalledWith('run-1', 'COMPLETED');
@@ -248,7 +241,7 @@ describe('TestGenerationJobHandler', () => {
     );
   });
 
-  it('records INVALID with repairAttempts exhausted when every repair attempt keeps failing (HU23)', async () => {
+  it('records INVALID when the Sandbox reports a failed test assertion', async () => {
     const { deps } = makeDeps({
       sandboxExecutionService: {
         execute: vi.fn().mockResolvedValue({
@@ -279,102 +272,7 @@ describe('TestGenerationJobHandler', () => {
         status: 'INVALID',
         failureType: 'TEST_ASSERTION',
         errorSummary: 'expected 1 to be 2',
-        repairAttempts: 2,
       }),
-    );
-    expect(deps.repairService.repair).toHaveBeenCalledTimes(2);
-    expect(deps.sandboxExecutionService.execute).toHaveBeenCalledTimes(3);
-  });
-
-  it('repairs a failing test and records VALID once the repaired content passes (HU23)', async () => {
-    const failingResult = {
-      status: 'COMPLETED',
-      facts: {
-        runner: 'VITEST',
-        compiled: true,
-        executed: true,
-        passed: false,
-        totalTests: 1,
-        passedTests: 0,
-        failedTests: 1,
-        skippedTests: 0,
-        testCases: [{ suitePath: null, name: 'x', status: 'FAILED', durationMs: 1, errorMessage: 'expected 1 to be 2' }],
-        testCasesTruncated: false,
-      },
-      failure: null,
-    };
-    const passingResult = {
-      status: 'COMPLETED',
-      facts: {
-        runner: 'VITEST',
-        compiled: true,
-        executed: true,
-        passed: true,
-        totalTests: 1,
-        passedTests: 1,
-        failedTests: 0,
-        skippedTests: 0,
-        testCases: [],
-        testCasesTruncated: false,
-      },
-      failure: null,
-    };
-    const { deps } = makeDeps({
-      sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValueOnce(failingResult).mockResolvedValueOnce(passingResult),
-      },
-    });
-    const handler = makeHandler(deps);
-
-    await handler.handle(payload);
-
-    expect(deps.repairService.repair).toHaveBeenCalledTimes(1);
-    expect(deps.repairService.repair).toHaveBeenCalledWith(
-      expect.objectContaining({
-        failedTestContent: expect.any(String),
-        failureType: 'TEST_ASSERTION',
-        errorSummary: 'expected 1 to be 2',
-        attempt: 1,
-      }),
-    );
-    expect(deps.testFileMergeService.applyCreate).toHaveBeenCalledWith('repaired test code');
-    expect(deps.testGenerationRunsRepository.insertTargetResult).toHaveBeenCalledWith(
-      'run-1',
-      expect.objectContaining({ status: 'VALID', valid: true, repairAttempts: 1 }),
-    );
-  });
-
-  it('never repairs when GENERATION_MAX_REPAIR_ATTEMPTS is 0 (autorepair disabled)', async () => {
-    const { deps } = makeDeps({
-      configService: { get: vi.fn().mockReturnValue(0) },
-      sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue({
-          status: 'COMPLETED',
-          facts: {
-            runner: 'VITEST',
-            compiled: true,
-            executed: true,
-            passed: false,
-            totalTests: 1,
-            passedTests: 0,
-            failedTests: 1,
-            skippedTests: 0,
-            testCases: [{ suitePath: null, name: 'x', status: 'FAILED', durationMs: 1, errorMessage: 'expected 1 to be 2' }],
-            testCasesTruncated: false,
-          },
-          failure: null,
-        }),
-      },
-    });
-    const handler = makeHandler(deps);
-
-    await handler.handle(payload);
-
-    expect(deps.repairService.repair).not.toHaveBeenCalled();
-    expect(deps.sandboxExecutionService.execute).toHaveBeenCalledTimes(1);
-    expect(deps.testGenerationRunsRepository.insertTargetResult).toHaveBeenCalledWith(
-      'run-1',
-      expect.objectContaining({ status: 'INVALID', repairAttempts: 0 }),
     );
   });
 
