@@ -213,6 +213,26 @@ describe('RetryTargetJobHandler', () => {
     expect(cleanup).toHaveBeenCalled();
   });
 
+  it('records FAILED/UNKNOWN and still adjusts counters when retrieval/LLM fails, instead of leaving the retry frozen', async () => {
+    const { deps, cleanup } = makeDeps({
+      llmProvider: { generate: vi.fn().mockRejectedValue(new Error('LLM provider down')) },
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+    expect(deps.testGenerationRunsRepository.updateTargetResult).toHaveBeenCalledWith(
+      'result-1',
+      expect.objectContaining({ status: 'FAILED', failureType: 'UNKNOWN', errorSummary: 'LLM provider down' }),
+    );
+    expect(deps.testGenerationRunsRepository.applyRetryOutcome).toHaveBeenCalledWith('run-1', 'INVALID', 'FAILED');
+    expect(deps.realtimeGateway.emitTestRunUpdate).toHaveBeenCalledWith('run-1', expect.objectContaining({ id: 'run-1' }));
+    // No hay contenido evolucionado que subir: el fallo ocurrió antes de tener un archivo fusionado.
+    expect(deps.artifactService.persistRetriedArtifact).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalled();
+  });
+
   it('records FAILED/INFRASTRUCTURE and still adjusts counters when the Sandbox is unavailable', async () => {
     const { deps, cleanup } = makeDeps({
       sandboxExecutionService: {

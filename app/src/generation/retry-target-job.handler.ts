@@ -115,22 +115,46 @@ export class RetryTargetJobHandler implements JobHandler<RetryTargetJobPayload>,
       workspace = await this.zipExtractionService.extract(snapshotBuffer);
       const tracker = new WorkspaceFileTracker(workspace.dir);
 
-      const retrievalTarget: RetrievalTarget = {
-        filePath: target.filePath,
-        symbolName: target.symbolName,
-        methodName: target.methodName,
-        targetType: target.targetType as 'METHOD' | 'FUNCTION',
-      };
+      let mergedContent: string;
+      let isNewFile: boolean;
 
-      const retrieval = await this.retrievalService.retrieve(run.projectVersionId, retrievalTarget);
-      const generationContext = this.contextBuilder.build(retrieval, retrievalTarget, { framework });
-      const prompt = this.promptBuilder.build(generationContext);
-      const generation = await this.llmProvider.generate(prompt);
+      try {
+        const retrievalTarget: RetrievalTarget = {
+          filePath: target.filePath,
+          symbolName: target.symbolName,
+          methodName: target.methodName,
+          targetType: target.targetType as 'METHOD' | 'FUNCTION',
+        };
 
-      const { content: currentContent, isNewFile } = await tracker.getCurrent(relativePath);
-      const mergedContent = isNewFile
-        ? this.testFileMergeService.applyCreate(generation.content)
-        : this.testFileMergeService.applyMerge(currentContent ?? '', generation.content);
+        const retrieval = await this.retrievalService.retrieve(run.projectVersionId, retrievalTarget);
+        const generationContext = this.contextBuilder.build(retrieval, retrievalTarget, { framework });
+        const prompt = this.promptBuilder.build(generationContext);
+        const generation = await this.llmProvider.generate(prompt);
+
+        const current = await tracker.getCurrent(relativePath);
+        isNewFile = current.isNewFile;
+        mergedContent = isNewFile
+          ? this.testFileMergeService.applyCreate(generation.content)
+          : this.testFileMergeService.applyMerge(current.content ?? '', generation.content);
+      } catch (error) {
+        // Sin este catch, un fallo de retrieval/LLM (p. ej. proveedor caído) se propagaba
+        // fuera de `handle()` sin nunca actualizar el target ni el run: el reintento quedaba
+        // aceptado (202) pero congelado para siempre. `test-generation-job.handler.ts` ya
+        // cubre este mismo tramo con un catch equivalente para la generación normal.
+        await this.finish(run.id, targetResult.id, relativePath, previousStatus, {
+          status: 'FAILED',
+          compiled: null,
+          executed: null,
+          passed: null,
+          valid: null,
+          failureType: 'UNKNOWN',
+          errorSummary:
+            error instanceof Error
+              ? error.message.slice(0, 2000)
+              : 'Error desconocido durante el reintento de este target.',
+        });
+        return;
+      }
 
       tracker.set(relativePath, mergedContent);
 
