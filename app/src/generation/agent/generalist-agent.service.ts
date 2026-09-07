@@ -1,6 +1,7 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import type { ChatCompletionCreateParamsNonStreaming } from 'openai/resources/chat/completions.js';
 import { AppException } from '../../common/errors/app.exception.js';
 import { ErrorCode } from '../../common/errors/error-code.enum.js';
 import { createOpenAiClient } from '../../providers/openai-client.factory.js';
@@ -34,6 +35,7 @@ function safeParseJson(raw: string): Record<string, unknown> {
 
 @Injectable()
 export class GeneralistAgentService {
+  private readonly logger = new Logger(GeneralistAgentService.name);
   private client: OpenAI | undefined;
 
   constructor(private readonly configService: ConfigService) {}
@@ -45,6 +47,16 @@ export class GeneralistAgentService {
   ): Promise<AgentGenerationResult> {
     const client = this.getClient();
     const model = this.configService.get<string>('LLM_MODEL', 'gpt-4o-mini');
+    const reasoningEffort = this.configService.get<string>('LLM_REASONING_EFFORT');
+    // Los modelos con razonamiento no soportan function tools en
+    // /v1/chat/completions salvo que reasoning_effort sea 'none' (400
+    // invalid_request_error en caso contrario); un modelo sin razonamiento
+    // rechaza el campo por completo si se lo enviamos. Por eso solo se
+    // fuerza 'none' cuando el usuario configuró LLM_REASONING_EFFORT (señal
+    // de que el modelo sí soporta razonamiento); el resto de las llamadas
+    // (sin tools) sí usan el valor configurado normalmente.
+    const toolCallReasoningEffort: ChatCompletionCreateParamsNonStreaming['reasoning_effort'] | undefined =
+      reasoningEffort ? 'none' : undefined;
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: 'user', content: instructions }];
     const trajectory: AgentTrajectoryStep[] = [];
     const filesInspected = new Set<string>();
@@ -58,6 +70,7 @@ export class GeneralistAgentService {
           messages,
           tools: AGENT_TOOL_SCHEMAS,
           tool_choice: 'auto',
+          ...(toolCallReasoningEffort ? { reasoning_effort: toolCallReasoningEffort } : {}),
         });
 
         inputTokens += response.usage?.prompt_tokens ?? 0;
@@ -111,6 +124,9 @@ export class GeneralistAgentService {
               'Alcanzaste el límite de herramientas disponibles. Responde ahora con el código final de la prueba: solo código TypeScript (imports + bloques de test), sin explicaciones ni más llamadas a herramientas.',
           },
         ],
+        ...(reasoningEffort
+          ? { reasoning_effort: reasoningEffort as ChatCompletionCreateParamsNonStreaming['reasoning_effort'] }
+          : {}),
       });
 
       inputTokens += finalResponse.usage?.prompt_tokens ?? 0;
@@ -129,11 +145,14 @@ export class GeneralistAgentService {
         throw error;
       }
 
+      const message = error instanceof Error ? error.message : 'Error desconocido.';
+      this.logger.warn(`Fallo al ejecutar el agente generalista con el modelo "${model}": ${message}`);
+
       throw new AppException(
         ErrorCode.LLM_PROVIDER_UNAVAILABLE,
         'El proveedor de LLM no respondió correctamente durante la exploración del agente.',
         HttpStatus.SERVICE_UNAVAILABLE,
-        error instanceof Error ? error.message : undefined,
+        message,
       );
     }
   }

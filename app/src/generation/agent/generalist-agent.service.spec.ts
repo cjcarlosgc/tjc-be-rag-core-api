@@ -11,8 +11,10 @@ vi.mock('openai', () => ({
 
 const { GeneralistAgentService } = await import('./generalist-agent.service.js');
 
-function makeConfigService() {
-  return { get: (key: string, fallback?: unknown) => fallback ?? undefined } as never;
+function makeConfigService(overrides: Record<string, unknown> = {}) {
+  return {
+    get: (key: string, fallback?: unknown) => (key in overrides ? overrides[key] : (fallback ?? undefined)),
+  } as never;
 }
 
 function makeTools(dispatchImpl: (name: string, args: Record<string, unknown>) => Promise<string>) {
@@ -108,6 +110,39 @@ describe('GeneralistAgentService', () => {
     expect(createMock).toHaveBeenCalledTimes(2);
     const lastCallArgs = createMock.mock.calls[1][0];
     expect(lastCallArgs.messages.at(-1).content).toContain('límite de herramientas');
+  });
+
+  it('forces reasoning_effort "none" on tool-calling requests when a reasoning model is configured (OpenAI rejects tools+reasoning otherwise)', async () => {
+    createMock
+      .mockResolvedValueOnce({
+        choices: [{ message: toolCallMessage('list_files', {}) }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      })
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: 'final test code', tool_calls: undefined } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      });
+
+    const tools = makeTools(async () => 'src/foo.ts');
+    const service = new GeneralistAgentService(makeConfigService({ LLM_REASONING_EFFORT: 'high' }));
+
+    await service.generate('prompt', tools, 5);
+
+    expect(createMock.mock.calls[0][0]).toMatchObject({ tools: expect.anything(), reasoning_effort: 'none' });
+  });
+
+  it('never sends reasoning_effort when the configured model does not support it', async () => {
+    createMock.mockResolvedValue({
+      choices: [{ message: { content: 'x', tool_calls: undefined } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    });
+
+    const tools = makeTools(async () => '');
+    const service = new GeneralistAgentService(makeConfigService());
+
+    await service.generate('prompt', tools, 5);
+
+    expect(createMock.mock.calls[0][0]).not.toHaveProperty('reasoning_effort');
   });
 
   it('wraps a provider failure as LLM_PROVIDER_UNAVAILABLE', async () => {
