@@ -21,6 +21,15 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     },
     jobsService: { enqueue: vi.fn().mockResolvedValue('job-1') },
     configService: { get: (key: string, fallback?: unknown) => fallback },
+    idempotencyService: {
+      run: vi.fn(
+        async ({
+          create,
+        }: {
+          create: (tx: never) => Promise<{ operationId: string; response: unknown }>;
+        }) => (await create(undefined as never)).response,
+      ),
+    },
     ...overrides,
   };
 }
@@ -33,6 +42,7 @@ function makeService(deps: ReturnType<typeof makeDeps>): ExperimentsService {
     deps.experimentRunsRepository as never,
     deps.jobsService as never,
     deps.configService as never,
+    deps.idempotencyService as never,
   );
 }
 
@@ -43,7 +53,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'missing', targetId: 'target-1' }),
+        service.createRun({ projectId: 'missing', targetId: 'target-1' }, undefined),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
     });
 
@@ -57,7 +67,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_INDEXING_IN_PROGRESS });
     });
 
@@ -68,7 +78,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_READY });
     });
 
@@ -82,7 +92,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
       ).rejects.toMatchObject({ code: ErrorCode.ANALYSIS_NOT_FINISHED });
     });
 
@@ -91,7 +101,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'missing' }),
+        service.createRun({ projectId: 'project-1', targetId: 'missing' }, undefined),
       ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
     });
 
@@ -102,7 +112,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
       ).rejects.toMatchObject({ code: ErrorCode.INVALID_GENERATION_TARGET });
     });
 
@@ -110,19 +120,39 @@ describe('ExperimentsService', () => {
       const deps = makeDeps();
       const service = makeService(deps);
 
-      const result = await service.createRun({ projectId: 'project-1', targetId: 'target-1' });
+      const result = await service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined);
 
-      expect(deps.experimentRunsRepository.create).toHaveBeenCalledWith({
-        projectId: 'project-1',
-        projectVersionId: 'version-1',
-        targetId: 'target-1',
-        totalRepetitions: 6,
-      });
+      expect(deps.experimentRunsRepository.create).toHaveBeenCalledWith(
+        {
+          projectId: 'project-1',
+          projectVersionId: 'version-1',
+          targetId: 'target-1',
+          totalRepetitions: 6,
+        },
+        undefined,
+      );
       expect(deps.jobsService.enqueue).toHaveBeenCalledWith(
         'experiment-run',
         expect.objectContaining({ experimentId: 'exp-1', targetId: 'target-1' }),
+        undefined,
       );
       expect(result).toMatchObject({ experimentId: 'exp-1', projectVersionId: 'version-1', status: 'PENDING' });
+    });
+
+    it('delegates to IdempotencyService with the idempotency key, the EXPERIMENT_CREATE scope and the dto as fingerprint (DEC-IDEMP-001)', async () => {
+      const deps = makeDeps();
+      const service = makeService(deps);
+      const dto = { projectId: 'project-1', targetId: 'target-1' };
+
+      await service.createRun(dto, 'client-key-1');
+
+      expect(deps.idempotencyService.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: 'client-key-1',
+          scope: 'EXPERIMENT_CREATE',
+          fingerprintInput: dto,
+        }),
+      );
     });
   });
 

@@ -11,10 +11,10 @@ Meta acumulada aproximada: BE RAG 80%. HU08-HU19. Retrieval/context, cinco modos
 Antes de comprometer implementación adicional, investigar y presentar para decisión humana: mutation score/StrykerJS (`DEC-MET-001`) y la posible señal test-aware (`DEC-RAG-001`). Ambos son mejoras próximas deseadas, pero permanecen PENDING y no bloquean el cierre del núcleo de Sprint 2.
 
 ## Sprint 3 — evolución
-Meta acumulada aproximada: 92%. HU20-HU23. Historial, WebSockets y autorreparación acotada del modo normal.
+Meta acumulada aproximada: 92%. HU20-HU22 y HU24. Historial, WebSockets y reintento manual desde cero de un target fallido. HU23 y la autorreparación automática fueron descartadas definitivamente.
 
 ## Sprint 4 — cierre
-Meta: 100%. HU24-HU26 según participación backend. Reintento manual, estabilización, observabilidad, performance y soporte a UX consolidada. Coverage experimental puede incorporarse como métrica secundaria si resulta homogénea y viable.
+Meta: 100%. HU25-HU26 según participación backend. Estabilización, observabilidad, performance y soporte a UX consolidada. Coverage experimental puede incorporarse como métrica secundaria si resulta homogénea y viable.
 
 ## Futuro
 PR/CI-CD autónomo, plugins IDE, JavaScript puro u otros lenguajes, full regression, escalado/Kubernetes y experimentos adicionales.

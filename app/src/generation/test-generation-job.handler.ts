@@ -20,6 +20,7 @@ import {
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
 import { mapSandboxResult, type MappedSandboxOutcome } from '../sandbox/map-sandbox-result.js';
+import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 import type { SandboxExecutionResult } from '../sandbox/sandbox.types.js';
 import { ArtifactService } from '../artifacts/artifact.service.js';
 import { TestRunStatus } from '../generated/prisma/enums.js';
@@ -68,7 +69,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
     this.jobsService.registerHandler(this);
   }
 
-  async handle(payload: TestGenerationJobPayload): Promise<void> {
+  async handle(payload: TestGenerationJobPayload, jobId: string): Promise<void> {
     const run = await this.testGenerationRunsRepository.findById(payload.testRunId);
 
     if (!run || run.status === TestRunStatus.COMPLETED || run.status === TestRunStatus.PARTIAL) {
@@ -105,6 +106,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
 
       for (const target of targets) {
         await this.processTarget({
+          jobId,
           testRunId: payload.testRunId,
           projectVersionId: payload.projectVersionId,
           snapshotKey: version.snapshotKey,
@@ -147,6 +149,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
   }
 
   private async processTarget(context: {
+    jobId: string;
     testRunId: string;
     projectVersionId: string;
     snapshotKey: string;
@@ -155,7 +158,8 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
     target: TestTarget;
     tracker: WorkspaceFileTracker;
   }): Promise<void> {
-    const { testRunId, projectVersionId, snapshotKey, snapshotBuffer, framework, target, tracker } = context;
+    const { jobId, testRunId, projectVersionId, snapshotKey, snapshotBuffer, framework, target, tracker } =
+      context;
     const relativePath =
       target.hasTest && target.testFilePaths.length > 0
         ? target.testFilePaths[0]
@@ -199,6 +203,7 @@ export class TestGenerationJobHandler implements JobHandler<TestGenerationJobPay
 
       try {
         sandboxResult = await this.sandboxExecutionService.execute({
+          requestId: sandboxGenerationRequestId(jobId, target.id),
           testRunId,
           projectVersionId,
           snapshotKey,

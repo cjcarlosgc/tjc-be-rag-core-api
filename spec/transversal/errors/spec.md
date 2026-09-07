@@ -13,6 +13,8 @@ Unificar errores HTTP y distinguir fallos de plataforma de resultados inválidos
 - DTOs de entrada usan validación whitelist y rechazan campos desconocidos.
 - Errores de dominio se traducen centralmente; controllers no construyen envelopes manualmente.
 - Un resultado de test inválido o un fallo posterior a aceptar una operación asíncrona se persiste como resultado, no se convierte automáticamente en HTTP 5xx.
+- La ausencia o formato inválido del header se normaliza como `400 IDEMPOTENCY_KEY_REQUIRED`/`400 INVALID_IDEMPOTENCY_KEY`; key válida reutilizada con otro request produce `409 IDEMPOTENCY_CONFLICT`.
+- En Sandbox, `requestId` distinto de `Idempotency-Key` produce `400 IDEMPOTENCY_KEY_MISMATCH`; Bearer ausente o inválido produce `401/403` sin revelar el token.
 
 ## Fuera de alcance
 

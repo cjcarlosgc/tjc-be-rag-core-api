@@ -7,8 +7,13 @@ import { JobStatus } from '../generated/prisma/enums.js';
 export class JobsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(type: string, payload: Prisma.InputJsonValue, maxAttempts: number): Promise<Job> {
-    return this.prisma.job.create({
+  create(
+    type: string,
+    payload: Prisma.InputJsonValue,
+    maxAttempts: number,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Job> {
+    return (tx ?? this.prisma).job.create({
       data: { type, payload, maxAttempts },
     });
   }

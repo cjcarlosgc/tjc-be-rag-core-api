@@ -38,8 +38,8 @@ export interface ExperimentRepetitionInput {
 export class ExperimentRunsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(input: CreateExperimentRunInput): Promise<ExperimentRun> {
-    return this.prisma.experimentRun.create({ data: input });
+  create(input: CreateExperimentRunInput, tx?: Prisma.TransactionClient): Promise<ExperimentRun> {
+    return (tx ?? this.prisma).experimentRun.create({ data: input });
   }
 
   findById(id: string): Promise<ExperimentRun | null> {

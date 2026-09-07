@@ -20,6 +20,7 @@ import {
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
 import { mapSandboxResult, type MappedSandboxOutcome } from '../sandbox/map-sandbox-result.js';
+import { sandboxManualRetryRequestId } from '../sandbox/sandbox-request-id.util.js';
 import type { SandboxExecutionResult } from '../sandbox/sandbox.types.js';
 import { ArtifactService } from '../artifacts/artifact.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
@@ -67,7 +68,7 @@ export class RetryTargetJobHandler implements JobHandler<RetryTargetJobPayload>,
     this.jobsService.registerHandler(this);
   }
 
-  async handle(payload: RetryTargetJobPayload): Promise<void> {
+  async handle(payload: RetryTargetJobPayload, jobId: string): Promise<void> {
     const targetResult = await this.testGenerationRunsRepository.findTargetResult(
       payload.testRunId,
       payload.targetId,
@@ -152,6 +153,7 @@ export class RetryTargetJobHandler implements JobHandler<RetryTargetJobPayload>,
 
       try {
         sandboxResult = await this.sandboxExecutionService.execute({
+          requestId: sandboxManualRetryRequestId(jobId, target.id),
           testRunId: run.id,
           projectVersionId: run.projectVersionId,
           snapshotKey: version.snapshotKey,

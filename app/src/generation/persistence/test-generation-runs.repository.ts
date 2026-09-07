@@ -34,8 +34,11 @@ export interface TargetRunResultInput {
 export class TestGenerationRunsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(input: CreateTestGenerationRunInput): Promise<TestGenerationRun> {
-    return this.prisma.testGenerationRun.create({ data: input });
+  create(
+    input: CreateTestGenerationRunInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TestGenerationRun> {
+    return (tx ?? this.prisma).testGenerationRun.create({ data: input });
   }
 
   findById(id: string): Promise<TestGenerationRun | null> {

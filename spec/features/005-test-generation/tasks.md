@@ -6,6 +6,7 @@
 - [x] CREATE/MERGE seguro (`TestFileMergeService`: CREATE usa el contenido generado tal cual; MERGE parsea con ts-morph y agrega imports/statements nuevos al final, preservando el archivo existente intacto — sin editar pruebas ya presentes).
 - [x] Estados y continuidad ante fallos por target (PENDING→RESOLVING_TARGETS→PROCESSING_TARGETS→FINALIZING→COMPLETED|PARTIAL|FAILED; un fallo de retrieval/LLM/merge/sandbox en un target no aborta los demás).
 - [x] Casos zero-target/PARTIAL/FAILED (`completeAsNoMissingTargets`; PARTIAL cuando hay mezcla de válidos/inválidos; FAILED cuando ningún target obtuvo veredicto).
+- [x] Aplicar `DEC-IDEMP-001` en `POST /test-runs`: exigir UUID, persistir key + huella canónica bajo unicidad, devolver el run original en replay equivalente, responder `409` ante conflicto y crear run + job de manera atómica/recuperable.
 
 ## Calidad
 

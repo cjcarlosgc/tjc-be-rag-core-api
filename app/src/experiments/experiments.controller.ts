@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ExperimentsService } from './experiments.service.js';
 import { CreateExperimentDto } from './dto/create-experiment.dto.js';
 import type {
@@ -13,8 +13,11 @@ export class ExperimentsController {
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
-  create(@Body() dto: CreateExperimentDto): Promise<ExperimentAcceptedResponse> {
-    return this.experimentsService.createRun(dto);
+  create(
+    @Body() dto: CreateExperimentDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<ExperimentAcceptedResponse> {
+    return this.experimentsService.createRun(dto, idempotencyKey);
   }
 
   @Get(':id')

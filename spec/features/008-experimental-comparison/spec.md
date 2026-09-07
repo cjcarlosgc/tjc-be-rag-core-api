@@ -21,7 +21,8 @@ Ejecutar una comparación pareada entre la arquitectura RAG especializada y un a
 - Métricas explicativas del agente generalista: toolCalls,filesInspected y contexto/tokens atribuibles a la exploración cuando el proveedor permita observarlos.
 - Agregados: tasas, diferencia en puntos porcentuales, media/mediana de tiempos/tokens/costo y distribución de failureType.
 - Coverage se evalúa como métrica secundaria en Sprint 4 si resulta homogénea/viable; no bloquea PI1.
-- `INTEROP-1.1` fija el transporte y DTO experimental con `RAG|GENERALIST_AGENT`; la operación interna del agente generalista queda resuelta en `DEC-EXP-002` (APROBADO, ver más abajo).
+- `INTEROP-1.5` fija el transporte y DTO experimental con `RAG|GENERALIST_AGENT`; la operación interna del agente generalista queda resuelta en `DEC-EXP-002` (APROBADO, ver más abajo).
+- `POST /experiments` exige `Idempotency-Key`; un replay equivalente devuelve el mismo experimento. Cada repetición/estrategia deriva su propia identidad Sandbox estable de `experiment:{jobId}:{strategy}:{repetition}`.
 
 ### DEC-EXP-001 — Baseline experimental realista
 
@@ -51,3 +52,7 @@ El implementador no debe simular el agente con un contexto fijo ni darle shell i
 - No convertir decisiones PENDING en implementación definitiva sin aprobación.
 - No implementar como control un LLM sin exploración del repositorio.
 - No hacer obligatoria una ablación semántico vs estructural vs híbrido; esa variante queda descartada del alcance acordado.
+
+## Cierre de la brecha de implementación SDD 1.14
+
+Resuelto en SDD 1.15: `POST /experiments` aplica `IdempotencyService` (scope `EXPERIMENT_CREATE`), y cada repetición deriva su propia identidad Sandbox estable `experiment:{jobId}:{strategy}:{repetition}` (`sandboxExperimentRequestId`) conforme a `DEC-IDEMP-001`.

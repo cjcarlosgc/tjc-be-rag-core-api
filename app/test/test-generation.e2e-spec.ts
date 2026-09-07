@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import AdmZip from 'adm-zip';
@@ -185,6 +186,7 @@ describe('Test generation (e2e)', () => {
 
     const runResponse = await request(app.getHttpServer())
       .post('/test-runs')
+      .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_MISSING' })
       .expect(202);
 
@@ -262,12 +264,14 @@ describe('Test generation (e2e)', () => {
 
     const firstRun = await request(app.getHttpServer())
       .post('/test-runs')
+      .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_MISSING' })
       .expect(202);
     await waitForTerminal(app, `/test-runs/${firstRun.body.runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
 
     const secondRun = await request(app.getHttpServer())
       .post('/test-runs')
+      .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_ALL' })
       .expect(202);
     await waitForTerminal(app, `/test-runs/${secondRun.body.runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
@@ -329,6 +333,7 @@ describe('Test generation (e2e)', () => {
 
     const runResponse = await request(app.getHttpServer())
       .post('/test-runs')
+      .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_MISSING' })
       .expect(202);
     const { runId } = runResponse.body as { runId: string };
@@ -347,6 +352,7 @@ describe('Test generation (e2e)', () => {
 
     const retryResponse = await request(app.getHttpServer())
       .post(`/test-runs/${runId}/targets/${target.targetId}/retry`)
+      .set('Idempotency-Key', randomUUID())
       .expect(202);
     expect(retryResponse.body).toMatchObject({ testRunId: runId, targetId: target.targetId, status: 'PENDING' });
 
@@ -371,6 +377,7 @@ describe('Test generation (e2e)', () => {
     // ya no se puede reintentar un target VALID
     const retryAgain = await request(app.getHttpServer())
       .post(`/test-runs/${runId}/targets/${target.targetId}/retry`)
+      .set('Idempotency-Key', randomUUID())
       .expect(409);
     expect(retryAgain.body.code).toBe('TARGET_RETRY_NOT_ALLOWED');
   }, 30000);
@@ -399,9 +406,125 @@ describe('Test generation (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .post('/test-runs')
+      .set('Idempotency-Key', randomUUID())
       .send({ projectId: indexResponse.body.projectId, mode: 'TARGET' })
       .expect(400);
 
     expect(response.body.code).toBe('INVALID_GENERATION_TARGET');
+  }, 20000);
+
+  it('rejects POST /test-runs without an Idempotency-Key with 400 IDEMPOTENCY_KEY_REQUIRED', async () => {
+    const indexResponse = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('name', 'Idempotency Missing Key Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+
+    await waitForTerminal(
+      app,
+      `/project-versions/${indexResponse.body.projectVersionId}`,
+      ['COMPLETED', 'FAILED'],
+      15000,
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/test-runs')
+      .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' })
+      .expect(400);
+
+    expect(response.body.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+  }, 20000);
+
+  it('rejects POST /test-runs with a malformed Idempotency-Key with 400 INVALID_IDEMPOTENCY_KEY', async () => {
+    const indexResponse = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('name', 'Idempotency Bad Key Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+
+    await waitForTerminal(
+      app,
+      `/project-versions/${indexResponse.body.projectVersionId}`,
+      ['COMPLETED', 'FAILED'],
+      15000,
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/test-runs')
+      .set('Idempotency-Key', 'not-a-uuid')
+      .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' })
+      .expect(400);
+
+    expect(response.body.code).toBe('INVALID_IDEMPOTENCY_KEY');
+  }, 20000);
+
+  it('replays the original 202 when POST /test-runs is repeated with the same Idempotency-Key and body (DEC-IDEMP-001)', async () => {
+    const indexResponse = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('name', 'Idempotency Replay Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+
+    await waitForTerminal(
+      app,
+      `/project-versions/${indexResponse.body.projectVersionId}`,
+      ['COMPLETED', 'FAILED'],
+      15000,
+    );
+
+    const idempotencyKey = randomUUID();
+    const body = { projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' };
+
+    const first = await request(app.getHttpServer())
+      .post('/test-runs')
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body)
+      .expect(202);
+
+    const second = await request(app.getHttpServer())
+      .post('/test-runs')
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body)
+      .expect(202);
+
+    expect(second.body).toEqual(first.body);
+
+    const history = await request(app.getHttpServer())
+      .get(`/project-versions/${indexResponse.body.projectVersionId}/test-runs`)
+      .query({ limit: 10 })
+      .expect(200);
+
+    expect(history.body.items.filter((item: { id: string }) => item.id === first.body.runId)).toHaveLength(1);
+  }, 20000);
+
+  it('returns 409 IDEMPOTENCY_CONFLICT when the same key is reused with a different body (DEC-IDEMP-001)', async () => {
+    const indexResponse = await request(app.getHttpServer())
+      .post('/projects/index')
+      .field('name', 'Idempotency Conflict Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+
+    await waitForTerminal(
+      app,
+      `/project-versions/${indexResponse.body.projectVersionId}`,
+      ['COMPLETED', 'FAILED'],
+      15000,
+    );
+
+    const idempotencyKey = randomUUID();
+
+    await request(app.getHttpServer())
+      .post('/test-runs')
+      .set('Idempotency-Key', idempotencyKey)
+      .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' })
+      .expect(202);
+
+    const conflict = await request(app.getHttpServer())
+      .post('/test-runs')
+      .set('Idempotency-Key', idempotencyKey)
+      .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_ALL' })
+      .expect(409);
+
+    expect(conflict.body.code).toBe('IDEMPOTENCY_CONFLICT');
   }, 20000);
 });

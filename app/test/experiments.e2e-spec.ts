@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import AdmZip from 'adm-zip';
@@ -149,6 +150,7 @@ describe('Experimental comparison (e2e)', () => {
 
     const experimentResponse = await request(app.getHttpServer())
       .post('/experiments')
+      .set('Idempotency-Key', randomUUID())
       .send({ projectId, targetId: target.id })
       .expect(202);
 
@@ -228,6 +230,7 @@ describe('Experimental comparison (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .post('/experiments')
+      .set('Idempotency-Key', randomUUID())
       .send({ projectId: indexResponse.body.projectId, targetId: classTarget.id })
       .expect(400);
 

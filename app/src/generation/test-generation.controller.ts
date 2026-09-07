@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { TestGenerationService } from './test-generation.service.js';
 import { CreateTestRunDto } from './dto/create-test-run.dto.js';
 import type {
@@ -17,8 +17,11 @@ export class TestGenerationController {
 
   @Post('test-runs')
   @HttpCode(HttpStatus.ACCEPTED)
-  create(@Body() dto: CreateTestRunDto): Promise<TestRunAcceptedResponse> {
-    return this.testGenerationService.createRun(dto);
+  create(
+    @Body() dto: CreateTestRunDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<TestRunAcceptedResponse> {
+    return this.testGenerationService.createRun(dto, idempotencyKey);
   }
 
   @Get('test-runs/:id')
@@ -44,7 +47,8 @@ export class TestGenerationController {
   retryTarget(
     @Param('id') id: string,
     @Param('targetId') targetId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<TargetRetryAcceptedResponse> {
-    return this.testGenerationService.retryTarget(id, targetId);
+    return this.testGenerationService.retryTarget(id, targetId, idempotencyKey);
   }
 }

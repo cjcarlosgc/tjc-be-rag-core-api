@@ -4,6 +4,7 @@ import { SandboxExecutionService, SandboxUnavailableError } from './sandbox-exec
 function makeConfigService(overrides: Record<string, unknown> = {}) {
   const values: Record<string, unknown> = {
     SANDBOX_URL: 'http://sandbox.local',
+    SANDBOX_SERVICE_TOKEN: 'test-service-token',
     SANDBOX_DOWNLOAD_TTL_SECONDS: 300,
     SANDBOX_REQUEST_TIMEOUT_MS: 5000,
     SANDBOX_MAX_POLL_ATTEMPTS: 5,
@@ -39,6 +40,28 @@ describe('SandboxExecutionService', () => {
 
     await expect(
       service.execute({
+        requestId: 'request-1',
+        testRunId: 'run-1',
+        projectVersionId: 'version-1',
+        snapshotKey: 'key',
+        snapshotBuffer: Buffer.from('zip'),
+        artifacts: [],
+        scope: 'TARGET',
+        targetIds: ['target-1'],
+        runnerHint: 'VITEST',
+      }),
+    ).rejects.toBeInstanceOf(SandboxUnavailableError);
+  });
+
+  it('throws SandboxUnavailableError when SANDBOX_SERVICE_TOKEN is not configured (DEC-AUTH-001)', async () => {
+    const service = new SandboxExecutionService(
+      makeConfigService({ SANDBOX_SERVICE_TOKEN: undefined }),
+      objectStorageService as never,
+    );
+
+    await expect(
+      service.execute({
+        requestId: 'request-1',
         testRunId: 'run-1',
         projectVersionId: 'version-1',
         snapshotKey: 'key',
@@ -85,6 +108,7 @@ describe('SandboxExecutionService', () => {
     const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
 
     const result = await service.execute({
+      requestId: 'request-1',
       testRunId: 'run-1',
       projectVersionId: 'version-1',
       snapshotKey: 'snapshot-key',
@@ -112,10 +136,12 @@ describe('SandboxExecutionService', () => {
     expect(postedBody.snapshot.role).toBe('PROJECT_SNAPSHOT');
     expect(postedBody.artifacts[0].download.role).toBe('GENERATED_ARTIFACT');
     expect(postedBody.artifacts[0].download.sha256).toHaveLength(64);
-    expect(postCall[1].headers['idempotency-key']).toBeTruthy();
+    expect(postCall[1].headers['idempotency-key']).toBe('request-1');
     expect(postCall[1].headers['x-correlation-id']).toBeTruthy();
+    expect(postCall[1].headers.authorization).toBe('Bearer test-service-token');
     const statusPollCall = fetchMock.mock.calls[1];
     expect(statusPollCall[1].headers['x-correlation-id']).toBe(postCall[1].headers['x-correlation-id']);
+    expect(statusPollCall[1].headers.authorization).toBe('Bearer test-service-token');
 
     expect(result.status).toBe('COMPLETED');
     expect(result.facts?.passed).toBe(true);
@@ -132,6 +158,7 @@ describe('SandboxExecutionService', () => {
 
     await expect(
       service.execute({
+        requestId: 'request-1',
         testRunId: 'run-1',
         projectVersionId: 'version-1',
         snapshotKey: 'snapshot-key',
@@ -161,6 +188,7 @@ describe('SandboxExecutionService', () => {
 
     await expect(
       service.execute({
+        requestId: 'request-1',
         testRunId: 'run-1',
         projectVersionId: 'version-1',
         snapshotKey: 'key',
@@ -186,6 +214,7 @@ describe('SandboxExecutionService', () => {
 
     await expect(
       service.execute({
+        requestId: 'request-1',
         testRunId: 'run-1',
         projectVersionId: 'version-1',
         snapshotKey: 'key',

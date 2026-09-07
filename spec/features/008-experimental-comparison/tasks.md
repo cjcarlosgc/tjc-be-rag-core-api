@@ -12,6 +12,7 @@
 - [x] Garantizar auto-repair OFF en experimento (no existe autorreparación implementada en ningún punto del pipeline; nada que desactivar).
 - [x] Captura de tool calls/archivos inspeccionados/contexto del agente generalista (`toolCallCount`/`filesInspected` derivados de la trayectoria completa, no un conteo independiente).
 - [x] Tests de aislamiento del snapshot, límites de exploración (tope de tool calls, paridad de presupuesto de tokens/timeout con RAG) y paridad experimental (`experiment-job.handler.spec.ts`, `generalist-agent.service.spec.ts`, `workspace-agent-tools.spec.ts`; timeout compartido `GENERATION_TIMEOUT_MS` aplicado a ambos brazos vía `withTimeout`).
+- [x] Aplicar `DEC-IDEMP-001` en `POST /experiments` y derivar por repetición `requestId` UUID v5 estable de `experiment:{jobId}:{strategy}:{repetition}`.
 
 ## Calidad
 

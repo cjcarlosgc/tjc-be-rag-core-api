@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { ProjectVersionStatus, TestRunStatus } from '../generated/prisma/enums.js';
@@ -32,9 +33,13 @@ export class TestGenerationService {
     private readonly testGenerationRunsRepository: TestGenerationRunsRepository,
     private readonly jobsService: JobsService,
     private readonly configService: ConfigService,
+    private readonly idempotencyService: IdempotencyService,
   ) {}
 
-  async createRun(dto: CreateTestRunDto): Promise<TestRunAcceptedResponse> {
+  async createRun(
+    dto: CreateTestRunDto,
+    idempotencyKey: string | undefined,
+  ): Promise<TestRunAcceptedResponse> {
     this.assertModeTargetIdShape(dto.mode, dto.targetId);
 
     const project = await this.projectsRepository.findById(dto.projectId);
@@ -74,28 +79,65 @@ export class TestGenerationService {
     }
 
     const projectVersionId = project.currentVersionId;
-    const run = await this.testGenerationRunsRepository.create({
-      projectId: dto.projectId,
-      projectVersionId,
-      mode: dto.mode,
-      targetId: dto.targetId ?? null,
-    });
 
-    await this.jobsService.enqueue(TEST_GENERATION_JOB_TYPE, {
-      testRunId: run.id,
-      projectId: dto.projectId,
-      projectVersionId,
-      mode: dto.mode,
-      targetId: dto.targetId ?? null,
-    });
+    return this.idempotencyService.run({
+      scope: 'TEST_RUN_CREATE',
+      key: idempotencyKey,
+      fingerprintInput: dto,
+      create: async (tx) => {
+        const run = await this.testGenerationRunsRepository.create(
+          {
+            projectId: dto.projectId,
+            projectVersionId,
+            mode: dto.mode,
+            targetId: dto.targetId ?? null,
+          },
+          tx,
+        );
 
-    return {
-      runId: run.id,
-      projectId: dto.projectId,
-      projectVersionId,
-      status: 'PENDING',
-      pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
-    };
+        await this.jobsService.enqueue(
+          TEST_GENERATION_JOB_TYPE,
+          {
+            testRunId: run.id,
+            projectId: dto.projectId,
+            projectVersionId,
+            mode: dto.mode,
+            targetId: dto.targetId ?? null,
+          },
+          tx,
+        );
+
+        return {
+          operationId: run.id,
+          response: {
+            runId: run.id,
+            projectId: dto.projectId,
+            projectVersionId,
+            status: 'PENDING' as const,
+            pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
+          },
+        };
+      },
+      rebuildResponse: async (operationId) => {
+        const run = await this.testGenerationRunsRepository.findById(operationId);
+
+        if (!run) {
+          throw new AppException(
+            ErrorCode.TEST_RUN_NOT_FOUND,
+            `No existe el test run ${operationId}.`,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+
+        return {
+          runId: run.id,
+          projectId: run.projectId,
+          projectVersionId: run.projectVersionId,
+          status: 'PENDING' as const,
+          pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
+        };
+      },
+    });
   }
 
   async getStatus(runId: string): Promise<TestRunStatusResponse> {
@@ -156,7 +198,11 @@ export class TestGenerationService {
     };
   }
 
-  async retryTarget(testRunId: string, targetId: string): Promise<TargetRetryAcceptedResponse> {
+  async retryTarget(
+    testRunId: string,
+    targetId: string,
+    idempotencyKey: string | undefined,
+  ): Promise<TargetRetryAcceptedResponse> {
     const run = await this.requireRun(testRunId);
 
     if (
@@ -189,14 +235,34 @@ export class TestGenerationService {
       );
     }
 
-    await this.jobsService.enqueue(RETRY_TARGET_JOB_TYPE, { testRunId, targetId });
+    return this.idempotencyService.run({
+      scope: 'TARGET_RETRY',
+      key: idempotencyKey,
+      fingerprintInput: { testRunId, targetId },
+      create: async (tx) => {
+        const retryJobId = await this.jobsService.enqueue(
+          RETRY_TARGET_JOB_TYPE,
+          { testRunId, targetId },
+          tx,
+        );
 
-    return {
-      testRunId,
-      targetId,
-      status: 'PENDING',
-      pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
-    };
+        return {
+          operationId: retryJobId,
+          response: {
+            testRunId,
+            targetId,
+            status: 'PENDING' as const,
+            pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
+          },
+        };
+      },
+      rebuildResponse: async () => ({
+        testRunId,
+        targetId,
+        status: 'PENDING' as const,
+        pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
+      }),
+    });
   }
 
   async getHistory(

@@ -4,6 +4,7 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { TestTargetsRepository } from '../project-versions/persistence/test-targets.repository.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { ProjectVersionStatus, ExperimentStatus as PrismaExperimentStatus } from '../generated/prisma/enums.js';
@@ -41,9 +42,13 @@ export class ExperimentsService {
     private readonly experimentRunsRepository: ExperimentRunsRepository,
     private readonly jobsService: JobsService,
     private readonly configService: ConfigService,
+    private readonly idempotencyService: IdempotencyService,
   ) {}
 
-  async createRun(dto: CreateExperimentDto): Promise<ExperimentAcceptedResponse> {
+  async createRun(
+    dto: CreateExperimentDto,
+    idempotencyKey: string | undefined,
+  ): Promise<ExperimentAcceptedResponse> {
     const project = await this.projectsRepository.findById(dto.projectId);
 
     if (!project) {
@@ -99,28 +104,60 @@ export class ExperimentsService {
     }
 
     const projectVersionId = project.currentVersionId;
-    const run = await this.experimentRunsRepository.create({
-      projectId: dto.projectId,
-      projectVersionId,
-      targetId: dto.targetId,
-      totalRepetitions: TOTAL_REPETITIONS,
+
+    return this.idempotencyService.run({
+      scope: 'EXPERIMENT_CREATE',
+      key: idempotencyKey,
+      fingerprintInput: dto,
+      create: async (tx) => {
+        const run = await this.experimentRunsRepository.create(
+          {
+            projectId: dto.projectId,
+            projectVersionId,
+            targetId: dto.targetId,
+            totalRepetitions: TOTAL_REPETITIONS,
+          },
+          tx,
+        );
+
+        const payload: ExperimentJobPayload = {
+          experimentId: run.id,
+          projectId: dto.projectId,
+          projectVersionId,
+          targetId: dto.targetId,
+        };
+
+        await this.jobsService.enqueue(EXPERIMENT_JOB_TYPE, { ...payload }, tx);
+
+        return {
+          operationId: run.id,
+          response: {
+            experimentId: run.id,
+            projectVersionId,
+            status: 'PENDING' as const,
+            pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
+          },
+        };
+      },
+      rebuildResponse: async (operationId) => {
+        const run = await this.experimentRunsRepository.findById(operationId);
+
+        if (!run) {
+          throw new AppException(
+            ErrorCode.EXPERIMENT_NOT_FOUND,
+            `No existe el experimento ${operationId}.`,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+
+        return {
+          experimentId: run.id,
+          projectVersionId: run.projectVersionId,
+          status: 'PENDING' as const,
+          pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
+        };
+      },
     });
-
-    const payload: ExperimentJobPayload = {
-      experimentId: run.id,
-      projectId: dto.projectId,
-      projectVersionId,
-      targetId: dto.targetId,
-    };
-
-    await this.jobsService.enqueue(EXPERIMENT_JOB_TYPE, { ...payload });
-
-    return {
-      experimentId: run.id,
-      projectVersionId,
-      status: 'PENDING',
-      pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
-    };
   }
 
   async getStatus(experimentId: string): Promise<ExperimentStatusResponse> {

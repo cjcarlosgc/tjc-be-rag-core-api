@@ -5,6 +5,7 @@
 - ~~RepairContext/RepairService.~~ **Descartado (decisión definitiva de arquitectura):** una generación validada = una ejecución en el Sandbox; sin autorreparación automática ni reintento de corrección vía LLM. Se implementó y se revirtió en esta misma sesión (ver `CHANGELOG.md`); no es una evolución futura pendiente, es alcance definitivo.
 - ~~maxAttempts config.~~ **Descartado**, mismo motivo.
 - [x] retry manual (HU24: `POST /test-runs/:id/targets/:targetId/retry` → `202 TargetRetryAcceptedResponse`. Reintenta desde cero un target `INVALID`/`FAILED` a pedido del usuario, sin ningún mecanismo de corrección automática; `RetryTargetJobHandler` reprocesa exactamente ese target, actualiza el `TargetRunResult` existente en su lugar y reajusta `validTargets`/`invalidTargets`/`failedTargets`/`status` del run vía `applyRetryOutcome`. Contrato agregado a `INTEROP-1.4`).
+- [x] Aplicar `DEC-IDEMP-001` al POST de retry: validar/persistir key + huella, deduplicar el job manual y derivar `manual-retry:{retryJobId}:{targetId}` como UUID v5 para Sandbox.
 - ~~tests de no interacción con experimental mode.~~ **N/A**: sin autorreparación no hay nada de qué aislar a HU19.
 
 ## Calidad

@@ -1,7 +1,7 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.4
-**Compatible con:** SYSTEM-1.3
+**Versión:** INTEROP-1.5
+**Compatible con:** SYSTEM-1.5
 **Fecha de corte:** 2026-09-06
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
@@ -11,7 +11,7 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 ## 1. Compatibilidad y autoridad
 
 - Las rutas Sprint 1 ya implementadas por RAG Core permanecen sin prefijo para no romper el frontend existente.
-- `INTEROP-1.1` versiona el contrato documental. Todo cambio aditivo conserva la versión mayor; un cambio incompatible exige una nueva versión mayor y migración coordinada de consumidores.
+- `INTEROP-1.5` es la versión documental vigente. Todo cambio aditivo conserva la versión mayor; un cambio incompatible exige una nueva versión mayor y migración coordinada de consumidores.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
 - Los nombres de ruta y DTO presentes solo en mocks dejan de ser autoridad cuando contradigan este documento.
@@ -41,8 +41,10 @@ interface Page<T> {
 ## 3. Headers y correlación
 
 - `x-correlation-id`: opcional desde el navegador; RAG Core lo genera cuando falta y siempre lo devuelve. Core lo propaga al Sandbox y el Sandbox lo devuelve.
-- `Idempotency-Key`: obligatorio en `POST /test-runs`, `POST /experiments` y `POST /executions`; UUID estable por intento lógico. Repetir key y body devuelve la operación original. Repetir key con body distinto devuelve `409 IDEMPOTENCY_CONFLICT`. No se exige retroactivamente en `POST /projects/index`.
-- `Authorization: Bearer <service-token>`: obligatorio entre Core y Sandbox. El token vive en configuración del host y nunca ingresa al container.
+- `Idempotency-Key`: UUID obligatorio en `POST /test-runs`, `POST /experiments`, `POST /test-runs/{runId}/targets/{targetId}/retry` y `POST /executions`. Su ausencia o formato inválido devuelve `400 IDEMPOTENCY_KEY_REQUIRED` o `400 INVALID_IDEMPOTENCY_KEY`. No se exige retroactivamente en `POST /projects/index`.
+- En navegador→Core, Developer Console genera una key por acción lógica y conserva el mismo valor en todo reintento de transporte. Core persiste key + huella canónica del request bajo una restricción única: mismo par devuelve la respuesta aceptada original sin crear recurso/job adicional; misma key con huella distinta devuelve `409 IDEMPOTENCY_CONFLICT`.
+- En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace estándar URL `6ba7b811-9dad-11d1-80b4-00c04fd430c8` y un nombre canónico según la unidad lógica: `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}`, `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}` o `urn:tjc:sandbox-execution:v1:manual-retry:{retryJobId}:{targetId}`. La key hija es también `requestId` y se reutiliza en cualquier retry.
+- `Authorization: Bearer <service-token>` es obligatorio en todos los endpoints `/executions`. El valor es un secreto opaco precompartido de alta entropía, configurado como `SANDBOX_SERVICE_TOKEN` en Core y Sandbox; no es JWT, no usa proveedor de identidad y nunca ingresa al frontend, logs, PostgreSQL, Storage o container. Core lo exige cuando configura `SANDBOX_URL`; Sandbox lo exige al arrancar. Los endpoints `/health/live` y `/health/ready` no requieren este header.
 - Los endpoints de navegador no tienen todavía un contrato de autenticación aprobado. Antes de validación empresarial se aplica `DEC-VAL-001`.
 
 ## 4. Errores HTTP
@@ -520,6 +522,7 @@ Reglas:
 - Para idempotencia se comparan IDs, roles, rutas, hashes y tamaños; la firma o nueva expiración de una URL no cambia por sí sola la identidad lógica del request.
 - `TARGET` requiere uno o más `targetIds`; `BATCH` aplica el conjunto final de artefactos del run actual.
 - `runnerHint` se verifica contra el proyecto. Una incompatibilidad termina como `CONFIGURATION`, no habilita ejecutar comandos suministrados por Core.
+- El snapshot debe contener `pnpm-lock.yaml`. V1 instala exclusivamente con pnpm y lockfile congelado; npm, Yarn o ausencia de lockfile producen `UNSUPPORTED_PACKAGE_MANAGER`.
 - Los límites de CPU, memoria, output y tiempo son configuración/política del Sandbox, no parámetros controlables por el request.
 
 ### 7.3 Consultar ejecución y resultado
@@ -617,6 +620,7 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `EXECUTION_NOT_FOUND` → 404.
 - `EXECUTION_NOT_FINISHED` → 409.
 - `IDEMPOTENCY_CONFLICT` → 409.
+- `IDEMPOTENCY_KEY_REQUIRED`, `INVALID_IDEMPOTENCY_KEY`, `IDEMPOTENCY_KEY_MISMATCH` → 400.
 - `UNSUPPORTED_PROJECT`, `UNSUPPORTED_RUNNER`, `UNSUPPORTED_PACKAGE_MANAGER` → 422 antes de aceptar cuando puedan detectarse; después del `202` se persisten como resultado `FAILED`/`CONFIGURATION`.
 - `INPUT_URL_EXPIRED`, `INPUT_DOWNLOAD_FAILED`, `INTEGRITY_CHECK_FAILED`, `INVALID_ARCHIVE`, `INVALID_ARTIFACT_PATH` → resultado fallido si ocurren después del `202`.
 - Un fallo de Storage al generar la URL ocurre en RAG Core antes de invocar al Sandbox y se normaliza allí; `SANDBOX_UNAVAILABLE` → 503 si el Sandbox no permite aceptar o consultar la operación.
@@ -627,14 +631,13 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `GET /health/ready`: confirma que puede aceptar ejecuciones y distingue indisponibilidad de Docker, conectividad de adquisición y capacidad interna, sin consultar Supabase mediante credenciales.
 - Estos endpoints no ejecutan código del proyecto ni revelan secretos o configuración sensible.
 
-## 8. Disponibilidad al aprobar INTEROP-1.1
+## 8. Disponibilidad al aprobar INTEROP-1.5
 
-- Las operaciones Sprint 1 indicadas en 6.1 y 6.2 conservan su disponibilidad implementada actual; listado de proyectos y versiones quedan aprobados para implementar.
-- Generación, validación, artefactos y transporte experimental quedan contractualmente aprobados, aunque su código todavía no exista.
-- Core↔Sandbox deja de estar bloqueado por falta de contrato: `DEC-INT-001` queda resuelto por este documento.
-- `DEC-EXP-002` queda `APROBADO`; HU19 ya no está bloqueada por decisión, solo pendiente de implementación.
-- `DEC-CHUNK-001` y `DEC-EMB-001` quedan `APROBADO`; el contrato de retrieval definitivo ya no está sujeto a decisión, solo pendiente de implementación en `004-rag-retrieval-context`.
-- `DEC-SBX-001` y `DEC-SBX-002` conservan sus alcances locales; este contrato no elige package managers.
+- RAG Core implementa las rutas HTTP/WebSocket descritas en la sección 6 hasta HU25. Ya aplica `Idempotency-Key` en los tres POST indicados (`IdempotencyRecord`/`IdempotencyService`) y ya actualizó su cliente Sandbox conforme a las secciones 3 y 7 (`Authorization: Bearer`, identidades hijas UUID v5 estables).
+- Developer Console todavía debe completar sus adapters/vistas contra este contrato. Nunca envía `SANDBOX_SERVICE_TOKEN` ni llama directamente al Sandbox.
+- Test Execution Sandbox implementa `/executions`, Bearer, deduplicación y pipeline aislado. Su decisión local `DEC-SBX-002` fija pnpm + `pnpm-lock.yaml` como única combinación V1 ejecutable.
+- La integración Core↔Sandbox permanece pendiente de verificación real de extremo a extremo hasta que ambos servicios se desplieguen y se prueben juntos; esto ya no es deuda de implementación de Core, es validación de integración entre repositorios.
+- `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
 - `DEC-MET-001` y `DEC-VAL-001` permanecen PENDING y no bloquean implementación ordinaria.
 
 ## 9. Reglas de implementación
@@ -643,5 +646,5 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Validar todos los requests y serializar respuestas mediante DTOs explícitos.
 - Centralizar correlación y `ErrorEnvelope` en interceptors/filtros; no formatear errores manualmente en cada controller.
 - Usar tokens de inyección para `ObjectStorageService` en Core, el downloader HTTP del Sandbox, clientes HTTP y demás puertos reemplazables.
-- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-1.1` y se verifica mediante contract tests/fixtures versionados.
+- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-1.5` y se verifica mediante contract tests/fixtures versionados.
 - Todo cambio de contrato debe actualizar primero el documento canónico, después sus dos espejos y finalmente los adapters/tests afectados.

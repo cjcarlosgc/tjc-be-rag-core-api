@@ -64,6 +64,7 @@ export interface SandboxArtifactInput {
 }
 
 export interface SandboxExecutionRequest {
+  requestId: string;
   testRunId: string;
   projectVersionId: string;
   snapshotKey: string;

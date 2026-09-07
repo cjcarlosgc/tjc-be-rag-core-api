@@ -1,6 +1,9 @@
 # 006-validation-orchestration — Tareas
 
 - [x] Cliente HTTP Sandbox con timeouts/correlationId (`SandboxExecutionService`: `AbortController` + `SANDBOX_REQUEST_TIMEOUT_MS`, header `x-correlation-id` propagado en POST/GET, `Idempotency-Key` = `requestId`).
+- [x] Incorporar `SANDBOX_SERVICE_TOKEN` validado condicionalmente con `SANDBOX_URL` y enviar `Authorization: Bearer` en POST/GET de `/executions`; cubrir ausencia, token inválido y redacción en logs (el token nunca se loguea; solo `Bearer <token>` sale por el header HTTP).
+- [x] Reemplazar el UUID aleatorio por UUID v5 estable según unidad lógica (`generation:{jobId}:{targetId}`, `experiment:{jobId}:{strategy}:{repetition}`, `manual-retry:{retryJobId}:{targetId}`), usando el mismo valor en `requestId` e `Idempotency-Key` durante retries.
+- [ ] Verificar integración real Core↔Sandbox protegida: aceptación, polling, replay equivalente, conflicto y rechazo 401/403. Pendiente de un Sandbox desplegado real; no es código de Core.
 - [x] Construir `EphemeralDownloadRef` con signed URL corta, SHA-256 y tamaño sin persistirla ni loguearla completa (`buildSnapshotRef`/`buildArtifactRef`: `presignGet` + `sha256`/`sizeBytes` calculados en memoria; la URL no se persiste en DB ni aparece en logs).
 - [x] Mapeo result/failureType (`mapSandboxResult`: COMPLETED+passed→VALID/NONE; COMPLETED+!passed→INVALID/COMPILATION|TEST_RUNTIME|TEST_ASSERTION; FAILED→failure.category; TIMED_OUT→INFRASTRUCTURE).
 - [ ] Batch validation: **parcial en V1** — cada target se valida individualmente (`scope: 'TARGET'`) inmediatamente después de su CREATE/MERGE, en vez de una fase `BATCH_VALIDATING` separada al final con el conjunto completo de artefactos del run. Cubre correctamente "solo validar artefactos creados/modificados del run actual" pero no implementa la validación batch final adicional que la spec menciona como posible refinamiento.
@@ -18,4 +21,4 @@
 
 ## Limitación real (no resuelta, no un simulacro)
 
-**No existe verificación end-to-end contra un Sandbox real**: `tjc-be-test-execution-sandbox` es otro repositorio, no presente en este workspace. El cliente HTTP implementa el contrato `INTEROP-1.1` completo (DTOs, headers, polling, mapeo de resultados) y está cubierto por pruebas unitarias con `fetch` mockeado y por el e2e con `SandboxExecutionService` reemplazado por un fake — pero nunca se probó contra el servicio real. `evidenceIds` en `ValidationResponse` queda siempre `[]`: la captura/almacenamiento de evidencia (stdout/stderr) de `ExecutionEvidenceFact` no se implementó en este corte.
+**No existe verificación end-to-end contra un Sandbox real.** El cliente HTTP cubre DTOs, correlación, polling, mapeo, Bearer e identidad idempotente estable de `INTEROP-1.5` (SDD 1.15) con mocks/fakes, pero nunca se probó contra el servicio real desplegado — eso es validación cross-repo. `evidenceIds` en `ValidationResponse` queda siempre `[]`: la captura/almacenamiento de evidencia (stdout/stderr) de `ExecutionEvidenceFact` no se implementó en este corte.

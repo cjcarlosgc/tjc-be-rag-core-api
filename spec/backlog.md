@@ -1,6 +1,6 @@
 # Product Backlog global
 
-**Estado:** línea base global vigente SYSTEM-1.3 / INTEROP-1.4
+**Estado:** línea base global vigente SYSTEM-1.5 / INTEROP-1.5
 
 Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD local indica su participación concreta. La numeración expresa trazabilidad y orden lógico, no ejecución estrictamente secuencial.
 
@@ -40,8 +40,8 @@ Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD l
 | HU20 | EP06 | Sprint 3 | P1 | Consultar historial de generaciones | Como desarrollador de software, quiero consultar generaciones anteriores de una versión del proyecto, para revisar sus resultados, validaciones y artefactos. |
 | HU21 | EP06 | Sprint 3 | P0 | Recibir progreso de análisis en tiempo real | Como desarrollador de software, quiero recibir actualizaciones del análisis mediante WebSockets, para evitar consultas periódicas por polling. |
 | HU22 | EP06 | Sprint 3 | P0 | Recibir progreso de generación en tiempo real | Como desarrollador de software, quiero recibir en tiempo real los cambios de estado de generación y validación, para seguir el proceso sin polling. |
-| ~~HU23~~ | EP06 | ~~Sprint 3~~ | — | ~~Corregir automáticamente pruebas inválidas~~ | **Descartada.** Decisión definitiva de arquitectura (ver `spec/features/009-history-realtime-repair/spec.md`): una generación validada = una ejecución en el Sandbox; sin autorreparación automática ni corrección vía LLM. No es una evolución futura pendiente. |
-| HU24 | EP06 | Sprint 4 | P1 | Reintentar una generación fallida | Como desarrollador de software, quiero reintentar manualmente una generación que quedó `INVALID`/`FAILED`, para volver a procesarla desde cero cuando lo considere necesario. (Redactada originalmente en función de HU23 — "cuando los intentos automáticos no sean suficientes" —; sin HU23 pasa a ser simplemente un reintento manual explícito, sin corrección automática de por medio). |
+| ~~HU23~~ | EP06 | ~~Sprint 3~~ | — | ~~Corregir automáticamente pruebas inválidas~~ | **Descartada.** Decisión definitiva de arquitectura (ver `tjc-be-rag-core-api/spec/features/009-history-realtime-repair/spec.md`): una generación validada = una ejecución en el Sandbox; sin autorreparación automática ni corrección vía LLM. No es una evolución futura pendiente. |
+| HU24 | EP06 | Sprint 3 | P1 | Reintentar una generación fallida | Como desarrollador de software, quiero reintentar manualmente una generación que quedó `INVALID`/`FAILED`, para volver a procesarla desde cero cuando lo considere necesario. (Redactada originalmente en función de HU23 — "cuando los intentos automáticos no sean suficientes" —; sin HU23 pasa a ser simplemente un reintento manual explícito, sin corrección automática de por medio). |
 | HU25 | EP07 | Sprint 4 | P0 | Mejorar la gestión de proyectos y resultados | Como desarrollador de software, quiero disponer de filtros, navegación y organización mejorada, para trabajar con múltiples proyectos, versiones y ejecuciones de forma eficiente. |
 | HU26 | EP07 | Sprint 4 | P0 | Usar una experiencia visual consolidada | Como desarrollador de software, quiero utilizar una interfaz consistente tipo herramienta de análisis de código, para interpretar rápidamente proyectos, estados, validaciones y resultados. |
 

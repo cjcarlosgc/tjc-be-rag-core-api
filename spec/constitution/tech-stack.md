@@ -14,5 +14,6 @@
 - Embeddings/LLM: proveedores por interfaz. OpenAI y `text-embedding-3-small` (dimensionalidad `1536`) son el proveedor/modelo definitivo de V1 para embeddings, conforme a `DEC-EMB-001` (APROBADO) en `spec/transversal/providers/spec.md`.
 - Storage: bucket privado Supabase Storage `repository-zips` vía `@supabase/supabase-js`, consumido solo por RAG Core y encapsulado detrás de `ObjectStorageService`; la lógica de dominio no depende del SDK ni del proveedor concreto.
 - Variables canónicas: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` y `SUPABASE_STORAGE_BUCKET`; `SUPABASE_PUBLISHABLE_KEY` queda opcional y sin uso actual. Frontend y Sandbox no reciben estas credenciales.
-- Package manager: pnpm.
+- Integración Sandbox: `SANDBOX_URL` y `SANDBOX_SERVICE_TOKEN`; el secreto es opaco, precompartido solo entre ambos backends, obligatorio en Core cuando existe URL y nunca se expone al frontend ni al container.
+- Package manager del servicio: pnpm. Los proyectos recibidos también deben contener `pnpm-lock.yaml` para ser ejecutables en Sandbox V1; se instalan con pnpm y lockfile congelado.
 - Mecanismo durable de jobs: cola DB-backed sobre PostgreSQL de Supabase (tabla `jobs`, despacho con `SELECT ... FOR UPDATE SKIP LOCKED`). Sin broker externo en V1.

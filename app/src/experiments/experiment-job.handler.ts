@@ -25,6 +25,7 @@ import {
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
 import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-result.js';
+import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { estimateCost } from './cost-calculator.js';
 import {
   ExperimentRunsRepository,
@@ -94,7 +95,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
     this.jobsService.registerHandler(this);
   }
 
-  async handle(payload: ExperimentJobPayload): Promise<void> {
+  async handle(payload: ExperimentJobPayload, jobId: string): Promise<void> {
     const run = await this.experimentRunsRepository.findById(payload.experimentId);
 
     if (!run || run.status === ExperimentStatus.COMPLETED) {
@@ -122,6 +123,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
       for (const strategy of STRATEGIES) {
         for (let repetition = 1; repetition <= REPETITIONS_PER_STRATEGY; repetition += 1) {
           await this.runRepetition({
+            jobId,
             experimentId: payload.experimentId,
             projectVersionId: payload.projectVersionId,
             snapshotKey: version.snapshotKey,
@@ -144,6 +146,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
   }
 
   private async runRepetition(context: {
+    jobId: string;
     experimentId: string;
     projectVersionId: string;
     snapshotKey: string;
@@ -202,6 +205,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
 
       try {
         const sandboxResult = await this.sandboxExecutionService.execute({
+          requestId: sandboxExperimentRequestId(context.jobId, context.strategy, context.repetition),
           testRunId: context.experimentId,
           projectVersionId: context.projectVersionId,
           snapshotKey: context.snapshotKey,

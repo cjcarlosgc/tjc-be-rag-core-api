@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RetryTargetJobHandler } from './retry-target-job.handler.js';
 import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import { sandboxManualRetryRequestId } from '../sandbox/sandbox-request-id.util.js';
 
 function makeTargetResult(overrides: Record<string, unknown> = {}) {
   return {
@@ -164,7 +165,7 @@ describe('RetryTargetJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect((deps.projectVersionsRepository as { findById: ReturnType<typeof vi.fn> }).findById).not.toHaveBeenCalled();
   });
@@ -177,7 +178,7 @@ describe('RetryTargetJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.llmProvider.generate).not.toHaveBeenCalled();
   });
@@ -186,12 +187,18 @@ describe('RetryTargetJobHandler', () => {
     const { deps, cleanup } = makeDeps();
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.retrievalService.retrieve).toHaveBeenCalledWith('version-1', expect.objectContaining({ filePath: 'src/foo.ts' }));
     expect(deps.llmProvider.generate).toHaveBeenCalledWith('prompt');
     expect(deps.sandboxExecutionService.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ testRunId: 'run-1', scope: 'TARGET', targetIds: ['target-1'], runnerHint: 'VITEST' }),
+      expect.objectContaining({
+        requestId: sandboxManualRetryRequestId('job-1', 'target-1'),
+        testRunId: 'run-1',
+        scope: 'TARGET',
+        targetIds: ['target-1'],
+        runnerHint: 'VITEST',
+      }),
     );
     expect(deps.testGenerationRunsRepository.updateTargetResult).toHaveBeenCalledWith(
       'result-1',
@@ -214,7 +221,7 @@ describe('RetryTargetJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.testGenerationRunsRepository.updateTargetResult).toHaveBeenCalledWith(
       'result-1',
@@ -232,7 +239,7 @@ describe('RetryTargetJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
     expect(deps.testGenerationRunsRepository.updateTargetResult).toHaveBeenCalledWith(
@@ -256,7 +263,7 @@ describe('RetryTargetJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.testGenerationRunsRepository.applyRetryOutcome).toHaveBeenCalledWith('run-1', 'FAILED', 'FAILED');
   });

@@ -22,9 +22,13 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     this.handlers.set(handler.type, handler);
   }
 
-  async enqueue(type: string, payload: Prisma.InputJsonValue): Promise<string> {
+  async enqueue(
+    type: string,
+    payload: Prisma.InputJsonValue,
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
     const maxAttempts = this.configService.get<number>('JOBS_MAX_ATTEMPTS', 3);
-    const job = await this.jobsRepository.create(type, payload, maxAttempts);
+    const job = await this.jobsRepository.create(type, payload, maxAttempts, tx);
     return job.id;
   }
 

@@ -38,7 +38,13 @@ export class SandboxExecutionService {
       throw new SandboxUnavailableError('SANDBOX_URL no está configurado.');
     }
 
-    const requestId = randomUUID();
+    const serviceToken = this.configService.get<string>('SANDBOX_SERVICE_TOKEN');
+
+    if (!serviceToken) {
+      throw new SandboxUnavailableError('SANDBOX_SERVICE_TOKEN no está configurado (DEC-AUTH-001).');
+    }
+
+    const { requestId } = request;
     const correlationId = randomUUID();
     const ttl = this.configService.get<number>(
       'SANDBOX_DOWNLOAD_TTL_SECONDS',
@@ -71,11 +77,18 @@ export class SandboxExecutionService {
       body,
       requestId,
       correlationId,
+      serviceToken,
     );
 
-    await this.pollUntilTerminal(baseUrl, accepted.executionId, accepted.pollAfterMs, correlationId);
+    await this.pollUntilTerminal(
+      baseUrl,
+      accepted.executionId,
+      accepted.pollAfterMs,
+      correlationId,
+      serviceToken,
+    );
 
-    return this.fetchResult(baseUrl, accepted.executionId, correlationId);
+    return this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
   }
 
   private async buildSnapshotRef(
@@ -118,6 +131,7 @@ export class SandboxExecutionService {
     executionId: string,
     firstPollAfterMs: number,
     correlationId: string,
+    serviceToken: string,
   ): Promise<void> {
     const maxAttempts = this.configService.get<number>(
       'SANDBOX_MAX_POLL_ATTEMPTS',
@@ -131,6 +145,7 @@ export class SandboxExecutionService {
       const status = await this.getJson<{ status: string; pollAfterMs?: number }>(
         `${baseUrl}/executions/${executionId}`,
         correlationId,
+        serviceToken,
       );
 
       if (['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(status.status)) {
@@ -149,13 +164,14 @@ export class SandboxExecutionService {
     baseUrl: string,
     executionId: string,
     correlationId: string,
+    serviceToken: string,
   ): Promise<SandboxExecutionResult> {
     const result = await this.getJson<{
       status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
       facts: SandboxExecutionResult['facts'];
       failure: SandboxFailureFact | null;
       stageDurations?: SandboxExecutionResult['stageDurations'];
-    }>(`${baseUrl}/executions/${executionId}/result`, correlationId);
+    }>(`${baseUrl}/executions/${executionId}/result`, correlationId, serviceToken);
 
     const stageDurations = result.stageDurations ?? [];
 
@@ -175,6 +191,7 @@ export class SandboxExecutionService {
     body: unknown,
     idempotencyKey: string,
     correlationId: string,
+    serviceToken: string,
   ): Promise<T> {
     return this.request<T>(url, {
       method: 'POST',
@@ -182,13 +199,17 @@ export class SandboxExecutionService {
         'content-type': 'application/json',
         'idempotency-key': idempotencyKey,
         'x-correlation-id': correlationId,
+        authorization: `Bearer ${serviceToken}`,
       },
       body: JSON.stringify(body),
     });
   }
 
-  private async getJson<T>(url: string, correlationId: string): Promise<T> {
-    return this.request<T>(url, { method: 'GET', headers: { 'x-correlation-id': correlationId } });
+  private async getJson<T>(url: string, correlationId: string, serviceToken: string): Promise<T> {
+    return this.request<T>(url, {
+      method: 'GET',
+      headers: { 'x-correlation-id': correlationId, authorization: `Bearer ${serviceToken}` },
+    });
   }
 
   private async request<T>(url: string, init: RequestInit): Promise<T> {

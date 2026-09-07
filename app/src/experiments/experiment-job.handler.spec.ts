@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentJobHandler } from './experiment-job.handler.js';
 import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
 
 function makeTarget(overrides: Record<string, unknown> = {}) {
   return {
@@ -146,7 +147,7 @@ describe('ExperimentJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect((deps.projectVersionsRepository as { findById: ReturnType<typeof vi.fn> }).findById).not.toHaveBeenCalled();
   });
@@ -155,7 +156,7 @@ describe('ExperimentJobHandler', () => {
     const { deps, cleanup } = makeDeps();
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.llmProvider.generate).toHaveBeenCalledTimes(3);
     expect(deps.generalistAgentService.generate).toHaveBeenCalledTimes(3);
@@ -166,11 +167,28 @@ describe('ExperimentJobHandler', () => {
     expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
   });
 
+  it('derives a stable Sandbox requestId per jobId+strategy+repetition (DEC-IDEMP-001)', async () => {
+    const { deps } = makeDeps();
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const requestIds = deps.sandboxExecutionService.execute.mock.calls.map(
+      (call: unknown[]) => (call[0] as { requestId: string }).requestId,
+    );
+
+    expect(requestIds).toContain(sandboxExperimentRequestId('job-1', 'RAG', 1));
+    expect(requestIds).toContain(sandboxExperimentRequestId('job-1', 'RAG', 2));
+    expect(requestIds).toContain(sandboxExperimentRequestId('job-1', 'RAG', 3));
+    expect(requestIds).toContain(sandboxExperimentRequestId('job-1', 'GENERALIST_AGENT', 1));
+    expect(new Set(requestIds).size).toBe(6);
+  });
+
   it('records RAG-specific metrics (retrievedChunks/selectedChunks/contextTokens) and null agent metrics for the RAG arm', async () => {
     const { deps } = makeDeps();
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     const ragCall = deps.experimentRunsRepository.insertRepetition.mock.calls.find(
       (call: unknown[]) => (call[1] as { strategy: string }).strategy === 'RAG',
@@ -193,7 +211,7 @@ describe('ExperimentJobHandler', () => {
     const { deps } = makeDeps();
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     const agentCall = deps.experimentRunsRepository.insertRepetition.mock.calls.find(
       (call: unknown[]) => (call[1] as { strategy: string }).strategy === 'GENERALIST_AGENT',
@@ -217,7 +235,7 @@ describe('ExperimentJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.experimentRunsRepository.insertRepetition).toHaveBeenCalledTimes(6);
     const anyCall = deps.experimentRunsRepository.insertRepetition.mock.calls[0];
@@ -233,7 +251,7 @@ describe('ExperimentJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
     expect(deps.experimentRunsRepository.insertRepetition).toHaveBeenCalledTimes(6);
@@ -248,7 +266,7 @@ describe('ExperimentJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await expect(handler.handle(payload)).rejects.toThrow('No existe el target');
+    await expect(handler.handle(payload, 'job-1')).rejects.toThrow('No existe el target');
 
     expect(deps.experimentRunsRepository.markFailed).toHaveBeenCalledWith(
       'exp-1',

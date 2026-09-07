@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TestGenerationJobHandler } from './test-generation-job.handler.js';
 import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 
 function makeTarget(overrides: Record<string, unknown> = {}) {
   return {
@@ -155,7 +156,7 @@ describe('TestGenerationJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect((deps.projectVersionsRepository as { findById: ReturnType<typeof vi.fn> }).findById).not.toHaveBeenCalled();
   });
@@ -164,7 +165,7 @@ describe('TestGenerationJobHandler', () => {
     const { deps } = makeDeps({ gapAnalyzer: { resolve: vi.fn().mockResolvedValue([]) } });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.testGenerationRunsRepository.completeAsNoMissingTargets).toHaveBeenCalledWith('run-1');
     expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
@@ -180,12 +181,17 @@ describe('TestGenerationJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.llmProvider.generate).toHaveBeenCalledWith('prompt');
     expect(deps.testFileMergeService.applyCreate).toHaveBeenCalledWith('test code');
     expect(deps.sandboxExecutionService.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: 'TARGET', targetIds: ['target-1'], runnerHint: 'VITEST' }),
+      expect.objectContaining({
+        requestId: sandboxGenerationRequestId('job-1', 'target-1'),
+        scope: 'TARGET',
+        targetIds: ['target-1'],
+        runnerHint: 'VITEST',
+      }),
     );
     expect(deps.testGenerationRunsRepository.insertTargetResult).toHaveBeenCalledWith(
       'run-1',
@@ -215,7 +221,7 @@ describe('TestGenerationJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.testGenerationRunsRepository.insertTargetResult).toHaveBeenCalledWith(
       'run-1',
@@ -232,7 +238,7 @@ describe('TestGenerationJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
     expect(deps.testGenerationRunsRepository.insertTargetResult).toHaveBeenCalledWith(
@@ -264,7 +270,7 @@ describe('TestGenerationJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await handler.handle(payload);
+    await handler.handle(payload, 'job-1');
 
     expect(deps.testGenerationRunsRepository.insertTargetResult).toHaveBeenCalledWith(
       'run-1',
@@ -282,7 +288,7 @@ describe('TestGenerationJobHandler', () => {
     });
     const handler = makeHandler(deps);
 
-    await expect(handler.handle(payload)).rejects.toThrow('boom');
+    await expect(handler.handle(payload, 'job-1')).rejects.toThrow('boom');
 
     expect(deps.testGenerationRunsRepository.markFailed).toHaveBeenCalledWith(
       'run-1',

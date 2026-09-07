@@ -91,6 +91,10 @@ class EnvironmentVariables {
   @IsString()
   SANDBOX_URL?: string;
 
+  @IsOptional()
+  @IsString()
+  SANDBOX_SERVICE_TOKEN?: string;
+
   @IsInt()
   @Min(1)
   SANDBOX_DOWNLOAD_TTL_SECONDS: number = 300;
@@ -128,6 +132,16 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
 
   if (errors.length > 0) {
     throw new Error(`Configuración de entorno inválida: ${errors.toString()}`);
+  }
+
+  // DEC-AUTH-001: SANDBOX_URL y SANDBOX_SERVICE_TOKEN deben configurarse juntos
+  // o no configurarse; una configuración parcial deja al cliente del Sandbox
+  // sin poder autenticarse (o con un secreto huérfano) y debe fallar en el
+  // arranque, no en el primer request.
+  if (Boolean(validated.SANDBOX_URL) !== Boolean(validated.SANDBOX_SERVICE_TOKEN)) {
+    throw new Error(
+      'Configuración de entorno inválida: SANDBOX_URL y SANDBOX_SERVICE_TOKEN deben configurarse juntos (DEC-AUTH-001).',
+    );
   }
 
   return validated;

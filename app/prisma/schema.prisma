@@ -303,3 +303,24 @@ model Job {
   @@index([status, availableAt])
   @@map("jobs")
 }
+
+/// DEC-IDEMP-001 (spec/transversal/persistence/spec.md): registro durable de
+/// idempotencia para POST /test-runs (TEST_RUN_CREATE), POST /experiments
+/// (EXPERIMENT_CREATE) y el POST de retry (TARGET_RETRY). `idempotencyKey` es
+/// el header del cliente; `requestFingerprint` es el hash SHA-256 canónico
+/// (scope + params/body con keys JSON ordenadas); `operationId` referencia el
+/// runId/experimentId/retryJobId original para reconstruir la respuesta en un
+/// replay sin guardar el cuerpo de la respuesta. Unicidad compuesta
+/// (scope, idempotencyKey): mismo par sirve el mismo `operationId`; misma key
+/// con huella distinta es `409 IDEMPOTENCY_CONFLICT`.
+model IdempotencyRecord {
+  id                 String   @id @default(uuid())
+  scope              String
+  idempotencyKey     String
+  requestFingerprint String
+  operationId        String
+  createdAt          DateTime @default(now())
+
+  @@unique([scope, idempotencyKey])
+  @@map("idempotency_records")
+}

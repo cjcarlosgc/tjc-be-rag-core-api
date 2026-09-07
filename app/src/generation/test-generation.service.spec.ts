@@ -19,11 +19,28 @@ function makeRun(overrides: Record<string, unknown> = {}) {
 
 function makeService(overrides: Record<string, unknown> = {}) {
   const deps = {
-    projectsRepository: {},
-    projectVersionsRepository: { findById: vi.fn().mockResolvedValue({ id: 'version-1' }) },
-    testGenerationRunsRepository: { findByProjectVersion: vi.fn().mockResolvedValue([]) },
-    jobsService: {},
+    projectsRepository: {
+      findById: vi.fn().mockResolvedValue({ id: 'project-1', currentVersionId: 'version-1' }),
+    },
+    projectVersionsRepository: {
+      findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED' }),
+      hasActiveVersion: vi.fn().mockResolvedValue(false),
+    },
+    testGenerationRunsRepository: {
+      findByProjectVersion: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: 'run-1' }),
+    },
+    jobsService: { enqueue: vi.fn().mockResolvedValue('job-1') },
     configService: { get: (_key: string, fallback?: unknown) => fallback },
+    idempotencyService: {
+      run: vi.fn(
+        async ({
+          create,
+        }: {
+          create: (tx: never) => Promise<{ operationId: string; response: unknown }>;
+        }) => (await create(undefined as never)).response,
+      ),
+    },
     ...overrides,
   };
 
@@ -33,6 +50,7 @@ function makeService(overrides: Record<string, unknown> = {}) {
     deps.testGenerationRunsRepository as never,
     deps.jobsService as never,
     deps.configService as never,
+    deps.idempotencyService as never,
   );
 }
 
@@ -102,13 +120,35 @@ describe('TestGenerationService.getHistory', () => {
   });
 });
 
+describe('TestGenerationService.createRun', () => {
+  it('delegates to IdempotencyService with the idempotency key, the TEST_RUN_CREATE scope and the dto as fingerprint (DEC-IDEMP-001)', async () => {
+    const idempotencyService = {
+      run: vi.fn(
+        async ({
+          create,
+        }: {
+          create: (tx: never) => Promise<{ operationId: string; response: unknown }>;
+        }) => (await create(undefined as never)).response,
+      ),
+    };
+    const service = makeService({ idempotencyService });
+    const dto = { projectId: 'project-1', mode: 'PROJECT_MISSING' as const };
+
+    await service.createRun(dto, 'client-key-1');
+
+    expect(idempotencyService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'client-key-1', scope: 'TEST_RUN_CREATE', fingerprintInput: dto }),
+    );
+  });
+});
+
 describe('TestGenerationService.retryTarget (HU24)', () => {
   it('throws TEST_RUN_NOT_FOUND when the run does not exist', async () => {
     const service = makeService({
       testGenerationRunsRepository: { findById: vi.fn().mockResolvedValue(null) },
     });
 
-    await expect(service.retryTarget('missing', 'target-1')).rejects.toMatchObject({
+    await expect(service.retryTarget('missing', 'target-1', undefined)).rejects.toMatchObject({
       code: ErrorCode.TEST_RUN_NOT_FOUND,
     });
   });
@@ -120,7 +160,7 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
       },
     });
 
-    await expect(service.retryTarget('run-1', 'target-1')).rejects.toMatchObject({
+    await expect(service.retryTarget('run-1', 'target-1', undefined)).rejects.toMatchObject({
       code: ErrorCode.TEST_RUN_NOT_FINISHED,
     });
   });
@@ -133,7 +173,7 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
       },
     });
 
-    await expect(service.retryTarget('run-1', 'target-missing')).rejects.toMatchObject({
+    await expect(service.retryTarget('run-1', 'target-missing', undefined)).rejects.toMatchObject({
       code: ErrorCode.TARGET_RESULT_NOT_FOUND,
     });
   });
@@ -146,7 +186,7 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
       },
     });
 
-    await expect(service.retryTarget('run-1', 'target-1')).rejects.toMatchObject({
+    await expect(service.retryTarget('run-1', 'target-1', undefined)).rejects.toMatchObject({
       code: ErrorCode.TARGET_RETRY_NOT_ALLOWED,
     });
   });
@@ -161,12 +201,13 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
       jobsService: { enqueue },
     });
 
-    const result = await service.retryTarget('run-1', 'target-1');
+    const result = await service.retryTarget('run-1', 'target-1', undefined);
 
-    expect(enqueue).toHaveBeenCalledWith('test-run-retry-target', {
-      testRunId: 'run-1',
-      targetId: 'target-1',
-    });
+    expect(enqueue).toHaveBeenCalledWith(
+      'test-run-retry-target',
+      { testRunId: 'run-1', targetId: 'target-1' },
+      undefined,
+    );
     expect(result).toEqual({
       testRunId: 'run-1',
       targetId: 'target-1',
@@ -185,11 +226,41 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
       jobsService: { enqueue },
     });
 
-    await service.retryTarget('run-1', 'target-1');
+    await service.retryTarget('run-1', 'target-1', undefined);
 
-    expect(enqueue).toHaveBeenCalledWith('test-run-retry-target', {
-      testRunId: 'run-1',
-      targetId: 'target-1',
+    expect(enqueue).toHaveBeenCalledWith(
+      'test-run-retry-target',
+      { testRunId: 'run-1', targetId: 'target-1' },
+      undefined,
+    );
+  });
+
+  it('delegates to IdempotencyService with the idempotency key, the TARGET_RETRY scope and {testRunId, targetId} as fingerprint (DEC-IDEMP-001)', async () => {
+    const idempotencyService = {
+      run: vi.fn(
+        async ({
+          create,
+        }: {
+          create: (tx: never) => Promise<{ operationId: string; response: unknown }>;
+        }) => (await create(undefined as never)).response,
+      ),
+    };
+    const service = makeService({
+      testGenerationRunsRepository: {
+        findById: vi.fn().mockResolvedValue(makeRun({ status: 'PARTIAL' })),
+        findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'INVALID' }),
+      },
+      idempotencyService,
     });
+
+    await service.retryTarget('run-1', 'target-1', 'client-key-1');
+
+    expect(idempotencyService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'client-key-1',
+        scope: 'TARGET_RETRY',
+        fingerprintInput: { testRunId: 'run-1', targetId: 'target-1' },
+      }),
+    );
   });
 });

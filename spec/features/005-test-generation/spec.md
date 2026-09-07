@@ -19,8 +19,13 @@ Generar pruebas unitarias en cinco modos sobre la versión congelada del proyect
 - Prompt recibe código/contexto, no embeddings.
 - CREATE si no existe test relevante; MERGE con ts-morph si existe, preservando tests. Múltiples métodos deben fusionarse sobre workspace/artifact evolucionado del run.
 - El transporte externo usa `POST /test-runs`, status y resultados definidos en `spec/contracts/interoperability-contract.md`; los DTO HTTP no exponen prompts, embeddings ni keys de Storage.
+- `POST /test-runs` exige `Idempotency-Key`: Core persiste la key y una huella canónica de `CreateTestRunRequest`; el replay equivalente devuelve el mismo `runId` y nunca crea otro run/job. Una key reutilizada con otro request devuelve `409 IDEMPOTENCY_CONFLICT`.
 
 ## Fuera de alcance
 
 - No ampliar a capacidades no mencionadas en esta spec.
 - No convertir decisiones PENDING en implementación definitiva sin aprobación.
+
+## Cierre de la brecha de implementación SDD 1.14
+
+Resuelto en SDD 1.15: `POST /test-runs` valida el header (`400 IDEMPOTENCY_KEY_REQUIRED`/`INVALID_IDEMPOTENCY_KEY`), reserva `IdempotencyRecord` (scope `TEST_RUN_CREATE`) y crea `TestGenerationRun` + job en una misma transacción (`IdempotencyService`, `spec/transversal/persistence/spec.md`).
