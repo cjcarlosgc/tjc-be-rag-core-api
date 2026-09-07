@@ -4,6 +4,8 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **Configuración de despliegue local + `LLM_REASONING_EFFORT`:** se configuran las credenciales reales de OpenAI y el Sandbox local (`SANDBOX_URL=http://localhost:3001`) en el `.env` de desarrollo (no versionado). `OpenAiLLMProvider` ahora soporta `LLM_REASONING_EFFORT` (opcional; `none|minimal|low|medium|high|xhigh|max`) — se incluye `reasoning_effort` en el request a `chat.completions.create` solo cuando está configurado, sin afectar modelos que no lo soportan. `EMBEDDING_MODEL` se mantiene `text-embedding-3-small` (`DEC-EMB-001`, sin cambios). No es una decisión de arquitectura ni toca contrato/DTOs, es config operativa del adapter OpenAI ya abstraído por `LLMProvider`.
+
 - **SDD 1.15 / SYSTEM-1.5 (cierre de implementación, sin cambios de contrato):** se implementa en `app/` lo que `SDD 1.14` había aprobado solo como especificación, más un fix de CORS pedido directamente por el usuario al preparar la integración con Sandbox/Frontend reales:
   - **CORS:** `main.ts` llama a `app.enableCors()`; sin esto, ningún request HTTP del frontend (en otro origen) pasaba el preflight del navegador.
   - **`DEC-AUTH-001`:** `SANDBOX_SERVICE_TOKEN` (nueva variable, opcional pero exigida junto con `SANDBOX_URL` — la app falla al arrancar ante una configuración parcial de ambas). `SandboxExecutionService` envía `Authorization: Bearer <token>` en las tres llamadas a `/executions` (POST, y los dos GET de status/resultado).

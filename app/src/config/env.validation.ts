@@ -53,6 +53,10 @@ class EnvironmentVariables {
   @IsString()
   LLM_MODEL: string = 'gpt-4o-mini';
 
+  @IsOptional()
+  @IsString()
+  LLM_REASONING_EFFORT?: string;
+
   @IsInt()
   @Min(1000)
   OPENAI_TIMEOUT_MS: number = 30_000;

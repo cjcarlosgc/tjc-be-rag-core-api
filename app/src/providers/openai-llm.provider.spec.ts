@@ -47,6 +47,28 @@ describe('OpenAiLLMProvider', () => {
     });
   });
 
+  it('includes reasoning_effort only when LLM_REASONING_EFFORT is configured', async () => {
+    createMock.mockResolvedValue({ choices: [{ message: { content: 'x' } }] });
+
+    const provider = new OpenAiLLMProvider(
+      makeConfigService({ LLM_REASONING_EFFORT: 'high' }),
+    );
+    await provider.generate('prompt');
+
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ reasoning_effort: 'high' }));
+  });
+
+  it('omits reasoning_effort when LLM_REASONING_EFFORT is not configured', async () => {
+    createMock.mockResolvedValue({ choices: [{ message: { content: 'x' } }] });
+
+    const provider = new OpenAiLLMProvider(makeConfigService());
+    await provider.generate('prompt');
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ reasoning_effort: expect.anything() }),
+    );
+  });
+
   it('returns null token counts when usage is not reported', async () => {
     createMock.mockResolvedValue({ choices: [{ message: { content: 'x' } }] });
 

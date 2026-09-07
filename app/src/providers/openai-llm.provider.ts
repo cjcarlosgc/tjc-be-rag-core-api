@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import type { ChatCompletionCreateParamsNonStreaming } from 'openai/resources/chat/completions.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { LLMGenerationResult, LLMProvider } from './llm-provider.interface.js';
@@ -15,12 +16,18 @@ export class OpenAiLLMProvider implements LLMProvider {
   async generate(prompt: string): Promise<LLMGenerationResult> {
     const client = this.getClient();
     const model = this.configService.get<string>('LLM_MODEL', 'gpt-4o-mini');
+    const reasoningEffort = this.configService.get<string>('LLM_REASONING_EFFORT');
+
+    const params: ChatCompletionCreateParamsNonStreaming = {
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      ...(reasoningEffort
+        ? { reasoning_effort: reasoningEffort as ChatCompletionCreateParamsNonStreaming['reasoning_effort'] }
+        : {}),
+    };
 
     try {
-      const response = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-      });
+      const response = await client.chat.completions.create(params);
 
       return {
         content: response.choices[0]?.message?.content ?? '',
