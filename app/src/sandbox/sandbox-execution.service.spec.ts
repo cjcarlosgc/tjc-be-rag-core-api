@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 import { SandboxExecutionService, SandboxUnavailableError } from './sandbox-execution.service.js';
 
 function makeConfigService(overrides: Record<string, unknown> = {}) {
@@ -199,6 +200,50 @@ describe('SandboxExecutionService', () => {
         runnerHint: 'JEST',
       }),
     ).rejects.toBeInstanceOf(SandboxUnavailableError);
+  });
+
+  it('logs the detailed sandbox failure reason when the result includes one', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'FAILED' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: 'FAILED',
+          facts: null,
+          failure: {
+            stage: 'INSTALLING_DEPENDENCIES',
+            category: 'DEPENDENCY',
+            code: 'NPM_INSTALL_FAILED',
+            message: "No matching version found for 'left-pad@^99.0.0'.",
+          },
+          stageDurations: [],
+        }),
+      );
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+
+    const result = await service.execute({
+      requestId: 'request-1',
+      testRunId: 'run-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'key',
+      snapshotBuffer: Buffer.from('zip'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'VITEST',
+    });
+
+    expect(result.failure?.category).toBe('DEPENDENCY');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("No matching version found for 'left-pad@^99.0.0'."),
+    );
+
+    warnSpy.mockRestore();
   });
 
   it('throws SandboxUnavailableError after exceeding the max poll attempts', async () => {

@@ -183,6 +183,16 @@ export class SandboxExecutionService {
       );
     }
 
+    if (result.failure) {
+      // `mapSandboxResult` solo persiste la categoría (`failureType`) en
+      // `ExperimentRepetition` (ese modelo no tiene columna de mensaje); sin
+      // este log, el detalle real del Sandbox (p. ej. qué dependencia falta)
+      // se pierde para siempre en los experimentos.
+      this.logger.warn(
+        `Ejecución ${executionId} falló en ${result.failure.stage} (${result.failure.category}/${result.failure.code}): ${result.failure.message}`,
+      );
+    }
+
     return { status: result.status, facts: result.facts, failure: result.failure, stageDurations };
   }
 
