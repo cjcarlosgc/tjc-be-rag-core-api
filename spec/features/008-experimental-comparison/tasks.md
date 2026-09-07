@@ -28,3 +28,7 @@
 - **Paridad de límites**: se comparte el mismo presupuesto orientativo (`RETRIEVAL_MAX_CONTEXT_TOKENS`, mencionado en las instrucciones del agente) y el mismo timeout de generación (`GENERATION_TIMEOUT_MS`, aplicado a ambos brazos vía `withTimeout`). No se implementó un contador exacto de tokens de contexto consumidos por el agente (el modelo no expone eso directamente); la paridad es de presupuesto orientativo y límite de tool calls, no de conteo exacto de tokens de exploración.
 - **Batch validation**: cada repetición valida un target aislado (`scope: TARGET`), igual que en `005/006`. No existe una fase de validación batch adicional.
 - **`Coverage` como métrica secundaria**: no implementado (la propia spec lo declara Sprint 4, fuera de alcance de PI1).
+
+## Backlog Sprint 4
+
+- [ ] Persistir el mensaje detallado de fallo del Sandbox en `ExperimentRepetition` (ver tarea homónima en `spec/transversal/persistence/tasks.md`) — hoy `failureType` solo guarda la categoría, sin el mensaje real de `SandboxFailureFact`.

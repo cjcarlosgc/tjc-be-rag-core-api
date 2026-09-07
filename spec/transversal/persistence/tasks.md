@@ -9,6 +9,7 @@
 - [x] Añadir modelo/migración `IdempotencyRecord` conforme a `DEC-IDEMP-001`, con scope, UUID, SHA-256, operationId, timestamp y unicidad compuesta (migración `20260907010601_idempotency_records`, aplicada contra la Supabase real).
 - [x] Implementar transacciones atómicas recurso + registro idempotente + job para generación, experimento y retry; probar replay, conflicto y carrera concurrente (`IdempotencyService`, unit + e2e contra Supabase real).
 - [x] Mantener el registro mientras exista el resultado correspondiente y excluir keys/huellas sensibles de DTOs/logs (sin expiración independiente en V1; `idempotencyKey`/`requestFingerprint` nunca se incluyen en ningún DTO de respuesta ni se loguean).
+- [ ] **(Backlog Sprint 4)** Persistir el mensaje detallado de `SandboxFailureFact` (hoy solo se loguea en servidor vía `SandboxExecutionService.fetchResult`, ver `sandbox-execution.service.ts`) en una columna de `ExperimentRepetition` y, si aplica, reforzar `TargetRunResult.errorSummary` con el mismo detalle — para que un fallo `DEPENDENCY`/`INFRA` sea diagnosticable desde el resultado persistido, sin depender de grepear logs del servidor. Requiere migración + bump de `spec/contracts/system-contract.md` (contrato de persistencia). Detectado el 2026-09-07 al diagnosticar un experimento `getPokemon` con `failureType: DEPENDENCY` en ambos brazos (causa real: `pnpm-workspace.yaml` del proyecto de prueba sin campo `packages`, ajeno a Core/Sandbox).
 
 ## Calidad
 
