@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectFramework } from './framework-detector.js';
+import { detectFramework, findPackageJsonPath } from './framework-detector.js';
 
 describe('detectFramework', () => {
   it('detects Vitest from a config file', () => {
@@ -32,5 +32,27 @@ describe('detectFramework', () => {
   it('returns null for malformed package.json instead of throwing', () => {
     expect(() => detectFramework('{not json', [])).not.toThrow();
     expect(detectFramework('{not json', [])).toBeNull();
+  });
+});
+
+describe('findPackageJsonPath', () => {
+  it('returns undefined when no package.json exists', () => {
+    expect(findPackageJsonPath(['src/index.ts'])).toBeUndefined();
+  });
+
+  it('returns the root package.json when present at the ZIP root', () => {
+    expect(findPackageJsonPath(['package.json', 'src/index.ts'])).toBe('package.json');
+  });
+
+  it('finds package.json nested inside a wrapping folder (common ZIP export shape)', () => {
+    expect(findPackageJsonPath(['my-project/package.json', 'my-project/src/index.ts'])).toBe(
+      'my-project/package.json',
+    );
+  });
+
+  it('prefers the shallowest package.json when several exist (e.g. a monorepo)', () => {
+    expect(
+      findPackageJsonPath(['my-project/package.json', 'my-project/packages/lib/package.json']),
+    ).toBe('my-project/package.json');
   });
 });

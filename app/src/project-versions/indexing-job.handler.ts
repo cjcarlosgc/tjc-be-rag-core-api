@@ -12,7 +12,7 @@ import { FileDiscoveryService } from './discovery/file-discovery.service.js';
 import { TypeScriptParserService } from './parsing/typescript-parser.service.js';
 import { TestTargetExtractorService } from './inventory/test-target-extractor.service.js';
 import { ExistingTestResolverService } from './inventory/existing-test-resolver.service.js';
-import { detectFramework } from './inventory/framework-detector.js';
+import { detectFramework, findPackageJsonPath } from './inventory/framework-detector.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
 import type { EmbeddingProvider } from '../providers/embedding-provider.interface.js';
@@ -167,12 +167,14 @@ export class IndexingJobHandler implements JobHandler<IndexingJobPayload>, OnMod
     rootDir: string,
     discoveredFiles: string[],
   ): Promise<string | undefined> {
-    if (!discoveredFiles.includes('package.json')) {
+    const packageJsonPath = findPackageJsonPath(discoveredFiles);
+
+    if (!packageJsonPath) {
       return undefined;
     }
 
     try {
-      return await readFile(join(rootDir, 'package.json'), 'utf8');
+      return await readFile(join(rootDir, packageJsonPath), 'utf8');
     } catch {
       return undefined;
     }
