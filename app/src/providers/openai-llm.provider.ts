@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { ChatCompletionCreateParamsNonStreaming } from 'openai/resources/chat/completions.js';
@@ -9,6 +9,7 @@ import { createOpenAiClient } from './openai-client.factory.js';
 
 @Injectable()
 export class OpenAiLLMProvider implements LLMProvider {
+  private readonly logger = new Logger(OpenAiLLMProvider.name);
   private client: OpenAI | undefined;
 
   constructor(private readonly configService: ConfigService) {}
@@ -35,11 +36,14 @@ export class OpenAiLLMProvider implements LLMProvider {
         outputTokens: response.usage?.completion_tokens ?? null,
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido.';
+      this.logger.warn(`Fallo al generar con el modelo "${model}": ${message}`);
+
       throw new AppException(
         ErrorCode.LLM_PROVIDER_UNAVAILABLE,
         'El proveedor de LLM no respondió correctamente.',
         HttpStatus.SERVICE_UNAVAILABLE,
-        error instanceof Error ? error.message : undefined,
+        message,
       );
     }
   }
