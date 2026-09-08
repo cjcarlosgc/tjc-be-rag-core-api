@@ -225,6 +225,15 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
         const executionDurationMs = Date.now() - executionStart;
         const outcome = mapSandboxResult(sandboxResult);
 
+        if (outcome.compiled === false) {
+          // RunnerFacts no incluye el error de compilación real (solo el
+          // booleano); sin esto, un fallo de compilación es indiagnosticable
+          // sin volver a correr el experimento y adivinar.
+          this.logger.debug(
+            `Repetición ${context.repetition} (${context.strategy}) del experimento ${context.experimentId} no compiló. Contenido generado (${relativePath}):\n${mergedContent}`,
+          );
+        }
+
         await this.recordRepetition(context, generation, generationDurationMs, executionDurationMs, {
           status: outcome.status,
           compiled: outcome.compiled,
