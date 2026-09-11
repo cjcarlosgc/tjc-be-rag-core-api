@@ -117,7 +117,11 @@ class EnvironmentVariables {
 
   @IsInt()
   @Min(1000)
-  GENERATION_TIMEOUT_MS: number = 60_000;
+  GENERATION_TIMEOUT_MS: number = 120_000;
+
+  @IsInt()
+  @Min(1)
+  EXPERIMENT_REPETITION_CONCURRENCY: number = 3;
 
   @IsNumber()
   @Min(0)

@@ -167,6 +167,33 @@ describe('ExperimentJobHandler', () => {
     expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
   });
 
+  it('runs repetitions concurrently, bounded by EXPERIMENT_REPETITION_CONCURRENCY', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const { deps } = makeDeps({
+      configService: {
+        get: (key: string, fallback?: unknown) =>
+          key === 'EXPERIMENT_REPETITION_CONCURRENCY' ? 3 : fallback,
+      },
+      sandboxExecutionService: {
+        execute: vi.fn().mockImplementation(async () => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          inFlight -= 1;
+          return successfulSandboxResult();
+        }),
+      },
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    expect(deps.sandboxExecutionService.execute).toHaveBeenCalledTimes(6);
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(maxInFlight).toBeLessThanOrEqual(3);
+  });
+
   it('derives a stable Sandbox requestId per jobId+strategy+repetition (DEC-IDEMP-001)', async () => {
     const { deps } = makeDeps();
     const handler = makeHandler(deps);

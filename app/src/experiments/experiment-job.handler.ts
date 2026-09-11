@@ -56,6 +56,33 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
+/**
+ * Ejecuta `items` a través de `worker` con a lo sumo `concurrency` corridas
+ * simultáneas. Cada repetición de un experimento ya es independiente
+ * (workspace y contenedor Sandbox propios), así que correrlas en serie solo
+ * suma latencia sin necesidad: el tiempo total pasa a ser el de los lotes
+ * concurrentes en vez de la suma de las 6.
+ */
+async function runWithConcurrencyLimit<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+
+  async function runNext(): Promise<void> {
+    const index = cursor;
+    cursor += 1;
+    if (index >= items.length) {
+      return;
+    }
+    await worker(items[index]);
+    await runNext();
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runNext));
+}
+
 interface GenerationOutcome {
   content: string;
   inputTokens: number | null;
@@ -118,23 +145,26 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
         throw new Error(`No existe el target ${payload.targetId}.`);
       }
 
-      const snapshotBuffer = await this.objectStorageService.get(version.snapshotKey);
+      const snapshotKey = version.snapshotKey;
+      const snapshotBuffer = await this.objectStorageService.get(snapshotKey);
+      const runs = STRATEGIES.flatMap((strategy) =>
+        Array.from({ length: REPETITIONS_PER_STRATEGY }, (_, i) => ({ strategy, repetition: i + 1 })),
+      );
+      const concurrency = this.configService.get<number>('EXPERIMENT_REPETITION_CONCURRENCY', 3);
 
-      for (const strategy of STRATEGIES) {
-        for (let repetition = 1; repetition <= REPETITIONS_PER_STRATEGY; repetition += 1) {
-          await this.runRepetition({
-            jobId,
-            experimentId: payload.experimentId,
-            projectVersionId: payload.projectVersionId,
-            snapshotKey: version.snapshotKey,
-            snapshotBuffer,
-            framework: version.detectedFramework,
-            target,
-            strategy,
-            repetition,
-          });
-        }
-      }
+      await runWithConcurrencyLimit(runs, concurrency, ({ strategy, repetition }) =>
+        this.runRepetition({
+          jobId,
+          experimentId: payload.experimentId,
+          projectVersionId: payload.projectVersionId,
+          snapshotKey,
+          snapshotBuffer,
+          framework: version.detectedFramework,
+          target,
+          strategy,
+          repetition,
+        }),
+      );
 
       await this.experimentRunsRepository.complete(payload.experimentId);
     } catch (error) {
@@ -161,7 +191,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
 
     try {
       workspace = await this.zipExtractionService.extract(context.snapshotBuffer);
-      const timeoutMs = this.configService.get<number>('GENERATION_TIMEOUT_MS', 60_000);
+      const timeoutMs = this.configService.get<number>('GENERATION_TIMEOUT_MS', 120_000);
 
       const generation =
         context.strategy === 'RAG'
