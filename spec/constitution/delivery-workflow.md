@@ -51,6 +51,12 @@ El resultado se registra en `harness/reports/sprint-<N>-review.md` con el rango 
 
 El reporte puede incorporarse después de la aprobación mediante un commit exclusivo de evidencia `docs(review): ...`. Esa única diferencia no invalida el veredicto si el reviewer comprueba antes del push que el commit solo modifica los reportes declarados y conserva las mismas HU; cualquier otro cambio sí exige repetir la revisión completa.
 
+## Defectos en otro componente
+
+- Si al investigar un fallo la causa raíz está en otro componente de la solución (Developer Console, Test Execution Sandbox, o cualquier repositorio distinto al que se está trabajando), el agente no aplica el fix en ese repositorio: diagnostica y entrega la indicación al agente propio de ese componente.
+- La indicación es un párrafo compacto pero detallado (no un documento extenso): síntoma observado, causa raíz con archivo y línea, y evidencia (logs, IDs) suficiente para reproducir sin reinvestigar desde cero.
+- Esta regla no aplica dentro del propio repositorio: un defecto local se corrige siguiendo el flujo normal de revisión y push definido en este documento.
+
 ## Puerta de push
 
 - Por defecto se realiza un push por repositorio al cierre de cada sprint.
