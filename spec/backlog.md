@@ -1,6 +1,6 @@
 # Product Backlog global
 
-**Estado:** línea base global vigente SYSTEM-1.5 / INTEROP-1.5
+**Estado:** línea base global vigente SYSTEM-1.6 / INTEROP-1.6
 
 Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD local indica su participación concreta. La numeración expresa trazabilidad y orden lógico, no ejecución estrictamente secuencial.
 
@@ -13,6 +13,8 @@ Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD l
 - **EP05 — Evaluación experimental RAG vs agente generalista**
 - **EP06 — Historial, tiempo real y resiliencia**
 - **EP07 — Experiencia de producto**
+- **EP08 — Trazabilidad visual del contexto**
+- **EP09 — Identidad y acceso a la consola**
 
 ## Historias
 
@@ -44,6 +46,11 @@ Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD l
 | HU24 | EP06 | Sprint 3 | P1 | Reintentar una generación fallida | Como desarrollador de software, quiero reintentar manualmente una generación que quedó `INVALID`/`FAILED`, para volver a procesarla desde cero cuando lo considere necesario. (Redactada originalmente en función de HU23 — "cuando los intentos automáticos no sean suficientes" —; sin HU23 pasa a ser simplemente un reintento manual explícito, sin corrección automática de por medio). |
 | HU25 | EP07 | Sprint 4 | P0 | Mejorar la gestión de proyectos y resultados | Como desarrollador de software, quiero disponer de filtros, navegación y organización mejorada, para trabajar con múltiples proyectos, versiones y ejecuciones de forma eficiente. |
 | HU26 | EP07 | Sprint 4 | P0 | Usar una experiencia visual consolidada | Como desarrollador de software, quiero utilizar una interfaz consistente tipo herramienta de análisis de código, para interpretar rápidamente proyectos, estados, validaciones y resultados. |
+| HU27 | EP08 | Sprint 4 | P0 | Explorar el contexto RAG de una generación | Como desarrollador de software, quiero inspeccionar el árbol de contexto RAG de un run completo o de un artefacto seleccionado, incluidos candidatos elegidos y descartados con sus señales y motivos, para comprender qué evidencia fue entregada al generador. |
+| HU28 | EP08 | Sprint 4 | P0 | Explorar el contexto observado por el agente | Como desarrollador de software, quiero revisar la trayectoria cronológica de herramientas y el contenido observable entregado al agente generalista en cada repetición experimental, para auditar su exploración sin atribuirle razonamiento interno no observable. |
+| HU29 | EP09 | Sprint 4 | P0 | Acceder de forma segura al flujo ZIP | Como desarrollador de software autorizado, quiero autenticarme con correo electrónico y acceder únicamente a mis proyectos y ejecuciones, para usar el flujo ZIP en un entorno empresarial sin exponer código a usuarios no autorizados. |
+
+HU26 incluye una demostración navegable y explícitamente simulada del recorrido futuro GitHub (acceso separado, repositorio, ramas y Pull Request). `DEC-GH-001` bloquea solo la integración real y no esa demo; ningún dato mock constituye evidencia empresarial.
 
 ## Criterio de prioridad
 

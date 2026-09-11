@@ -14,7 +14,7 @@ Antes de comprometer implementación adicional, investigar y presentar para deci
 Meta acumulada aproximada: 92%. HU20-HU22 y HU24. Historial, WebSockets y reintento manual desde cero de un target fallido. HU23 y la autorreparación automática fueron descartadas definitivamente.
 
 ## Sprint 4 — cierre
-Meta: 100%. HU25-HU26 según participación backend. Estabilización, observabilidad, performance y soporte a UX consolidada. Coverage experimental puede incorporarse como métrica secundaria si resulta homogénea y viable.
+Meta: 100%. HU25-HU29 según participación backend. Estabilización, observabilidad, performance, soporte a UX consolidada, trazas RAG/agente consultables y autenticación/autorización del flujo ZIP. Coverage experimental puede incorporarse como métrica secundaria si resulta homogénea y viable.
 
 ## Futuro
-PR/CI-CD autónomo, plugins IDE, JavaScript puro u otros lenguajes, full regression, escalado/Kubernetes y experimentos adicionales.
+GitHub como fuente, login GitHub, ramas/PR (`DEC-GH-001`), plugins IDE, JavaScript puro u otros lenguajes, full regression, escalado/Kubernetes y experimentos adicionales.

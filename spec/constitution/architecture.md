@@ -1,6 +1,6 @@
 # Arquitectura
 
-**Contratos compartidos:** SYSTEM-1.5 / INTEROP-1.5
+**Contratos compartidos:** SYSTEM-1.6 / INTEROP-1.6
 
 **Estado:** aprobado con decisiones PENDING explícitas
 
@@ -25,6 +25,8 @@ Los nombres siguientes expresan responsabilidades verificables, no la obligació
 - Ingesta/versionado: `ProjectVersionsService`, `ZipValidationService`, `ObjectStorageService`, `JobsService`, `IndexingJobHandler` y `ZipExtractionService`.
 - Análisis/indexación: `FileDiscoveryService`, `TypeScriptParserService`, `TestTargetExtractorService`, `ExistingTestResolverService`, `EmbeddingProvider`, `CodeChunksRepository` y `TestTargetsRepository`.
 - Retrieval/contexto: `RetrievalService` recupera candidatos; `ContextBuilder` construye el contexto final. Su contrato definitivo queda fijado por `DEC-CHUNK-001` (`002-project-version-indexing/spec.md`) y `DEC-EMB-001` (`transversal/providers/spec.md`), ambas `APROBADO`; pendiente de implementación en `004-rag-retrieval-context`.
+- Trazas de contexto: `ContextTraceService` persiste la evidencia RAG/AGENT y reconstruye fragmentos circundantes desde la `ProjectVersion` inmutable; no registra razonamiento interno (`011-context-traces`).
+- Identidad web: un guard global valida JWT de Supabase Auth y obliga a que todo acceso de dominio se resuelva dentro del propietario del `Project`; el token de usuario no cruza hacia el Sandbox (`012-web-authentication`).
 - Generación: `GapAnalyzer`, `PromptBuilder`, `LLMProvider` y las `GenerationStrategy` del producto/experimento.
 - Validación: `TestExecutionService` orquesta y `SandboxExecutionService` adapta HTTP hacia el Sandbox; RAG Core interpreta el resultado sin perder sus evidencias.
 - Artefactos: `ArtifactService` persiste y entrega archivos/diffs detrás de `ObjectStorageService`.
@@ -35,6 +37,8 @@ El detalle vigente de cada responsabilidad pertenece al `plan.md` de la feature 
 ## Flujo de generación
 
 `ProjectVersion congelada -> targets -> GenerationStrategy -> adquisición de contexto -> LLMProvider -> CREATE/MERGE -> Sandbox local temporal o remoto futuro -> ValidationResult -> artifacts/metrics`.
+
+La adquisición de contexto produce además una `ContextTrace` auditable por target/intento. El prompt continúa recibiendo únicamente el `GenerationContext`; la persistencia de candidatos descartados o tool calls no altera la generación.
 
 El producto normal utiliza RAG. El modo experimental posee dos brazos conceptuales: `RAG` y `GENERALIST_AGENT`. No se fija `TestContextStrategy` como única frontera porque el agente generalista puede necesitar un ciclo iterativo de búsqueda/lectura antes de generar. Ambos brazos convergen en la misma validación ciega del Sandbox.
 

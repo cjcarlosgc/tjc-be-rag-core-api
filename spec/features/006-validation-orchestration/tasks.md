@@ -21,4 +21,4 @@
 
 ## Limitación real (no resuelta, no un simulacro)
 
-**No existe verificación end-to-end contra un Sandbox real.** El cliente HTTP cubre DTOs, correlación, polling, mapeo, Bearer e identidad idempotente estable de `INTEROP-1.5` (SDD 1.15) con mocks/fakes, pero nunca se probó contra el servicio real desplegado — eso es validación cross-repo. `evidenceIds` en `ValidationResponse` queda siempre `[]`: la captura/almacenamiento de evidencia (stdout/stderr) de `ExecutionEvidenceFact` no se implementó en este corte.
+**No existe verificación end-to-end contra un Sandbox real.** El cliente HTTP cubre DTOs, correlación, polling, mapeo, Bearer e identidad idempotente estable de `INTEROP-1.6` (SDD 1.15) con mocks/fakes, pero nunca se probó contra el servicio real desplegado — eso es validación cross-repo. `evidenceIds` en `ValidationResponse` queda siempre `[]`: la captura/almacenamiento de evidencia (stdout/stderr) de `ExecutionEvidenceFact` no se implementó en este corte.

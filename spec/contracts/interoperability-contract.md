@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.5
-**Compatible con:** SYSTEM-1.5
-**Fecha de corte:** 2026-09-06
+**Versión:** INTEROP-1.6
+**Compatible con:** SYSTEM-1.6
+**Fecha de corte:** 2026-09-11
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 ## 1. Compatibilidad y autoridad
 
 - Las rutas Sprint 1 ya implementadas por RAG Core permanecen sin prefijo para no romper el frontend existente.
-- `INTEROP-1.5` es la versión documental vigente. Todo cambio aditivo conserva la versión mayor; un cambio incompatible exige una nueva versión mayor y migración coordinada de consumidores.
+- `INTEROP-1.6` es la versión documental vigente. Todo cambio aditivo conserva la versión mayor; un cambio incompatible exige una nueva versión mayor y migración coordinada de consumidores.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
 - Los nombres de ruta y DTO presentes solo en mocks dejan de ser autoridad cuando contradigan este documento.
@@ -45,7 +45,8 @@ interface Page<T> {
 - En navegador→Core, Developer Console genera una key por acción lógica y conserva el mismo valor en todo reintento de transporte. Core persiste key + huella canónica del request bajo una restricción única: mismo par devuelve la respuesta aceptada original sin crear recurso/job adicional; misma key con huella distinta devuelve `409 IDEMPOTENCY_CONFLICT`.
 - En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace estándar URL `6ba7b811-9dad-11d1-80b4-00c04fd430c8` y un nombre canónico según la unidad lógica: `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}`, `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}` o `urn:tjc:sandbox-execution:v1:manual-retry:{retryJobId}:{targetId}`. La key hija es también `requestId` y se reutiliza en cualquier retry.
 - `Authorization: Bearer <service-token>` es obligatorio en todos los endpoints `/executions`. El valor es un secreto opaco precompartido de alta entropía, configurado como `SANDBOX_SERVICE_TOKEN` en Core y Sandbox; no es JWT, no usa proveedor de identidad y nunca ingresa al frontend, logs, PostgreSQL, Storage o container. Core lo exige cuando configura `SANDBOX_URL`; Sandbox lo exige al arrancar. Los endpoints `/health/live` y `/health/ready` no requieren este header.
-- Los endpoints de navegador no tienen todavía un contrato de autenticación aprobado. Antes de validación empresarial se aplica `DEC-VAL-001`.
+- `Authorization: Bearer <user-access-token>` es obligatorio en todos los endpoints navegador→Core salvo `GET /health`. Es un JWT de sesión emitido por Supabase Auth para HU29; RAG Core valida firma, issuer, audience y expiración mediante el mecanismo compatible con las signing keys del proyecto. El token identifica al propietario y nunca se reenvía al Sandbox.
+- La ausencia de credencial de usuario devuelve `401 AUTH_REQUIRED`; un token inválido o expirado devuelve `401 INVALID_ACCESS_TOKEN`. Las consultas a recursos de otro propietario responden `404` con el código del recurso (`PROJECT_NOT_FOUND`, `TEST_RUN_NOT_FOUND`, etc.) para no revelar su existencia.
 
 ## 4. Errores HTTP
 
@@ -327,6 +328,7 @@ interface ArtifactResponse {
   relativePath: RelativePath
   artifactType: ArtifactType
   valid: boolean
+  targetIds: Id[] // targets del run materializados en este archivo
   createdAt: IsoDateTime
 }
 
@@ -458,7 +460,137 @@ Reglas:
 - Los payloads son exactamente `ProjectVersionResponse`/`TestRunStatusResponse` ya definidos en 6.2/6.3: no se introduce un DTO paralelo para WebSocket.
 - Una desconexión limpia todas las suscripciones de esa conexión sin acción adicional del servidor.
 - No se emite ningún dato ausente de los DTOs HTTP equivalentes (sin prompts, embeddings ni keys de Storage).
-- Los endpoints de navegador —WebSocket incluido— no tienen todavía un contrato de autenticación aprobado (sección 3); antes de validación empresarial aplica `DEC-VAL-001`.
+- El handshake WebSocket incluye el mismo access token de usuario; Core valida identidad antes de aceptar una suscripción y comprueba propiedad del `Project` antes de unir el socket a una sala. HTTP continúa como fallback.
+
+### 6.7 Trazas de contexto
+
+- `GET /test-runs/{runId}/context-traces?targetId&artifactId&includeSuperseded&cursor&limit` → `200 Page<ContextTraceSummaryResponse>` para HU27. `targetId` y `artifactId` son filtros opcionales mutuamente excluyentes. Sin filtros devuelve la traza vigente de cada target del run; `includeSuperseded=true` incorpora intentos anteriores conservados por retry.
+- `GET /experiments/{experimentId}/context-traces?strategy&repetition&includeSuperseded&cursor&limit` → `200 Page<ContextTraceSummaryResponse>` para HU27/HU28. `strategy` y `repetition` filtran las seis repeticiones; sin filtros devuelve todas las trazas vigentes.
+- `GET /context-traces/{traceId}` → `200 ContextTraceDetailResponse`.
+- `GET /context-traces/{traceId}/discovered-files?step&cursor&limit` → `200 Page<DiscoveredFileResponse>`; solo aplica a un paso `list_files` de una traza `AGENT`.
+
+```ts
+type ContextTraceKind = 'RAG' | 'AGENT'
+type ContextTraceStrategy = 'RAG' | 'GENERALIST_AGENT'
+
+interface ContextTraceSummaryResponse {
+  id: Id
+  kind: ContextTraceKind
+  projectVersionId: Id
+  targetId: Id
+  testRunId: Id | null
+  experimentId: Id | null
+  strategy: ContextTraceStrategy
+  repetition: 1 | 2 | 3 | null
+  attempt: number // empieza en 1; retry crea otro intento
+  current: boolean
+  artifactIds: Id[]
+  createdAt: IsoDateTime
+}
+
+interface SourceLineResponse {
+  lineNumber: number
+  content: string
+}
+
+interface SourceExcerptResponse {
+  filePath: RelativePath
+  symbolName: string | null
+  parentSymbolName: string | null
+  startLine: number | null
+  endLine: number | null
+  snippet: string
+  before: SourceLineResponse[] // máximo tres líneas
+  after: SourceLineResponse[] // máximo tres líneas
+  contentSha256: Sha256
+  truncated: boolean
+}
+
+type RagMatchedVia = 'SEMANTIC' | 'IMPORTS' | 'IMPORTED_BY'
+type RagCandidateDecision = 'SELECTED' | 'DISCARDED'
+type RagDiscardReason = 'BELOW_MINIMUM_SCORE' | 'TOP_K_LIMIT' | 'TOKEN_BUDGET'
+
+interface RagTargetNodeResponse {
+  chunkIds: Id[]
+  excerpt: SourceExcerptResponse
+  tokenCount: number
+}
+
+interface RagCandidateNodeResponse {
+  chunkId: Id
+  rank: number
+  excerpt: SourceExcerptResponse
+  tokenCount: number
+  semanticScore: number | null
+  structuralMatch: 'IMPORTS' | 'IMPORTED_BY' | null
+  combinedScore: number
+  matchedVia: RagMatchedVia[]
+  decision: RagCandidateDecision
+  discardReason: RagDiscardReason | null
+}
+
+interface RagContextTraceDetailResponse extends ContextTraceSummaryResponse {
+  kind: 'RAG'
+  target: RagTargetNodeResponse
+  candidates: RagCandidateNodeResponse[]
+  retrievedChunks: number
+  selectedChunks: number
+  contextTokens: number
+  configuration: {
+    minimumScore: number
+    topK: number
+    maxContextTokens: number
+    semanticWeight: number
+    structuralWeight: number
+  }
+}
+
+type AgentToolName = 'list_files' | 'search_text' | 'inspect_symbol' | 'read_file'
+type AgentStepStatus = 'SUCCEEDED' | 'EMPTY' | 'FAILED'
+type AgentObservationKind = 'FILE_LIST_SUMMARY' | 'TEXT_MATCH' | 'SYMBOL' | 'FILE_CONTENT'
+
+interface AgentObservationResponse {
+  kind: AgentObservationKind
+  filePath: RelativePath | null
+  symbolName: string | null
+  excerpt: SourceExcerptResponse | null
+  discoveredFilesCount: number | null
+}
+
+interface AgentTrajectoryStepResponse {
+  step: number
+  toolName: AgentToolName
+  arguments: Record<string, unknown>
+  status: AgentStepStatus
+  resultSummary: string
+  resultSha256: Sha256
+  truncated: boolean
+  observations: AgentObservationResponse[]
+}
+
+interface AgentContextTraceDetailResponse extends ContextTraceSummaryResponse {
+  kind: 'AGENT'
+  trajectory: AgentTrajectoryStepResponse[]
+  toolCalls: number
+  filesInspected: number
+}
+
+interface DiscoveredFileResponse {
+  filePath: RelativePath
+}
+
+type ContextTraceDetailResponse =
+  | RagContextTraceDetailResponse
+  | AgentContextTraceDetailResponse
+```
+
+Reglas:
+
+- Una traza se vincula a una `ProjectVersion` inmutable. Los hashes, rangos y snippets son evidencia; las líneas circundantes pueden reconstruirse desde el snapshot congelado.
+- `RAG` conserva candidatos seleccionados y descartados. `discardReason` es `null` únicamente cuando `decision=SELECTED`; un score no se presenta como probabilidad.
+- `AGENT` conserva la secuencia observable de tool calls. No usa `SELECTED`/`DISCARDED`, no expone mensajes internos del modelo y no afirma qué contenido influyó en su respuesta.
+- `list_files` devuelve un nodo resumen; sus rutas completas se consultan paginadas. Un resultado vacío o un error permanece como paso atenuable mediante `status`.
+- El detalle de una traza o un listado de archivos antes del estado terminal de su run/experimento devuelve `409 CONTEXT_TRACE_NOT_FINISHED`. Un id inexistente o no autorizado devuelve `404 CONTEXT_TRACE_NOT_FOUND`.
 
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 
@@ -631,13 +763,14 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `GET /health/ready`: confirma que puede aceptar ejecuciones y distingue indisponibilidad de Docker, conectividad de adquisición y capacidad interna, sin consultar Supabase mediante credenciales.
 - Estos endpoints no ejecutan código del proyecto ni revelan secretos o configuración sensible.
 
-## 8. Disponibilidad al aprobar INTEROP-1.5
+## 8. Disponibilidad al aprobar INTEROP-1.6
 
 - RAG Core implementa las rutas HTTP/WebSocket descritas en la sección 6 hasta HU25. Ya aplica `Idempotency-Key` en los tres POST indicados (`IdempotencyRecord`/`IdempotencyService`) y ya actualizó su cliente Sandbox conforme a las secciones 3 y 7 (`Authorization: Bearer`, identidades hijas UUID v5 estables).
 - Developer Console todavía debe completar sus adapters/vistas contra este contrato. Nunca envía `SANDBOX_SERVICE_TOKEN` ni llama directamente al Sandbox.
 - Test Execution Sandbox implementa `/executions`, Bearer, deduplicación y pipeline aislado. Su decisión local `DEC-SBX-002` fija pnpm + `pnpm-lock.yaml` como única combinación V1 ejecutable.
 - La integración Core↔Sandbox permanece pendiente de verificación real de extremo a extremo hasta que ambos servicios se desplieguen y se prueben juntos; esto ya no es deuda de implementación de Core, es validación de integración entre repositorios.
-- `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
+- `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
+- `DEC-GH-001` permanece `PENDING` y bloquea únicamente la integración futura con GitHub/PR; no autoriza rutas ni DTOs adicionales en esta versión.
 - `DEC-MET-001` y `DEC-VAL-001` permanecen PENDING y no bloquean implementación ordinaria.
 
 ## 9. Reglas de implementación
@@ -646,5 +779,5 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Validar todos los requests y serializar respuestas mediante DTOs explícitos.
 - Centralizar correlación y `ErrorEnvelope` en interceptors/filtros; no formatear errores manualmente en cada controller.
 - Usar tokens de inyección para `ObjectStorageService` en Core, el downloader HTTP del Sandbox, clientes HTTP y demás puertos reemplazables.
-- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-1.5` y se verifica mediante contract tests/fixtures versionados.
+- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-1.6` y se verifica mediante contract tests/fixtures versionados.
 - Todo cambio de contrato debe actualizar primero el documento canónico, después sus dos espejos y finalmente los adapters/tests afectados.
