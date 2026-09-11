@@ -58,6 +58,7 @@ export interface ExperimentRepetitionResponse {
   strategy: ExperimentStrategy;
   valid: boolean;
   failureType: FailureType;
+  errorSummary: string | null;
   generationDurationMs: number;
   executionDurationMs: number;
   totalDurationMs: number;

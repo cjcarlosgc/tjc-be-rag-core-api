@@ -267,6 +267,7 @@ model ExperimentRepetition {
   passed              Boolean?
   valid               Boolean?
   failureType         FailureType?
+  errorSummary        String?
   generationDurationMs Int?
   executionDurationMs Int?
   totalDurationMs     Int?

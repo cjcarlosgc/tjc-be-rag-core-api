@@ -227,6 +227,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
           passed: null,
           valid: null,
           failureType: 'CONFIGURATION',
+          errorSummary: 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
         });
         return;
       }
@@ -271,13 +272,14 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
           passed: outcome.passed,
           valid: outcome.valid,
           failureType: outcome.failureType,
+          errorSummary: outcome.errorSummary,
         });
       } catch (error) {
         const executionDurationMs = Date.now() - executionStart;
+        const sandboxErrorSummary =
+          error instanceof SandboxUnavailableError ? error.message : 'Sandbox no disponible.';
         this.logger.warn(
-          `Repetición ${context.repetition} (${context.strategy}) del experimento ${context.experimentId} no pudo validarse: ${
-            error instanceof SandboxUnavailableError ? error.message : 'Sandbox no disponible.'
-          }`,
+          `Repetición ${context.repetition} (${context.strategy}) del experimento ${context.experimentId} no pudo validarse: ${sandboxErrorSummary}`,
         );
         await this.recordRepetition(context, generation, generationDurationMs, executionDurationMs, {
           status: 'FAILED',
@@ -286,14 +288,15 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
           passed: null,
           valid: false,
           failureType: 'INFRASTRUCTURE',
+          errorSummary: sandboxErrorSummary,
         });
       }
     } catch (error) {
       const generationDurationMs = Date.now() - generationStart;
+      const unknownErrorSummary =
+        error instanceof Error ? error.message.slice(0, 2000) : 'error desconocido';
       this.logger.warn(
-        `Repetición ${context.repetition} (${context.strategy}) del experimento ${context.experimentId} falló: ${
-          error instanceof Error ? error.message : 'error desconocido'
-        }`,
+        `Repetición ${context.repetition} (${context.strategy}) del experimento ${context.experimentId} falló: ${unknownErrorSummary}`,
       );
       await this.recordRepetition(
         context,
@@ -310,7 +313,15 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
         },
         generationDurationMs,
         null,
-        { status: 'FAILED', compiled: null, executed: null, passed: null, valid: false, failureType: 'UNKNOWN' },
+        {
+          status: 'FAILED',
+          compiled: null,
+          executed: null,
+          passed: null,
+          valid: false,
+          failureType: 'UNKNOWN',
+          errorSummary: unknownErrorSummary,
+        },
       );
     } finally {
       if (workspace) {
@@ -406,6 +417,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
       passed: boolean | null;
       valid: boolean | null;
       failureType: FailureTypeValue | null;
+      errorSummary: string | null;
     },
   ): Promise<void> {
     const totalTokens =
@@ -425,6 +437,7 @@ export class ExperimentJobHandler implements JobHandler<ExperimentJobPayload>, O
       passed: outcome.passed,
       valid: outcome.valid,
       failureType: outcome.failureType,
+      errorSummary: outcome.errorSummary,
       generationDurationMs,
       executionDurationMs,
       totalDurationMs: generationDurationMs + (executionDurationMs ?? 0),

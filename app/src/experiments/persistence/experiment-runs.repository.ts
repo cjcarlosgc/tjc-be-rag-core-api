@@ -19,6 +19,7 @@ export interface ExperimentRepetitionInput {
   passed: boolean | null;
   valid: boolean | null;
   failureType: FailureTypeValue | null;
+  errorSummary: string | null;
   generationDurationMs: number;
   executionDurationMs: number | null;
   totalDurationMs: number;

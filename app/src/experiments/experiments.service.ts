@@ -207,6 +207,7 @@ export class ExperimentsService {
         strategy: repetition.strategy,
         valid: repetition.valid ?? false,
         failureType: (repetition.failureType ?? 'UNKNOWN') as FailureType,
+        errorSummary: repetition.errorSummary,
         generationDurationMs: repetition.generationDurationMs ?? 0,
         executionDurationMs: repetition.executionDurationMs ?? 0,
         totalDurationMs: repetition.totalDurationMs ?? 0,
