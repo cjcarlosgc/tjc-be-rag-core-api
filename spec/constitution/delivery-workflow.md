@@ -57,6 +57,12 @@ El reporte puede incorporarse después de la aprobación mediante un commit excl
 - La indicación es un párrafo compacto pero detallado (no un documento extenso): síntoma observado, causa raíz con archivo y línea, y evidencia (logs, IDs) suficiente para reproducir sin reinvestigar desde cero.
 - Esta regla no aplica dentro del propio repositorio: un defecto local se corrige siguiendo el flujo normal de revisión y push definido en este documento.
 
+## Delegación entre sesiones de agente
+
+- El usuario opera desde una única sesión de agente, la de RAG Core API ("core"); esa sesión es la que coordina el trabajo y puede delegar hacia las sesiones de agente de Developer Console y Test Execution Sandbox cuando corresponde (p. ej. para entregar la indicación de "Defectos en otro componente").
+- Antes de enviar cualquier mensaje de delegación o handoff a la sesión de otro componente, el agente debe confirmar con el usuario que lo envíe. El diagnóstico y el borrador del handoff pueden prepararse sin pedir permiso, pero el envío en sí no es una acción que el agente tome por iniciativa propia.
+- Esta política rige por ahora solo en RAG Core API; queda pendiente decidir si se replica en las copias de la SDD de Developer Console y Test Execution Sandbox, por lo que no aplica la homologación de "Versión SDD conjunta" a esta sección hasta que se tome esa decisión.
+
 ## Puerta de push
 
 - Por defecto se realiza un push por repositorio al cierre de cada sprint.
