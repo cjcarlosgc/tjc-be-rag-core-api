@@ -91,6 +91,37 @@ enum ExperimentStrategy {
   GENERALIST_AGENT
 }
 
+enum RepositoryBindingStatus {
+  ENABLED
+  DISABLED
+  REVOKED
+}
+
+enum AnalysisRunStatus {
+  QUEUED
+  PROCESSING
+  ACTION_REQUIRED
+  SUCCESS
+  BEHAVIORAL_MISMATCH
+  TECHNICAL_GENERATION_FAILURE
+  INFRASTRUCTURE_FAILURE
+  BASELINE_FAILED
+  NO_ADDITIONAL_TESTS_REQUIRED
+  NO_TEST_RELEVANT_CHANGES
+  OBSOLETE
+}
+
+enum PullRequestState {
+  OPEN
+  CLOSED
+  MERGED
+}
+
+enum AnalysisIndexMode {
+  BOOTSTRAP
+  INCREMENTAL
+}
+
 model Project {
   id                 String              @id @default(uuid())
   name               String
@@ -100,11 +131,73 @@ model Project {
   versions           ProjectVersion[]    @relation("ProjectVersions")
   testGenerationRuns TestGenerationRun[]
   experimentRuns     ExperimentRun[]
+  repositoryBinding  RepositoryBinding?
+  analysisRuns       AnalysisRun[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
   @@index([ownerUserId])
   @@map("projects")
+}
+
+/// HU30 (dominio): binding Project<->Repository detrás de la GitHub App.
+/// La sesión de instalación y el callback reales (`installationUrl`, validación
+/// contra la API de GitHub) quedan diferidos al corte de GitHub ingress; este
+/// modelo solo persiste el resultado ya validado del binding.
+model RepositoryBinding {
+  id                String                  @id @default(uuid())
+  projectId         String                  @unique
+  project           Project                 @relation(fields: [projectId], references: [id])
+  installationId    String
+  repositoryId      String
+  repositoryName    String
+  integrationBranch String                  @default("develop")
+  status            RepositoryBindingStatus @default(ENABLED)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@map("repository_bindings")
+}
+
+/// HU32: un AnalysisRun representa un HEAD concreto de un PR concreto. Solo
+/// una identidad lógica por (projectId, repositoryId, prNumber) es `current`;
+/// un HEAD nuevo obsoleta el Run anterior sin importar su status previo.
+/// `changesetBaseSha`/`changesetHeadSha` se fijan a baseSha/headSha en la
+/// creación (CHANGESET = PR base SHA <-> HEAD actual). `indexMode` default
+/// BOOTSTRAP hasta que el corte de snapshot intelligence calcule el real.
+model AnalysisRun {
+  id                          String            @id @default(uuid())
+  projectId                   String
+  project                     Project           @relation(fields: [projectId], references: [id])
+  repositoryId                String
+  repositoryName              String
+  prNumber                    Int
+  prTitle                     String
+  baseRef                     String
+  headRef                     String
+  baseSha                     String
+  headSha                     String
+  draft                       Boolean           @default(false)
+  prState                     PullRequestState  @default(OPEN)
+  actorLogin                  String?
+  status                      AnalysisRunStatus @default(QUEUED)
+  current                     Boolean           @default(true)
+  attemptCount                Int               @default(0)
+  indexMode                   AnalysisIndexMode @default(BOOTSTRAP)
+  changesetBaseSha            String
+  changesetHeadSha            String
+  indexDeltaBaseSha           String?
+  functionalBehaviorValidated Boolean           @default(false)
+  actionRequiredCount         Int               @default(0)
+  generatedTestsCount         Int               @default(0)
+  resultSummary               String?
+  completedAt                 DateTime?
+  createdAt                   DateTime          @default(now())
+  updatedAt                   DateTime          @updatedAt
+
+  @@index([projectId])
+  @@index([repositoryId, prNumber, current])
+  @@map("analysis_runs")
 }
 
 model ProjectVersion {
