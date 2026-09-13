@@ -6,6 +6,7 @@ import type {
   ArtifactListResponse,
   ArtifactType,
 } from './dto/artifact.response.js';
+import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 
 function safeFileName(relativePath: string): string {
   return relativePath.split('/').pop()?.replace(/[^a-zA-Z0-9._-]/g, '_') ?? 'artifact';
@@ -16,8 +17,11 @@ export class ArtifactsController {
   constructor(private readonly artifactService: ArtifactService) {}
 
   @Get('test-runs/:runId/artifacts')
-  async listByRun(@Param('runId') runId: string): Promise<ArtifactListResponse> {
-    const artifacts = await this.artifactService.listByTestRun(runId);
+  async listByRun(
+    @Param('runId') runId: string,
+    @CurrentUserId() userId: string,
+  ): Promise<ArtifactListResponse> {
+    const artifacts = await this.artifactService.listByTestRun(runId, userId);
 
     return {
       runId,
@@ -33,13 +37,20 @@ export class ArtifactsController {
   }
 
   @Get('artifacts/:artifactId/diff')
-  diff(@Param('artifactId') artifactId: string): Promise<ArtifactDiffResponse> {
-    return this.artifactService.diff(artifactId);
+  diff(
+    @Param('artifactId') artifactId: string,
+    @CurrentUserId() userId: string,
+  ): Promise<ArtifactDiffResponse> {
+    return this.artifactService.diff(artifactId, userId);
   }
 
   @Get('artifacts/:artifactId/download')
-  async downloadOne(@Param('artifactId') artifactId: string, @Res() res: Response): Promise<void> {
-    const { relativePath, content } = await this.artifactService.downloadOne(artifactId);
+  async downloadOne(
+    @Param('artifactId') artifactId: string,
+    @CurrentUserId() userId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { relativePath, content } = await this.artifactService.downloadOne(artifactId, userId);
 
     res.setHeader('content-type', 'text/plain; charset=utf-8');
     res.setHeader(
@@ -50,8 +61,12 @@ export class ArtifactsController {
   }
 
   @Get('test-runs/:runId/artifacts/download')
-  async downloadAll(@Param('runId') runId: string, @Res() res: Response): Promise<void> {
-    const zipBuffer = await this.artifactService.downloadAllAsZip(runId);
+  async downloadAll(
+    @Param('runId') runId: string,
+    @CurrentUserId() userId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const zipBuffer = await this.artifactService.downloadAllAsZip(runId, userId);
 
     res.setHeader('content-type', 'application/zip');
     res.setHeader('content-disposition', `attachment; filename="test-run-${safeFileName(runId)}.zip"`);

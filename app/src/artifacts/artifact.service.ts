@@ -90,12 +90,16 @@ export class ArtifactService {
     };
   }
 
-  listByTestRun(testRunId: string): Promise<Artifact[]> {
+  async listByTestRun(testRunId: string, ownerUserId: string): Promise<Artifact[]> {
+    await this.requireTestRunOwnership(testRunId, ownerUserId);
     return this.artifactsRepository.findByTestRun(testRunId);
   }
 
-  async diff(artifactId: string): Promise<{ artifactId: string; relativePath: string; lines: DiffLine[] }> {
-    const artifact = await this.requireArtifact(artifactId);
+  async diff(
+    artifactId: string,
+    ownerUserId: string,
+  ): Promise<{ artifactId: string; relativePath: string; lines: DiffLine[] }> {
+    const artifact = await this.requireArtifact(artifactId, ownerUserId);
 
     if (artifact.artifactType === 'CREATED') {
       throw new AppException(
@@ -118,13 +122,17 @@ export class ArtifactService {
     };
   }
 
-  async downloadOne(artifactId: string): Promise<{ relativePath: string; content: Buffer }> {
-    const artifact = await this.requireArtifact(artifactId);
+  async downloadOne(
+    artifactId: string,
+    ownerUserId: string,
+  ): Promise<{ relativePath: string; content: Buffer }> {
+    const artifact = await this.requireArtifact(artifactId, ownerUserId);
     const content = await this.objectStorageService.get(artifact.storageKey);
     return { relativePath: artifact.relativePath, content };
   }
 
-  async downloadAllAsZip(testRunId: string): Promise<Buffer> {
+  async downloadAllAsZip(testRunId: string, ownerUserId: string): Promise<Buffer> {
+    await this.requireTestRunOwnership(testRunId, ownerUserId);
     const artifacts = await this.artifactsRepository.findByTestRun(testRunId);
     const zip = new AdmZip();
 
@@ -136,8 +144,8 @@ export class ArtifactService {
     return zip.toBuffer();
   }
 
-  private async requireArtifact(artifactId: string): Promise<Artifact> {
-    const artifact = await this.artifactsRepository.findById(artifactId);
+  private async requireArtifact(artifactId: string, ownerUserId: string): Promise<Artifact> {
+    const artifact = await this.artifactsRepository.findByIdForOwner(artifactId, ownerUserId);
 
     if (!artifact) {
       throw new AppException(
@@ -148,5 +156,17 @@ export class ArtifactService {
     }
 
     return artifact;
+  }
+
+  private async requireTestRunOwnership(testRunId: string, ownerUserId: string): Promise<void> {
+    const owned = await this.artifactsRepository.testRunExistsForOwner(testRunId, ownerUserId);
+
+    if (!owned) {
+      throw new AppException(
+        ErrorCode.TEST_RUN_NOT_FOUND,
+        `No existe el test run ${testRunId}.`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
   }
 }

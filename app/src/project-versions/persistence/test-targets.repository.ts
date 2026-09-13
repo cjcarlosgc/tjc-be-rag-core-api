@@ -38,8 +38,22 @@ export class TestTargetsRepository {
     });
   }
 
+  /**
+   * Sin scoping por propietario: uso exclusivo de job handlers en segundo
+   * plano y de lecturas internas encadenadas a un recurso ya autorizado.
+   */
   findById(id: string): Promise<TestTarget | null> {
     return this.prisma.testTarget.findUnique({ where: { id } });
+  }
+
+  /**
+   * Variante para rutas HTTP: filtra por propietario en la misma consulta
+   * (HU29) en vez de cargar y comprobar después.
+   */
+  findByIdForOwner(id: string, ownerUserId: string): Promise<TestTarget | null> {
+    return this.prisma.testTarget.findFirst({
+      where: { id, projectVersion: { project: { ownerUserId } } },
+    });
   }
 
   findMethodsOfClass(projectVersionId: string, className: string): Promise<TestTarget[]> {

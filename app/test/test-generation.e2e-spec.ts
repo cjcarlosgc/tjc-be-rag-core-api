@@ -11,7 +11,10 @@ import type { EmbeddingProvider } from '../src/providers/embedding-provider.inte
 import type { LLMProvider } from '../src/providers/llm-provider.interface.js';
 import { ObjectStorageService } from '../src/object-storage/object-storage.service.js';
 import { SandboxExecutionService } from '../src/sandbox/sandbox-execution.service.js';
+import { authedRequest, overrideAuthTokenVerifier } from './support/auth-test-support.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
+
+const OTHER_USER_ID = 'e2e-other-user-generation';
 
 class FakeEmbeddingProvider implements EmbeddingProvider {
   async embedMany(texts: string[]): Promise<number[][]> {
@@ -101,7 +104,7 @@ async function waitForTerminal(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const response = await request(app.getHttpServer()).get(path);
+    const response = await authedRequest(app).get(path);
 
     if (terminalStatuses.includes(response.body.status)) {
       return response.body;
@@ -129,7 +132,7 @@ async function waitForCondition<T>(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const response = await request(app.getHttpServer()).get(path);
+    const response = await authedRequest(app).get(path);
 
     if (predicate(response.body as T)) {
       return response.body as T;
@@ -145,18 +148,19 @@ describe('Test generation (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(EMBEDDING_PROVIDER)
-      .useClass(FakeEmbeddingProvider)
-      .overrideProvider(ObjectStorageService)
-      .useClass(FakeObjectStorageService)
-      .overrideProvider(LLM_PROVIDER)
-      .useClass(FakeLLMProvider)
-      .overrideProvider(SandboxExecutionService)
-      .useValue(fakeSandboxExecutionService)
-      .compile();
+    const moduleFixture: TestingModule = await overrideAuthTokenVerifier(
+      Test.createTestingModule({
+        imports: [AppModule],
+      })
+        .overrideProvider(EMBEDDING_PROVIDER)
+        .useClass(FakeEmbeddingProvider)
+        .overrideProvider(ObjectStorageService)
+        .useClass(FakeObjectStorageService)
+        .overrideProvider(LLM_PROVIDER)
+        .useClass(FakeLLMProvider)
+        .overrideProvider(SandboxExecutionService)
+        .useValue(fakeSandboxExecutionService),
+    ).compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -170,8 +174,18 @@ describe('Test generation (e2e)', () => {
     await app.close();
   });
 
+  it('rejects a request without an Authorization header with 401 AUTH_REQUIRED (HU29)', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/test-runs')
+      .set('Idempotency-Key', randomUUID())
+      .send({ projectId: 'irrelevant', mode: 'PROJECT_MISSING' })
+      .expect(401);
+
+    expect(response.body.code).toBe('AUTH_REQUIRED');
+  });
+
   it('generates, validates and persists an artifact for the missing target end-to-end', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Generation E2E Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -184,7 +198,7 @@ describe('Test generation (e2e)', () => {
 
     await waitForTerminal(app, `/project-versions/${projectVersionId}`, ['COMPLETED', 'FAILED'], 15000);
 
-    const runResponse = await request(app.getHttpServer())
+    const runResponse = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_MISSING' })
@@ -196,7 +210,7 @@ describe('Test generation (e2e)', () => {
     const finalRun = await waitForTerminal(app, `/test-runs/${runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
     expect(finalRun.status).toBe('COMPLETED');
 
-    const results = await request(app.getHttpServer()).get(`/test-runs/${runId}/results`).expect(200);
+    const results = await authedRequest(app).get(`/test-runs/${runId}/results`).expect(200);
 
     expect(results.body).toMatchObject({
       status: 'COMPLETED',
@@ -216,7 +230,7 @@ describe('Test generation (e2e)', () => {
       expect.objectContaining({ scope: 'TARGET', runnerHint: 'VITEST' }),
     );
 
-    const artifactsList = await request(app.getHttpServer())
+    const artifactsList = await authedRequest(app)
       .get(`/test-runs/${runId}/artifacts`)
       .expect(200);
 
@@ -228,7 +242,7 @@ describe('Test generation (e2e)', () => {
     expect(artifact.artifactType).toBe('MODIFIED');
     expect(artifact.valid).toBe(true);
 
-    const download = await request(app.getHttpServer())
+    const download = await authedRequest(app)
       .get(`/artifacts/${artifact.id}/download`)
       .expect(200);
 
@@ -237,19 +251,19 @@ describe('Test generation (e2e)', () => {
     expect(download.text).toContain("test('adds'");
 
     // MODIFIED sí tiene diff disponible contra el original
-    const diffResponse = await request(app.getHttpServer())
+    const diffResponse = await authedRequest(app)
       .get(`/artifacts/${artifact.id}/diff`)
       .expect(200);
     expect(diffResponse.body.lines.some((line: { type: string }) => line.type === 'ADDED')).toBe(true);
 
-    const zipDownload = await request(app.getHttpServer())
+    const zipDownload = await authedRequest(app)
       .get(`/test-runs/${runId}/artifacts/download`)
       .expect(200);
     expect(zipDownload.headers['content-type']).toBe('application/zip');
   }, 20000);
 
   it('paginates the test-run history of a ProjectVersion, most recent first', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'History E2E Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -262,21 +276,21 @@ describe('Test generation (e2e)', () => {
 
     await waitForTerminal(app, `/project-versions/${projectVersionId}`, ['COMPLETED', 'FAILED'], 15000);
 
-    const firstRun = await request(app.getHttpServer())
+    const firstRun = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_MISSING' })
       .expect(202);
     await waitForTerminal(app, `/test-runs/${firstRun.body.runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
 
-    const secondRun = await request(app.getHttpServer())
+    const secondRun = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_ALL' })
       .expect(202);
     await waitForTerminal(app, `/test-runs/${secondRun.body.runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
 
-    const firstPage = await request(app.getHttpServer())
+    const firstPage = await authedRequest(app)
       .get(`/project-versions/${projectVersionId}/test-runs`)
       .query({ limit: 1 })
       .expect(200);
@@ -286,7 +300,7 @@ describe('Test generation (e2e)', () => {
     expect(firstPage.body.items[0].id).toBe(secondRun.body.runId);
     expect(firstPage.body.nextCursor).toBe(secondRun.body.runId);
 
-    const secondPage = await request(app.getHttpServer())
+    const secondPage = await authedRequest(app)
       .get(`/project-versions/${projectVersionId}/test-runs`)
       .query({ limit: 1, cursor: firstPage.body.nextCursor })
       .expect(200);
@@ -297,7 +311,7 @@ describe('Test generation (e2e)', () => {
   }, 30000);
 
   it('retries a manually a failed target (HU24), updating the same artifact in place instead of duplicating it', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Retry E2E Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -331,7 +345,7 @@ describe('Test generation (e2e)', () => {
       failure: null,
     });
 
-    const runResponse = await request(app.getHttpServer())
+    const runResponse = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', randomUUID())
       .send({ projectId, mode: 'PROJECT_MISSING' })
@@ -341,16 +355,16 @@ describe('Test generation (e2e)', () => {
     const failedRun = await waitForTerminal(app, `/test-runs/${runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
     expect(failedRun.status).toBe('PARTIAL');
 
-    const firstResults = await request(app.getHttpServer()).get(`/test-runs/${runId}/results`).expect(200);
+    const firstResults = await authedRequest(app).get(`/test-runs/${runId}/results`).expect(200);
     expect(firstResults.body).toMatchObject({ status: 'PARTIAL', validTargets: 0, invalidTargets: 1 });
     const target = firstResults.body.targets[0];
     expect(target.status).toBe('INVALID');
 
-    const firstArtifacts = await request(app.getHttpServer()).get(`/test-runs/${runId}/artifacts`).expect(200);
+    const firstArtifacts = await authedRequest(app).get(`/test-runs/${runId}/artifacts`).expect(200);
     expect(firstArtifacts.body.items).toHaveLength(1);
     expect(firstArtifacts.body.items[0].valid).toBe(false);
 
-    const retryResponse = await request(app.getHttpServer())
+    const retryResponse = await authedRequest(app)
       .post(`/test-runs/${runId}/targets/${target.targetId}/retry`)
       .set('Idempotency-Key', randomUUID())
       .expect(202);
@@ -364,18 +378,18 @@ describe('Test generation (e2e)', () => {
     );
     expect(retriedRun.status).toBe('COMPLETED');
 
-    const secondResults = await request(app.getHttpServer()).get(`/test-runs/${runId}/results`).expect(200);
+    const secondResults = await authedRequest(app).get(`/test-runs/${runId}/results`).expect(200);
     expect(secondResults.body).toMatchObject({ status: 'COMPLETED', validTargets: 1, invalidTargets: 0 });
     expect(secondResults.body.targets[0].status).toBe('VALID');
 
     // el reintento actualiza el mismo artefacto, no agrega uno nuevo
-    const secondArtifacts = await request(app.getHttpServer()).get(`/test-runs/${runId}/artifacts`).expect(200);
+    const secondArtifacts = await authedRequest(app).get(`/test-runs/${runId}/artifacts`).expect(200);
     expect(secondArtifacts.body.items).toHaveLength(1);
     expect(secondArtifacts.body.items[0].id).toBe(firstArtifacts.body.items[0].id);
     expect(secondArtifacts.body.items[0].valid).toBe(true);
 
     // ya no se puede reintentar un target VALID
-    const retryAgain = await request(app.getHttpServer())
+    const retryAgain = await authedRequest(app)
       .post(`/test-runs/${runId}/targets/${target.targetId}/retry`)
       .set('Idempotency-Key', randomUUID())
       .expect(409);
@@ -383,7 +397,7 @@ describe('Test generation (e2e)', () => {
   }, 30000);
 
   it('rejects a retry on a run that does not exist with 404 TEST_RUN_NOT_FOUND', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .post('/test-runs/00000000-0000-0000-0000-000000000000/targets/00000000-0000-0000-0000-000000000000/retry')
       .expect(404);
 
@@ -391,7 +405,7 @@ describe('Test generation (e2e)', () => {
   });
 
   it('rejects TARGET mode without targetId with 400 INVALID_GENERATION_TARGET', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Validation Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -404,7 +418,7 @@ describe('Test generation (e2e)', () => {
       15000,
     );
 
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', randomUUID())
       .send({ projectId: indexResponse.body.projectId, mode: 'TARGET' })
@@ -414,7 +428,7 @@ describe('Test generation (e2e)', () => {
   }, 20000);
 
   it('rejects POST /test-runs without an Idempotency-Key with 400 IDEMPOTENCY_KEY_REQUIRED', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Idempotency Missing Key Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -427,7 +441,7 @@ describe('Test generation (e2e)', () => {
       15000,
     );
 
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .post('/test-runs')
       .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' })
       .expect(400);
@@ -436,7 +450,7 @@ describe('Test generation (e2e)', () => {
   }, 20000);
 
   it('rejects POST /test-runs with a malformed Idempotency-Key with 400 INVALID_IDEMPOTENCY_KEY', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Idempotency Bad Key Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -449,7 +463,7 @@ describe('Test generation (e2e)', () => {
       15000,
     );
 
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', 'not-a-uuid')
       .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' })
@@ -459,7 +473,7 @@ describe('Test generation (e2e)', () => {
   }, 20000);
 
   it('replays the original 202 when POST /test-runs is repeated with the same Idempotency-Key and body (DEC-IDEMP-001)', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Idempotency Replay Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -475,13 +489,13 @@ describe('Test generation (e2e)', () => {
     const idempotencyKey = randomUUID();
     const body = { projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' };
 
-    const first = await request(app.getHttpServer())
+    const first = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', idempotencyKey)
       .send(body)
       .expect(202);
 
-    const second = await request(app.getHttpServer())
+    const second = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', idempotencyKey)
       .send(body)
@@ -489,7 +503,7 @@ describe('Test generation (e2e)', () => {
 
     expect(second.body).toEqual(first.body);
 
-    const history = await request(app.getHttpServer())
+    const history = await authedRequest(app)
       .get(`/project-versions/${indexResponse.body.projectVersionId}/test-runs`)
       .query({ limit: 10 })
       .expect(200);
@@ -498,7 +512,7 @@ describe('Test generation (e2e)', () => {
   }, 20000);
 
   it('returns 409 IDEMPOTENCY_CONFLICT when the same key is reused with a different body (DEC-IDEMP-001)', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Idempotency Conflict Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -513,18 +527,60 @@ describe('Test generation (e2e)', () => {
 
     const idempotencyKey = randomUUID();
 
-    await request(app.getHttpServer())
+    await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', idempotencyKey)
       .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_MISSING' })
       .expect(202);
 
-    const conflict = await request(app.getHttpServer())
+    const conflict = await authedRequest(app)
       .post('/test-runs')
       .set('Idempotency-Key', idempotencyKey)
       .send({ projectId: indexResponse.body.projectId, mode: 'PROJECT_ALL' })
       .expect(409);
 
     expect(conflict.body.code).toBe('IDEMPOTENCY_CONFLICT');
+  }, 20000);
+
+  it('isolates runs, history, retries and artifacts by project owner (HU29)', async () => {
+    const indexResponse = await authedRequest(app)
+      .post('/projects/index')
+      .field('name', 'Generation Owner Isolation Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+
+    const { projectId, projectVersionId } = indexResponse.body as {
+      projectId: string;
+      projectVersionId: string;
+    };
+
+    await waitForTerminal(app, `/project-versions/${projectVersionId}`, ['COMPLETED', 'FAILED'], 15000);
+
+    const runResponse = await authedRequest(app)
+      .post('/test-runs')
+      .set('Idempotency-Key', randomUUID())
+      .send({ projectId, mode: 'PROJECT_MISSING' })
+      .expect(202);
+    const { runId } = runResponse.body as { runId: string };
+
+    await waitForTerminal(app, `/test-runs/${runId}`, ['COMPLETED', 'PARTIAL', 'FAILED'], 15000);
+
+    const results = await authedRequest(app).get(`/test-runs/${runId}/results`).expect(200);
+    const artifacts = await authedRequest(app).get(`/test-runs/${runId}/artifacts`).expect(200);
+    const targetId = results.body.targets[0].targetId as string;
+    const artifactId = artifacts.body.items[0].id as string;
+    const other = authedRequest(app, OTHER_USER_ID);
+
+    await other.get(`/test-runs/${runId}`).expect(404);
+    await other.get(`/test-runs/${runId}/results`).expect(404);
+    await other.get(`/test-runs/${runId}/artifacts`).expect(404);
+    await other.get(`/test-runs/${runId}/artifacts/download`).expect(404);
+    await other.get(`/project-versions/${projectVersionId}/test-runs`).expect(404);
+    await other
+      .post(`/test-runs/${runId}/targets/${targetId}/retry`)
+      .set('Idempotency-Key', randomUUID())
+      .expect(404);
+    await other.get(`/artifacts/${artifactId}/download`).expect(404);
+    await other.get(`/artifacts/${artifactId}/diff`).expect(404);
   }, 20000);
 });

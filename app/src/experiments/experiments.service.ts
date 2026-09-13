@@ -48,8 +48,9 @@ export class ExperimentsService {
   async createRun(
     dto: CreateExperimentDto,
     idempotencyKey: string | undefined,
+    ownerUserId: string,
   ): Promise<ExperimentAcceptedResponse> {
-    const project = await this.projectsRepository.findById(dto.projectId);
+    const project = await this.projectsRepository.findById(dto.projectId, ownerUserId);
 
     if (!project) {
       throw new AppException(
@@ -85,7 +86,7 @@ export class ExperimentsService {
       );
     }
 
-    const target = await this.testTargetsRepository.findById(dto.targetId);
+    const target = await this.testTargetsRepository.findByIdForOwner(dto.targetId, ownerUserId);
 
     if (!target) {
       throw new AppException(
@@ -160,8 +161,8 @@ export class ExperimentsService {
     });
   }
 
-  async getStatus(experimentId: string): Promise<ExperimentStatusResponse> {
-    const run = await this.requireRun(experimentId);
+  async getStatus(experimentId: string, ownerUserId: string): Promise<ExperimentStatusResponse> {
+    const run = await this.requireRun(experimentId, ownerUserId);
 
     return {
       id: run.id,
@@ -178,8 +179,8 @@ export class ExperimentsService {
     };
   }
 
-  async getResults(experimentId: string): Promise<ExperimentResultsResponse> {
-    const run = await this.requireRun(experimentId);
+  async getResults(experimentId: string, ownerUserId: string): Promise<ExperimentResultsResponse> {
+    const run = await this.requireRun(experimentId, ownerUserId);
 
     if (run.status !== PrismaExperimentStatus.COMPLETED && run.status !== PrismaExperimentStatus.FAILED) {
       throw new AppException(
@@ -255,8 +256,8 @@ export class ExperimentsService {
     };
   }
 
-  private async requireRun(experimentId: string) {
-    const run = await this.experimentRunsRepository.findById(experimentId);
+  private async requireRun(experimentId: string, ownerUserId: string) {
+    const run = await this.experimentRunsRepository.findByIdForOwner(experimentId, ownerUserId);
 
     if (!run) {
       throw new AppException(

@@ -41,13 +41,14 @@ export class ProjectVersionsService {
   async startIndexing(
     file: Express.Multer.File | undefined,
     dto: IndexProjectDto,
+    ownerUserId: string,
   ): Promise<IndexAcceptedResponse> {
     this.zipValidationService.assertValidUpload(file);
 
     const entries = listSafeZipEntries(file.buffer);
     assertCompatibleProject(entries);
 
-    const project = await this.resolveProject(dto);
+    const project = await this.resolveProject(dto, ownerUserId);
 
     if (await this.projectVersionsRepository.hasActiveVersion(project.id)) {
       throw new AppException(
@@ -89,12 +90,12 @@ export class ProjectVersionsService {
     };
   }
 
-  async getStatus(id: string): Promise<ProjectVersionResponse> {
-    return toProjectVersionResponse(await this.findVersionOrThrow(id));
+  async getStatus(id: string, ownerUserId: string): Promise<ProjectVersionResponse> {
+    return toProjectVersionResponse(await this.findVersionOrThrow(id, ownerUserId));
   }
 
-  async getResults(id: string): Promise<ProjectVersionResultsResponse> {
-    const version = await this.findVersionOrThrow(id);
+  async getResults(id: string, ownerUserId: string): Promise<ProjectVersionResultsResponse> {
+    const version = await this.findVersionOrThrow(id, ownerUserId);
 
     if (version.status !== ProjectVersionStatus.COMPLETED) {
       throw new AppException(
@@ -122,8 +123,8 @@ export class ProjectVersionsService {
     };
   }
 
-  async getTestInventory(id: string): Promise<TestInventoryResponse> {
-    const version = await this.findVersionOrThrow(id);
+  async getTestInventory(id: string, ownerUserId: string): Promise<TestInventoryResponse> {
+    const version = await this.findVersionOrThrow(id, ownerUserId);
 
     if (version.status !== ProjectVersionStatus.COMPLETED) {
       throw new AppException(
@@ -160,8 +161,9 @@ export class ProjectVersionsService {
     projectId: string,
     limit: number | undefined,
     cursor: string | undefined,
+    ownerUserId: string,
   ): Promise<Page<ProjectVersionSummaryResponse>> {
-    const project = await this.projectsRepository.findById(projectId);
+    const project = await this.projectsRepository.findById(projectId, ownerUserId);
 
     if (!project) {
       throw new AppException(
@@ -181,8 +183,8 @@ export class ProjectVersionsService {
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
   }
 
-  private async findVersionOrThrow(id: string): Promise<ProjectVersion> {
-    const version = await this.projectVersionsRepository.findById(id);
+  private async findVersionOrThrow(id: string, ownerUserId: string): Promise<ProjectVersion> {
+    const version = await this.projectVersionsRepository.findByIdForOwner(id, ownerUserId);
 
     if (!version) {
       throw new AppException(
@@ -195,9 +197,9 @@ export class ProjectVersionsService {
     return version;
   }
 
-  private async resolveProject(dto: IndexProjectDto): Promise<Project> {
+  private async resolveProject(dto: IndexProjectDto, ownerUserId: string): Promise<Project> {
     if (dto.projectId) {
-      const project = await this.projectsRepository.findById(dto.projectId);
+      const project = await this.projectsRepository.findById(dto.projectId, ownerUserId);
 
       if (!project) {
         throw new AppException(
@@ -210,6 +212,6 @@ export class ProjectVersionsService {
       return project;
     }
 
-    return this.projectsRepository.create(dto.name?.trim() || 'Proyecto sin nombre');
+    return this.projectsRepository.create(dto.name?.trim() || 'Proyecto sin nombre', ownerUserId);
   }
 }

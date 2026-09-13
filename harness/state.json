@@ -10,6 +10,31 @@
     "BLOCKED",
     "DONE"
   ],
-  "activeWorkItem": null,
-  "lastUpdatedAt": "2026-09-11T23:00:00-05:00"
+  "activeWorkItem": {
+    "id": "HU29-web-authentication",
+    "storyIds": ["HU29"],
+    "sprint": "Sprint 4",
+    "status": "IN_PROGRESS",
+    "specPaths": [
+      "spec/features/012-web-authentication/spec.md",
+      "spec/features/012-web-authentication/plan.md",
+      "spec/features/012-web-authentication/tasks.md"
+    ],
+    "transversalPaths": [
+      "spec/transversal/errors/spec.md",
+      "spec/transversal/observability/spec.md",
+      "spec/transversal/persistence/spec.md"
+    ],
+    "approved": true,
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": ["DEC-WEB-AUTH-001", "DEC-GH-001", "DEC-VAL-001"],
+      "checkedAt": "2026-09-12T00:00:00-05:00"
+    },
+    "createdAt": "2026-09-12T00:00:00-05:00",
+    "updatedAt": "2026-09-12T20:55:00-05:00",
+    "blockedReason": null
+  },
+  "lastUpdatedAt": "2026-09-12T20:55:00-05:00"
 }

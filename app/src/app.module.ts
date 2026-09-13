@@ -6,6 +6,7 @@ import { ProvidersModule } from './providers/providers.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
+import { AuthModule } from './common/auth/auth.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ProjectVersionsModule } from './project-versions/project-versions.module.js';
 import { RetrievalModule } from './retrieval/retrieval.module.js';
@@ -21,6 +22,7 @@ import { validateEnv } from './config/env.validation.js';
       isGlobal: true,
       validate: validateEnv,
     }),
+    AuthModule,
     PrismaModule,
     ObjectStorageModule,
     ProvidersModule,

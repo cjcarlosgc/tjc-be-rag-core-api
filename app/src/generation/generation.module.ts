@@ -25,6 +25,6 @@ import { RetryTargetJobHandler } from './retry-target-job.handler.js';
     TestGenerationJobHandler,
     RetryTargetJobHandler,
   ],
-  exports: [PromptBuilder, TestFileMergeService],
+  exports: [PromptBuilder, TestFileMergeService, TestGenerationRunsRepository],
 })
 export class GenerationModule {}

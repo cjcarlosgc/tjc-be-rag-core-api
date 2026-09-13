@@ -8,6 +8,8 @@ import {
 import type { Server, Socket } from 'socket.io';
 import type { ProjectVersionResponse } from '../project-versions/dto/project-version.response.js';
 import type { TestRunStatusResponse } from '../generation/dto/test-run.response.js';
+import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
+import { TestGenerationRunsRepository } from '../generation/persistence/test-generation-runs.repository.js';
 
 function projectVersionRoom(projectVersionId: string): string {
   return `project-version:${projectVersionId}`;
@@ -28,12 +30,24 @@ export class RealtimeGateway {
   @WebSocketServer()
   private server?: Server;
 
+  constructor(
+    private readonly projectVersionsRepository: ProjectVersionsRepository,
+    private readonly testGenerationRunsRepository: TestGenerationRunsRepository,
+  ) {}
+
   @SubscribeMessage('subscribe:project-version')
-  subscribeProjectVersion(
+  async subscribeProjectVersion(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { projectVersionId: string },
-  ): void {
-    void client.join(projectVersionRoom(body.projectVersionId));
+  ): Promise<void> {
+    const owned = await this.projectVersionsRepository.findByIdForOwner(
+      body.projectVersionId,
+      client.data.userId as string,
+    );
+
+    if (owned) {
+      void client.join(projectVersionRoom(body.projectVersionId));
+    }
   }
 
   @SubscribeMessage('unsubscribe:project-version')
@@ -45,11 +59,18 @@ export class RealtimeGateway {
   }
 
   @SubscribeMessage('subscribe:test-run')
-  subscribeTestRun(
+  async subscribeTestRun(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { testRunId: string },
-  ): void {
-    void client.join(testRunRoom(body.testRunId));
+  ): Promise<void> {
+    const owned = await this.testGenerationRunsRepository.findByIdForOwner(
+      body.testRunId,
+      client.data.userId as string,
+    );
+
+    if (owned) {
+      void client.join(testRunRoom(body.testRunId));
+    }
   }
 
   @SubscribeMessage('unsubscribe:test-run')

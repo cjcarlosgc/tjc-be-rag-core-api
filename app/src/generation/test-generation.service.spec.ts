@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { TestGenerationService } from './test-generation.service.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 
+const OWNER_USER_ID = 'user-1';
+
 function makeRun(overrides: Record<string, unknown> = {}) {
   return {
     id: 'run-1',
@@ -24,10 +26,13 @@ function makeService(overrides: Record<string, unknown> = {}) {
     },
     projectVersionsRepository: {
       findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED' }),
+      findByIdForOwner: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED' }),
       hasActiveVersion: vi.fn().mockResolvedValue(false),
     },
     testGenerationRunsRepository: {
       findByProjectVersion: vi.fn().mockResolvedValue([]),
+      findById: vi.fn().mockResolvedValue(makeRun()),
+      findByIdForOwner: vi.fn().mockResolvedValue(makeRun()),
       create: vi.fn().mockResolvedValue({ id: 'run-1' }),
     },
     jobsService: { enqueue: vi.fn().mockResolvedValue('job-1') },
@@ -55,12 +60,14 @@ function makeService(overrides: Record<string, unknown> = {}) {
 }
 
 describe('TestGenerationService.getHistory', () => {
-  it('throws PROJECT_VERSION_NOT_FOUND when the version does not exist', async () => {
+  it('throws PROJECT_VERSION_NOT_FOUND when the version does not exist or belongs to another owner', async () => {
     const service = makeService({
-      projectVersionsRepository: { findById: vi.fn().mockResolvedValue(null) },
+      projectVersionsRepository: { findByIdForOwner: vi.fn().mockResolvedValue(null) },
     });
 
-    await expect(service.getHistory('missing', undefined, undefined)).rejects.toMatchObject({
+    await expect(
+      service.getHistory('missing', undefined, undefined, OWNER_USER_ID),
+    ).rejects.toMatchObject({
       code: ErrorCode.PROJECT_VERSION_NOT_FOUND,
     });
   });
@@ -73,7 +80,7 @@ describe('TestGenerationService.getHistory', () => {
       testGenerationRunsRepository: { findByProjectVersion },
     });
 
-    const page = await service.getHistory('version-1', 2, undefined);
+    const page = await service.getHistory('version-1', 2, undefined, OWNER_USER_ID);
 
     expect(findByProjectVersion).toHaveBeenCalledWith('version-1', 2, undefined);
     expect(page.items).toHaveLength(2);
@@ -85,7 +92,7 @@ describe('TestGenerationService.getHistory', () => {
     const findByProjectVersion = vi.fn().mockResolvedValue([makeRun({ id: 'run-1' })]);
     const service = makeService({ testGenerationRunsRepository: { findByProjectVersion } });
 
-    const page = await service.getHistory('version-1', 20, undefined);
+    const page = await service.getHistory('version-1', 20, undefined, OWNER_USER_ID);
 
     expect(page.items).toHaveLength(1);
     expect(page.nextCursor).toBeNull();
@@ -95,7 +102,7 @@ describe('TestGenerationService.getHistory', () => {
     const findByProjectVersion = vi.fn().mockResolvedValue([makeRun()]);
     const service = makeService({ testGenerationRunsRepository: { findByProjectVersion } });
 
-    const page = await service.getHistory('version-1', undefined, undefined);
+    const page = await service.getHistory('version-1', undefined, undefined, OWNER_USER_ID);
 
     expect(page.items[0]).toEqual({
       id: 'run-1',
@@ -114,7 +121,7 @@ describe('TestGenerationService.getHistory', () => {
     const findByProjectVersion = vi.fn().mockResolvedValue([]);
     const service = makeService({ testGenerationRunsRepository: { findByProjectVersion } });
 
-    await service.getHistory('version-1', 10, 'run-5');
+    await service.getHistory('version-1', 10, 'run-5', OWNER_USER_ID);
 
     expect(findByProjectVersion).toHaveBeenCalledWith('version-1', 10, 'run-5');
   });
@@ -134,21 +141,33 @@ describe('TestGenerationService.createRun', () => {
     const service = makeService({ idempotencyService });
     const dto = { projectId: 'project-1', mode: 'PROJECT_MISSING' as const };
 
-    await service.createRun(dto, 'client-key-1');
+    await service.createRun(dto, 'client-key-1', OWNER_USER_ID);
 
     expect(idempotencyService.run).toHaveBeenCalledWith(
       expect.objectContaining({ key: 'client-key-1', scope: 'TEST_RUN_CREATE', fingerprintInput: dto }),
     );
   });
+
+  it('scopes the project lookup to the caller', async () => {
+    const findById = vi.fn().mockResolvedValue({ id: 'project-1', currentVersionId: 'version-1' });
+    const service = makeService({ projectsRepository: { findById } });
+    const dto = { projectId: 'project-1', mode: 'PROJECT_MISSING' as const };
+
+    await service.createRun(dto, undefined, OWNER_USER_ID);
+
+    expect(findById).toHaveBeenCalledWith('project-1', OWNER_USER_ID);
+  });
 });
 
 describe('TestGenerationService.retryTarget (HU24)', () => {
-  it('throws TEST_RUN_NOT_FOUND when the run does not exist', async () => {
+  it('throws TEST_RUN_NOT_FOUND when the run does not exist or belongs to another owner', async () => {
     const service = makeService({
-      testGenerationRunsRepository: { findById: vi.fn().mockResolvedValue(null) },
+      testGenerationRunsRepository: { findByIdForOwner: vi.fn().mockResolvedValue(null) },
     });
 
-    await expect(service.retryTarget('missing', 'target-1', undefined)).rejects.toMatchObject({
+    await expect(
+      service.retryTarget('missing', 'target-1', undefined, OWNER_USER_ID),
+    ).rejects.toMatchObject({
       code: ErrorCode.TEST_RUN_NOT_FOUND,
     });
   });
@@ -156,11 +175,13 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
   it('throws TEST_RUN_NOT_FINISHED when the run is still in progress', async () => {
     const service = makeService({
       testGenerationRunsRepository: {
-        findById: vi.fn().mockResolvedValue(makeRun({ status: 'PROCESSING_TARGETS' })),
+        findByIdForOwner: vi.fn().mockResolvedValue(makeRun({ status: 'PROCESSING_TARGETS' })),
       },
     });
 
-    await expect(service.retryTarget('run-1', 'target-1', undefined)).rejects.toMatchObject({
+    await expect(
+      service.retryTarget('run-1', 'target-1', undefined, OWNER_USER_ID),
+    ).rejects.toMatchObject({
       code: ErrorCode.TEST_RUN_NOT_FINISHED,
     });
   });
@@ -168,12 +189,14 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
   it('throws TARGET_RESULT_NOT_FOUND when the target has no result in this run', async () => {
     const service = makeService({
       testGenerationRunsRepository: {
-        findById: vi.fn().mockResolvedValue(makeRun()),
+        findByIdForOwner: vi.fn().mockResolvedValue(makeRun()),
         findTargetResult: vi.fn().mockResolvedValue(null),
       },
     });
 
-    await expect(service.retryTarget('run-1', 'target-missing', undefined)).rejects.toMatchObject({
+    await expect(
+      service.retryTarget('run-1', 'target-missing', undefined, OWNER_USER_ID),
+    ).rejects.toMatchObject({
       code: ErrorCode.TARGET_RESULT_NOT_FOUND,
     });
   });
@@ -181,12 +204,14 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
   it('throws TARGET_RETRY_NOT_ALLOWED when the target result is VALID', async () => {
     const service = makeService({
       testGenerationRunsRepository: {
-        findById: vi.fn().mockResolvedValue(makeRun()),
+        findByIdForOwner: vi.fn().mockResolvedValue(makeRun()),
         findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'VALID' }),
       },
     });
 
-    await expect(service.retryTarget('run-1', 'target-1', undefined)).rejects.toMatchObject({
+    await expect(
+      service.retryTarget('run-1', 'target-1', undefined, OWNER_USER_ID),
+    ).rejects.toMatchObject({
       code: ErrorCode.TARGET_RETRY_NOT_ALLOWED,
     });
   });
@@ -195,13 +220,13 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
     const enqueue = vi.fn().mockResolvedValue('job-1');
     const service = makeService({
       testGenerationRunsRepository: {
-        findById: vi.fn().mockResolvedValue(makeRun({ status: 'PARTIAL' })),
+        findByIdForOwner: vi.fn().mockResolvedValue(makeRun({ status: 'PARTIAL' })),
         findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'INVALID' }),
       },
       jobsService: { enqueue },
     });
 
-    const result = await service.retryTarget('run-1', 'target-1', undefined);
+    const result = await service.retryTarget('run-1', 'target-1', undefined, OWNER_USER_ID);
 
     expect(enqueue).toHaveBeenCalledWith(
       'test-run-retry-target',
@@ -220,13 +245,13 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
     const enqueue = vi.fn().mockResolvedValue('job-1');
     const service = makeService({
       testGenerationRunsRepository: {
-        findById: vi.fn().mockResolvedValue(makeRun({ status: 'FAILED' })),
+        findByIdForOwner: vi.fn().mockResolvedValue(makeRun({ status: 'FAILED' })),
         findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'FAILED' }),
       },
       jobsService: { enqueue },
     });
 
-    await service.retryTarget('run-1', 'target-1', undefined);
+    await service.retryTarget('run-1', 'target-1', undefined, OWNER_USER_ID);
 
     expect(enqueue).toHaveBeenCalledWith(
       'test-run-retry-target',
@@ -247,13 +272,13 @@ describe('TestGenerationService.retryTarget (HU24)', () => {
     };
     const service = makeService({
       testGenerationRunsRepository: {
-        findById: vi.fn().mockResolvedValue(makeRun({ status: 'PARTIAL' })),
+        findByIdForOwner: vi.fn().mockResolvedValue(makeRun({ status: 'PARTIAL' })),
         findTargetResult: vi.fn().mockResolvedValue({ id: 'result-1', status: 'INVALID' }),
       },
       idempotencyService,
     });
 
-    await service.retryTarget('run-1', 'target-1', 'client-key-1');
+    await service.retryTarget('run-1', 'target-1', 'client-key-1', OWNER_USER_ID);
 
     expect(idempotencyService.run).toHaveBeenCalledWith(
       expect.objectContaining({

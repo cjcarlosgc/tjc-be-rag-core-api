@@ -1,7 +1,10 @@
 import { plainToInstance } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
+  @IsIn(['development', 'production', 'test'])
+  NODE_ENV: string = 'development';
+
   @IsInt()
   @Min(1)
   @Max(65535)
@@ -130,10 +133,23 @@ class EnvironmentVariables {
   @IsNumber()
   @Min(0)
   LLM_OUTPUT_COST_PER_1K_TOKENS: number = 0.0006;
+
+  @IsBoolean()
+  AUTH_BYPASS_ENABLED: boolean = false;
+
+  @IsString()
+  AUTH_BYPASS_USER_ID: string = 'local-dev-user';
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
+  // AUTH_BYPASS_ENABLED llega como texto desde .env; class-transformer trataría
+  // cualquier string no vacío (incluido "false") como verdadero, así que se
+  // normaliza antes de la conversión implícita.
+  const normalized = {
+    ...config,
+    AUTH_BYPASS_ENABLED: config.AUTH_BYPASS_ENABLED === 'true' || config.AUTH_BYPASS_ENABLED === true,
+  };
+  const validated = plainToInstance(EnvironmentVariables, normalized, {
     enableImplicitConversion: true,
   });
   const errors = validateSync(validated, { skipMissingProperties: false });
@@ -149,6 +165,15 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   if (Boolean(validated.SANDBOX_URL) !== Boolean(validated.SANDBOX_SERVICE_TOKEN)) {
     throw new Error(
       'Configuración de entorno inválida: SANDBOX_URL y SANDBOX_SERVICE_TOKEN deben configurarse juntos (DEC-AUTH-001).',
+    );
+  }
+
+  // DEC-WEB-AUTH-001: el bypass de autenticación solo puede existir en
+  // desarrollo/mock; la aplicación debe negarse a arrancar en producción si
+  // está activo, para no exponer el flujo ZIP sin identidad real.
+  if (validated.NODE_ENV === 'production' && validated.AUTH_BYPASS_ENABLED) {
+    throw new Error(
+      'Configuración de entorno inválida: AUTH_BYPASS_ENABLED no puede estar activo con NODE_ENV=production (DEC-WEB-AUTH-001).',
     );
   }
 

@@ -13,6 +13,9 @@ import { ObjectStorageService } from '../src/object-storage/object-storage.servi
 import { SandboxExecutionService } from '../src/sandbox/sandbox-execution.service.js';
 import { GeneralistAgentService } from '../src/generation/agent/generalist-agent.service.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
+import { authedRequest, overrideAuthTokenVerifier } from './support/auth-test-support.js';
+
+const OTHER_USER_ID = 'e2e-other-user-experiments';
 
 class FakeEmbeddingProvider implements EmbeddingProvider {
   async embedMany(texts: string[]): Promise<number[][]> {
@@ -84,7 +87,7 @@ async function waitForTerminal(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const response = await request(app.getHttpServer()).get(path);
+    const response = await authedRequest(app).get(path);
 
     if (terminalStatuses.includes(response.body.status)) {
       return response.body;
@@ -100,20 +103,21 @@ describe('Experimental comparison (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(EMBEDDING_PROVIDER)
-      .useClass(FakeEmbeddingProvider)
-      .overrideProvider(ObjectStorageService)
-      .useClass(FakeObjectStorageService)
-      .overrideProvider(LLM_PROVIDER)
-      .useClass(FakeLLMProvider)
-      .overrideProvider(SandboxExecutionService)
-      .useValue(fakeSandboxExecutionService)
-      .overrideProvider(GeneralistAgentService)
-      .useValue(fakeGeneralistAgentService)
-      .compile();
+    const moduleFixture: TestingModule = await overrideAuthTokenVerifier(
+      Test.createTestingModule({
+        imports: [AppModule],
+      })
+        .overrideProvider(EMBEDDING_PROVIDER)
+        .useClass(FakeEmbeddingProvider)
+        .overrideProvider(ObjectStorageService)
+        .useClass(FakeObjectStorageService)
+        .overrideProvider(LLM_PROVIDER)
+        .useClass(FakeLLMProvider)
+        .overrideProvider(SandboxExecutionService)
+        .useValue(fakeSandboxExecutionService)
+        .overrideProvider(GeneralistAgentService)
+        .useValue(fakeGeneralistAgentService),
+    ).compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -128,7 +132,7 @@ describe('Experimental comparison (e2e)', () => {
   });
 
   it('runs 3 repetitions per strategy and returns aggregated results', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Experiment E2E Project')
       .attach('file', buildProjectZip(), 'project.zip')
@@ -141,14 +145,14 @@ describe('Experimental comparison (e2e)', () => {
 
     await waitForTerminal(app, `/project-versions/${projectVersionId}`, ['COMPLETED', 'FAILED'], 15000);
 
-    const inventory = await request(app.getHttpServer())
+    const inventory = await authedRequest(app)
       .get(`/project-versions/${projectVersionId}/test-inventory`)
       .expect(200);
 
     const target = inventory.body.targets.find((t: { targetType: string }) => t.targetType === 'FUNCTION');
     expect(target).toBeDefined();
 
-    const experimentResponse = await request(app.getHttpServer())
+    const experimentResponse = await authedRequest(app)
       .post('/experiments')
       .set('Idempotency-Key', randomUUID())
       .send({ projectId, targetId: target.id })
@@ -165,7 +169,7 @@ describe('Experimental comparison (e2e)', () => {
     );
     expect(finalStatus.status).toBe('COMPLETED');
 
-    const results = await request(app.getHttpServer())
+    const results = await authedRequest(app)
       .get(`/experiments/${experimentId}/results`)
       .expect(200);
 
@@ -195,7 +199,7 @@ describe('Experimental comparison (e2e)', () => {
   }, 30000);
 
   it('rejects an experiment for a CLASS-type target with 400 INVALID_GENERATION_TARGET', async () => {
-    const indexResponse = await request(app.getHttpServer())
+    const indexResponse = await authedRequest(app)
       .post('/projects/index')
       .field('name', 'Experiment Class Rejection Project')
       .attach(
@@ -221,19 +225,58 @@ describe('Experimental comparison (e2e)', () => {
       15000,
     );
 
-    const inventory = await request(app.getHttpServer())
+    const inventory = await authedRequest(app)
       .get(`/project-versions/${indexResponse.body.projectVersionId}/test-inventory`)
       .expect(200);
 
     const classTarget = inventory.body.targets.find((t: { targetType: string }) => t.targetType === 'CLASS');
     expect(classTarget).toBeDefined();
 
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .post('/experiments')
       .set('Idempotency-Key', randomUUID())
       .send({ projectId: indexResponse.body.projectId, targetId: classTarget.id })
       .expect(400);
 
     expect(response.body.code).toBe('INVALID_GENERATION_TARGET');
+  }, 20000);
+
+  it('rejects a request without an Authorization header with 401 AUTH_REQUIRED (HU29)', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/experiments')
+      .set('Idempotency-Key', randomUUID())
+      .send({ projectId: 'irrelevant', targetId: 'irrelevant' })
+      .expect(401);
+
+    expect(response.body.code).toBe('AUTH_REQUIRED');
+  });
+
+  it('isolates an experiment by owner: another user gets 404 on status/results (HU29)', async () => {
+    const indexResponse = await authedRequest(app)
+      .post('/projects/index')
+      .field('name', 'Experiment Owner Isolation Project')
+      .attach('file', buildProjectZip(), 'project.zip')
+      .expect(202);
+    const { projectId, projectVersionId } = indexResponse.body as {
+      projectId: string;
+      projectVersionId: string;
+    };
+    await waitForTerminal(app, `/project-versions/${projectVersionId}`, ['COMPLETED', 'FAILED'], 15000);
+
+    const inventory = await authedRequest(app)
+      .get(`/project-versions/${projectVersionId}/test-inventory`)
+      .expect(200);
+    const target = inventory.body.targets.find((t: { targetType: string }) => t.targetType === 'FUNCTION');
+
+    const experimentResponse = await authedRequest(app)
+      .post('/experiments')
+      .set('Idempotency-Key', randomUUID())
+      .send({ projectId, targetId: target.id })
+      .expect(202);
+    const { experimentId } = experimentResponse.body as { experimentId: string };
+
+    const other = authedRequest(app, OTHER_USER_ID);
+    await other.get(`/experiments/${experimentId}`).expect(404);
+    await other.get(`/experiments/${experimentId}/results`).expect(404);
   }, 20000);
 });

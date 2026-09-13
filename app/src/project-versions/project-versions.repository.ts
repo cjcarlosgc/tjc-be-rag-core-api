@@ -24,8 +24,21 @@ export class ProjectVersionsRepository {
     });
   }
 
+  /**
+   * Sin scoping por propietario: uso exclusivo de job handlers en segundo
+   * plano, que procesan un `projectVersionId` ya autorizado por la request
+   * HTTP que encoló el job y no tienen identidad de usuario en su contexto.
+   */
   findById(id: string): Promise<ProjectVersion | null> {
     return this.prisma.projectVersion.findUnique({ where: { id } });
+  }
+
+  /**
+   * Variante para rutas HTTP: filtra por propietario en la misma consulta
+   * (HU29) en vez de cargar y comprobar después.
+   */
+  findByIdForOwner(id: string, ownerUserId: string): Promise<ProjectVersion | null> {
+    return this.prisma.projectVersion.findFirst({ where: { id, project: { ownerUserId } } });
   }
 
   /**

@@ -39,10 +39,11 @@ export class TestGenerationService {
   async createRun(
     dto: CreateTestRunDto,
     idempotencyKey: string | undefined,
+    ownerUserId: string,
   ): Promise<TestRunAcceptedResponse> {
     this.assertModeTargetIdShape(dto.mode, dto.targetId);
 
-    const project = await this.projectsRepository.findById(dto.projectId);
+    const project = await this.projectsRepository.findById(dto.projectId, ownerUserId);
 
     if (!project) {
       throw new AppException(
@@ -140,12 +141,12 @@ export class TestGenerationService {
     });
   }
 
-  async getStatus(runId: string): Promise<TestRunStatusResponse> {
-    return toTestRunStatusResponse(await this.requireRun(runId));
+  async getStatus(runId: string, ownerUserId: string): Promise<TestRunStatusResponse> {
+    return toTestRunStatusResponse(await this.requireRun(runId, ownerUserId));
   }
 
-  async getResults(runId: string): Promise<TestRunResultsResponse> {
-    const run = await this.requireRun(runId);
+  async getResults(runId: string, ownerUserId: string): Promise<TestRunResultsResponse> {
+    const run = await this.requireRun(runId, ownerUserId);
 
     if (
       run.status !== TestRunStatus.COMPLETED &&
@@ -202,8 +203,9 @@ export class TestGenerationService {
     testRunId: string,
     targetId: string,
     idempotencyKey: string | undefined,
+    ownerUserId: string,
   ): Promise<TargetRetryAcceptedResponse> {
-    const run = await this.requireRun(testRunId);
+    const run = await this.requireRun(testRunId, ownerUserId);
 
     if (
       run.status !== TestRunStatus.COMPLETED &&
@@ -269,8 +271,9 @@ export class TestGenerationService {
     projectVersionId: string,
     limit: number | undefined,
     cursor: string | undefined,
+    ownerUserId: string,
   ): Promise<Page<TestRunSummaryResponse>> {
-    const version = await this.projectVersionsRepository.findById(projectVersionId);
+    const version = await this.projectVersionsRepository.findByIdForOwner(projectVersionId, ownerUserId);
 
     if (!version) {
       throw new AppException(
@@ -325,8 +328,8 @@ export class TestGenerationService {
     }
   }
 
-  private async requireRun(runId: string) {
-    const run = await this.testGenerationRunsRepository.findById(runId);
+  private async requireRun(runId: string, ownerUserId: string) {
+    const run = await this.testGenerationRunsRepository.findByIdForOwner(runId, ownerUserId);
 
     if (!run) {
       throw new AppException(

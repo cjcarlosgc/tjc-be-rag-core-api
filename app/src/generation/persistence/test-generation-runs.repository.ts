@@ -41,8 +41,20 @@ export class TestGenerationRunsRepository {
     return (tx ?? this.prisma).testGenerationRun.create({ data: input });
   }
 
+  /**
+   * Sin scoping por propietario: uso exclusivo de job handlers en segundo
+   * plano y de lecturas internas encadenadas a un recurso ya autorizado.
+   */
   findById(id: string): Promise<TestGenerationRun | null> {
     return this.prisma.testGenerationRun.findUnique({ where: { id } });
+  }
+
+  /**
+   * Variante para rutas HTTP: filtra por propietario en la misma consulta
+   * (HU29) en vez de cargar y comprobar después.
+   */
+  findByIdForOwner(id: string, ownerUserId: string): Promise<TestGenerationRun | null> {
+    return this.prisma.testGenerationRun.findFirst({ where: { id, project: { ownerUserId } } });
   }
 
   markStarted(id: string): Promise<TestGenerationRun> {

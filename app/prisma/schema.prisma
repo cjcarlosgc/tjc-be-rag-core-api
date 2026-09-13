@@ -92,47 +92,51 @@ enum ExperimentStrategy {
 }
 
 model Project {
-  id               String           @id @default(uuid())
-  name             String
-  currentVersionId String?          @unique
-  currentVersion   ProjectVersion?  @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
-  versions         ProjectVersion[] @relation("ProjectVersions")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                 String              @id @default(uuid())
+  name               String
+  ownerUserId        String?
+  currentVersionId   String?             @unique
+  currentVersion     ProjectVersion?     @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
+  versions           ProjectVersion[]    @relation("ProjectVersions")
+  testGenerationRuns TestGenerationRun[]
+  experimentRuns     ExperimentRun[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
+  @@index([ownerUserId])
   @@map("projects")
 }
 
 model ProjectVersion {
-  id               String               @id @default(uuid())
-  projectId        String
-  project          Project              @relation("ProjectVersions", fields: [projectId], references: [id])
-  currentFor       Project?             @relation("ProjectCurrentVersion")
-  status           ProjectVersionStatus @default(PENDING)
-  originalFileName String?
-  sizeBytes        Int?
-  snapshotKey      String?
-  filesProcessed   Int?
-  chunksCount      Int?
+  id                String               @id @default(uuid())
+  projectId         String
+  project           Project              @relation("ProjectVersions", fields: [projectId], references: [id])
+  currentFor        Project?             @relation("ProjectCurrentVersion")
+  status            ProjectVersionStatus @default(PENDING)
+  originalFileName  String?
+  sizeBytes         Int?
+  snapshotKey       String?
+  filesProcessed    Int?
+  chunksCount       Int?
   detectedFramework TestFramework?
-  targetsTotal     Int?
-  targetsWithTest  Int?
-  failureReason    String?
-  startedAt        DateTime?
-  completedAt      DateTime?
-  chunks           CodeChunk[]
-  testTargets      TestTarget[]
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  targetsTotal      Int?
+  targetsWithTest   Int?
+  failureReason     String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  chunks            CodeChunk[]
+  testTargets       TestTarget[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@index([projectId])
   @@map("project_versions")
 }
 
 model CodeChunk {
-  id               String         @id @default(uuid())
+  id               String                       @id @default(uuid())
   projectVersionId String
-  projectVersion   ProjectVersion @relation(fields: [projectVersionId], references: [id])
+  projectVersion   ProjectVersion               @relation(fields: [projectVersionId], references: [id])
   filePath         String
   symbolKind       String
   symbolName       String?
@@ -140,32 +144,32 @@ model CodeChunk {
   startLine        Int
   endLine          Int
   content          String
-  importsUsed      String[]       @default([])
+  importsUsed      String[]                     @default([])
   tokenCount       Int?
-  partIndex        Int            @default(1)
-  partsTotal       Int            @default(1)
+  partIndex        Int                          @default(1)
+  partsTotal       Int                          @default(1)
   embedding        Unsupported("vector(1536)")?
-  createdAt        DateTime       @default(now())
+  createdAt        DateTime                     @default(now())
 
   @@index([projectVersionId])
   @@map("code_chunks")
 }
 
 model TestTarget {
-  id               String         @id @default(uuid())
+  id               String            @id @default(uuid())
   projectVersionId String
-  projectVersion   ProjectVersion @relation(fields: [projectVersionId], references: [id])
+  projectVersion   ProjectVersion    @relation(fields: [projectVersionId], references: [id])
   filePath         String
   symbolName       String
   methodName       String?
   targetType       TestTargetType
   startLine        Int
   endLine          Int
-  hasTest          Boolean        @default(false)
-  testFilePaths    String[]       @default([])
+  hasTest          Boolean           @default(false)
+  testFilePaths    String[]          @default([])
   targetRunResults TargetRunResult[]
   experimentRuns   ExperimentRun[]
-  createdAt        DateTime       @default(now())
+  createdAt        DateTime          @default(now())
 
   @@index([projectVersionId])
   @@map("test_targets")
@@ -174,6 +178,7 @@ model TestTarget {
 model TestGenerationRun {
   id               String            @id @default(uuid())
   projectId        String
+  project          Project           @relation(fields: [projectId], references: [id])
   projectVersionId String
   mode             GenerationMode
   targetId         String?
@@ -236,52 +241,53 @@ model Artifact {
 }
 
 model ExperimentRun {
-  id                  String             @id @default(uuid())
-  projectId           String
-  projectVersionId    String
-  targetId            String
-  target              TestTarget         @relation(fields: [targetId], references: [id])
-  status              ExperimentStatus   @default(PENDING)
-  completedRepetitions Int               @default(0)
-  totalRepetitions    Int                @default(6)
-  failureCode         String?
-  failureMessage      String?
-  startedAt           DateTime?
-  completedAt         DateTime?
-  repetitions         ExperimentRepetition[]
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id                   String                 @id @default(uuid())
+  projectId            String
+  project              Project                @relation(fields: [projectId], references: [id])
+  projectVersionId     String
+  targetId             String
+  target               TestTarget             @relation(fields: [targetId], references: [id])
+  status               ExperimentStatus       @default(PENDING)
+  completedRepetitions Int                    @default(0)
+  totalRepetitions     Int                    @default(6)
+  failureCode          String?
+  failureMessage       String?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  repetitions          ExperimentRepetition[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([projectId])
   @@map("experiment_runs")
 }
 
 model ExperimentRepetition {
-  id                  String             @id @default(uuid())
-  experimentId        String
-  experiment          ExperimentRun      @relation(fields: [experimentId], references: [id])
-  repetition          Int
-  strategy            ExperimentStrategy
-  compiled            Boolean?
-  executed            Boolean?
-  passed              Boolean?
-  valid               Boolean?
-  failureType         FailureType?
-  errorSummary        String?
+  id                   String             @id @default(uuid())
+  experimentId         String
+  experiment           ExperimentRun      @relation(fields: [experimentId], references: [id])
+  repetition           Int
+  strategy             ExperimentStrategy
+  compiled             Boolean?
+  executed             Boolean?
+  passed               Boolean?
+  valid                Boolean?
+  failureType          FailureType?
+  errorSummary         String?
   generationDurationMs Int?
-  executionDurationMs Int?
-  totalDurationMs     Int?
-  inputTokens         Int?
-  outputTokens        Int?
-  totalTokens         Int?
-  estimatedCost       Float?
-  retrievedChunks     Int?
-  selectedChunks      Int?
-  contextTokens       Int?
-  toolCalls           Int?
-  filesInspected      Int?
-  trajectory          Json?
-  createdAt           DateTime           @default(now())
+  executionDurationMs  Int?
+  totalDurationMs      Int?
+  inputTokens          Int?
+  outputTokens         Int?
+  totalTokens          Int?
+  estimatedCost        Float?
+  retrievedChunks      Int?
+  selectedChunks       Int?
+  contextTokens        Int?
+  toolCalls            Int?
+  filesInspected       Int?
+  trajectory           Json?
+  createdAt            DateTime           @default(now())
 
   @@index([experimentId])
   @@map("experiment_repetitions")

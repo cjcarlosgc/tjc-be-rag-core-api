@@ -3,6 +3,8 @@ import { ArtifactService } from './artifact.service.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { Artifact } from '../generated/prisma/client.js';
 
+const OWNER_USER_ID = 'user-1';
+
 function makeArtifact(overrides: Partial<Artifact> = {}): Artifact {
   return {
     id: 'artifact-1',
@@ -137,29 +139,30 @@ describe('ArtifactService', () => {
     ).rejects.toThrow();
   });
 
-  it('throws ARTIFACT_NOT_FOUND when the artifact does not exist', async () => {
-    const artifactsRepository = { findById: vi.fn().mockResolvedValue(null) };
+  it('throws ARTIFACT_NOT_FOUND when the artifact does not exist or belongs to another owner', async () => {
+    const artifactsRepository = { findByIdForOwner: vi.fn().mockResolvedValue(null) };
     const service = new ArtifactService({} as never, artifactsRepository as never);
 
-    await expect(service.downloadOne('missing')).rejects.toMatchObject({
+    await expect(service.downloadOne('missing', OWNER_USER_ID)).rejects.toMatchObject({
       code: ErrorCode.ARTIFACT_NOT_FOUND,
     });
+    expect(artifactsRepository.findByIdForOwner).toHaveBeenCalledWith('missing', OWNER_USER_ID);
   });
 
   it('throws DIFF_NOT_AVAILABLE for a CREATED artifact', async () => {
     const artifactsRepository = {
-      findById: vi.fn().mockResolvedValue(makeArtifact({ artifactType: 'CREATED' })),
+      findByIdForOwner: vi.fn().mockResolvedValue(makeArtifact({ artifactType: 'CREATED' })),
     };
     const service = new ArtifactService({} as never, artifactsRepository as never);
 
-    await expect(service.diff('artifact-1')).rejects.toMatchObject({
+    await expect(service.diff('artifact-1', OWNER_USER_ID)).rejects.toMatchObject({
       code: ErrorCode.DIFF_NOT_AVAILABLE,
     });
   });
 
   it('computes the diff between the original and final content of a MODIFIED artifact', async () => {
     const artifact = makeArtifact({ artifactType: 'MODIFIED' });
-    const artifactsRepository = { findById: vi.fn().mockResolvedValue(artifact) };
+    const artifactsRepository = { findByIdForOwner: vi.fn().mockResolvedValue(artifact) };
     const objectStorageService = {
       get: vi.fn((key: string) =>
         Promise.resolve(
@@ -169,7 +172,7 @@ describe('ArtifactService', () => {
     };
     const service = new ArtifactService(objectStorageService as never, artifactsRepository as never);
 
-    const result = await service.diff('artifact-1');
+    const result = await service.diff('artifact-1', OWNER_USER_ID);
 
     expect(result.lines).toEqual([
       { type: 'CONTEXT', oldLineNumber: 1, newLineNumber: 1, content: 'line1' },
@@ -179,14 +182,54 @@ describe('ArtifactService', () => {
 
   it('builds a zip with every artifact of the run for downloadAllAsZip', async () => {
     const artifactsRepository = {
+      testRunExistsForOwner: vi.fn().mockResolvedValue(true),
       findByTestRun: vi.fn().mockResolvedValue([makeArtifact()]),
     };
     const objectStorageService = { get: vi.fn().mockResolvedValue(Buffer.from('content')) };
     const service = new ArtifactService(objectStorageService as never, artifactsRepository as never);
 
-    const zipBuffer = await service.downloadAllAsZip('run-1');
+    const zipBuffer = await service.downloadAllAsZip('run-1', OWNER_USER_ID);
 
     expect(zipBuffer.length).toBeGreaterThan(0);
+    expect(artifactsRepository.testRunExistsForOwner).toHaveBeenCalledWith('run-1', OWNER_USER_ID);
     expect(objectStorageService.get).toHaveBeenCalledWith('test-runs/run-1/artifacts/src/foo.spec.ts');
+  });
+
+  it('throws TEST_RUN_NOT_FOUND from downloadAllAsZip when the run does not exist or belongs to another owner', async () => {
+    const artifactsRepository = {
+      testRunExistsForOwner: vi.fn().mockResolvedValue(false),
+      findByTestRun: vi.fn(),
+    };
+    const service = new ArtifactService({} as never, artifactsRepository as never);
+
+    await expect(service.downloadAllAsZip('missing-run', OWNER_USER_ID)).rejects.toMatchObject({
+      code: ErrorCode.TEST_RUN_NOT_FOUND,
+    });
+    expect(artifactsRepository.findByTestRun).not.toHaveBeenCalled();
+  });
+
+  it('throws TEST_RUN_NOT_FOUND from listByTestRun when the run does not exist or belongs to another owner', async () => {
+    const artifactsRepository = {
+      testRunExistsForOwner: vi.fn().mockResolvedValue(false),
+      findByTestRun: vi.fn(),
+    };
+    const service = new ArtifactService({} as never, artifactsRepository as never);
+
+    await expect(service.listByTestRun('missing-run', OWNER_USER_ID)).rejects.toMatchObject({
+      code: ErrorCode.TEST_RUN_NOT_FOUND,
+    });
+    expect(artifactsRepository.findByTestRun).not.toHaveBeenCalled();
+  });
+
+  it('lists artifacts of an owned run', async () => {
+    const artifactsRepository = {
+      testRunExistsForOwner: vi.fn().mockResolvedValue(true),
+      findByTestRun: vi.fn().mockResolvedValue([makeArtifact()]),
+    };
+    const service = new ArtifactService({} as never, artifactsRepository as never);
+
+    const artifacts = await service.listByTestRun('run-1', OWNER_USER_ID);
+
+    expect(artifacts).toHaveLength(1);
   });
 });

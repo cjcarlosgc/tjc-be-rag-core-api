@@ -50,4 +50,36 @@ describe('validateEnv', () => {
       /DEC-AUTH-001/,
     );
   });
+
+  it('defaults NODE_ENV to development and AUTH_BYPASS_ENABLED to false', () => {
+    const result = validateEnv(baseConfig());
+
+    expect(result.NODE_ENV).toBe('development');
+    expect(result.AUTH_BYPASS_ENABLED).toBe(false);
+    expect(result.AUTH_BYPASS_USER_ID).toBe('local-dev-user');
+  });
+
+  it('treats the literal string "false" as AUTH_BYPASS_ENABLED=false', () => {
+    const result = validateEnv(baseConfig({ AUTH_BYPASS_ENABLED: 'false' }));
+
+    expect(result.AUTH_BYPASS_ENABLED).toBe(false);
+  });
+
+  it('treats the literal string "true" as AUTH_BYPASS_ENABLED=true', () => {
+    const result = validateEnv(baseConfig({ AUTH_BYPASS_ENABLED: 'true', NODE_ENV: 'development' }));
+
+    expect(result.AUTH_BYPASS_ENABLED).toBe(true);
+  });
+
+  it('allows AUTH_BYPASS_ENABLED=true outside production', () => {
+    expect(() =>
+      validateEnv(baseConfig({ NODE_ENV: 'development', AUTH_BYPASS_ENABLED: 'true' })),
+    ).not.toThrow();
+  });
+
+  it('rejects AUTH_BYPASS_ENABLED=true with NODE_ENV=production (DEC-WEB-AUTH-001)', () => {
+    expect(() =>
+      validateEnv(baseConfig({ NODE_ENV: 'production', AUTH_BYPASS_ENABLED: 'true' })),
+    ).toThrow(/DEC-WEB-AUTH-001/);
+  });
 });
