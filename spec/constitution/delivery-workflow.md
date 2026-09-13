@@ -69,4 +69,4 @@ El reporte puede incorporarse después de la aprobación mediante un commit excl
 - Solo puede publicarse el commit final exacto que recibió veredicto `APPROVED`, salvo el commit exclusivo de evidencia definido arriba; cualquier otro cambio posterior invalida la aprobación y requiere una nueva revisión.
 - No se hace push con hallazgos abiertos, verificaciones requeridas fallidas ni cambios relevantes sin revisar.
 - Un push extraordinario antes del cierre del sprint requiere autorización humana explícita y debe superar la misma revisión previa.
-- Esta política no autoriza automáticamente a un agente a crear commits o hacer push: ambas acciones siguen requiriendo una solicitud explícita del usuario.
+- Un agente commitea por su cuenta al cerrar cada corte con sentido lógico (ver "Unidad de commit"), sin pedir permiso previo ni detenerse a confirmarlo. Push, PR, merge o cambios de infraestructura externa siguen requiriendo una solicitud explícita del usuario en cada ocasión; el commit local nunca la implica.
