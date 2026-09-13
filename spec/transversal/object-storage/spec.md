@@ -15,7 +15,7 @@ Abstraer snapshots y artifacts sin acoplar el dominio al proveedor.
 - `ObjectStorageService` define las operaciones requeridas para almacenar, recuperar, eliminar y entregar snapshots y artefactos, sin exponer tipos específicos del proveedor.
 - Las keys son internas y no se construyen confiando en nombres suministrados por el usuario.
 - PostgreSQL + pgvector en Supabase conserva los datos de dominio, chunks, embeddings vectoriales y la cola DB-backed de jobs; Supabase Storage se limita a snapshots y artefactos.
-- Para una ejecución, Core genera mediante `ObjectStorageService` una URL firmada temporal conforme a `EphemeralDownloadRef` de `INTEROP-1.6`, acompañada de SHA-256 y tamaño verificables. La vigencia solo debe permitir iniciar la descarga.
+- Para una ejecución, Core genera mediante `ObjectStorageService` una URL firmada temporal conforme a `EphemeralDownloadRef` de `INTEROP-2.0`, acompañada de SHA-256 y tamaño verificables. La vigencia solo debe permitir iniciar la descarga.
 - Las URLs firmadas no se persisten, no se registran completas y no sustituyen la `snapshotKey`. Los repositorios no se publican.
 - Frontend y Sandbox no consumen este SDK, bucket ni credenciales. El Sandbox descarga por HTTPS y Core persiste el resultado devuelto.
 

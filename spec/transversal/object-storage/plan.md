@@ -8,7 +8,7 @@
 
 `ObjectStorageService` actúa como puerto interno inyectable y expone put/get/delete/presign o streaming según necesidad, sin filtrar tipos del SDK a la lógica de dominio. El adaptador de infraestructura de Core implementa el contrato con Supabase Storage mediante `@supabase/supabase-js`. Las keys son internas y no dependen de nombres suministrados por el usuario.
 
-Al construir una solicitud `INTEROP-1.6`, Core obtiene la `snapshotKey`, genera una URL firmada de vida corta y adjunta integridad/tamaño. La URL vive solo en tránsito, debe redactarse en observabilidad y nunca se almacena. Los resultados estructurados que retorna Sandbox ingresan otra vez por Core antes de PostgreSQL.
+Al construir una solicitud `INTEROP-2.0`, Core obtiene la `snapshotKey`, genera una URL firmada de vida corta y adjunta integridad/tamaño. La URL vive solo en tránsito, debe redactarse en observabilidad y nunca se almacena. Los resultados estructurados que retorna Sandbox ingresan otra vez por Core antes de PostgreSQL.
 
 ## Validación
 

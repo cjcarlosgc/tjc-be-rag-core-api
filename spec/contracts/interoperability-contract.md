@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-1.6
-**Compatible con:** SYSTEM-1.6
-**Fecha de corte:** 2026-09-11
+**Versión:** INTEROP-2.0
+**Compatible con:** SYSTEM-2.0
+**Fecha de corte:** 2026-09-13
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -10,8 +10,8 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 
 ## 1. Compatibilidad y autoridad
 
-- Las rutas Sprint 1 ya implementadas por RAG Core permanecen sin prefijo para no romper el frontend existente.
-- `INTEROP-1.6` es la versión documental vigente. Todo cambio aditivo conserva la versión mayor; un cambio incompatible exige una nueva versión mayor y migración coordinada de consumidores.
+- Las rutas implementadas antes de SDD 2.0 permanecen temporalmente sin prefijo como compatibilidad legacy; no dirigen la arquitectura nueva.
+- `INTEROP-2.0` es la versión documental vigente y deliberadamente mayor por el nuevo lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
 - Los nombres de ruta y DTO presentes solo en mocks dejan de ser autoridad cuando contradigan este documento.
@@ -41,7 +41,7 @@ interface Page<T> {
 ## 3. Headers y correlación
 
 - `x-correlation-id`: opcional desde el navegador; RAG Core lo genera cuando falta y siempre lo devuelve. Core lo propaga al Sandbox y el Sandbox lo devuelve.
-- `Idempotency-Key`: UUID obligatorio en `POST /test-runs`, `POST /experiments`, `POST /test-runs/{runId}/targets/{targetId}/retry` y `POST /executions`. Su ausencia o formato inválido devuelve `400 IDEMPOTENCY_KEY_REQUIRED` o `400 INVALID_IDEMPOTENCY_KEY`. No se exige retroactivamente en `POST /projects/index`.
+- `Idempotency-Key`: UUID obligatorio en los POST legacy ya definidos, respuestas funcionales, solicitudes de publicación y `POST /executions`. Los webhooks usan `x-github-delivery` como identidad externa y no aceptan una key inventada por la Console. La ausencia o formato inválido devuelve `400 IDEMPOTENCY_KEY_REQUIRED` o `400 INVALID_IDEMPOTENCY_KEY`. No se exige retroactivamente en `POST /projects/index`.
 - En navegador→Core, Developer Console genera una key por acción lógica y conserva el mismo valor en todo reintento de transporte. Core persiste key + huella canónica del request bajo una restricción única: mismo par devuelve la respuesta aceptada original sin crear recurso/job adicional; misma key con huella distinta devuelve `409 IDEMPOTENCY_CONFLICT`.
 - En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace estándar URL `6ba7b811-9dad-11d1-80b4-00c04fd430c8` y un nombre canónico según la unidad lógica: `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}`, `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}` o `urn:tjc:sandbox-execution:v1:manual-retry:{retryJobId}:{targetId}`. La key hija es también `requestId` y se reutiliza en cualquier retry.
 - `Authorization: Bearer <service-token>` es obligatorio en todos los endpoints `/executions`. El valor es un secreto opaco precompartido de alta entropía, configurado como `SANDBOX_SERVICE_TOKEN` en Core y Sandbox; no es JWT, no usa proveedor de identidad y nunca ingresa al frontend, logs, PostgreSQL, Storage o container. Core lo exige cuando configura `SANDBOX_URL`; Sandbox lo exige al arrancar. Los endpoints `/health/live` y `/health/ready` no requieren este header.
@@ -592,6 +592,253 @@ Reglas:
 - `list_files` devuelve un nodo resumen; sus rutas completas se consultan paginadas. Un resultado vacío o un error permanece como paso atenuable mediante `status`.
 - El detalle de una traza o un listado de archivos antes del estado terminal de su run/experimento devuelve `409 CONTEXT_TRACE_NOT_FINISHED`. Un id inexistente o no autorizado devuelve `404 CONTEXT_TRACE_NOT_FOUND`.
 
+### 6.8 GitHub App y repository binding
+
+- `POST /projects/{projectId}/integrations/github/installations` -> `201 GitHubInstallationSessionResponse`.
+- `POST /projects/{projectId}/integrations/github/callback` -> `200 ProjectRepositoryBindingResponse`.
+- `GET /projects/{projectId}/integrations/github` -> `200 ProjectRepositoryBindingResponse`.
+- `DELETE /projects/{projectId}/integrations/github` -> `204`.
+
+```ts
+interface GitHubInstallationSessionResponse {
+  projectId: Id
+  installationUrl: string
+  stateExpiresAt: IsoDateTime
+}
+
+interface CompleteGitHubInstallationRequest {
+  installationId: string
+  repositoryId: string
+  state: string
+  integrationBranch?: string // default develop
+}
+
+interface ProjectRepositoryBindingResponse {
+  projectId: Id
+  installationId: string
+  repositoryId: string
+  repositoryName: string
+  integrationBranch: string
+  status: 'ENABLED' | 'DISABLED' | 'REVOKED'
+  createdAt: IsoDateTime
+  updatedAt: IsoDateTime
+}
+```
+
+`state` es opaco, de un solo uso, expira y debe vincular inequívocamente usuario, Project e intento de instalación. Core valida que la instalación autoriza el repository id antes de persistir. Desconectar deja de aceptar eventos nuevos, no borra Runs ni Functional Knowledge.
+
+### 6.9 Webhooks GitHub y normalización PR
+
+- `POST /integrations/github/webhooks` -> `202 GitHubWebhookAcceptedResponse` o `200` para una entrega ya procesada.
+
+GitHub envía `x-github-delivery`, `x-github-event` y `x-hub-signature-256`. Core verifica la firma sobre el body crudo antes de parsear o persistir. Solo instalaciones y bindings `ENABLED` producen trabajo.
+
+```ts
+type PullRequestAction =
+  | 'opened'
+  | 'reopened'
+  | 'ready_for_review'
+  | 'synchronize'
+  | 'closed'
+  | 'edited'
+  | 'converted_to_draft'
+
+interface GitHubWebhookAcceptedResponse {
+  deliveryId: string
+  accepted: boolean
+  duplicate: boolean
+  analysisRunId: Id | null
+}
+```
+
+La identidad durable combina delivery id, repository id, PR number, head SHA, event y action. `opened|reopened|ready_for_review|synchronize` crean o actualizan lifecycle solo cuando el PR está ready y `baseRef == integrationBranch`. `synchronize`, incluido force-push, obsoleta el Run del HEAD previo y crea el del HEAD nuevo. `closed|edited|converted_to_draft` no crean análisis ciego; actualizan vigencia y cancelación/obsolescencia. Un resultado tardío de un Run no vigente no publica Check actual.
+
+### 6.10 Analysis Runs
+
+- `GET /projects/{projectId}/analysis-runs?status&cursor&limit` -> `200 Page<AnalysisRunSummaryResponse>`.
+- `GET /analysis-runs/{analysisRunId}` -> `200 AnalysisRunDetailResponse`.
+
+```ts
+type AnalysisRunStatus =
+  | 'QUEUED'
+  | 'PROCESSING'
+  | 'ACTION_REQUIRED'
+  | 'SUCCESS'
+  | 'BEHAVIORAL_MISMATCH'
+  | 'TECHNICAL_GENERATION_FAILURE'
+  | 'INFRASTRUCTURE_FAILURE'
+  | 'BASELINE_FAILED'
+  | 'NO_ADDITIONAL_TESTS_REQUIRED'
+  | 'NO_TEST_RELEVANT_CHANGES'
+  | 'OBSOLETE'
+
+interface PullRequestRefResponse {
+  repositoryId: string
+  repositoryName: string
+  number: number
+  title: string
+  baseRef: string
+  headRef: string
+  baseSha: string
+  headSha: string
+  draft: boolean
+  state: 'OPEN' | 'CLOSED' | 'MERGED'
+  actorLogin: string | null
+}
+
+interface AnalysisRunSummaryResponse {
+  id: Id
+  projectId: Id
+  pullRequest: PullRequestRefResponse
+  status: AnalysisRunStatus
+  current: boolean
+  actionRequiredCount: number
+  generatedTestsCount: number
+  createdAt: IsoDateTime
+  updatedAt: IsoDateTime
+  completedAt: IsoDateTime | null
+}
+
+type SymbolChangeKind = 'DIRECTLY_CHANGED' | 'POTENTIALLY_IMPACTED'
+
+interface AnalysisSymbolResponse {
+  language: 'TYPESCRIPT' | 'PHP'
+  kind: 'CLASS' | 'METHOD' | 'FUNCTION' | 'INTERFACE' | 'TYPE' | 'TRAIT' | 'ENUM'
+  qualifiedName: string
+  filePath: RelativePath
+  changeKind: SymbolChangeKind
+}
+
+interface AnalysisRunDetailResponse extends AnalysisRunSummaryResponse {
+  attemptCount: number
+  indexMode: 'BOOTSTRAP' | 'INCREMENTAL'
+  changesetBaseSha: string
+  changesetHeadSha: string
+  indexDeltaBaseSha: string | null
+  symbols: AnalysisSymbolResponse[]
+  functionalBehaviorValidated: boolean
+  resultSummary: string | null
+  detailsUrl: string
+}
+```
+
+Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respuesta humana incrementa attempts sobre el mismo Run si el SHA no cambia. Un HEAD nuevo crea otro Run y marca el anterior `OBSOLETE` aunque estuviera `PROCESSING` o `ACTION_REQUIRED`.
+
+### 6.11 Action Required y Functional Knowledge
+
+- `GET /action-required?projectId&cursor&limit` -> `200 Page<FunctionalQuestionResponse>`.
+- `GET /analysis-runs/{analysisRunId}/context-questions` -> `200 FunctionalQuestionSetResponse`.
+- `POST /analysis-runs/{analysisRunId}/context-questions/{questionId}/answers` -> `202 FunctionalAnswerAcceptedResponse`.
+- `GET /projects/{projectId}/functional-knowledge?status&cursor&limit` -> `200 Page<FunctionalKnowledgeResponse>`.
+
+```ts
+type FunctionalScope = 'PROJECT' | 'MODULE' | 'CLASS' | 'METHOD' | 'SYMBOL'
+type FunctionalQuestionStatus = 'PENDING' | 'ANSWERED' | 'OBSOLETE'
+type FunctionalAnswerChoice = 'YES' | 'NO' | 'DEPENDS' | 'UNKNOWN' | 'FREE_TEXT'
+
+interface VisualAidResponse {
+  kind: 'STATE_DIAGRAM' | 'SYMBOL_RELATION' | 'MINI_DIFF' | 'CODE_FRAGMENT'
+  title: string
+  content: string
+  language: string | null
+}
+
+interface FunctionalQuestionResponse {
+  id: Id
+  analysisRunId: Id
+  projectId: Id
+  repositoryName: string
+  pullRequestNumber: number
+  headSha: string
+  target: AnalysisSymbolResponse
+  question: string
+  rationale: string
+  status: FunctionalQuestionStatus
+  visualAid: VisualAidResponse | null
+  createdAt: IsoDateTime
+}
+
+interface FunctionalQuestionSetResponse {
+  analysisRunId: Id
+  currentQuestion: FunctionalQuestionResponse | null
+  functionalBehaviorValidated: boolean
+}
+
+interface SubmitFunctionalAnswerRequest {
+  choice: FunctionalAnswerChoice
+  answer: string | null
+}
+
+interface FunctionalAnswerAcceptedResponse extends AsyncAccepted {
+  analysisRunId: Id
+  questionId: Id
+  continuationAttemptId: Id | null
+  knowledgeId: Id | null
+}
+
+interface FunctionalKnowledgeResponse {
+  id: Id
+  projectId: Id
+  scope: FunctionalScope
+  targetRef: string | null
+  originalQuestion: string
+  originalAnswer: string
+  normalizedRule: string
+  source: 'HUMAN_ANSWER' | 'APPROVED_IMPORT'
+  status: 'ACTIVE' | 'SUPERSEDED'
+  supersedesId: Id | null
+  createdAt: IsoDateTime
+}
+```
+
+`UNKNOWN` puede cerrar una pregunta pero devuelve `knowledgeId=null` y nunca crea conocimiento autoritativo. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
+
+### 6.12 Checks, propuestas y companion PR
+
+- `GET /analysis-runs/{analysisRunId}/test-proposals` -> `200 GeneratedTestProposalSetResponse`.
+- `POST /analysis-runs/{analysisRunId}/test-publications` -> `202 TestPublicationAcceptedResponse`.
+- `GET /test-publications/{publicationId}` -> `200 TestPublicationResponse`.
+
+```ts
+interface GeneratedTestProposalResponse {
+  id: Id
+  relativePath: RelativePath
+  target: AnalysisSymbolResponse
+  contentSha256: Sha256
+  status: 'AVAILABLE' | 'HELD' | 'STALE' | 'PUBLISHED'
+}
+
+interface GeneratedTestProposalSetResponse {
+  analysisRunId: Id
+  headSha: string
+  items: GeneratedTestProposalResponse[]
+}
+
+interface CreateTestPublicationRequest {
+  proposalIds: Id[]
+}
+
+interface TestPublicationAcceptedResponse extends AsyncAccepted {
+  publicationId: Id
+  analysisRunId: Id
+}
+
+interface TestPublicationResponse {
+  id: Id
+  analysisRunId: Id
+  sourceHeadSha: string
+  status: 'PENDING' | 'PUBLISHING' | 'PUBLISHED' | 'STALE' | 'FAILED' | 'CLOSED'
+  branchName: string | null
+  companionPullRequestNumber: number | null
+  companionPullRequestUrl: string | null
+  failureMessage: string | null
+  createdAt: IsoDateTime
+  updatedAt: IsoDateTime
+}
+```
+
+La solicitud exige Run `SUCCESS`, proposals `AVAILABLE`, usuario autorizado y HEAD vigente. Core vuelve a comprobar freshness al ejecutar el job. Publica desde el HEAD validado a una rama `rag-tests/pr-<number>-<short-sha>` y abre companion PR hacia la feature branch original; no auto-mergea ni reabre un companion PR cerrado. `BEHAVIORAL_MISMATCH` conserva propuestas `HELD`. La conclusión del GitHub Check pertenece al `headSha` del Run y su `details_url` apunta a `/projects/{projectId}/runs/{analysisRunId}`; la merge policy pertenece al repositorio.
+
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 
 La integración es HTTP interna y asíncrona. RAG Core es el único consumidor.
@@ -600,6 +847,8 @@ La integración es HTTP interna y asíncrona. RAG Core es el único consumidor.
 
 ```ts
 type ExecutionInputRole = 'PROJECT_SNAPSHOT' | 'GENERATED_ARTIFACT'
+type ExecutionProfile = 'NODE_TYPESCRIPT' | 'PHP_LARAVEL_PHPUNIT'
+type TestRunner = 'JEST' | 'VITEST' | 'PHPUNIT'
 
 interface EphemeralDownloadRef {
   role: ExecutionInputRole
@@ -637,7 +886,9 @@ interface CreateSandboxExecutionRequest {
   artifacts: ExecutionArtifactInput[]
   scope: 'TARGET' | 'BATCH'
   targetIds: Id[]
-  runnerHint: 'JEST' | 'VITEST'
+  executionProfile: ExecutionProfile
+  runnerHint: TestRunner
+  phase: 'BASELINE' | 'GENERATED_TESTS'
 }
 
 interface SandboxExecutionAcceptedResponse extends AsyncAccepted {
@@ -653,8 +904,10 @@ Reglas:
 - `snapshot.role` debe ser `PROJECT_SNAPSHOT`; los artefactos deben usar `GENERATED_ARTIFACT`.
 - Para idempotencia se comparan IDs, roles, rutas, hashes y tamaños; la firma o nueva expiración de una URL no cambia por sí sola la identidad lógica del request.
 - `TARGET` requiere uno o más `targetIds`; `BATCH` aplica el conjunto final de artefactos del run actual.
-- `runnerHint` se verifica contra el proyecto. Una incompatibilidad termina como `CONFIGURATION`, no habilita ejecutar comandos suministrados por Core.
-- El snapshot debe contener `pnpm-lock.yaml`. V1 instala exclusivamente con pnpm y lockfile congelado; npm, Yarn o ausencia de lockfile producen `UNSUPPORTED_PACKAGE_MANAGER`.
+- `executionProfile` y `runnerHint` se verifican contra el snapshot. Una incompatibilidad termina como `CONFIGURATION`, no habilita ejecutar comandos suministrados por Core.
+- `NODE_TYPESCRIPT` exige `pnpm-lock.yaml`, instala con pnpm y lockfile congelado, y admite Jest/Vitest. npm, Yarn o ausencia de lockfile producen `UNSUPPORTED_PACKAGE_MANAGER`.
+- `PHP_LARAVEL_PHPUNIT` exige `composer.json`, usa `composer.lock` cuando existe, materializa dependencias con Composer y ejecuta PHPUnit en un container PHP/Laravel-compatible. Las versiones concretas son política del profile, no comandos suministrados por Core.
+- `phase=BASELINE` ejecuta únicamente tests relevantes ya existentes; `GENERATED_TESTS` incorpora los artefactos autorizados. Sandbox reporta hechos equivalentes en ambos casos y Core decide `BASELINE_FAILED` u otra clasificación.
 - Los límites de CPU, memoria, output y tiempo son configuración/política del Sandbox, no parámetros controlables por el request.
 
 ### 7.3 Consultar ejecución y resultado
@@ -693,7 +946,8 @@ interface TestCaseFact {
 }
 
 interface RunnerFacts {
-  runner: 'JEST' | 'VITEST'
+  executionProfile: ExecutionProfile
+  runner: TestRunner
   compiled: boolean
   executed: boolean
   passed: boolean
@@ -763,15 +1017,15 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `GET /health/ready`: confirma que puede aceptar ejecuciones y distingue indisponibilidad de Docker, conectividad de adquisición y capacidad interna, sin consultar Supabase mediante credenciales.
 - Estos endpoints no ejecutan código del proyecto ni revelan secretos o configuración sensible.
 
-## 8. Disponibilidad al aprobar INTEROP-1.6
+## 8. Disponibilidad al aprobar INTEROP-2.0
 
-- RAG Core implementa las rutas HTTP/WebSocket descritas en la sección 6 hasta HU25. Ya aplica `Idempotency-Key` en los tres POST indicados (`IdempotencyRecord`/`IdempotencyService`) y ya actualizó su cliente Sandbox conforme a las secciones 3 y 7 (`Authorization: Bearer`, identidades hijas UUID v5 estables).
-- Developer Console todavía debe completar sus adapters/vistas contra este contrato. Nunca envía `SANDBOX_SERVICE_TOKEN` ni llama directamente al Sandbox.
-- Test Execution Sandbox implementa `/executions`, Bearer, deduplicación y pipeline aislado. Su decisión local `DEC-SBX-002` fija pnpm + `pnpm-lock.yaml` como única combinación V1 ejecutable.
-- La integración Core↔Sandbox permanece pendiente de verificación real de extremo a extremo hasta que ambos servicios se desplieguen y se prueben juntos; esto ya no es deuda de implementación de Core, es validación de integración entre repositorios.
-- `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
-- `DEC-GH-001` permanece `PENDING` y bloquea únicamente la integración futura con GitHub/PR; no autoriza rutas ni DTOs adicionales en esta versión.
-- `DEC-MET-001` y `DEC-VAL-001` permanecen PENDING y no bloquean implementación ordinaria.
+- Las rutas manuales previas de la sección 6 permanecen implementadas para compatibilidad y desarrollo, pero ya no son el iniciador principal de la arquitectura.
+- Las operaciones 6.8-6.12 son contrato aprobado para implementar. GitHub App, repository binding, AnalysisRun, Action Required, Checks y companion PR todavía no están disponibles en Core.
+- Developer Console conserva superficies legacy/mock de SDD 1.16, que quedan superseded; debe migrar sus mocks y adapters al contrato 2.0 antes de tratarlos como demo vigente.
+- Test Execution Sandbox implementa actualmente el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest. `PHP_LARAVEL_PHPUNIT`, `phase` y la evidencia ampliada quedan aprobados pero pendientes de implementación.
+- La integración Core↔Sandbox actual continúa operativa bajo el subconjunto compatible de 1.6; la adopción completa de los campos 2.0 exige migración coordinada y contract tests en ambos backends.
+- `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
+- `DEC-MET-001`, `DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` permanecen `PENDING` con los blocks acotados por `SYSTEM-2.0`.
 
 ## 9. Reglas de implementación
 
@@ -779,5 +1033,5 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Validar todos los requests y serializar respuestas mediante DTOs explícitos.
 - Centralizar correlación y `ErrorEnvelope` en interceptors/filtros; no formatear errores manualmente en cada controller.
 - Usar tokens de inyección para `ObjectStorageService` en Core, el downloader HTTP del Sandbox, clientes HTTP y demás puertos reemplazables.
-- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-1.6` y se verifica mediante contract tests/fixtures versionados.
+- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-2.0` y se verifica mediante contract tests/fixtures versionados.
 - Todo cambio de contrato debe actualizar primero el documento canónico, después sus dos espejos y finalmente los adapters/tests afectados.

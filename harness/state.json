@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "sddVersion": "1.16",
+  "sddVersion": "2.0",
   "allowedStatuses": [
     "SELECTED",
     "SPEC_VERIFIED",
@@ -11,30 +11,60 @@
     "DONE"
   ],
   "activeWorkItem": {
-    "id": "HU29-web-authentication",
-    "storyIds": ["HU29"],
-    "sprint": "Sprint 4",
-    "status": "IN_PROGRESS",
+    "id": "T-001-sdd-2-baseline",
+    "storyIds": [
+      "HU30",
+      "HU31",
+      "HU32",
+      "HU33",
+      "HU34",
+      "HU35",
+      "HU36",
+      "HU37",
+      "HU38",
+      "HU39",
+      "HU40",
+      "HU41",
+      "HU42",
+      "HU43",
+      "HU44",
+      "HU45",
+      "HU46",
+      "HU47"
+    ],
+    "sprint": "T-001",
+    "status": "IN_REVIEW",
     "specPaths": [
-      "spec/features/012-web-authentication/spec.md",
-      "spec/features/012-web-authentication/plan.md",
-      "spec/features/012-web-authentication/tasks.md"
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md",
+      "spec/backlog.md",
+      "spec/backlog-migration-sdd-2.0.md",
+      "spec/features/013-pr-driven-analysis/spec.md",
+      "spec/features/013-pr-driven-analysis/plan.md",
+      "spec/features/013-pr-driven-analysis/tasks.md"
     ],
     "transversalPaths": [
-      "spec/transversal/errors/spec.md",
-      "spec/transversal/observability/spec.md",
-      "spec/transversal/persistence/spec.md"
+      "spec/constitution/architecture.md",
+      "spec/constitution/mission.md",
+      "spec/constitution/project-context.md",
+      "spec/constitution/roadmap.md",
+      "spec/constitution/tech-stack.md"
     ],
     "approved": true,
     "decisionGate": {
       "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": ["DEC-WEB-AUTH-001", "DEC-GH-001", "DEC-VAL-001"],
-      "checkedAt": "2026-09-12T00:00:00-05:00"
+      "nonBlockingDecisionIds": [
+        "DEC-MET-001",
+        "DEC-INF-001",
+        "DEC-VAL-001",
+        "DEC-EXP-FK-001"
+      ],
+      "checkedAt": "2026-09-13T02:20:00-05:00"
     },
-    "createdAt": "2026-09-12T00:00:00-05:00",
-    "updatedAt": "2026-09-12T20:55:00-05:00",
+    "createdAt": "2026-09-13T02:20:00-05:00",
+    "updatedAt": "2026-09-13T02:20:00-05:00",
     "blockedReason": null
   },
-  "lastUpdatedAt": "2026-09-12T20:55:00-05:00"
+  "lastUpdatedAt": "2026-09-13T02:20:00-05:00"
 }

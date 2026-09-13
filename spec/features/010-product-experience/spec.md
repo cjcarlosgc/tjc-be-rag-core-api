@@ -3,6 +3,8 @@
 **Estado:** aprobado.
 **Historias:** HU25 (alcance backend). HU26 no tiene alcance backend — ver nota más abajo.
 
+> **Adaptación SDD 2.0:** estos listados pueden mantenerse como compatibilidad, pero el control plane vigente se organiza alrededor de `RepositoryBinding`, `AnalysisRun`, Action Required, Checks y publicación revisada. La demo GitHub legacy de HU26 queda superseded por la experiencia mock-first de INTEROP-2.0.
+
 ## Objetivo
 
 Cerrar la brecha entre lo ya aprobado en `interoperability-contract.md` (sección 8, al aprobarse `INTEROP-1.1`: "listado de proyectos y versiones quedan aprobados para implementar") y el código real: exponer el listado paginado de proyectos y de versiones de un proyecto, para que un cliente pueda "trabajar con múltiples proyectos, versiones y ejecuciones de forma eficiente" (HU25) sin tener que conocer de antemano cada id.

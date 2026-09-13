@@ -36,7 +36,7 @@ Persistir y exponer evidencia navegable de cómo se adquirió el contexto de una
 
 ## Transporte
 
-Las rutas y DTOs son los de `INTEROP-1.6`, sección 6.7. Un trace inexistente o ajeno al propietario se responde como `CONTEXT_TRACE_NOT_FOUND`; consultar antes del estado terminal produce `CONTEXT_TRACE_NOT_FINISHED`.
+Las rutas y DTOs son los de `INTEROP-2.0`, sección 6.7, y deben adaptarse a AnalysisRun/HEAD al implementar HU27-HU28. Un trace inexistente o ajeno al propietario se responde como `CONTEXT_TRACE_NOT_FOUND`; consultar antes del estado terminal produce `CONTEXT_TRACE_NOT_FINISHED`.
 
 ## Fuera de alcance
 

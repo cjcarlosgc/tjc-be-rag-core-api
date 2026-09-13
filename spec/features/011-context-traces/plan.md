@@ -4,7 +4,7 @@
 
 - `004-rag-retrieval-context`, `005-test-generation`, `007-artifacts` y `008-experimental-comparison`.
 - `spec/transversal/persistence/` para almacenamiento e índices.
-- `INTEROP-1.6`, sección 6.7.
+- `INTEROP-2.0`, sección 6.7.
 
 ## Diseño técnico
 

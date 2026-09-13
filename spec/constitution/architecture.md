@@ -1,72 +1,55 @@
-# Arquitectura
+# Arquitectura SDD 2.0
 
-**Contratos compartidos:** SYSTEM-1.6 / INTEROP-1.6
+**Contratos compartidos:** SYSTEM-2.0 / INTEROP-2.0
+**Estado:** aprobado con decisiones `PENDING` explícitas
 
-**Estado:** aprobado con decisiones PENDING explícitas
+## Topología
 
-## Topología de la solución
+```text
+GitHub -> GitHub App -> RAG Core -> Test Execution Sandbox
+                           ^
+                           |
+                    Developer Console
+                           |
+                     Supabase Auth
+```
 
-La arquitectura base se materializa en tres proyectos, dos backend y uno frontend:
+- Console consume Core para dominio y usa Supabase Auth solo para identidad de persona.
+- Core integra GitHub, persiste dominio/conocimiento, construye contexto, genera, orquesta y clasifica.
+- Sandbox materializa snapshots/artifacts, ejecuta el profile solicitado y devuelve evidencia neutral.
 
-`tjc-fe-rag-developer-console -> tjc-be-rag-core-api -> tjc-be-test-execution-sandbox`.
+## Flujo principal
 
-- Developer Console: cliente web de referencia; no llama directamente al Sandbox.
-- RAG Core API: indexación, retrieval, construcción de contexto, generación, experimentación, orquestación y persistencia de métricas.
-- Test Execution Sandbox: ejecución aislada de Jest/Vitest y devolución de hechos objetivos; no conoce si una ejecución provino de RAG o del agente generalista.
+```text
+PR event -> binding -> AnalysisRun(PR, HEAD) -> PR_ANALYSIS job
+-> snapshot/index -> CHANGESET -> changed/impacted symbols
+-> existing baseline -> technical + functional retrieval
+-> ACTION_REQUIRED o generation -> Sandbox -> classification
+-> Check -> human review -> optional companion PR
+```
 
-## Flujo de indexación
+`ACTION_REQUIRED` termina el job y usa continuation sobre el mismo Run si el HEAD permanece. Un HEAD nuevo crea otro Run y obsoleta el anterior. Checks y publicaciones verifican freshness.
 
-`ZIP -> Project/ProjectVersion -> original.zip privado en Object Storage -> extracción segura -> discovery/filter -> ts-morph/análisis de configuración -> inventario de tests -> chunks -> embeddings -> PostgreSQL/pgvector -> metadata -> COMPLETED|FAILED`.
+## Fronteras de Core
 
-## Fronteras de servicios de RAG Core
+- GitHub Integration: instalación/revocación, binding, webhooks, normalización, idempotencia, Checks y branches/PR.
+- Analysis domain: PR/HEAD lifecycle, Run vs Attempt, states y auditoría.
+- Snapshot/changeset: bootstrap/incremental, CHANGESET vs INDEX DELTA, changed/impacted symbols.
+- Knowledge: retrieval semántico/estructural, Functional Knowledge versionado, existing test context y Context Builder.
+- Generation/validation: providers, proposals, baseline, Sandbox orchestration y classification.
+- Human-in-the-loop: questions, answers, continuation, review, freshness y publication.
+- Experiment: RAG vs GENERALIST_AGENT con trazas comparables y `DEC-EXP-FK-001` antes de incorporar contexto funcional a evidencia.
 
-Los nombres siguientes expresan responsabilidades verificables, no la obligación de crear un módulo NestJS por cada elemento:
+Los nombres son responsabilidades, no clases obligatorias. Cada módulo evita dependencias circulares, usa inyección por puertos para servicios externos y conserva repositorios como frontera de persistencia.
 
-- Ingesta/versionado: `ProjectVersionsService`, `ZipValidationService`, `ObjectStorageService`, `JobsService`, `IndexingJobHandler` y `ZipExtractionService`.
-- Análisis/indexación: `FileDiscoveryService`, `TypeScriptParserService`, `TestTargetExtractorService`, `ExistingTestResolverService`, `EmbeddingProvider`, `CodeChunksRepository` y `TestTargetsRepository`.
-- Retrieval/contexto: `RetrievalService` recupera candidatos; `ContextBuilder` construye el contexto final. Su contrato definitivo queda fijado por `DEC-CHUNK-001` (`002-project-version-indexing/spec.md`) y `DEC-EMB-001` (`transversal/providers/spec.md`), ambas `APROBADO`; pendiente de implementación en `004-rag-retrieval-context`.
-- Trazas de contexto: `ContextTraceService` persiste la evidencia RAG/AGENT y reconstruye fragmentos circundantes desde la `ProjectVersion` inmutable; no registra razonamiento interno (`011-context-traces`).
-- Identidad web: un guard global valida JWT de Supabase Auth y obliga a que todo acceso de dominio se resuelva dentro del propietario del `Project`; el token de usuario no cruza hacia el Sandbox (`012-web-authentication`).
-- Generación: `GapAnalyzer`, `PromptBuilder`, `LLMProvider` y las `GenerationStrategy` del producto/experimento.
-- Validación: `TestExecutionService` orquesta y `SandboxExecutionService` adapta HTTP hacia el Sandbox; RAG Core interpreta el resultado sin perder sus evidencias.
-- Artefactos: `ArtifactService` persiste y entrega archivos/diffs detrás de `ObjectStorageService`.
-- Tiempo real y reintento: `RealtimeGateway` publica progreso y `RetryTargetJobHandler` permite un reintento manual desde cero. No existe `RepairService` ni corrección automática vía LLM.
+## Persistencia y asincronía
 
-El detalle vigente de cada responsabilidad pertenece al `plan.md` de la feature propietaria. Esta lista evita servicios monolíticos y no autoriza implementar features futuras por anticipado.
+PostgreSQL + pgvector conserva dominio, índice, Functional Knowledge y jobs DB-backed. Supabase Storage conserva snapshots/artefactos detrás de `ObjectStorageService`. Webhooks retornan rápido después de verificación, persistencia/idempotencia y enqueue; workers ejecutan etapas recuperables.
 
-## Flujo de generación
+## Stacks y ejecución
 
-`ProjectVersion congelada -> targets -> GenerationStrategy -> adquisición de contexto -> LLMProvider -> CREATE/MERGE -> Sandbox local temporal o remoto futuro -> ValidationResult -> artifacts/metrics`.
+Core usa adapters de lenguaje y framework de tests. `NODE_TYPESCRIPT` preserva ts-morph/Jest/Vitest; `PHP_LARAVEL_PHPUNIT` agrega PHP/Laravel/PHPUnit sin condicionales dispersos. Sandbox selecciona el profile y no recibe secretos GitHub/Supabase, reglas funcionales ni decisiones de negocio.
 
-La adquisición de contexto produce además una `ContextTrace` auditable por target/intento. El prompt continúa recibiendo únicamente el `GenerationContext`; la persistencia de candidatos descartados o tool calls no altera la generación.
+## Compatibilidad
 
-El producto normal utiliza RAG. El modo experimental posee dos brazos conceptuales: `RAG` y `GENERALIST_AGENT`. No se fija `TestContextStrategy` como única frontera porque el agente generalista puede necesitar un ciclo iterativo de búsqueda/lectura antes de generar. Ambos brazos convergen en la misma validación ciega del Sandbox.
-
-## RAG
-
-Target obligatorio + relaciones estructurales (V1 principalmente imports) + búsqueda vectorial cosine + deduplicación + scoring configurable + threshold/topK + token budget. `RetrievalService` recupera candidatos; `ContextBuilder` selecciona, ordena, etiqueta y ajusta el contexto final al presupuesto. El LLM recibe contenido de código, no vectores.
-
-## Servicios externos
-
-- PostgreSQL + pgvector en Supabase para datos de dominio, chunks, embeddings vectoriales y la cola DB-backed de jobs.
-- Supabase Storage privado para snapshots y artefactos, accedido exclusivamente por RAG Core mediante la abstracción interna `ObjectStorageService`.
-- Para ejecutar, Core convierte la `snapshotKey` interna en una URL firmada de vida corta y la entrega al host Sandbox junto con SHA-256 y tamaño. La URL no se persiste ni se registra completa.
-- El Sandbox descarga el ZIP sin credenciales Supabase, ejecuta en un workspace efímero y devuelve hechos estructurados. RAG Core interpreta y persiste el estado y resultado autoritativos.
-- V1 ejecuta únicamente snapshots con `pnpm-lock.yaml`, usando pnpm y lockfile congelado conforme a la decisión local `DEC-SBX-002` del Sandbox.
-- LLMProvider y EmbeddingProvider abstractos; proveedor inicial OpenAI.
-- `tjc-be-test-execution-sandbox` por HTTP interno.
-
-## Entornos del Sandbox
-
-- Desarrollo y prevalidación actuales: MacBook del desarrollador encendida, Docker Desktop activo y su VM Linux como motor de containers efímeros.
-- Destino previsto: VM Linux remota con Docker Engine.
-- `DEC-INF-001` mantiene `PENDING` la selección del proveedor remoto, priorizando alternativas gratuitas que cumplan las restricciones técnicas. No bloquea el entorno local: se confirma que Docker Desktop local es suficiente para desarrollo/prevalidación durante Sprint 2-4; la selección del proveedor remoto se revisita después de cerrar Sprint 4.
-- La URL del Sandbox es configuración de RAG Core; cuando existe, Core requiere `SANDBOX_SERVICE_TOKEN` y envía `Authorization: Bearer` en cada llamada `/executions`. El token opaco se comparte solo mediante configuración segura de host y nunca alcanza frontend ni containers.
-
-## Asincronía
-
-V1 usa POST 202 + polling y WebSockets como complemento para progreso. Estados se persisten. Mecanismo durable: cola DB-backed en PostgreSQL de Supabase (tabla `jobs`, despacho con `SELECT ... FOR UPDATE SKIP LOCKED`, reintentos con backoff, recuperación tras restart por polling del estado persistido); fire-and-forget en memoria está prohibido. Las operaciones de creación/reintento reservan su `Idempotency-Key` y su job de forma atómica o recuperable; las subejecuciones hacia Sandbox conservan un UUID v5 estable según `DEC-IDEMP-001`.
-
-## Alcance definitivo de validación
-
-Una generación validada produce una sola ejecución Sandbox por target/intento lógico. Un fallo queda registrado como `INVALID`/`FAILED`; HU23 y la autorreparación automática vía LLM están descartadas. HU24 permite únicamente un nuevo intento manual explícito desde cero, con identidad idempotente propia.
+ZIP y generación manual pueden seguir disponibles como rutas legacy/development, pero no dirigen nuevas dependencias. La experiencia mock GitHub de login/importación está superseded. INTEROP-2.0 es la única autoridad para nuevos adapters y fixtures.

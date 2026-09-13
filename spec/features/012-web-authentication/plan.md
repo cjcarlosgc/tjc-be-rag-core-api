@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-- `DEC-WEB-AUTH-001`, Supabase Auth y `INTEROP-1.6` sección 3.
+- `DEC-WEB-AUTH-001`, Supabase Auth y `INTEROP-2.0` sección 3.
 - Todas las features que consultan recursos descendientes de `Project`.
 
 ## Diseño técnico
@@ -11,6 +11,8 @@
 - Agregar `ownerUserId` UUID a `Project`, indexado y obligatorio para datos live. La migración de datos existentes debe exigir una asignación explícita o limitar los registros sin propietario al modo local; no se adjudican silenciosamente a una cuenta.
 - Cambiar repositorios/servicios para recibir `userId` y filtrar por propietario desde la consulta, no después de cargar el recurso.
 - Propagar la autorización a descargas, contexto, historial, retry, experimentos y suscripciones WebSocket.
+- Mantener GitHub OAuth limitado a login; repository binding y callbacks de instalación pertenecen a GitHub Integration y se autorizan además por Project.
+- Preservar deep-link `returnTo` tras login para rutas de AnalysisRun/Focus Mode.
 - Exponer errores `AUTH_REQUIRED` e `INVALID_ACCESS_TOKEN` mediante el envelope estándar, sin incluir claims o token.
 
 ## Validación

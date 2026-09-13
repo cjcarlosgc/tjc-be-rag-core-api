@@ -14,7 +14,13 @@
 - [ ] Agregar matriz de pruebas unitarias, integración y e2e de autorización. Unitarias: **hechas** (`auth.guard.spec.ts`, `supabase-jwt-verifier.spec.ts`, casos nuevos en `env.validation.spec.ts`, y actualización de los specs de `projects`/`project-versions`/`test-generation`/`experiments`/`artifact` service + `realtime.gateway.spec.ts`). e2e: **hechas** `projects.e2e-spec.ts`, `project-versions.e2e-spec.ts`, `experiments.e2e-spec.ts` (con matriz cross-owner 404 y caso 401 sin header); **falta** `test-generation.e2e-spec.ts` (el más grande, ~36 llamadas a `request(...)`, mismo patrón que los otros tres: usar `test/support/auth-test-support.ts` — `overrideAuthTokenVerifier` en el `beforeAll` + reemplazar `request(app.getHttpServer())` por `authedRequest(app)` + agregar caso 401 sin header y matriz cross-owner en retry/results/history).
 - [ ] Verificar ausencia de secretos/tokens en logs y respuestas. Revisado por diseño (guard no loguea `Authorization`/payload); falta una pasada explícita de verificación antes de cierre.
 - [ ] Ejecutar lint/test/build/SDD check. `lint`, `test` (unit, 264/264) y `build` ya están en verde. `test:e2e` falta correr completo una vez se actualice `test-generation.e2e-spec.ts` (los 3 archivos ya migrados pasan en verde de forma aislada).
-- [ ] Registrar evidencia de revisión. Pendiente: no hay commit todavía (regla del repo: no commitear sin pedido explícito del usuario) ni reporte en `harness/reports/`.
+- [ ] Registrar evidencia de revisión. La implementación quedó publicada en `97fab50`; la ejecución e2e completa fue cancelada por instrucción del usuario y no se declara como evidencia verde.
+
+## Adaptación SDD 2.0 posterior a T-001
+
+- [ ] Configurar/probar GitHub OAuth como segundo y único proveedor social de Supabase Auth.
+- [ ] Preservar `returnTo` en deep links de Runs/Focus Mode.
+- [ ] Verificar mediante contract/security tests que login GitHub no concede acceso a repositorios ni a bindings de otro Project.
 
 ## Retomar en una sesión nueva
 

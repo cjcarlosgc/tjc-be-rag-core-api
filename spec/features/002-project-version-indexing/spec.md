@@ -3,6 +3,8 @@
 **Estado:** aprobado salvo elementos marcados PENDING/PROPOSED.
 **Historias:** HU02, HU03, HU04, HU05, HU07
 
+> **Adaptación SDD 2.0:** el ingreso ZIP y `ProjectVersion` se conservan como compatibilidad legacy/desarrollo. La arquitectura objetivo obtiene snapshots inmutables por commit SHA desde un `RepositoryBinding`, ejecuta `BOOTSTRAP` o `INDEX_DELTA` y amplía el análisis a PHP/Laravel sin invalidar el soporte TypeScript existente. Esta feature no dirige nuevos flujos PR-driven.
+
 ## Objetivo
 
 Ingerir un ZIP seguro, crear un snapshot versionado e indexarlo para recuperación posterior.

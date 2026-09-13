@@ -1,7 +1,9 @@
 # 005-test-generation — Especificación
 
-**Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED.  
+**Estado:** legado adaptado por SDD 2.0 salvo elementos marcados PENDING/PROPOSED.
 **Historias:** HU08, HU09, HU10, HU11, HU12
+
+> Los cinco modos manuales se mantienen por compatibilidad, pero no gobiernan la arquitectura objetivo. En SDD 2.0 la generación nace de un `AnalysisRun`, sus símbolos cambiados/impactados y el contexto recuperado; la publicación requiere revisión humana y freshness check.
 
 ## Objetivo
 
