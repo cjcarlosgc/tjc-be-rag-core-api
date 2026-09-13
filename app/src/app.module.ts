@@ -14,6 +14,7 @@ import { GenerationModule } from './generation/generation.module.js';
 import { ExperimentsModule } from './experiments/experiments.module.js';
 import { RepositoryBindingsModule } from './repository-bindings/repository-bindings.module.js';
 import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
+import { GithubWebhooksModule } from './github-webhooks/github-webhooks.module.js';
 import { HealthController } from './common/health/health.controller.js';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware.js';
 import { validateEnv } from './config/env.validation.js';
@@ -38,6 +39,7 @@ import { validateEnv } from './config/env.validation.js';
     ExperimentsModule,
     RepositoryBindingsModule,
     AnalysisRunsModule,
+    GithubWebhooksModule,
   ],
   controllers: [HealthController],
 })

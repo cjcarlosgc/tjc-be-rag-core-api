@@ -4,7 +4,10 @@ import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true conserva el body crudo (req.rawBody) para verificar la
+  // firma x-hub-signature-256 de los webhooks de GitHub sobre bytes exactos,
+  // no sobre una re-serialización del JSON ya parseado.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors();
 

@@ -192,6 +192,83 @@ describe('AnalysisRunsService', () => {
     });
   });
 
+  describe('startRunFromWebhook', () => {
+    it('creates a run without checking project ownership', async () => {
+      repository.findCurrentByPullRequest.mockResolvedValue(null);
+      const created = buildRun({ headSha: 'head-sha-2' });
+      repository.create.mockResolvedValue(created);
+
+      const result = await service.startRunFromWebhook(createInput);
+
+      expect(projectsRepository.findById).not.toHaveBeenCalled();
+      expect(repository.create).toHaveBeenCalledWith(createInput);
+      expect(result).toEqual(created);
+    });
+
+    it('obsoletes the previous current run when the HEAD changed', async () => {
+      const existing = buildRun({ headSha: 'head-sha-1', status: 'PROCESSING' });
+      repository.findCurrentByPullRequest.mockResolvedValue(existing);
+      repository.update.mockResolvedValue({ ...existing, status: 'OBSOLETE', current: false });
+      const created = buildRun({ id: 'run-2', headSha: 'head-sha-2' });
+      repository.create.mockResolvedValue(created);
+
+      const result = await service.startRunFromWebhook(createInput);
+
+      expect(repository.update).toHaveBeenCalledWith(existing.id, {
+        status: 'OBSOLETE',
+        current: false,
+      });
+      expect(result).toEqual(created);
+    });
+  });
+
+  describe('closeRun', () => {
+    it('obsoletes a non-terminal run and stamps prState when given', async () => {
+      const run = buildRun({ status: 'PROCESSING' });
+      repository.update.mockResolvedValue({
+        ...run,
+        status: 'OBSOLETE',
+        current: false,
+        prState: 'MERGED',
+      });
+
+      const result = await service.closeRun(run, 'MERGED');
+
+      expect(repository.update).toHaveBeenCalledWith(run.id, {
+        status: 'OBSOLETE',
+        current: false,
+        prState: 'MERGED',
+      });
+      expect(result.status).toBe('OBSOLETE');
+    });
+
+    it('keeps a terminal status but marks it not current', async () => {
+      const run = buildRun({ status: 'SUCCESS', current: true });
+      repository.update.mockResolvedValue({ ...run, current: false, prState: 'MERGED' });
+
+      const result = await service.closeRun(run, 'MERGED');
+
+      expect(repository.update).toHaveBeenCalledWith(run.id, {
+        current: false,
+        prState: 'MERGED',
+      });
+      expect(result.status).toBe('SUCCESS');
+      expect(result.current).toBe(false);
+    });
+
+    it('does not change prState when omitted (converted_to_draft)', async () => {
+      const run = buildRun({ status: 'PROCESSING' });
+      repository.update.mockResolvedValue({ ...run, status: 'OBSOLETE', current: false });
+
+      await service.closeRun(run);
+
+      expect(repository.update).toHaveBeenCalledWith(run.id, {
+        status: 'OBSOLETE',
+        current: false,
+      });
+    });
+  });
+
   describe('markActionRequired', () => {
     it('moves PROCESSING to ACTION_REQUIRED and increments actionRequiredCount', async () => {
       const run = buildRun({ status: 'PROCESSING', actionRequiredCount: 0 });

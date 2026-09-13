@@ -6,8 +6,10 @@ import {
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
-import type { AnalysisRun, AnalysisRunStatus } from '../generated/prisma/client.js';
+import type { AnalysisRun, AnalysisRunStatus, PullRequestState } from '../generated/prisma/client.js';
 import type { Page } from '../common/dto/page.response.js';
+
+const NON_TERMINAL_STATUSES: AnalysisRunStatus[] = ['QUEUED', 'PROCESSING', 'ACTION_REQUIRED'];
 
 export type AnalysisRunCompletionStatus =
   | 'SUCCESS'
@@ -71,7 +73,36 @@ export class AnalysisRunsService {
    */
   async startRun(input: CreateAnalysisRunInput, ownerUserId: string): Promise<AnalysisRun> {
     await this.findProjectOrThrow(input.projectId, ownerUserId);
+    return this.startRunInternal(input);
+  }
 
+  /**
+   * Igual que `startRun` pero sin scope de owner: la usa el ingress de
+   * GitHub (HU31), que ya autorizó la operación vía firma de webhook +
+   * binding ENABLED, no vía un usuario autenticado.
+   */
+  async startRunFromWebhook(input: CreateAnalysisRunInput): Promise<AnalysisRun> {
+    return this.startRunInternal(input);
+  }
+
+  /**
+   * Cierra la vigencia del Run actual de un PR sin borrar historial (HU31,
+   * lifecycle de PR). Trabajo no terminal pasa a OBSOLETE; un Run ya
+   * terminal (p. ej. SUCCESS) solo deja de ser `current` -sus resultados no
+   * pueden publicarse como vigentes tras el cierre- sin perder su status.
+   * `prState` es opcional: `converted_to_draft` no cambia el estado del PR.
+   */
+  async closeRun(run: AnalysisRun, prState?: Extract<PullRequestState, 'CLOSED' | 'MERGED'>): Promise<AnalysisRun> {
+    const patch: Record<string, unknown> = { current: false, ...(prState ? { prState } : {}) };
+
+    if (NON_TERMINAL_STATUSES.includes(run.status)) {
+      return this.transitionTo(run, 'OBSOLETE', patch);
+    }
+
+    return this.analysisRunsRepository.update(run.id, patch);
+  }
+
+  private async startRunInternal(input: CreateAnalysisRunInput): Promise<AnalysisRun> {
     const current = await this.analysisRunsRepository.findCurrentByPullRequest(
       input.projectId,
       input.repositoryId,

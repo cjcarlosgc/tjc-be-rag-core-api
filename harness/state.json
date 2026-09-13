@@ -14,6 +14,7 @@
     "id": "T-002-analysis-run-domain",
     "storyIds": [
       "HU30",
+      "HU31",
       "HU32"
     ],
     "sprint": "T-002",
@@ -45,9 +46,9 @@
       "checkedAt": "2026-09-13T09:00:00-05:00"
     },
     "createdAt": "2026-09-13T09:00:00-05:00",
-    "updatedAt": "2026-09-13T09:00:00-05:00",
+    "updatedAt": "2026-09-13T10:30:00-05:00",
     "blockedReason": null,
-    "notes": "Corte 1 de spec/features/013-pr-driven-analysis/plan.md: dominio/state model de AnalysisRun (HU32) y dominio+persistencia de RepositoryBinding sin HTTP (porción de HU30). El work item T-001-sdd-2-baseline (todas las HU30-47) cerró su revisión documental sin iniciar implementación; este item cubre el primer corte de implementación real."
+    "notes": "Corte 1 (aprobado): dominio/state model de AnalysisRun (HU32) y dominio+persistencia de RepositoryBinding sin HTTP (porción de HU30). Deuda de historial de migraciones Prisma encontrada y reparada como fix técnico previo (ver commits fix(prisma)). Corte 2: GitHub ingress (HU31) — firma HMAC sobre body crudo, dedup por delivery id (WebhookDelivery), normalización pull_request y lifecycle (opened/reopened/ready_for_review/synchronize/closed/edited/converted_to_draft) contra AnalysisRunsService/RepositoryBindingsRepository. NO incluye instalación/callback real de la GitHub App ni revocación (siguen deferred). PENDIENTE: la migración de esquema de Corte 2 (tabla webhook_deliveries + unique en repository_bindings.repositoryId) está escrita en el repo pero no aplicada contra Supabase; el auto-mode classifier bloqueó `prisma migrate deploy` por modificar un recurso compartido sin supervisión. Debe aplicarse manualmente: `pnpm --dir app exec prisma migrate deploy`."
   },
-  "lastUpdatedAt": "2026-09-13T09:00:00-05:00"
+  "lastUpdatedAt": "2026-09-13T10:30:00-05:00"
 }

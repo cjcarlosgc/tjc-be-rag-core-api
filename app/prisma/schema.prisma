@@ -149,7 +149,7 @@ model RepositoryBinding {
   projectId         String                  @unique
   project           Project                 @relation(fields: [projectId], references: [id])
   installationId    String
-  repositoryId      String
+  repositoryId      String                  @unique
   repositoryName    String
   integrationBranch String                  @default("develop")
   status            RepositoryBindingStatus @default(ENABLED)
@@ -198,6 +198,25 @@ model AnalysisRun {
   @@index([projectId])
   @@index([repositoryId, prNumber, current])
   @@map("analysis_runs")
+}
+
+/// HU31: identidad durable de una entrega de webhook GitHub ya verificada
+/// (firma correcta), para deduplicar reintentos de GitHub sobre el mismo
+/// `x-github-delivery`. `analysisRunId` queda null cuando la entrega no
+/// produjo trabajo (evento ignorado, binding no ENABLED, base fuera de
+/// integrationBranch).
+model WebhookDelivery {
+  id            String   @id @default(uuid())
+  deliveryId    String   @unique
+  repositoryId  String
+  prNumber      Int
+  headSha       String
+  event         String
+  action        String
+  analysisRunId String?
+  createdAt     DateTime @default(now())
+
+  @@map("webhook_deliveries")
 }
 
 model ProjectVersion {

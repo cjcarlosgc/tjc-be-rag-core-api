@@ -37,4 +37,12 @@ export class RepositoryBindingsRepository {
   updateStatus(id: string, status: RepositoryBindingStatus): Promise<RepositoryBinding> {
     return this.prisma.repositoryBinding.update({ where: { id }, data: { status } });
   }
+
+  /**
+   * Sin scope de owner: la usa el ingress de GitHub, que identifica el
+   * binding por el repositoryId del webhook, no por un usuario autenticado.
+   */
+  findByRepositoryId(repositoryId: string): Promise<RepositoryBinding | null> {
+    return this.prisma.repositoryBinding.findUnique({ where: { repositoryId } });
+  }
 }

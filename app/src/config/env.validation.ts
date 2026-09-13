@@ -134,6 +134,10 @@ class EnvironmentVariables {
   @Min(0)
   LLM_OUTPUT_COST_PER_1K_TOKENS: number = 0.0006;
 
+  @IsOptional()
+  @IsString()
+  GITHUB_APP_WEBHOOK_SECRET?: string;
+
   @IsBoolean()
   AUTH_BYPASS_ENABLED: boolean = false;
 
