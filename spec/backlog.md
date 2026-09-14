@@ -87,6 +87,37 @@ La prioridad se interpreta contra la arquitectura SDD 2.0: P0 materializa el nue
 | HU46 | EP15 | Research | P2 | Investigar mutation testing | Como investigador, quiero evaluar mutation testing por stack y costo, para decidir su aporte sin volver Mutation Score obligatorio prematuramente. |
 | HU47 | EP15 | Infra | P2 | Desplegar Sandbox remoto | Como operador, quiero seleccionar y desplegar una VM Sandbox con aislamiento, red y retención aprobados, para validar fuera del entorno local cuando `DEC-INF-001` se resuelva. |
 
+### HU48-HU55 — registradas 2026-09-14, `PROPOSED` (no `APROBADO` — se formaliza la historia, no se aprueba todavía su implementación)
+
+Capacidades que se discutieron como necesarias (en handoffs del usuario o en
+hallazgos de auditoría propios) pero nunca tuvieron número de historia — el
+usuario pidió cerrar ese hueco antes de planear implementación. Compartido
+conceptualmente con `tjc-fe-rag-developer-console`/`tjc-be-test-execution-sandbox`
+igual que el resto de este backlog. Formalizadas originalmente en
+`tjc-fe-rag-developer-console`; espejadas aquí para evitar drift. Detalle
+completo por historia en `harness/reports/console-backlog-formalization.md`
+(repositorio Console).
+
+| HU | Épica | Hito | Prioridad | Nombre | Descripción |
+|---|---|---|---|---|---|
+| HU48 | EP16 | G | P1 | Comparar RAG vs agente sobre un AnalysisRun existente | Como investigador de la tesis, quiero iniciar una comparación RAG vs agente generalista ("Run comparison") sobre un `AnalysisRun` existente, para medir ambas estrategias sobre la misma entrada real (PR, HEAD, changeset) en vez de una selección manual de target. |
+| HU49 | EP16 | G | P4 | Capturar el próximo PR para una comparación en vivo | Como presentador de la tesis, quiero armar ("Capture next PR") la próxima comparación experimental sobre el siguiente `AnalysisRun` elegible que dispare un PR real, para demostrar en vivo que la comparación no está precalculada. |
+| HU50 | EP10 | H | P1 | Mostrar cobertura de pruebas previa de un símbolo en Run Detail | Como usuario autorizado, quiero ver si el símbolo cambiado por un PR tenía cobertura de pruebas previa (ninguna/parcial/suficiente), para entender por qué el Run generó pruebas nuevas, completó lo faltante o no generó nada. |
+| HU51 | EP11 | D | P1 | Detectar conflicto de conocimiento funcional en Focus Mode | Como usuario autorizado, quiero que Focus Mode me avise cuando la regla funcional que estoy por fijar contradiga una regla `ACTIVE` existente, para resolver el conflicto antes de que contamine el conocimiento persistido. |
+| HU52 | EP11 | D | P2 | Trazar qué Runs usaron una regla de Functional Knowledge | Como usuario autorizado, quiero ver en el detalle de una regla de Functional Knowledge qué Analysis Runs la usaron, para entender su impacto y trazabilidad. |
+| HU53 | EP10 | H | P1 | Mostrar el historial de transiciones de estado de un AnalysisRun | Como usuario autorizado, quiero ver el historial cronológico de transiciones de estado de un `AnalysisRun`, para entender cómo llegó a su estado actual sin adivinar a partir de 3 timestamps sueltos. |
+| HU54 | EP08 | H | P1 | Extender Context Explorer con contexto funcional y de tests existentes | Como usuario autorizado, quiero que el árbol de contexto de un Run muestre también el conocimiento funcional y la evidencia de tests existentes que alimentaron el Context Builder, no solo candidatos RAG, para auditar el contexto completo detrás de una generación. |
+| HU55 | EP10 | H | P1 | Listar Analysis Runs cross-proyecto para el Workspace Overview | Como usuario autorizado, quiero un listado de Analysis Runs que abarque todos mis proyectos, para ver de un vistazo qué necesita mi atención sin entrar proyecto por proyecto. |
+
+Pendiente explícito de Core (no resuelto en este commit, solo registrado):
+HU48 requiere definir en INTEROP la forma `AnalysisRun`↔`ExperimentRun`;
+HU51 requiere exponer una señal de conflicto de reglas funcionales
+`ACTIVE`; HU53 requiere historial de transiciones de estado más allá de
+los 3 timestamps de `AnalysisRunDetailResponse`; HU55 requiere un listado
+de `AnalysisRun` sin `projectId` obligatorio en el path (hoy
+`GET /projects/{projectId}/analysis-runs` lo exige). Ver mensaje de Console
+del 2026-09-14 y su reporte para el detalle completo.
+
 - **P0:** necesario para materializar la nueva arquitectura de tesis.
 - **P1:** necesario para la operación end-to-end de SDD 2.0.
 - **P2:** necesario para experimento, validación o infraestructura posterior.
