@@ -1,7 +1,9 @@
 # 008-experimental-comparison — Especificación
 
-**Estado:** aprobado salvo elementos marcados PENDING/PROPOSED.
+**Estado:** aprobado salvo elementos marcados PENDING/PROPOSED. Se conserva bajo SDD 2.0.
 **Historias:** HU19, HU27, HU28
+
+> **Nota SDD 2.0:** `targetId` en `CreateExperimentRequest` referencia un `TestTarget` producido por la indexación ZIP, retirada como ruta de producto (`CHANGELOG.md`). Mientras no exista una ruta que derive targets desde un `AnalysisRun` (P1/P4, corte futuro — ver handoff de reorientación de Experiments citado en `CHANGELOG.md`), este endpoint no tiene forma vigente de crear experimentos nuevos. No se rediseña en este corte; el desarrollo P0 (PR-driven) no espera por esto.
 
 ## Objetivo
 

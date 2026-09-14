@@ -1,7 +1,9 @@
 # 011-context-traces — Especificación
 
-**Estado:** aprobado para implementar.
+**Estado:** aprobado para implementar. No implementado en código todavía.
 **Historias:** HU27, HU28
+
+> **Nota SDD 2.0:** la variante de traza sobre `test-runs` (generación manual) queda retirada (`CHANGELOG.md`); `GET /experiments/{id}/context-traces` permanece vigente para HU27/HU28 sobre Experiments.
 
 ## Objetivo
 

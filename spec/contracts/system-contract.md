@@ -163,8 +163,8 @@ OBSOLETE
 
 ## Compatibilidad y legado
 
-- Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` pueden permanecer como camino legacy, pero ninguna arquitectura nueva depende de ellas.
-- ZIP ingestion permanece como ruta legacy/development para tests, experimentos y compatibilidad TypeScript; GitHub repository + commit SHA es la ruta objetivo.
+- Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
+- El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
 - La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
 - Mocks frontend deben implementar `INTEROP-2.0`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
 
@@ -244,4 +244,4 @@ OBSOLETE
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.0` sustituye `SYSTEM-1.6` como arquitectura objetivo. Las APIs manuales existentes pueden mantenerse transitoriamente, pero toda nueva operación coordinada usa `INTEROP-2.0` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.0` sustituye `SYSTEM-1.6` como arquitectura objetivo. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.0` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.

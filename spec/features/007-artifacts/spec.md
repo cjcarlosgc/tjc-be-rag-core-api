@@ -1,7 +1,9 @@
 # 007-artifacts — Especificación
 
-**Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED.  
+**Estado:** RETIRED temporalmente para HU15-HU18 — ver `CHANGELOG.md`.  
 **Historias:** HU15, HU16, HU17, HU18, HU27
+
+> HU15-HU18 (artefactos de `TestGenerationRun`) quedan retirados junto con la generación manual: su único productor desapareció. Vuelven rediseñados sobre `AnalysisRun` con la publicación por companion PR (HU39-40). HU27 (trazas de contexto) permanece vigente para Experiments (`GET /experiments/{id}/context-traces`); su variante sobre `test-runs` queda retirada con este corte.
 
 ## Objetivo
 
