@@ -1,29 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import AdmZip from 'adm-zip';
 import { ProjectVersionsService } from './project-versions.service.js';
-import { ZipValidationService } from './zip/zip-validation.service.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
-import { INDEXING_JOB_TYPE } from './indexing.constants.js';
 import type { Project, ProjectVersion } from '../generated/prisma/client.js';
-
-function buildZip(entries: Record<string, string>): Buffer {
-  const zip = new AdmZip();
-  for (const [name, content] of Object.entries(entries)) {
-    zip.addFile(name, Buffer.from(content));
-  }
-  return zip.toBuffer();
-}
-
-function makeFile(buffer: Buffer): Express.Multer.File {
-  return {
-    fieldname: 'file',
-    originalname: 'project.zip',
-    encoding: '7bit',
-    mimetype: 'application/zip',
-    size: buffer.length,
-    buffer,
-  } as Express.Multer.File;
-}
 
 const OWNER_USER_ID = 'user-1';
 
@@ -31,16 +9,10 @@ describe('ProjectVersionsService', () => {
   let service: ProjectVersionsService;
   let projectsRepository: { findById: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
   let projectVersionsRepository: {
-    hasActiveVersion: ReturnType<typeof vi.fn>;
-    createPending: ReturnType<typeof vi.fn>;
-    setSnapshot: ReturnType<typeof vi.fn>;
     findByIdForOwner: ReturnType<typeof vi.fn>;
-    markFailed: ReturnType<typeof vi.fn>;
     findByProject: ReturnType<typeof vi.fn>;
   };
   let testTargetsRepository: { findByProjectVersion: ReturnType<typeof vi.fn> };
-  let jobsService: { enqueue: ReturnType<typeof vi.fn> };
-  let objectStorageProvider: { put: ReturnType<typeof vi.fn> };
 
   const project: Project = {
     id: 'project-1',
@@ -55,8 +27,8 @@ describe('ProjectVersionsService', () => {
     id: 'version-1',
     projectId: 'project-1',
     status: 'PENDING',
-    originalFileName: 'project.zip',
-    sizeBytes: 100,
+    originalFileName: null,
+    sizeBytes: null,
     snapshotKey: null,
     filesProcessed: null,
     chunksCount: null,
@@ -70,127 +42,19 @@ describe('ProjectVersionsService', () => {
     updatedAt: new Date(),
   };
 
-  const validZip = () => buildZip({ 'package.json': '{}', 'src/index.ts': 'export {}' });
-
   beforeEach(() => {
     projectsRepository = { findById: vi.fn(), create: vi.fn() };
     projectVersionsRepository = {
-      hasActiveVersion: vi.fn().mockResolvedValue(false),
-      createPending: vi.fn().mockResolvedValue(version),
-      setSnapshot: vi.fn(),
       findByIdForOwner: vi.fn(),
-      markFailed: vi.fn(),
       findByProject: vi.fn(),
     };
     testTargetsRepository = { findByProjectVersion: vi.fn().mockResolvedValue([]) };
-    jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
-    objectStorageProvider = { put: vi.fn() };
 
     service = new ProjectVersionsService(
       projectsRepository as never,
       projectVersionsRepository as never,
       testTargetsRepository as never,
-      new ZipValidationService({ get: () => 52_428_800 } as never),
-      jobsService as never,
-      { get: () => 1500 } as never,
-      objectStorageProvider as never,
     );
-  });
-
-  describe('startIndexing', () => {
-    it('throws ZIP_REQUIRED when no file is provided', async () => {
-      await expect(service.startIndexing(undefined, {}, OWNER_USER_ID)).rejects.toMatchObject({
-        code: ErrorCode.ZIP_REQUIRED,
-      });
-    });
-
-    it('throws UNSUPPORTED_PROJECT for an incompatible archive', async () => {
-      const file = makeFile(buildZip({ 'README.md': 'hi' }));
-
-      await expect(service.startIndexing(file, {}, OWNER_USER_ID)).rejects.toMatchObject({
-        code: ErrorCode.UNSUPPORTED_PROJECT,
-      });
-    });
-
-    it('throws PROJECT_NOT_FOUND when projectId does not exist or belongs to another owner', async () => {
-      projectsRepository.findById.mockResolvedValue(null);
-      const file = makeFile(validZip());
-
-      await expect(
-        service.startIndexing(file, { projectId: 'missing' }, OWNER_USER_ID),
-      ).rejects.toMatchObject({
-        code: ErrorCode.PROJECT_NOT_FOUND,
-      });
-      expect(projectsRepository.findById).toHaveBeenCalledWith('missing', OWNER_USER_ID);
-    });
-
-    it('throws PROJECT_INDEXING_IN_PROGRESS when the project already has an active version', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
-      projectVersionsRepository.hasActiveVersion.mockResolvedValue(true);
-      const file = makeFile(validZip());
-
-      await expect(
-        service.startIndexing(file, { projectId: project.id }, OWNER_USER_ID),
-      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_INDEXING_IN_PROGRESS });
-    });
-
-    it('creates a project scoped to the caller, stores the snapshot and enqueues the indexing job', async () => {
-      projectsRepository.create.mockResolvedValue(project);
-      const file = makeFile(validZip());
-
-      const result = await service.startIndexing(file, { name: 'demo' }, OWNER_USER_ID);
-
-      expect(projectsRepository.create).toHaveBeenCalledWith('demo', OWNER_USER_ID);
-      expect(objectStorageProvider.put).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `repositories/${project.id}/versions/${version.id}/original.zip`,
-        ),
-        file.buffer,
-        'application/zip',
-      );
-      expect(jobsService.enqueue).toHaveBeenCalledWith(
-        INDEXING_JOB_TYPE,
-        expect.objectContaining({ projectVersionId: version.id, projectId: project.id }),
-      );
-      expect(result).toEqual({
-        projectId: project.id,
-        projectVersionId: version.id,
-        status: 'PENDING',
-        pollAfterMs: 1500,
-      });
-    });
-
-    it('marks the version as FAILED and rethrows when the snapshot upload fails', async () => {
-      projectsRepository.create.mockResolvedValue(project);
-      objectStorageProvider.put.mockRejectedValue(new Error('storage unreachable'));
-      const file = makeFile(validZip());
-
-      await expect(service.startIndexing(file, { name: 'demo' }, OWNER_USER_ID)).rejects.toThrow(
-        'storage unreachable',
-      );
-
-      expect(projectVersionsRepository.markFailed).toHaveBeenCalledWith(
-        version.id,
-        'storage unreachable',
-      );
-      expect(projectVersionsRepository.setSnapshot).not.toHaveBeenCalled();
-      expect(jobsService.enqueue).not.toHaveBeenCalled();
-    });
-
-    it('marks the version as FAILED and rethrows when enqueueing the job fails, so the project is not left blocked', async () => {
-      projectsRepository.create.mockResolvedValue(project);
-      jobsService.enqueue.mockRejectedValue(new Error('jobs table unavailable'));
-      const file = makeFile(validZip());
-
-      await expect(service.startIndexing(file, { name: 'demo' }, OWNER_USER_ID)).rejects.toThrow(
-        'jobs table unavailable',
-      );
-
-      expect(projectVersionsRepository.markFailed).toHaveBeenCalledWith(
-        version.id,
-        'jobs table unavailable',
-      );
-    });
   });
 
   describe('getStatus', () => {

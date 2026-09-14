@@ -1,17 +1,9 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectVersionsRepository } from './project-versions.repository.js';
 import { TestTargetsRepository } from './persistence/test-targets.repository.js';
-import { ZipValidationService } from './zip/zip-validation.service.js';
-import { assertCompatibleProject, listSafeZipEntries } from './zip/zip-entries.util.js';
-import { JobsService } from '../jobs/jobs.service.js';
-import { INDEXING_JOB_TYPE } from './indexing.constants.js';
-import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
-import { IndexProjectDto } from './dto/index-project.dto.js';
-import type { IndexAcceptedResponse } from './dto/index-accepted.response.js';
 import {
   toProjectVersionResponse,
   toProjectVersionSummaryResponse,
@@ -20,7 +12,7 @@ import {
 } from './dto/project-version.response.js';
 import type { ProjectVersionResultsResponse } from './dto/project-version-results.response.js';
 import type { TestInventoryResponse } from './dto/test-target.response.js';
-import type { Project, ProjectVersion } from '../generated/prisma/client.js';
+import type { ProjectVersion } from '../generated/prisma/client.js';
 import { ProjectVersionStatus } from '../generated/prisma/enums.js';
 import type { Page } from '../common/dto/page.response.js';
 
@@ -32,63 +24,7 @@ export class ProjectVersionsService {
     private readonly projectsRepository: ProjectsRepository,
     private readonly projectVersionsRepository: ProjectVersionsRepository,
     private readonly testTargetsRepository: TestTargetsRepository,
-    private readonly zipValidationService: ZipValidationService,
-    private readonly jobsService: JobsService,
-    private readonly configService: ConfigService,
-    private readonly objectStorageService: ObjectStorageService,
   ) {}
-
-  async startIndexing(
-    file: Express.Multer.File | undefined,
-    dto: IndexProjectDto,
-    ownerUserId: string,
-  ): Promise<IndexAcceptedResponse> {
-    this.zipValidationService.assertValidUpload(file);
-
-    const entries = listSafeZipEntries(file.buffer);
-    assertCompatibleProject(entries);
-
-    const project = await this.resolveProject(dto, ownerUserId);
-
-    if (await this.projectVersionsRepository.hasActiveVersion(project.id)) {
-      throw new AppException(
-        ErrorCode.PROJECT_INDEXING_IN_PROGRESS,
-        `El proyecto "${project.id}" ya tiene una indexación en curso.`,
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    const version = await this.projectVersionsRepository.createPending({
-      projectId: project.id,
-      originalFileName: file.originalname,
-      sizeBytes: file.size,
-    });
-
-    const snapshotKey = `repositories/${project.id}/versions/${version.id}/original.zip`;
-
-    try {
-      await this.objectStorageService.put(snapshotKey, file.buffer, 'application/zip');
-      await this.projectVersionsRepository.setSnapshot(version.id, snapshotKey);
-
-      await this.jobsService.enqueue(INDEXING_JOB_TYPE, {
-        projectVersionId: version.id,
-        projectId: project.id,
-        snapshotKey,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'No se pudo iniciar la indexación.';
-      await this.projectVersionsRepository.markFailed(version.id, message);
-      throw error;
-    }
-
-    return {
-      projectId: project.id,
-      projectVersionId: version.id,
-      status: 'PENDING',
-      pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', 1500),
-    };
-  }
 
   async getStatus(id: string, ownerUserId: string): Promise<ProjectVersionResponse> {
     return toProjectVersionResponse(await this.findVersionOrThrow(id, ownerUserId));
@@ -195,23 +131,5 @@ export class ProjectVersionsService {
     }
 
     return version;
-  }
-
-  private async resolveProject(dto: IndexProjectDto, ownerUserId: string): Promise<Project> {
-    if (dto.projectId) {
-      const project = await this.projectsRepository.findById(dto.projectId, ownerUserId);
-
-      if (!project) {
-        throw new AppException(
-          ErrorCode.PROJECT_NOT_FOUND,
-          `No existe un proyecto con id "${dto.projectId}".`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      return project;
-    }
-
-    return this.projectsRepository.create(dto.name?.trim() || 'Proyecto sin nombre', ownerUserId);
   }
 }

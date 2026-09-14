@@ -1,19 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Post,
-  Query,
-  UploadedFile,
-  UseInterceptors,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ProjectVersionsService } from './project-versions.service.js';
-import { IndexProjectDto } from './dto/index-project.dto.js';
-import type { IndexAcceptedResponse } from './dto/index-accepted.response.js';
 import type {
   ProjectVersionResponse,
   ProjectVersionSummaryResponse,
@@ -27,17 +13,6 @@ import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 @Controller()
 export class ProjectVersionsController {
   constructor(private readonly projectVersionsService: ProjectVersionsService) {}
-
-  @Post('projects/index')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @UseInterceptors(FileInterceptor('file'))
-  index(
-    @UploadedFile() file: Express.Multer.File | undefined,
-    @Body() dto: IndexProjectDto,
-    @CurrentUserId() userId: string,
-  ): Promise<IndexAcceptedResponse> {
-    return this.projectVersionsService.startIndexing(file, dto, userId);
-  }
 
   @Get('project-versions/:id')
   getStatus(

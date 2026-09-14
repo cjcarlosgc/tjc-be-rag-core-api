@@ -1,6 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { FinalArtifactInput } from '../artifacts/artifact.service.js';
+
+export interface FinalArtifactInput {
+  relativePath: string;
+  content: string;
+  isNewFile: boolean;
+  originalContent: string | null;
+  valid: boolean;
+}
 
 /**
  * Rastrea el contenido evolutivo de los archivos de test tocados durante un

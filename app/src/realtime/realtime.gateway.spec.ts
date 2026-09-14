@@ -9,19 +9,13 @@ function makeSocket(userId = 'user-1') {
   };
 }
 
-function makeGateway(options: { projectVersionOwned?: boolean; testRunOwned?: boolean } = {}) {
-  const { projectVersionOwned = true, testRunOwned = true } = options;
+function makeGateway(options: { projectVersionOwned?: boolean } = {}) {
+  const { projectVersionOwned = true } = options;
   const projectVersionsRepository = {
     findByIdForOwner: vi.fn().mockResolvedValue(projectVersionOwned ? { id: 'version-1' } : null),
   };
-  const testGenerationRunsRepository = {
-    findByIdForOwner: vi.fn().mockResolvedValue(testRunOwned ? { id: 'run-1' } : null),
-  };
-  const gateway = new RealtimeGateway(
-    projectVersionsRepository as never,
-    testGenerationRunsRepository as never,
-  );
-  return { gateway, projectVersionsRepository, testGenerationRunsRepository };
+  const gateway = new RealtimeGateway(projectVersionsRepository as never);
+  return { gateway, projectVersionsRepository };
 }
 
 function attachServer(gateway: RealtimeGateway) {
@@ -61,34 +55,6 @@ describe('RealtimeGateway', () => {
     expect(client.leave).toHaveBeenCalledWith('project-version:version-1');
   });
 
-  it('joins the test-run room when the caller owns it', async () => {
-    const { gateway } = makeGateway();
-    const client = makeSocket();
-
-    await gateway.subscribeTestRun(client as never, { testRunId: 'run-1' });
-
-    expect(client.join).toHaveBeenCalledWith('test-run:run-1');
-  });
-
-  it('does not join the test-run room when the caller does not own it', async () => {
-    const { gateway, testGenerationRunsRepository } = makeGateway({ testRunOwned: false });
-    const client = makeSocket();
-
-    await gateway.subscribeTestRun(client as never, { testRunId: 'run-1' });
-
-    expect(testGenerationRunsRepository.findByIdForOwner).toHaveBeenCalledWith('run-1', 'user-1');
-    expect(client.join).not.toHaveBeenCalled();
-  });
-
-  it('leaves the test-run room named after the given id', () => {
-    const { gateway } = makeGateway();
-    const client = makeSocket();
-
-    gateway.unsubscribeTestRun(client as never, { testRunId: 'run-1' });
-
-    expect(client.leave).toHaveBeenCalledWith('test-run:run-1');
-  });
-
   it('emits project-version:update only to that project version room', () => {
     const { gateway } = makeGateway();
     const { to, emit } = attachServer(gateway);
@@ -100,23 +66,11 @@ describe('RealtimeGateway', () => {
     expect(emit).toHaveBeenCalledWith('project-version:update', payload);
   });
 
-  it('emits test-run:update only to that test run room', () => {
-    const { gateway } = makeGateway();
-    const { to, emit } = attachServer(gateway);
-    const payload = { id: 'run-1', status: 'COMPLETED' } as never;
-
-    gateway.emitTestRunUpdate('run-1', payload);
-
-    expect(to).toHaveBeenCalledWith('test-run:run-1');
-    expect(emit).toHaveBeenCalledWith('test-run:update', payload);
-  });
-
   it('does not throw when emitting before the socket.io server is attached', () => {
     const { gateway } = makeGateway();
 
     expect(() =>
       gateway.emitProjectVersionUpdate('version-1', { id: 'version-1' } as never),
     ).not.toThrow();
-    expect(() => gateway.emitTestRunUpdate('run-1', { id: 'run-1' } as never)).not.toThrow();
   });
 });
