@@ -1,6 +1,6 @@
 # Arquitectura SDD 2.0
 
-**Contratos compartidos:** SYSTEM-2.0 / INTEROP-2.0
+**Contratos compartidos:** SYSTEM-2.1 / INTEROP-2.1
 **Estado:** aprobado con decisiones `PENDING` explícitas
 
 ## Topología
@@ -52,4 +52,4 @@ Core usa adapters de lenguaje y framework de tests. `NODE_TYPESCRIPT` preserva t
 
 ## Compatibilidad
 
-ZIP y generación manual pueden seguir disponibles como rutas legacy/development, pero no dirigen nuevas dependencias. La experiencia mock GitHub de login/importación está superseded. INTEROP-2.0 es la única autoridad para nuevos adapters y fixtures.
+ZIP y generación manual pueden seguir disponibles como rutas legacy/development, pero no dirigen nuevas dependencias. La experiencia mock GitHub de login/importación está superseded. INTEROP-2.1 es la única autoridad para nuevos adapters y fixtures.

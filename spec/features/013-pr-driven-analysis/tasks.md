@@ -2,7 +2,7 @@
 
 ## Baseline T-001
 
-- [x] Consolidar SYSTEM-2.0 e INTEROP-2.0 y sincronizar mirrors.
+- [x] Consolidar SYSTEM-2.1 e INTEROP-2.1 y sincronizar mirrors.
 - [x] Re-baselinar backlog y registrar KEEP/ADAPT/DEFER/DROP.
 - [x] Homologar SDD 2.0, constituciones, state y CHANGELOG en los tres repositorios.
 - [x] Verificar los 15 casos, decisiones pendientes y ausencia de contradicciones legacy.

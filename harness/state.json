@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "sddVersion": "2.0",
+  "sddVersion": "2.1",
   "allowedStatuses": [
     "SELECTED",
     "SPEC_VERIFIED",

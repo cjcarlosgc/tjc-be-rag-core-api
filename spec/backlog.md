@@ -1,6 +1,6 @@
 # Product Backlog global
 
-**Estado:** línea base global vigente SDD 2.0 / SYSTEM-2.0 / INTEROP-2.0
+**Estado:** línea base global vigente SDD 2.1 / SYSTEM-2.1 / INTEROP-2.1
 
 Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD local indica su participación concreta. La numeración expresa trazabilidad y orden lógico, no ejecución estrictamente secuencial.
 

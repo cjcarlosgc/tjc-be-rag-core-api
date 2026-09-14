@@ -1,6 +1,6 @@
 # Contexto operativo del proyecto
 
-**Estado:** APROBADO — SDD 2.0
+**Estado:** APROBADO — SDD 2.1
 **Alcance:** frontera de contexto para especificación, implementación y revisión.
 
 ## Identidad

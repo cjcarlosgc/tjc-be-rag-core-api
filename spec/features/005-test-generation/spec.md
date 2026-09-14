@@ -3,7 +3,7 @@
 **Estado:** RETIRED — ver `CHANGELOG.md`.
 **Historias:** HU08, HU09, HU10, HU11, HU12
 
-> Los cinco modos manuales quedan retirados como producto, no solo como camino legacy: ya no existe `POST /test-runs` ni contrato HTTP para generación manual. En SDD 2.0 la generación nace de un `AnalysisRun`, sus símbolos cambiados/impactados y el contexto recuperado (HU39-40, pendiente de implementación); la publicación requiere revisión humana y freshness check.
+> Los cinco modos manuales quedan retirados como producto, no solo como camino legacy: ya no existe `POST /test-runs` ni contrato HTTP para generación manual. En SDD 2.1 la generación nace de un `AnalysisRun`, sus símbolos cambiados/impactados y el contexto recuperado (HU39-40, pendiente de implementación); la publicación requiere revisión humana y freshness check.
 
 ## Objetivo
 

@@ -1,7 +1,7 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.0
-**Fecha de corte:** 2026-09-13
+**Versión del contrato:** SYSTEM-2.1
+**Fecha de corte:** 2026-09-14
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
@@ -244,4 +244,4 @@ OBSOLETE
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.0` sustituye `SYSTEM-1.6` como arquitectura objetivo. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.0` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.0` sustituye `SYSTEM-1.6` como arquitectura objetivo. `SYSTEM-2.1` retira ZIP upload y generación manual como ruta de producto (ver `CHANGELOG.md`); no rompe compatibilidad de arquitectura con `SYSTEM-2.0`, la corrige antes de su primera implementación real. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.1` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.

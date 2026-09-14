@@ -1,6 +1,6 @@
 # Misión
 
-**Estado:** aprobado — SDD 2.0
+**Estado:** aprobado — SDD 2.1
 
 Diseñar e implementar RAG Core, backend principal de RAG Test Studio, para analizar automáticamente el changeset de Pull Requests vinculados mediante GitHub App, construir contexto semántico-estructural-funcional trazable, generar y validar pruebas unitarias y devolver evidencia objetiva a GitHub y Developer Console.
 

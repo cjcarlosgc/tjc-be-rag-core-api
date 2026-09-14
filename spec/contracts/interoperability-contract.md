@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.0
-**Compatible con:** SYSTEM-2.0
-**Fecha de corte:** 2026-09-13
+**Versión:** INTEROP-2.1
+**Compatible con:** SYSTEM-2.1
+**Fecha de corte:** 2026-09-14
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 ## 1. Compatibilidad y autoridad
 
 - Las rutas manuales de carga ZIP y generación por modos (`METHOD|CLASS|PROJECT`) anteriores a SDD 2.0 quedan retiradas; no existe compatibilidad legacy paralela. El único disparador de análisis es PR-driven (`AnalysisRun`).
-- `INTEROP-2.0` es la versión documental vigente y deliberadamente mayor por el nuevo lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP.
+- `INTEROP-2.1` es la versión documental vigente. Hereda de `INTEROP-2.0` el nuevo lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP; además retira las rutas manuales del punto anterior (§6.3, §6.4) antes de su primera implementación real — ver `CHANGELOG.md`.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
 - Los nombres de ruta y DTO presentes solo en mocks dejan de ser autoridad cuando contradigan este documento.

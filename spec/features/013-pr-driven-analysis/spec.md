@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU30-HU36, HU39-HU42
-**Contrato:** SYSTEM-2.0 / INTEROP-2.0
+**Contrato:** SYSTEM-2.1 / INTEROP-2.1
 
 ## Objetivo
 

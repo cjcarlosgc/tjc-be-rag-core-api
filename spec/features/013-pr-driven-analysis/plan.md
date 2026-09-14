@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-- SYSTEM-2.0 e INTEROP-2.0.
+- SYSTEM-2.1 e INTEROP-2.1.
 - ownership HU29, jobs DB-backed, object storage, snapshots, retrieval, generación, Sandbox client, artifacts y traces existentes.
 
 ## Cortes de implementación
@@ -20,7 +20,7 @@ Cada corte mantiene APIs legacy operativas cuando resulte barato, pero ninguna n
 
 ## Verificación
 
-- Contract tests para INTEROP-2.0 y fixtures compartidos por copia, no por paquete oculto.
+- Contract tests para INTEROP-2.1 y fixtures compartidos por copia, no por paquete oculto.
 - Tests de webhook firmado/alterado/duplicado, instalación revocada y callback correlacionado.
 - Tests de state machine para draft/base change/closed/merged/force-push/new HEAD durante processing o action required.
 - Matriz de ownership 404 sobre bindings, Runs, preguntas, conocimiento y publicaciones.

@@ -3,7 +3,7 @@
 **Estado:** aprobado salvo elementos marcados PENDING/PROPOSED.
 **Historias:** HU02, HU03, HU04, HU05, HU07
 
-> **Retirado por SDD 2.0:** el ingreso ZIP queda retirado como ruta de producto (ver `CHANGELOG.md`); `ProjectVersion` se conserva como modelo, pero su único origen pasa a ser un snapshot inmutable por commit SHA desde un `RepositoryBinding` (HU33/34, pendiente de implementación), ejecutando `BOOTSTRAP` o `INDEX_DELTA` y ampliando el análisis a PHP/Laravel sin invalidar el soporte TypeScript existente. El contenido técnico de esta spec (chunking, snapshot, estados) sigue siendo referencia de implementación; su disparador ya no es la carga manual.
+> **Retirado por SDD 2.1:** el ingreso ZIP queda retirado como ruta de producto (ver `CHANGELOG.md`); `ProjectVersion` se conserva como modelo, pero su único origen pasa a ser un snapshot inmutable por commit SHA desde un `RepositoryBinding` (HU33/34, pendiente de implementación), ejecutando `BOOTSTRAP` o `INDEX_DELTA` y ampliando el análisis a PHP/Laravel sin invalidar el soporte TypeScript existente. El contenido técnico de esta spec (chunking, snapshot, estados) sigue siendo referencia de implementación; su disparador ya no es la carga manual.
 
 ## Objetivo
 

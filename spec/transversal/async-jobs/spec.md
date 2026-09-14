@@ -10,7 +10,7 @@ Garantizar que indexaciones y generaciones sobrevivan al ciclo HTTP y reinicios 
 ## Reglas y comportamiento
 
 - Indexación, generación, experimento y validación sobreviven al request HTTP mediante la cola DB-backed aprobada.
-- Toda aceptación devuelve `202`, identidad estable y `pollAfterMs` según `INTEROP-2.0`.
+- Toda aceptación devuelve `202`, identidad estable y `pollAfterMs` según `INTEROP-2.1`.
 - Los handlers son idempotentes frente a reintentos y los estados terminales permanecen consultables.
 - `POST /test-runs`, `POST /experiments` y el POST de retry reservan `Idempotency-Key` + huella canónica bajo unicidad y crean el recurso/job de forma atómica o recuperable. Un replay equivalente no agenda trabajo adicional.
 - Los jobs que hacen fan-out derivan UUID v5 por unidad lógica para Sandbox y los conservan durante cualquier retry.

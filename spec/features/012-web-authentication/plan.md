@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-- `DEC-WEB-AUTH-001`, Supabase Auth y `INTEROP-2.0` sección 3.
+- `DEC-WEB-AUTH-001`, Supabase Auth y `INTEROP-2.1` sección 3.
 - Todas las features que consultan recursos descendientes de `Project`.
 
 ## Diseño técnico

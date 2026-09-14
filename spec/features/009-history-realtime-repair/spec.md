@@ -3,7 +3,7 @@
 **Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED; HU20/HU22/HU24 RETIRED — ver nota abajo.  
 **Historias:** HU20, HU21, HU22, HU24. HU23 (autorreparación automática) queda descartada — ver regla de alcance definitivo más abajo.
 
-> **Retirado por SDD 2.0:** HU20 (historial de generaciones manuales) y HU24 (retry manual) quedan retirados junto con la generación manual (`CHANGELOG.md`); no hay contrato HTTP vigente. HU22 (realtime de `test-run:update`) queda retirado con ellos. HU21 (realtime de `project-version:update`) permanece vigente.
+> **Retirado por SDD 2.1:** HU20 (historial de generaciones manuales) y HU24 (retry manual) quedan retirados junto con la generación manual (`CHANGELOG.md`); no hay contrato HTTP vigente. HU22 (realtime de `test-run:update`) queda retirado con ellos. HU21 (realtime de `project-version:update`) permanece vigente.
 
 ## Objetivo
 
