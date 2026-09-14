@@ -12,7 +12,7 @@
 
 - [ ] HU30-HU32: dominio AnalysisRun, binding y lifecycle PR/HEAD.
 - [ ] HU31: GitHub App real, webhooks, idempotencia y revocación.
-- [ ] HU33-HU34: CHANGESET, INDEX DELTA, símbolos cambiados/impactados.
+- [x] HU33-HU34: CHANGESET, INDEX DELTA, símbolos cambiados/impactados (reindexado completo del árbol en cada Run vía GitHub API real; sin persistencia incremental optimizada todavía — ver `snapshot-analysis-job.handler.ts`).
 - [ ] HU35-HU36: Functional Knowledge, Action Required y continuation.
 - [ ] HU39-HU40: Checks, review, freshness y companion PR.
 - [ ] HU41-HU42: adapters PHP/Laravel/PHPUnit en Core.

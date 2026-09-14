@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { AnalysisRunsService } from './analysis-runs.service.js';
+import { AnalysisSymbolsRepository } from './persistence/analysis-symbols.repository.js';
 import { ListAnalysisRunsQueryDto } from './dto/list-analysis-runs-query.dto.js';
 import {
   toAnalysisRunDetailResponse,
@@ -12,7 +13,10 @@ import type { Page } from '../common/dto/page.response.js';
 
 @Controller()
 export class AnalysisRunsController {
-  constructor(private readonly analysisRunsService: AnalysisRunsService) {}
+  constructor(
+    private readonly analysisRunsService: AnalysisRunsService,
+    private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
+  ) {}
 
   @Get('projects/:projectId/analysis-runs')
   async list(
@@ -40,6 +44,7 @@ export class AnalysisRunsController {
     @CurrentUserId() userId: string,
   ): Promise<AnalysisRunDetailResponse> {
     const run = await this.analysisRunsService.getById(id, userId);
-    return toAnalysisRunDetailResponse(run);
+    const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(run.id);
+    return toAnalysisRunDetailResponse(run, symbols);
   }
 }

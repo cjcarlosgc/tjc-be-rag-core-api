@@ -1,4 +1,4 @@
-import type { AnalysisRun, AnalysisRunStatus } from '../../generated/prisma/client.js';
+import type { AnalysisRun, AnalysisRunStatus, AnalysisSymbol } from '../../generated/prisma/client.js';
 
 export type SymbolChangeKind = 'DIRECTLY_CHANGED' | 'POTENTIALLY_IMPACTED';
 
@@ -80,7 +80,20 @@ export function toAnalysisRunSummaryResponse(run: AnalysisRun): AnalysisRunSumma
   };
 }
 
-export function toAnalysisRunDetailResponse(run: AnalysisRun): AnalysisRunDetailResponse {
+function toAnalysisSymbolResponse(symbol: AnalysisSymbol): AnalysisSymbolResponse {
+  return {
+    language: symbol.language,
+    kind: symbol.kind,
+    qualifiedName: symbol.qualifiedName,
+    filePath: symbol.filePath,
+    changeKind: symbol.changeKind,
+  };
+}
+
+export function toAnalysisRunDetailResponse(
+  run: AnalysisRun,
+  symbols: AnalysisSymbol[],
+): AnalysisRunDetailResponse {
   return {
     ...toAnalysisRunSummaryResponse(run),
     attemptCount: run.attemptCount,
@@ -88,7 +101,7 @@ export function toAnalysisRunDetailResponse(run: AnalysisRun): AnalysisRunDetail
     changesetBaseSha: run.changesetBaseSha,
     changesetHeadSha: run.changesetHeadSha,
     indexDeltaBaseSha: run.indexDeltaBaseSha,
-    symbols: [],
+    symbols: symbols.map(toAnalysisSymbolResponse),
     functionalBehaviorValidated: run.functionalBehaviorValidated,
     resultSummary: run.resultSummary,
     detailsUrl: `/projects/${run.projectId}/runs/${run.id}`,

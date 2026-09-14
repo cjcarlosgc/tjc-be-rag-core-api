@@ -7,6 +7,8 @@ import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js'
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
+import { JobsService } from '../jobs/jobs.service.js';
+import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisRun, RepositoryBinding } from '../generated/prisma/client.js';
@@ -43,6 +45,7 @@ describe('GithubWebhooksService', () => {
     startRunFromWebhook: ReturnType<typeof vi.fn>;
     closeRun: ReturnType<typeof vi.fn>;
   };
+  let jobsService: { enqueue: ReturnType<typeof vi.fn> };
 
   const binding: RepositoryBinding = {
     id: 'binding-1',
@@ -78,6 +81,7 @@ describe('GithubWebhooksService', () => {
       changesetBaseSha: 'base-sha',
       changesetHeadSha: 'head-sha',
       indexDeltaBaseSha: null,
+      projectVersionId: null,
       functionalBehaviorValidated: false,
       actionRequiredCount: 0,
       generatedTestsCount: 0,
@@ -116,9 +120,10 @@ describe('GithubWebhooksService', () => {
     repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
     analysisRunsRepository = { findCurrentByPullRequest: vi.fn().mockResolvedValue(null) };
     analysisRunsService = {
-      startRunFromWebhook: vi.fn().mockResolvedValue(buildRun()),
+      startRunFromWebhook: vi.fn().mockResolvedValue({ run: buildRun(), isNew: true }),
       closeRun: vi.fn().mockResolvedValue(buildRun({ status: 'OBSOLETE', current: false })),
     };
+    jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -128,6 +133,7 @@ describe('GithubWebhooksService', () => {
         { provide: RepositoryBindingsRepository, useValue: repositoryBindingsRepository },
         { provide: AnalysisRunsRepository, useValue: analysisRunsRepository },
         { provide: AnalysisRunsService, useValue: analysisRunsService },
+        { provide: JobsService, useValue: jobsService },
       ],
     }).compile();
 
@@ -176,6 +182,7 @@ describe('GithubWebhooksService', () => {
     });
     expect(analysisRunsService.startRunFromWebhook).not.toHaveBeenCalled();
     expect(webhookDeliveriesRepository.create).not.toHaveBeenCalled();
+    expect(jobsService.enqueue).not.toHaveBeenCalled();
   });
 
   it('accepts a non pull_request event without processing or recording it', async () => {
@@ -191,11 +198,12 @@ describe('GithubWebhooksService', () => {
     });
     expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
     expect(webhookDeliveriesRepository.create).not.toHaveBeenCalled();
+    expect(jobsService.enqueue).not.toHaveBeenCalled();
   });
 
-  it('starts a run for an "opened" ready PR targeting the integration branch', async () => {
+  it('starts a run for an "opened" ready PR targeting the integration branch and enqueues the snapshot job', async () => {
     const run = buildRun();
-    analysisRunsService.startRunFromWebhook.mockResolvedValue(run);
+    analysisRunsService.startRunFromWebhook.mockResolvedValue({ run, isNew: true });
 
     const result = await service.handle(buildRequest(pullRequestPayload()));
 
@@ -212,10 +220,22 @@ describe('GithubWebhooksService', () => {
       draft: false,
       actorLogin: 'octocat',
     });
+    expect(jobsService.enqueue).toHaveBeenCalledWith(SNAPSHOT_ANALYSIS_JOB_TYPE, {
+      analysisRunId: run.id,
+    });
     expect(webhookDeliveriesRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ deliveryId: 'delivery-1', analysisRunId: run.id }),
     );
     expect(result.analysisRunId).toBe(run.id);
+  });
+
+  it('does not enqueue the snapshot job when the run already existed (idempotent redelivery)', async () => {
+    const run = buildRun();
+    analysisRunsService.startRunFromWebhook.mockResolvedValue({ run, isNew: false });
+
+    await service.handle(buildRequest(pullRequestPayload()));
+
+    expect(jobsService.enqueue).not.toHaveBeenCalled();
   });
 
   it('does not start a run for a draft PR', async () => {
@@ -274,6 +294,7 @@ describe('GithubWebhooksService', () => {
 
     expect(analysisRunsService.closeRun).toHaveBeenCalledWith(current, undefined);
     expect(result.analysisRunId).toBe(current.id);
+    expect(jobsService.enqueue).not.toHaveBeenCalled();
   });
 
   it('closes the run with MERGED when a closed PR was merged', async () => {
@@ -321,7 +342,7 @@ describe('GithubWebhooksService', () => {
 
   it('re-enters the integration branch on edited when the PR is ready', async () => {
     const run = buildRun();
-    analysisRunsService.startRunFromWebhook.mockResolvedValue(run);
+    analysisRunsService.startRunFromWebhook.mockResolvedValue({ run, isNew: true });
 
     const result = await service.handle(
       buildRequest(pullRequestPayload({ action: 'edited' })),

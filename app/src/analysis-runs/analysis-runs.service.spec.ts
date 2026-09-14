@@ -193,7 +193,7 @@ describe('AnalysisRunsService', () => {
   });
 
   describe('startRunFromWebhook', () => {
-    it('creates a run without checking project ownership', async () => {
+    it('creates a run without checking project ownership and reports isNew:true', async () => {
       repository.findCurrentByPullRequest.mockResolvedValue(null);
       const created = buildRun({ headSha: 'head-sha-2' });
       repository.create.mockResolvedValue(created);
@@ -202,10 +202,10 @@ describe('AnalysisRunsService', () => {
 
       expect(projectsRepository.findById).not.toHaveBeenCalled();
       expect(repository.create).toHaveBeenCalledWith(createInput);
-      expect(result).toEqual(created);
+      expect(result).toEqual({ run: created, isNew: true });
     });
 
-    it('obsoletes the previous current run when the HEAD changed', async () => {
+    it('obsoletes the previous current run when the HEAD changed and reports isNew:true', async () => {
       const existing = buildRun({ headSha: 'head-sha-1', status: 'PROCESSING' });
       repository.findCurrentByPullRequest.mockResolvedValue(existing);
       repository.update.mockResolvedValue({ ...existing, status: 'OBSOLETE', current: false });
@@ -218,7 +218,79 @@ describe('AnalysisRunsService', () => {
         status: 'OBSOLETE',
         current: false,
       });
-      expect(result).toEqual(created);
+      expect(result).toEqual({ run: created, isNew: true });
+    });
+
+    it('reports isNew:false when the HEAD did not change (redelivery)', async () => {
+      const existing = buildRun({ headSha: 'head-sha-2', status: 'PROCESSING' });
+      repository.findCurrentByPullRequest.mockResolvedValue(existing);
+
+      const result = await service.startRunFromWebhook(createInput);
+
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(result).toEqual({ run: existing, isNew: false });
+    });
+  });
+
+  describe('startProcessing', () => {
+    it('moves QUEUED to PROCESSING', async () => {
+      const run = buildRun({ status: 'QUEUED' });
+      repository.update.mockResolvedValue({ ...run, status: 'PROCESSING' });
+
+      const result = await service.startProcessing(run);
+
+      expect(repository.update).toHaveBeenCalledWith(run.id, { status: 'PROCESSING' });
+      expect(result.status).toBe('PROCESSING');
+    });
+  });
+
+  describe('recordSnapshot', () => {
+    it('updates indexMode/indexDeltaBaseSha/projectVersionId without a status transition', async () => {
+      const run = buildRun({ status: 'PROCESSING' });
+      const patch = {
+        indexMode: 'INCREMENTAL' as const,
+        indexDeltaBaseSha: 'prev-sha',
+        projectVersionId: 'version-1',
+      };
+      repository.update.mockResolvedValue({ ...run, ...patch });
+
+      const result = await service.recordSnapshot(run, patch);
+
+      expect(repository.update).toHaveBeenCalledWith(run.id, patch);
+      expect(result.indexMode).toBe('INCREMENTAL');
+    });
+  });
+
+  describe('completeRunFromSystem', () => {
+    it('moves PROCESSING to a terminal status without an owner check', async () => {
+      const run = buildRun({ status: 'PROCESSING' });
+      repository.update.mockResolvedValue({ ...run, status: 'NO_TEST_RELEVANT_CHANGES' });
+
+      const result = await service.completeRunFromSystem(
+        run,
+        'NO_TEST_RELEVANT_CHANGES',
+        { resultSummary: 'solo docs' },
+      );
+
+      expect(repository.update).toHaveBeenCalledWith(
+        run.id,
+        expect.objectContaining({
+          status: 'NO_TEST_RELEVANT_CHANGES',
+          resultSummary: 'solo docs',
+          completedAt: expect.any(Date),
+        }),
+      );
+      expect(result.status).toBe('NO_TEST_RELEVANT_CHANGES');
+    });
+
+    it('throws ANALYSIS_RUN_INVALID_TRANSITION for an invalid transition', async () => {
+      const run = buildRun({ status: 'OBSOLETE' });
+
+      await expect(
+        service.completeRunFromSystem(run, 'SUCCESS', {}),
+      ).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.ANALYSIS_RUN_INVALID_TRANSITION,
+      });
     });
   });
 

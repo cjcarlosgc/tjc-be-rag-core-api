@@ -122,6 +122,26 @@ enum AnalysisIndexMode {
   INCREMENTAL
 }
 
+enum AnalysisSymbolLanguage {
+  TYPESCRIPT
+  PHP
+}
+
+enum AnalysisSymbolKind {
+  CLASS
+  METHOD
+  FUNCTION
+  INTERFACE
+  TYPE
+  TRAIT
+  ENUM
+}
+
+enum SymbolChangeKind {
+  DIRECTLY_CHANGED
+  POTENTIALLY_IMPACTED
+}
+
 model Project {
   id                 String              @id @default(uuid())
   name               String
@@ -187,6 +207,9 @@ model AnalysisRun {
   changesetBaseSha            String
   changesetHeadSha            String
   indexDeltaBaseSha           String?
+  projectVersionId            String?
+  projectVersion              ProjectVersion?   @relation(fields: [projectVersionId], references: [id])
+  symbols                     AnalysisSymbol[]
   functionalBehaviorValidated Boolean           @default(false)
   actionRequiredCount         Int               @default(0)
   generatedTestsCount         Int               @default(0)
@@ -198,6 +221,25 @@ model AnalysisRun {
   @@index([projectId])
   @@index([repositoryId, prNumber, current])
   @@map("analysis_runs")
+}
+
+/// HU34: símbolos DIRECTLY_CHANGED (dentro del CHANGESET) y
+/// POTENTIALLY_IMPACTED (fuera del CHANGESET, importan un archivo cambiado)
+/// de un AnalysisRun. `qualifiedName` es `symbolName` o
+/// `parentSymbolName.symbolName` cuando aplica (p. ej. métodos de clase).
+model AnalysisSymbol {
+  id            String                 @id @default(uuid())
+  analysisRunId String
+  analysisRun   AnalysisRun            @relation(fields: [analysisRunId], references: [id])
+  language      AnalysisSymbolLanguage
+  kind          AnalysisSymbolKind
+  qualifiedName String
+  filePath      String
+  changeKind    SymbolChangeKind
+  createdAt     DateTime               @default(now())
+
+  @@index([analysisRunId])
+  @@map("analysis_symbols")
 }
 
 /// HU31: identidad durable de una entrega de webhook GitHub ya verificada
@@ -228,6 +270,7 @@ model ProjectVersion {
   originalFileName  String?
   sizeBytes         Int?
   snapshotKey       String?
+  commitSha         String?
   filesProcessed    Int?
   chunksCount       Int?
   detectedFramework TestFramework?
@@ -238,6 +281,7 @@ model ProjectVersion {
   completedAt       DateTime?
   chunks            CodeChunk[]
   testTargets       TestTarget[]
+  analysisRuns      AnalysisRun[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 

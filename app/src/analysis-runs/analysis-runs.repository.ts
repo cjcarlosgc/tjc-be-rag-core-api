@@ -54,6 +54,14 @@ export class AnalysisRunsRepository {
     return this.prisma.analysisRun.findFirst({ where: { id, project: { ownerUserId } } });
   }
 
+  /**
+   * Sin scoping por propietario: uso exclusivo de job handlers en segundo
+   * plano (mismo patrón que `ProjectVersionsRepository.findById`).
+   */
+  findById(id: string): Promise<AnalysisRun | null> {
+    return this.prisma.analysisRun.findUnique({ where: { id } });
+  }
+
   update(id: string, data: Prisma.AnalysisRunUpdateInput): Promise<AnalysisRun> {
     return this.prisma.analysisRun.update({ where: { id }, data });
   }

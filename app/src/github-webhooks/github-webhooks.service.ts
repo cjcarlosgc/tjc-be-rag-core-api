@@ -11,6 +11,8 @@ import { RepositoryBindingsRepository } from '../repository-bindings/repository-
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
+import { JobsService } from '../jobs/jobs.service.js';
+import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
 
 export interface IncomingWebhookRequest {
   rawBody: Buffer | undefined;
@@ -34,6 +36,7 @@ export class GithubWebhooksService {
     private readonly repositoryBindingsRepository: RepositoryBindingsRepository,
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly analysisRunsService: AnalysisRunsService,
+    private readonly jobsService: JobsService,
   ) {}
 
   async handle(request: IncomingWebhookRequest): Promise<GitHubWebhookAcceptedResponse> {
@@ -157,7 +160,10 @@ export class GithubWebhooksService {
     }
   }
 
-  private startRun(payload: GithubPullRequestWebhookPayload, binding: RepositoryBinding) {
+  private async startRun(
+    payload: GithubPullRequestWebhookPayload,
+    binding: RepositoryBinding,
+  ): Promise<{ id: string }> {
     const input: CreateAnalysisRunInput = {
       projectId: binding.projectId,
       repositoryId: binding.repositoryId,
@@ -172,7 +178,13 @@ export class GithubWebhooksService {
       actorLogin: payload.pull_request.user?.login ?? null,
     };
 
-    return this.analysisRunsService.startRunFromWebhook(input);
+    const { run, isNew } = await this.analysisRunsService.startRunFromWebhook(input);
+
+    if (isNew) {
+      await this.jobsService.enqueue(SNAPSHOT_ANALYSIS_JOB_TYPE, { analysisRunId: run.id });
+    }
+
+    return run;
   }
 
   private async closeCurrentIfAny(

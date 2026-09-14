@@ -6,8 +6,24 @@ import {
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
-import type { AnalysisRun, AnalysisRunStatus, PullRequestState } from '../generated/prisma/client.js';
+import type {
+  AnalysisIndexMode,
+  AnalysisRun,
+  AnalysisRunStatus,
+  PullRequestState,
+} from '../generated/prisma/client.js';
 import type { Page } from '../common/dto/page.response.js';
+
+export interface StartRunResult {
+  run: AnalysisRun;
+  isNew: boolean;
+}
+
+export interface SnapshotPatch {
+  indexMode: AnalysisIndexMode;
+  indexDeltaBaseSha: string | null;
+  projectVersionId: string;
+}
 
 const NON_TERMINAL_STATUSES: AnalysisRunStatus[] = ['QUEUED', 'PROCESSING', 'ACTION_REQUIRED'];
 
@@ -73,15 +89,18 @@ export class AnalysisRunsService {
    */
   async startRun(input: CreateAnalysisRunInput, ownerUserId: string): Promise<AnalysisRun> {
     await this.findProjectOrThrow(input.projectId, ownerUserId);
-    return this.startRunInternal(input);
+    return (await this.startRunInternal(input)).run;
   }
 
   /**
    * Igual que `startRun` pero sin scope de owner: la usa el ingress de
    * GitHub (HU31), que ya autorizó la operación vía firma de webhook +
-   * binding ENABLED, no vía un usuario autenticado.
+   * binding ENABLED, no vía un usuario autenticado. Devuelve `isNew` para
+   * que el caller (HU33/34) solo encole el job de snapshot intelligence
+   * cuando de verdad se creó un Run -no en el caso idempotente de HEAD sin
+   * cambios, que devuelve el mismo Run existente-.
    */
-  async startRunFromWebhook(input: CreateAnalysisRunInput): Promise<AnalysisRun> {
+  async startRunFromWebhook(input: CreateAnalysisRunInput): Promise<StartRunResult> {
     return this.startRunInternal(input);
   }
 
@@ -102,7 +121,36 @@ export class AnalysisRunsService {
     return this.analysisRunsRepository.update(run.id, patch);
   }
 
-  private async startRunInternal(input: CreateAnalysisRunInput): Promise<AnalysisRun> {
+  /** HU33/34: arranca el procesamiento de snapshot intelligence. */
+  async startProcessing(run: AnalysisRun): Promise<AnalysisRun> {
+    return this.transitionTo(run, 'PROCESSING', {});
+  }
+
+  /**
+   * HU33: registra el resultado del cálculo de CHANGESET/INDEX DELTA y el
+   * `ProjectVersion` que produjo. No es una transición de estado -el Run
+   * sigue en PROCESSING mientras baseline/retrieval/generación (cortes
+   * futuros) no se hayan ejecutado-.
+   */
+  async recordSnapshot(run: AnalysisRun, patch: SnapshotPatch): Promise<AnalysisRun> {
+    return this.analysisRunsRepository.update(run.id, patch);
+  }
+
+  /**
+   * Gemelo sin scope de owner de `completeRun`, para el job handler de
+   * snapshot intelligence (HU33/34): cierra el Run como
+   * `NO_TEST_RELEVANT_CHANGES` cuando el CHANGESET no toca código fuente, o
+   * como `INFRASTRUCTURE_FAILURE` si falla la llamada a la API de GitHub.
+   */
+  async completeRunFromSystem(
+    run: AnalysisRun,
+    status: AnalysisRunCompletionStatus,
+    patch: CompleteAnalysisRunPatch,
+  ): Promise<AnalysisRun> {
+    return this.transitionTo(run, status, { ...patch, completedAt: new Date() });
+  }
+
+  private async startRunInternal(input: CreateAnalysisRunInput): Promise<StartRunResult> {
     const current = await this.analysisRunsRepository.findCurrentByPullRequest(
       input.projectId,
       input.repositoryId,
@@ -110,14 +158,15 @@ export class AnalysisRunsService {
     );
 
     if (current && current.headSha === input.headSha) {
-      return current;
+      return { run: current, isNew: false };
     }
 
     if (current) {
       await this.transitionTo(current, 'OBSOLETE', { current: false });
     }
 
-    return this.analysisRunsRepository.create(input);
+    const run = await this.analysisRunsRepository.create(input);
+    return { run, isNew: true };
   }
 
   async requestContinuation(runId: string, ownerUserId: string): Promise<AnalysisRun> {

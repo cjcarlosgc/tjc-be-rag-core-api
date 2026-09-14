@@ -5,8 +5,7 @@ import { ProjectVersionStatus, type TestFramework } from '../generated/prisma/en
 
 export interface CreatePendingVersionInput {
   projectId: string;
-  originalFileName: string;
-  sizeBytes: number;
+  commitSha: string;
 }
 
 @Injectable()
@@ -17,8 +16,7 @@ export class ProjectVersionsRepository {
     return this.prisma.projectVersion.create({
       data: {
         projectId: input.projectId,
-        originalFileName: input.originalFileName,
-        sizeBytes: input.sizeBytes,
+        commitSha: input.commitSha,
         status: ProjectVersionStatus.PENDING,
       },
     });
@@ -67,8 +65,16 @@ export class ProjectVersionsRepository {
     return active !== null;
   }
 
-  async setSnapshot(id: string, snapshotKey: string): Promise<void> {
-    await this.prisma.projectVersion.update({ where: { id }, data: { snapshotKey } });
+  /**
+   * HU33: resuelve bootstrap (null, no hay snapshot previo) vs incremental
+   * (existe) para un Project. Un Project tiene a lo sumo un RepositoryBinding
+   * (HU30), así que el projectId ya identifica el repositorio sin join extra.
+   */
+  findLatestCompletedByProject(projectId: string): Promise<ProjectVersion | null> {
+    return this.prisma.projectVersion.findFirst({
+      where: { projectId, status: ProjectVersionStatus.COMPLETED },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async setStatus(id: string, status: ProjectVersionStatus): Promise<void> {
