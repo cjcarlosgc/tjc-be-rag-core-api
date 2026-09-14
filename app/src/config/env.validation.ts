@@ -138,6 +138,14 @@ class EnvironmentVariables {
   @IsString()
   GITHUB_APP_WEBHOOK_SECRET?: string;
 
+  @IsOptional()
+  @IsString()
+  GITHUB_APP_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  GITHUB_APP_PRIVATE_KEY_BASE64?: string;
+
   @IsBoolean()
   AUTH_BYPASS_ENABLED: boolean = false;
 
@@ -169,6 +177,15 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   if (Boolean(validated.SANDBOX_URL) !== Boolean(validated.SANDBOX_SERVICE_TOKEN)) {
     throw new Error(
       'Configuración de entorno inválida: SANDBOX_URL y SANDBOX_SERVICE_TOKEN deben configurarse juntos (DEC-AUTH-001).',
+    );
+  }
+
+  // GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64 autentican a Core como la
+  // GitHub App real (JWT + installation access tokens, HU33-34); deben
+  // configurarse juntos o no configurarse, igual que Sandbox.
+  if (Boolean(validated.GITHUB_APP_ID) !== Boolean(validated.GITHUB_APP_PRIVATE_KEY_BASE64)) {
+    throw new Error(
+      'Configuración de entorno inválida: GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64 deben configurarse juntos.',
     );
   }
 
