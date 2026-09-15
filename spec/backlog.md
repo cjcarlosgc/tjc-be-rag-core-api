@@ -109,14 +109,18 @@ completo por historia en `harness/reports/console-backlog-formalization.md`
 | HU54 | EP08 | H | P1 | Extender Context Explorer con contexto funcional y de tests existentes | Como usuario autorizado, quiero que el árbol de contexto de un Run muestre también el conocimiento funcional y la evidencia de tests existentes que alimentaron el Context Builder, no solo candidatos RAG, para auditar el contexto completo detrás de una generación. |
 | HU55 | EP10 | H | P1 | Listar Analysis Runs cross-proyecto para el Workspace Overview | Como usuario autorizado, quiero un listado de Analysis Runs que abarque todos mis proyectos, para ver de un vistazo qué necesita mi atención sin entrar proyecto por proyecto. |
 
-Pendiente explícito de Core (no resuelto en este commit, solo registrado):
-HU48 requiere definir en INTEROP la forma `AnalysisRun`↔`ExperimentRun`;
-HU51 requiere exponer una señal de conflicto de reglas funcionales
-`ACTIVE`; HU53 requiere historial de transiciones de estado más allá de
-los 3 timestamps de `AnalysisRunDetailResponse`; HU55 requiere un listado
-de `AnalysisRun` sin `projectId` obligatorio en el path (hoy
-`GET /projects/{projectId}/analysis-runs` lo exige). Ver mensaje de Console
-del 2026-09-14 y su reporte para el detalle completo.
+2026-09-15: los 4 contratos que Core debía definir para desbloquear a
+Console quedaron **definidos en INTEROP-2.1** (`spec/contracts/interoperability-contract.md`
+§6.5, §6.10, §6.11) y `spec/contracts/system-contract.md`, cada bloque
+marcado explícitamente "Definido, pendiente de implementación": HU48
+(`CreateExperimentRequest` reapunta a `analysisRunId`+símbolo en vez de
+`TestTarget`), HU51 (`409 FUNCTIONAL_KNOWLEDGE_CONFLICT` +
+`conflictResolution` en `SubmitFunctionalAnswerRequest`), HU53
+(`AnalysisRunDetailResponse.history`) y HU55
+(`GET /analysis-runs` sin `projectId`, scope = todos los Projects del
+usuario autenticado). Ninguno de los 4 está implementado todavía — solo
+el contrato HTTP. Ver mensaje de Console del 2026-09-14 y su reporte para
+el detalle original.
 
 - **P0:** necesario para materializar la nueva arquitectura de tesis.
 - **P1:** necesario para la operación end-to-end de SDD 2.0.

@@ -2,7 +2,7 @@
 
 **Versión:** INTEROP-2.1
 **Compatible con:** SYSTEM-2.1
-**Fecha de corte:** 2026-09-14
+**Fecha de corte:** 2026-09-15
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -12,6 +12,7 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 
 - Las rutas manuales de carga ZIP y generación por modos (`METHOD|CLASS|PROJECT`) anteriores a SDD 2.0 quedan retiradas; no existe compatibilidad legacy paralela. El único disparador de análisis es PR-driven (`AnalysisRun`).
 - `INTEROP-2.1` es la versión documental vigente. Hereda de `INTEROP-2.0` el nuevo lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP; además retira las rutas manuales del punto anterior (§6.3, §6.4) antes de su primera implementación real — ver `CHANGELOG.md`.
+- 2026-09-15: se define contrato (sin implementar) para 4 capacidades formalizadas como historia en `spec/backlog.md` (HU48-HU55, registradas originalmente por Console) que estaban bloqueadas por falta de contrato: `CreateExperimentRequest` reapunta a `AnalysisRun`/símbolo (§6.5, HU48), historial de transiciones de `AnalysisRun` (§6.10, HU53), listado de Analysis Runs cross-proyecto (§6.10, HU55) y detección de conflicto de Functional Knowledge (§6.11, HU51). Cada bloque queda marcado **Definido, pendiente de implementación**.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
 - Los nombres de ruta y DTO presentes solo en mocks dejan de ser autoridad cuando contradigan este documento.
@@ -209,8 +210,9 @@ Los 4 endpoints de artefactos (`GET /test-runs/{runId}/artifacts`, `.../artifact
 - `POST /experiments` → `202 ExperimentAcceptedResponse`.
 - `GET /experiments/{experimentId}` → `200 ExperimentStatusResponse`.
 - `GET /experiments/{experimentId}/results` → `200 ExperimentResultsResponse` al completar.
+- `GET /analysis-runs/{analysisRunId}/experiments?cursor&limit` → `200 Page<ExperimentStatusResponse>` (HU48, "Run comparison": punto de entrada desde el Run Detail para listar/lanzar comparaciones sobre ese Run).
 
-El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva. `CreateExperimentRequest.targetId` referenciaba un `TestTarget` producido por la indexación ZIP ahora retirada (§6.2); mientras no se reapunte la unidad experimental a un `AnalysisRun` (P1/P4, corte futuro), este endpoint no tiene una ruta vigente para crear targets nuevos. El DTO se conserva sin cambios para no anticipar un diseño no aprobado.
+El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva. `CreateExperimentRequest` reapunta la unidad experimental a un `AnalysisRun` (HU48): ya no referencia un `TestTarget` (id interno, propio de la indexación ZIP retirada — §6.2) sino un símbolo del changeset, identificado igual que en `AnalysisSymbolResponse` (§6.10). Core resuelve internamente el `TestTarget` correspondiente sobre el `ProjectVersion` del Run (`AnalysisRun.projectVersionId`); ese mapeo es un detalle de implementación, no de contrato. El símbolo debe existir entre los `DIRECTLY_CHANGED` de ese Run y ser `METHOD` o `FUNCTION`; si no existe responde `404 ANALYSIS_SYMBOL_NOT_FOUND`, si existe pero no es `METHOD`/`FUNCTION` responde `422 UNSUPPORTED_SYMBOL_KIND`. **Definido, pendiente de implementación** — el DTO anterior (`projectId`/`targetId`) queda retirado con este cambio; no hay consumidor real hoy.
 
 ```ts
 type FailureType =
@@ -218,12 +220,14 @@ type FailureType =
   | 'DEPENDENCY' | 'CONFIGURATION' | 'INFRASTRUCTURE' | 'UNKNOWN'
 
 interface CreateExperimentRequest {
-  projectId: Id
-  targetId: Id // METHOD o FUNCTION
+  analysisRunId: Id
+  symbolFilePath: RelativePath
+  symbolQualifiedName: string
   repetitions?: number // default y único valor V1 aprobado: 3
 }
 
 interface ExperimentAcceptedResponse extends AsyncAccepted {
+  analysisRunId: Id
   experimentId: Id
   projectVersionId: Id
 }
@@ -233,9 +237,10 @@ type ExperimentStrategy = 'RAG' | 'GENERALIST_AGENT'
 
 interface ExperimentStatusResponse {
   id: Id
+  analysisRunId: Id
   projectId: Id
   projectVersionId: Id
-  targetId: Id
+  symbol: AnalysisSymbolResponse
   status: ExperimentStatus
   completedRepetitions: number
   totalRepetitions: number // 6: 3 por estrategia
@@ -282,8 +287,9 @@ interface ExperimentRepetitionResponse {
 
 interface ExperimentResultsResponse {
   experimentId: Id
+  analysisRunId: Id
   projectVersionId: Id
-  targetId: Id
+  symbol: AnalysisSymbolResponse
   repetitionsPerStrategy: 3
   strategies: StrategyMetricsResponse[]
   repetitions: ExperimentRepetitionResponse[]
@@ -509,6 +515,7 @@ La identidad durable combina delivery id, repository id, PR number, head SHA, ev
 ### 6.10 Analysis Runs
 
 - `GET /projects/{projectId}/analysis-runs?status&cursor&limit` -> `200 Page<AnalysisRunSummaryResponse>`.
+- `GET /analysis-runs?status&cursor&limit` -> `200 Page<AnalysisRunSummaryResponse>` (HU55, sin `projectId`: Runs de todos los Projects del usuario autenticado, mismo shape, mismo ownership por token — no es una vista global sin dueño). **Definido, pendiente de implementación.**
 - `GET /analysis-runs/{analysisRunId}` -> `200 AnalysisRunDetailResponse`.
 
 ```ts
@@ -562,6 +569,23 @@ interface AnalysisSymbolResponse {
   changeKind: SymbolChangeKind
 }
 
+type AnalysisRunTransitionReason =
+  | 'RUN_CREATED'
+  | 'SNAPSHOT_PROCESSING_STARTED'
+  | 'FUNCTIONAL_CONTEXT_REQUIRED'
+  | 'FUNCTIONAL_ANSWER_CONTINUATION'
+  | 'GENERATION_COMPLETED'
+  | 'GITHUB_HEAD_SUPERSEDED'
+  | 'PULL_REQUEST_CLOSED'
+  | 'MANUAL_OBSOLETE'
+
+interface AnalysisRunTransitionResponse {
+  fromStatus: AnalysisRunStatus | null // null solo en la creación inicial
+  toStatus: AnalysisRunStatus
+  reason: AnalysisRunTransitionReason
+  occurredAt: IsoDateTime
+}
+
 interface AnalysisRunDetailResponse extends AnalysisRunSummaryResponse {
   attemptCount: number
   indexMode: 'BOOTSTRAP' | 'INCREMENTAL'
@@ -569,6 +593,7 @@ interface AnalysisRunDetailResponse extends AnalysisRunSummaryResponse {
   changesetHeadSha: string
   indexDeltaBaseSha: string | null
   symbols: AnalysisSymbolResponse[]
+  history: AnalysisRunTransitionResponse[]
   functionalBehaviorValidated: boolean
   resultSummary: string | null
   detailsUrl: string
@@ -576,6 +601,8 @@ interface AnalysisRunDetailResponse extends AnalysisRunSummaryResponse {
 ```
 
 Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respuesta humana incrementa attempts sobre el mismo Run si el SHA no cambia. Un HEAD nuevo crea otro Run y marca el anterior `OBSOLETE` aunque estuviera `PROCESSING` o `ACTION_REQUIRED`.
+
+`history` (HU53) es append-only y ordenado cronológicamente ascendente, incluida la creación inicial (`fromStatus: null`, `toStatus: 'QUEUED'`, `reason: 'RUN_CREATED'`); complementa los timestamps de `AnalysisRunSummaryResponse`, no los reemplaza. **Definido, pendiente de implementación.**
 
 ### 6.11 Action Required y Functional Knowledge
 
@@ -620,6 +647,10 @@ interface FunctionalQuestionSetResponse {
 interface SubmitFunctionalAnswerRequest {
   choice: FunctionalAnswerChoice
   answer: string | null
+  conflictResolution?: {
+    conflictId: Id
+    action: 'SUPERSEDE' | 'KEEP_EXISTING'
+  }
 }
 
 interface FunctionalAnswerAcceptedResponse extends AsyncAccepted {
@@ -642,7 +673,17 @@ interface FunctionalKnowledgeResponse {
   supersedesId: Id | null
   createdAt: IsoDateTime
 }
+
+interface FunctionalKnowledgeConflictResponse {
+  conflictId: Id
+  analysisRunId: Id
+  questionId: Id
+  conflictingKnowledge: FunctionalKnowledgeResponse
+  proposedNormalizedRule: string
+}
 ```
+
+**HU51, definido, pendiente de implementación.** Antes de persistir la regla que produciría una respuesta, Core evalúa si contradice una `FunctionalKnowledge` `ACTIVE` en scope compatible (mismo Project, scope igual o contenedor). Si detecta contradicción y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` es de un solo uso y expira si el HEAD cambia, igual que una pregunta `OBSOLETE`.
 
 `UNKNOWN` puede cerrar una pregunta pero devuelve `knowledgeId=null` y nunca crea conocimiento autoritativo. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
 
