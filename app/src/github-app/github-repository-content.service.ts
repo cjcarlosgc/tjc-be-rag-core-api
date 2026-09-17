@@ -27,6 +27,16 @@ interface GithubApiContentsResponse {
   encoding: string;
 }
 
+interface GithubApiBranchResponse {
+  name: string;
+  protected: boolean;
+}
+
+export interface RepositoryBranch {
+  name: string;
+  protected: boolean;
+}
+
 /**
  * Llamadas de solo lectura a la API REST de GitHub necesarias para HU33/34.
  * `repoFullName` es `owner/repo` (`RepositoryBinding.repositoryName`).
@@ -98,6 +108,30 @@ export class GithubRepositoryContentService {
     return Buffer.from(data.content, data.encoding as BufferEncoding).toString('utf8');
   }
 
+  /** Ramas del repositorio (HU30, `integrationBranch`); pagina en bloques de 100. */
+  async listBranches(repoFullName: string, token: string): Promise<RepositoryBranch[]> {
+    const branches: RepositoryBranch[] = [];
+    let page = 1;
+
+    for (;;) {
+      const response = await this.request(
+        `https://api.github.com/repos/${repoFullName}/branches?per_page=100&page=${page}`,
+        token,
+      );
+      const data = (await response.json()) as GithubApiBranchResponse[];
+
+      branches.push(...data.map((b) => ({ name: b.name, protected: b.protected })));
+
+      if (data.length < 100) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return branches;
+  }
+
   private async request(url: string, token: string): Promise<Response> {
     const response = await fetch(url, {
       headers: {
@@ -109,7 +143,10 @@ export class GithubRepositoryContentService {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      throw new GithubAppUnavailableError(`GitHub API ${response.status} en ${url}: ${body}`);
+      throw new GithubAppUnavailableError(
+        `GitHub API ${response.status} en ${url}: ${body}`,
+        response.status,
+      );
     }
 
     return response;

@@ -171,7 +171,7 @@ model RepositoryBinding {
   installationId    String
   repositoryId      String                  @unique
   repositoryName    String
-  integrationBranch String                  @default("develop")
+  integrationBranch String
   status            RepositoryBindingStatus @default(ENABLED)
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt

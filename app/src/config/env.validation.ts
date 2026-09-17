@@ -146,6 +146,14 @@ class EnvironmentVariables {
   @IsString()
   GITHUB_APP_PRIVATE_KEY_BASE64?: string;
 
+  @IsOptional()
+  @IsString()
+  GITHUB_APP_SLUG?: string;
+
+  @IsOptional()
+  @IsString()
+  GITHUB_APP_NAME?: string;
+
   @IsBoolean()
   AUTH_BYPASS_ENABLED: boolean = false;
 

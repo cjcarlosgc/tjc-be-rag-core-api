@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RepositoryBindingsService } from './repository-bindings.service.js';
 import { RepositoryBindingsRepository } from './repository-bindings.repository.js';
+import { GithubRepositoryAccessService } from './github/github-repository-access.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -15,6 +16,10 @@ describe('RepositoryBindingsService', () => {
     updateStatus: ReturnType<typeof vi.fn>;
   };
   let projectsRepository: { findById: ReturnType<typeof vi.fn> };
+  let githubRepositoryAccessService: {
+    requireInstallation: ReturnType<typeof vi.fn>;
+    listBranches: ReturnType<typeof vi.fn>;
+  };
 
   const OWNER_USER_ID = 'user-1';
   const PROJECT_ID = 'project-1';
@@ -47,12 +52,17 @@ describe('RepositoryBindingsService', () => {
       updateStatus: vi.fn(),
     };
     projectsRepository = { findById: vi.fn() };
+    githubRepositoryAccessService = {
+      requireInstallation: vi.fn().mockResolvedValue('install-1'),
+      listBranches: vi.fn().mockResolvedValue([{ name: 'main', protected: false }]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RepositoryBindingsService,
         { provide: RepositoryBindingsRepository, useValue: repository },
         { provide: ProjectsRepository, useValue: projectsRepository },
+        { provide: GithubRepositoryAccessService, useValue: githubRepositoryAccessService },
       ],
     }).compile();
 
@@ -60,32 +70,32 @@ describe('RepositoryBindingsService', () => {
   });
 
   describe('create', () => {
-    it('creates the binding when the project exists and has no binding yet', async () => {
+    const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
+
+    it('resolves the installation, validates the branch and creates the binding', async () => {
       projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue(null);
       repository.create.mockResolvedValue(binding);
 
-      const input = {
+      const result = await service.create(PROJECT_ID, input, OWNER_USER_ID);
+
+      expect(githubRepositoryAccessService.requireInstallation).toHaveBeenCalledWith('org/repo');
+      expect(githubRepositoryAccessService.listBranches).toHaveBeenCalledWith('org/repo', 'install-1');
+      expect(repository.create).toHaveBeenCalledWith(PROJECT_ID, {
         installationId: 'install-1',
         repositoryId: 'repo-1',
         repositoryName: 'org/repo',
-      };
-      const result = await service.create(PROJECT_ID, input, OWNER_USER_ID);
-
-      expect(repository.create).toHaveBeenCalledWith(PROJECT_ID, input);
+        integrationBranch: 'main',
+      });
       expect(result).toEqual(binding);
     });
 
     it('throws PROJECT_NOT_FOUND when the project does not belong to the owner', async () => {
       projectsRepository.findById.mockResolvedValue(null);
 
-      await expect(
-        service.create(
-          PROJECT_ID,
-          { installationId: 'i', repositoryId: 'r', repositoryName: 'n' },
-          OWNER_USER_ID,
-        ),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.PROJECT_NOT_FOUND });
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject<
+        Partial<AppException>
+      >({ code: ErrorCode.PROJECT_NOT_FOUND });
       expect(repository.create).not.toHaveBeenCalled();
     });
 
@@ -93,15 +103,36 @@ describe('RepositoryBindingsService', () => {
       projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue(binding);
 
-      await expect(
-        service.create(
-          PROJECT_ID,
-          { installationId: 'i', repositoryId: 'r', repositoryName: 'n' },
-          OWNER_USER_ID,
-        ),
-      ).rejects.toMatchObject<Partial<AppException>>({
-        code: ErrorCode.REPOSITORY_BINDING_ALREADY_EXISTS,
-      });
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject<
+        Partial<AppException>
+      >({ code: ErrorCode.REPOSITORY_BINDING_ALREADY_EXISTS });
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('throws INTEGRATION_BRANCH_NOT_FOUND when the chosen branch does not exist', async () => {
+      projectsRepository.findById.mockResolvedValue(project);
+      repository.findByProjectForOwner.mockResolvedValue(null);
+      githubRepositoryAccessService.listBranches.mockResolvedValue([
+        { name: 'develop', protected: false },
+      ]);
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject<
+        Partial<AppException>
+      >({ code: ErrorCode.INTEGRATION_BRANCH_NOT_FOUND });
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('propagates GITHUB_APP_ACCESS_REQUIRED when the App has no access to the repository', async () => {
+      projectsRepository.findById.mockResolvedValue(project);
+      repository.findByProjectForOwner.mockResolvedValue(null);
+      const accessError = new AppException(
+        ErrorCode.GITHUB_APP_ACCESS_REQUIRED,
+        'no access',
+        403,
+      );
+      githubRepositoryAccessService.requireInstallation.mockRejectedValue(accessError);
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(accessError);
       expect(repository.create).not.toHaveBeenCalled();
     });
   });

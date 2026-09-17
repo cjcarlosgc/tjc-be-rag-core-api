@@ -3,7 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { createPrivateKey } from 'node:crypto';
 import { SignJWT, importPKCS8 } from 'jose';
 
-export class GithubAppUnavailableError extends Error {}
+export class GithubAppUnavailableError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+  }
+}
 
 const APP_JWT_TTL_SECONDS = 9 * 60; // GitHub exige un máximo de 10 minutos.
 const INSTALLATION_TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -86,5 +93,40 @@ export class GithubAppAuthService {
     this.installationTokens.set(installationId, { token: data.token, expiresAt });
 
     return data.token;
+  }
+
+  /**
+   * HU30: resuelve server-side qué instalación (si alguna) tiene acceso a
+   * `owner/repo`. `404` significa "sin acceso" (repo inexistente o App no
+   * instalada allí, indistinguibles con solo el JWT de App) y se traduce a
+   * `null`, nunca a una excepción: el resultado de producto es `NOT_AUTHORIZED`.
+   */
+  async findInstallationForRepository(owner: string, repo: string): Promise<string | null> {
+    const appJwt = await this.signAppJwt();
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/installation`, {
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      },
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      this.logger.warn(
+        `No se pudo resolver la instalación de "${owner}/${repo}": ${response.status} ${body}`,
+      );
+      throw new GithubAppUnavailableError(
+        `GitHub App no pudo resolver la instalación de "${owner}/${repo}" (${response.status}).`,
+        response.status,
+      );
+    }
+
+    const data = (await response.json()) as { id: number };
+    return String(data.id);
   }
 }

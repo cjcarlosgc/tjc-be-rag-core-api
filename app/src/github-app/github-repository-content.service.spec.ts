@@ -103,4 +103,46 @@ describe('GithubRepositoryContentService', () => {
       expect(result).toBe('export const x = 1;');
     });
   });
+
+  describe('listBranches', () => {
+    it('returns name/protected for each branch', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse([
+            { name: 'main', protected: true },
+            { name: 'feature/x', protected: false },
+          ]),
+        ),
+      );
+
+      const branches = await service.listBranches(REPO, TOKEN);
+
+      expect(branches).toEqual([
+        { name: 'main', protected: true },
+        { name: 'feature/x', protected: false },
+      ]);
+    });
+
+    it('paginates when a page comes back full (100 branches)', async () => {
+      const fullPage = Array.from({ length: 100 }, (_, i) => ({ name: `b${i}`, protected: false }));
+      const secondPage = [{ name: 'last', protected: false }];
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(fullPage))
+        .mockResolvedValueOnce(jsonResponse(secondPage));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const branches = await service.listBranches(REPO, TOKEN);
+
+      expect(branches).toHaveLength(101);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws GithubAppUnavailableError with the response status on a non-ok response', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, false, 404)));
+
+      await expect(service.listBranches(REPO, TOKEN)).rejects.toMatchObject({ status: 404 });
+    });
+  });
 });

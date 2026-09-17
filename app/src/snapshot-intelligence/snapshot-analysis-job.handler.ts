@@ -15,8 +15,8 @@ import { TestTargetExtractorService } from '../project-versions/inventory/test-t
 import { ExistingTestResolverService } from '../project-versions/inventory/existing-test-resolver.service.js';
 import { findPackageJsonPath, detectFramework } from '../project-versions/inventory/framework-detector.js';
 import { isSourceFile, isTestFile } from '../project-versions/indexing.constants.js';
-import { GithubAppAuthService } from './github-app-auth.service.js';
-import { GithubRepositoryContentService, type CompareFile } from './github-repository-content.service.js';
+import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
+import { GithubRepositoryContentService, type CompareFile } from '../github-app/github-repository-content.service.js';
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';

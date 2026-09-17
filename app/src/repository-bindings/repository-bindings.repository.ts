@@ -6,7 +6,7 @@ export interface CreateRepositoryBindingInput {
   installationId: string;
   repositoryId: string;
   repositoryName: string;
-  integrationBranch?: string;
+  integrationBranch: string;
 }
 
 @Injectable()
@@ -20,7 +20,7 @@ export class RepositoryBindingsRepository {
         installationId: input.installationId,
         repositoryId: input.repositoryId,
         repositoryName: input.repositoryName,
-        ...(input.integrationBranch ? { integrationBranch: input.integrationBranch } : {}),
+        integrationBranch: input.integrationBranch,
       },
     });
   }

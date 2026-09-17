@@ -126,4 +126,36 @@ describe('GithubAppAuthService', () => {
       await expect(service.getInstallationToken('999')).rejects.toBeInstanceOf(GithubAppUnavailableError);
     });
   });
+
+  describe('findInstallationForRepository', () => {
+    it('returns the installation id when the App has access', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 555 }) }));
+
+      const installationId = await service.findInstallationForRepository('acme', 'widgets');
+
+      expect(installationId).toBe('555');
+    });
+
+    it('returns null (NOT_AUTHORIZED) when GitHub responds 404', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => 'not found' }),
+      );
+
+      const installationId = await service.findInstallationForRepository('acme', 'widgets');
+
+      expect(installationId).toBeNull();
+    });
+
+    it('throws GithubAppUnavailableError on unexpected GitHub failures', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'boom' }),
+      );
+
+      await expect(service.findInstallationForRepository('acme', 'widgets')).rejects.toBeInstanceOf(
+        GithubAppUnavailableError,
+      );
+    });
+  });
 });

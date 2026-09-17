@@ -48,9 +48,9 @@
       "checkedAt": "2026-09-13T09:00:00-05:00"
     },
     "createdAt": "2026-09-13T09:00:00-05:00",
-    "updatedAt": "2026-09-14T04:10:00-05:00",
+    "updatedAt": "2026-09-17T13:00:00-05:00",
     "blockedReason": null,
-      "notes": "T-002 mantiene el dominio/state model de AnalysisRun, RepositoryBinding, GitHub ingress y snapshot intelligence ya construidos. La SDD vigente es SYSTEM-2.2 / INTEROP-2.2: el binding es user-centric para discovery OAuth efímero y GitHub-App-centric para autorización, ramas y automatización; no existen rutas installation/callback canónicas. Core continúa la construcción progresiva de HU30-HU36 y HU48/HU51/HU53/HU55 conforme a los contratos definidos. Falta el smoke test end-to-end con un binding real, GitHub App instalada y webhook de PR."
+    "notes": "T-002 mantiene el dominio/state model de AnalysisRun, RepositoryBinding, GitHub ingress y snapshot intelligence ya construidos. La SDD vigente es SYSTEM-2.2 / INTEROP-2.2: el binding es user-centric para discovery OAuth efímero y GitHub-App-centric para autorización, ramas y automatización; no existen rutas installation/callback canónicas. 2026-09-17: implementado HU30 (§6.8) — GET /integrations/github/repositories (discovery con X-GitHub-Provider-Token), POST .../verify-app-access, GET .../{owner}/{repo}/branches, POST/GET/DELETE /projects/{projectId}/integrations/github; installationId siempre resuelto server-side (GithubAppAuthService.findInstallationForRepository), integrationBranch validada contra ramas reales antes de persistir (sin default, migración repository_binding_integration_branch_required). GithubAppAuthService/GithubRepositoryContentService se movieron de snapshot-intelligence/ a github-app/ (compartidos). 309/309 tests, lint y build en verde. PENDIENTE: aplicar la migración contra Supabase (bloqueada por el clasificador de auto mode al escribir en un recurso compartido, requiere que el usuario corra `prisma migrate deploy` o apruebe el comando), configurar GITHUB_APP_SLUG/GITHUB_APP_NAME en Render, y el smoke test end-to-end con un binding real, GitHub App instalada y webhook de PR. Core continúa la construcción progresiva de HU31-HU36 y HU48/HU51/HU53/HU55 conforme a los contratos definidos."
   },
-  "lastUpdatedAt": "2026-09-17T12:30:00-05:00"
+  "lastUpdatedAt": "2026-09-17T13:00:00-05:00"
 }
