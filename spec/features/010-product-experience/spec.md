@@ -3,7 +3,7 @@
 **Estado:** aprobado.
 **Historias:** HU25 (alcance backend). HU26 no tiene alcance backend — ver nota más abajo.
 
-> **Adaptación SDD 2.1:** estos listados pueden mantenerse como compatibilidad, pero el control plane vigente se organiza alrededor de `RepositoryBinding`, `AnalysisRun`, Action Required, Checks y publicación revisada. La demo GitHub legacy de HU26 queda superseded por la experiencia mock-first de INTEROP-2.1.
+> **Adaptación SDD 2.2:** los listados y sus componentes reutilizables se integran al control plane PR-driven: `RepositoryBinding`, `AnalysisRun`, Action Required, Checks y publicación revisada. No conservan una ruta de producto paralela.
 
 ## Objetivo
 

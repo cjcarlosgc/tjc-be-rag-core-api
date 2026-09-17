@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU30-HU36, HU39-HU42
-**Contrato:** SYSTEM-2.1 / INTEROP-2.1
+**Contrato:** SYSTEM-2.2 / INTEROP-2.2
 
 ## Objetivo
 
@@ -10,10 +10,10 @@ RAG Core recibe eventos de una GitHub App para repositorios vinculados, crea un 
 
 ## Invariantes
 
-- GitHub OAuth autentica personas mediante Supabase Auth; GitHub App automatiza repositorios. Ninguna identidad implica la otra.
+- GitHub OAuth autentica personas mediante Supabase Auth y descubre repositorios visibles mediante un provider token efímero; GitHub App valida el acceso, lista ramas y automatiza repositorios. Ninguna identidad implica autorización de la otra.
 - Un Run representa un PR/HEAD. Attempts y continuaciones no crean Runs nuevos si el HEAD no cambia.
 - `pull_request:synchronize`, incluido force-push, obsoleta el Run previo y crea uno para el HEAD nuevo.
-- Solo `PR.base == Project.integrationBranch` activa análisis; `develop` es default configurable. No existe trigger global `push` ni workflow YAML obligatorio.
+- Solo `PR.base == Project.integrationBranch` activa análisis; la rama la elige el usuario entre las ramas reales autorizadas y no tiene default. No existe trigger global `push` ni workflow YAML obligatorio.
 - `CHANGESET` define qué validar; `INDEX DELTA` define qué reindexar.
 - Solo el Run vigente publica Check vigente. La merge policy pertenece al repositorio.
 - `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD.
@@ -86,7 +86,7 @@ Propuestas de un mismatch quedan `HELD`. El companion PR no dispara el pipeline 
 
 ## Seguridad y auditoría
 
-Verificar firma sobre body crudo, estado de instalación/binding, correlación segura de callback y mínimo privilegio. Persistir delivery, lifecycle, preguntas/respuestas, reglas creadas/superseded, generación, ejecución, clasificación, Check y publicación sin guardar secretos, tokens o URLs firmadas completas.
+Verificar firma sobre body crudo, estado de instalación/binding y mínimo privilegio. El provider token OAuth de GitHub solo se recibe para discovery, no se persiste, registra ni devuelve. Core resuelve `installationId`, valida repository id/nombre y rama antes de persistir el binding; el navegador nunca aporta instalación como autoridad. Persistir delivery, lifecycle, preguntas/respuestas, reglas creadas/superseded, generación, ejecución, clasificación, Check y publicación sin guardar secretos, tokens o URLs firmadas completas.
 
 ## Fuera de alcance inicial
 

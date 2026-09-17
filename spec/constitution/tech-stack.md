@@ -6,7 +6,7 @@
 - Persistencia: PostgreSQL + pgvector en Supabase para datos de dominio, chunks, embeddings vectoriales y la cola DB-backed de jobs.
 - ORM: Prisma para relacional; TypedSQL/raw SQL para operaciones vectoriales.
 - AST/análisis estructural: adapters por lenguaje; ts-morph se conserva para TypeScript y la alternativa PHP se selecciona al implementar HU41.
-- Input objetivo: GitHub repository + commit SHA + PR CHANGESET. ZIP permanece como entrada legacy/development.
+- Input objetivo: GitHub repository + commit SHA + PR CHANGESET. Los componentes reutilizables de ingestión se aplican a snapshots PR-driven; no existe una entrada de producto separada.
 - Stacks: TypeScript (`.ts`/`.tsx`) con Jest/Vitest en compatibility track; PHP/Laravel con PHPUnit como active development track. JavaScript puro no se habilita por esta decisión.
 - Distancia vectorial: cosine.
 - Configuración: `@nestjs/config`, `.env`, `ConfigService`; secretos nunca hardcodeados. El proyecto Supabase aprobado tiene ref `hhapysqvomhvquylhwvt`, URL pública `https://hhapysqvomhvquylhwvt.supabase.co` y host PostgreSQL `db.hhapysqvomhvquylhwvt.supabase.co:5432`; contraseña y keys solo se suministran por entorno.

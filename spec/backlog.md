@@ -1,6 +1,6 @@
 # Product Backlog global
 
-**Estado:** línea base global vigente SDD 2.1 / SYSTEM-2.1 / INTEROP-2.1
+**Estado:** línea base global vigente SDD 2.1 / SYSTEM-2.2 / INTEROP-2.2
 
 Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD local indica su participación concreta. La numeración expresa trazabilidad y orden lógico, no ejecución estrictamente secuencial.
 
@@ -68,7 +68,7 @@ La prioridad se interpreta contra la arquitectura SDD 2.0: P0 materializa el nue
 
 | HU | Épica | Hito | Prioridad | Nombre | Descripción |
 |---|---|---|---|---|---|
-| HU30 | EP10 | A | P0 | Vincular Project con repositorio | Como usuario autorizado, quiero instalar/configurar la GitHub App y vincular un repositorio a un Project, para habilitar análisis PR-driven sin confundirlo con mi login. |
+| HU30 | EP10 | A | P0 | Vincular Project con repositorio | Como usuario autorizado, quiero descubrir repositorios visibles con mi identidad GitHub y vincular al Project uno autorizado por la GitHub App, eligiendo una rama real de integración, para habilitar análisis PR-driven sin confundir discovery con automatización. |
 | HU31 | EP10 | B | P0 | Ingerir eventos de Pull Request | Como plataforma, quiero verificar, normalizar y deduplicar eventos relevantes de Pull Request, para iniciar análisis automáticos únicamente sobre PR vinculados. |
 | HU32 | EP10 | A | P0 | Gestionar AnalysisRun por PR y HEAD | Como desarrollador, quiero que cada análisis represente un HEAD concreto y vuelva obsoleto al anterior, para confiar en que resultados y Checks corresponden al código vigente. |
 | HU33 | EP11 | C | P0 | Construir PR CHANGESET e INDEX DELTA | Como plataforma, quiero separar qué propone el PR de qué debe reindexarse, para validar el cambio completo y mantener el índice eficientemente. |
@@ -86,6 +86,11 @@ La prioridad se interpreta contra la arquitectura SDD 2.0: P0 materializa el nue
 | HU45 | EP15 | Future | P4 | Gestionar miembros y roles del Project | Como owner, quiero administrar miembros Owner/Maintainer/Reviewer, para habilitar colaboración multiusuario en una evolución posterior. |
 | HU46 | EP15 | Research | P2 | Investigar mutation testing | Como investigador, quiero evaluar mutation testing por stack y costo, para decidir su aporte sin volver Mutation Score obligatorio prematuramente. |
 | HU47 | EP15 | Infra | P2 | Desplegar Sandbox remoto | Como operador, quiero seleccionar y desplegar una VM Sandbox con aislamiento, red y retención aprobados, para validar fuera del entorno local cuando `DEC-INF-001` se resuelva. |
+
+### Evoluciones posteriores de repository binding
+
+- Soporte de GitHub Organizations (prioridad baja): discovery y binding de repositorios organizacionales, incluyendo políticas OAuth, aprobación administrativa cuando corresponda e instalación/restricción de la App. No forma parte del primer flujo end-to-end.
+- Colaboración multiusuario (HU45, prioridad baja/media): el `RepositoryBinding`, los AnalysisRuns, Functional Knowledge y evidencia pertenecen al Project; una futura matriz de roles determinará quién configura y revisa. No se crean roles ni permisos nuevos en HU30.
 
 ### HU48-HU55 — registradas 2026-09-14, `PROPOSED` (no `APROBADO` — se formaliza la historia, no se aprueba todavía su implementación)
 
@@ -110,7 +115,7 @@ completo por historia en `harness/reports/console-backlog-formalization.md`
 | HU55 | EP10 | H | P1 | Listar Analysis Runs cross-proyecto para el Workspace Overview | Como usuario autorizado, quiero un listado de Analysis Runs que abarque todos mis proyectos, para ver de un vistazo qué necesita mi atención sin entrar proyecto por proyecto. |
 
 2026-09-15: los 4 contratos que Core debía definir para desbloquear a
-Console quedaron **definidos en INTEROP-2.1** (`spec/contracts/interoperability-contract.md`
+Console quedaron definidos y hoy están consolidados en **INTEROP-2.2** (`spec/contracts/interoperability-contract.md`
 §6.5, §6.10, §6.11) y `spec/contracts/system-contract.md`, cada bloque
 marcado explícitamente "Definido, pendiente de implementación": HU48
 (`CreateExperimentRequest` reapunta a `analysisRunId`+símbolo en vez de

@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.1
-**Compatible con:** SYSTEM-2.1
-**Fecha de corte:** 2026-09-15
+**Versión:** INTEROP-2.2
+**Compatible con:** SYSTEM-2.2
+**Fecha de corte:** 2026-09-17
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 ## 1. Compatibilidad y autoridad
 
 - Las rutas manuales de carga ZIP y generación por modos (`METHOD|CLASS|PROJECT`) anteriores a SDD 2.0 quedan retiradas; no existe compatibilidad legacy paralela. El único disparador de análisis es PR-driven (`AnalysisRun`).
-- `INTEROP-2.1` es la versión documental vigente. Hereda de `INTEROP-2.0` el nuevo lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP; además retira las rutas manuales del punto anterior (§6.3, §6.4) antes de su primera implementación real — ver `CHANGELOG.md`.
+- `INTEROP-2.2` es la versión documental vigente. Hereda de `INTEROP-2.1` el lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP; sustituye el onboarding installation-centric por discovery OAuth user-centric y autorización GitHub-App-centric del repository binding (§6.8).
 - 2026-09-15: se define contrato (sin implementar) para 4 capacidades formalizadas como historia en `spec/backlog.md` (HU48-HU55, registradas originalmente por Console) que estaban bloqueadas por falta de contrato: `CreateExperimentRequest` reapunta a `AnalysisRun`/símbolo (§6.5, HU48), historial de transiciones de `AnalysisRun` (§6.10, HU53), listado de Analysis Runs cross-proyecto (§6.10, HU55) y detección de conflicto de Functional Knowledge (§6.11, HU51). Cada bloque queda marcado **Definido, pendiente de implementación**.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -47,6 +47,7 @@ interface Page<T> {
 - En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace estándar URL `6ba7b811-9dad-11d1-80b4-00c04fd430c8` y un nombre canónico según la unidad lógica: `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}`, `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}` o `urn:tjc:sandbox-execution:v1:manual-retry:{retryJobId}:{targetId}`. La key hija es también `requestId` y se reutiliza en cualquier retry.
 - `Authorization: Bearer <service-token>` es obligatorio en todos los endpoints `/executions`. El valor es un secreto opaco precompartido de alta entropía, configurado como `SANDBOX_SERVICE_TOKEN` en Core y Sandbox; no es JWT, no usa proveedor de identidad y nunca ingresa al frontend, logs, PostgreSQL, Storage o container. Core lo exige cuando configura `SANDBOX_URL`; Sandbox lo exige al arrancar. Los endpoints `/health/live` y `/health/ready` no requieren este header.
 - `Authorization: Bearer <user-access-token>` es obligatorio en todos los endpoints navegador→Core salvo `GET /health`. Es un JWT de sesión emitido por Supabase Auth para HU29; RAG Core valida firma, issuer, audience y expiración mediante el mecanismo compatible con las signing keys del proyecto. El token identifica al propietario y nunca se reenvía al Sandbox.
+- `X-GitHub-Provider-Token` es obligatorio solo para `GET /integrations/github/repositories`. Contiene el provider token OAuth GitHub de la sesión Supabase y sirve exclusivamente para discovery user-centric; nunca se persiste, registra, devuelve, reenvía al Sandbox ni se usa para automatización GitHub App.
 - La ausencia de credencial de usuario devuelve `401 AUTH_REQUIRED`; un token inválido o expirado devuelve `401 INVALID_ACCESS_TOKEN`. Las consultas a recursos de otro propietario responden `404` con el código del recurso (`PROJECT_NOT_FOUND`, `TEST_RUN_NOT_FOUND`, etc.) para no revelar su existencia.
 
 ## 4. Errores HTTP
@@ -453,23 +454,48 @@ Reglas:
 
 ### 6.8 GitHub App y repository binding
 
-- `POST /projects/{projectId}/integrations/github/installations` -> `201 GitHubInstallationSessionResponse`.
-- `POST /projects/{projectId}/integrations/github/callback` -> `200 ProjectRepositoryBindingResponse`.
+Repository discovery is user-centric; repository automation is GitHub-App-centric.
+
+- `GET /integrations/github/repositories?cursor&limit` -> `200 Page<GitHubUserRepositoryResponse>`; exige `Authorization` y `X-GitHub-Provider-Token`.
+- `POST /integrations/github/repositories/verify-app-access` -> `200 GitHubAppAccessResponse`.
+- `GET /integrations/github/repositories/{owner}/{repo}/branches` -> `200 GitHubRepositoryBranchesResponse`.
+- `POST /projects/{projectId}/integrations/github` -> `201 ProjectRepositoryBindingResponse`.
 - `GET /projects/{projectId}/integrations/github` -> `200 ProjectRepositoryBindingResponse`.
 - `DELETE /projects/{projectId}/integrations/github` -> `204`.
 
 ```ts
-interface GitHubInstallationSessionResponse {
-  projectId: Id
-  installationUrl: string
-  stateExpiresAt: IsoDateTime
+interface GitHubUserRepositoryResponse {
+  repositoryId: string
+  name: string
+  repositoryName: string // owner/name
+  owner: { login: string; type: 'User' | 'Organization'; avatarUrl: string | null }
+  private: boolean
+  defaultBranch: string
+  permissions: { admin: boolean; maintain: boolean; push: boolean; pull: boolean }
 }
 
-interface CompleteGitHubInstallationRequest {
-  installationId: string
+type GitHubAppAccessStatus = 'AUTHORIZED' | 'NOT_AUTHORIZED'
+
+interface VerifyGitHubAppAccessRequest {
   repositoryId: string
-  state: string
-  integrationBranch?: string // default develop
+  repositoryName: string
+}
+
+interface GitHubAppAccessResponse {
+  repositoryId: string
+  repositoryName: string
+  status: GitHubAppAccessStatus
+  installationId: string | null
+  app: { displayName: string; configureUrl: string }
+}
+
+interface GitHubRepositoryBranchResponse { name: string; protected: boolean }
+interface GitHubRepositoryBranchesResponse { items: GitHubRepositoryBranchResponse[] }
+
+interface CreateRepositoryBindingRequest {
+  repositoryId: string
+  repositoryName: string
+  integrationBranch: string
 }
 
 interface ProjectRepositoryBindingResponse {
@@ -484,7 +510,9 @@ interface ProjectRepositoryBindingResponse {
 }
 ```
 
-`state` es opaco, de un solo uso, expira y debe vincular inequívocamente usuario, Project e intento de instalación. Core valida que la instalación autoriza el repository id antes de persistir. Desconectar deja de aceptar eventos nuevos, no borra Runs ni Functional Knowledge.
+Core valida `repositoryId` y `repositoryName` contra GitHub antes de devolver autorización o persistir. `installationId` es evidencia resuelta por Core: no se acepta desde el navegador y es `null` cuando el resultado es `NOT_AUTHORIZED`. Las ramas se consultan con el installation access token, por lo que un repositorio sin acceso devuelve `403 GITHUB_APP_ACCESS_REQUIRED`. La creación exige que `integrationBranch` exista; no hay default. `NOT_AUTHORIZED` no es un error HTTP. Desconectar deja de aceptar eventos nuevos, no borra Runs ni Functional Knowledge.
+
+Errores de dominio: `GITHUB_ACCOUNT_REQUIRED` (401), `GITHUB_USER_TOKEN_INVALID` (401), `GITHUB_APP_ACCESS_REQUIRED` (403), `GITHUB_REPOSITORY_NOT_FOUND` (404), `INTEGRATION_BRANCH_NOT_FOUND` (404), `REPOSITORY_BINDING_ALREADY_EXISTS` (409) y `REPOSITORY_BINDING_NOT_FOUND` (404). No se exponen mensajes crudos de GitHub.
 
 ### 6.9 Webhooks GitHub y normalización PR
 
@@ -911,15 +939,15 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `GET /health/ready`: confirma que puede aceptar ejecuciones y distingue indisponibilidad de Docker, conectividad de adquisición y capacidad interna, sin consultar Supabase mediante credenciales.
 - Estos endpoints no ejecutan código del proyecto ni revelan secretos o configuración sensible.
 
-## 8. Disponibilidad al aprobar INTEROP-2.0
+## 8. Disponibilidad en INTEROP-2.2
 
 - Las rutas manuales de generación/ZIP de la sección 6 (6.3, 6.4) quedan retiradas; ya no existen como camino de compatibilidad. 6.2 (lectura de `ProjectVersion`) y 6.5 (Experimento) permanecen vigentes según lo descrito en cada sección.
-- Las operaciones 6.8-6.12 son contrato aprobado para implementar. GitHub App, repository binding, AnalysisRun, Action Required, Checks y companion PR todavía no están disponibles en Core.
-- Developer Console conserva superficies legacy/mock de SDD 1.16, que quedan superseded; debe migrar sus mocks y adapters al contrato 2.0 antes de tratarlos como demo vigente.
+- Las operaciones 6.8-6.12 son contrato aprobado para implementar. Su disponibilidad efectiva se declara por componente en las features y tareas correspondientes; Core construye progresivamente las capacidades PR-driven.
+- Developer Console conserva únicamente mocks alineados a INTEROP-2.2 y separados de live; no constituyen evidencia ni sustituyen endpoints de Core.
 - Test Execution Sandbox implementa actualmente el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest. `PHP_LARAVEL_PHPUNIT`, `phase` y la evidencia ampliada quedan aprobados pero pendientes de implementación.
 - La integración Core↔Sandbox actual continúa operativa bajo el subconjunto compatible de 1.6; la adopción completa de los campos 2.0 exige migración coordinada y contract tests en ambos backends.
 - `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
-- `DEC-MET-001`, `DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` permanecen `PENDING` con los blocks acotados por `SYSTEM-2.0`.
+- `DEC-MET-001`, `DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` permanecen `PENDING` con los blocks acotados por `SYSTEM-2.2`.
 
 ## 9. Reglas de implementación
 
@@ -927,5 +955,5 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Validar todos los requests y serializar respuestas mediante DTOs explícitos.
 - Centralizar correlación y `ErrorEnvelope` en interceptors/filtros; no formatear errores manualmente en cada controller.
 - Usar tokens de inyección para `ObjectStorageService` en Core, el downloader HTTP del Sandbox, clientes HTTP y demás puertos reemplazables.
-- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-2.0` y se verifica mediante contract tests/fixtures versionados.
+- No compartir paquetes de código entre repositorios como fuente oculta de verdad: cada implementación deriva de `INTEROP-2.2` y se verifica mediante contract tests/fixtures versionados.
 - Todo cambio de contrato debe actualizar primero el documento canónico, después sus dos espejos y finalmente los adapters/tests afectados.

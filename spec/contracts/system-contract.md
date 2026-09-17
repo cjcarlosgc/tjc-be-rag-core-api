@@ -1,7 +1,7 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.1
-**Fecha de corte:** 2026-09-15
+**Versión del contrato:** SYSTEM-2.2
+**Fecha de corte:** 2026-09-17
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
@@ -38,7 +38,7 @@ Son fronteras independientes:
 1. **Login:** correo/contraseña o GitHub OAuth mediante Supabase Auth producen un `PlatformUser`. Google OAuth queda fuera de alcance.
 2. **Automatización de repositorio:** una GitHub App administra instalaciones, repositorios autorizados, webhooks, Checks y, cuando se habilite, ramas/PR.
 
-GitHub OAuth no autoriza la importación o automatización de repositorios. `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son conceptos independientes. No se implementa linking propio por coincidencia de correo; se admite únicamente el linking seguro que Supabase Auth aplique a identidades con correo verificado y configuración explícita. El actor de GitHub es metadata y no autoridad automática dentro de un Project.
+GitHub OAuth permite únicamente descubrir los repositorios visibles para la persona autenticada; no autoriza automatización, snapshots, Checks ni publicación. `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son conceptos independientes. No se implementa linking propio por coincidencia de correo; se admite únicamente el linking seguro que Supabase Auth aplique a identidades con correo verificado y configuración explícita. El actor de GitHub es metadata y no autoridad automática dentro de un Project.
 
 Los permisos de la GitHub App aplican mínimo privilegio:
 
@@ -49,9 +49,9 @@ Los permisos de la GitHub App aplican mínimo privilegio:
 
 ## Onboarding y repository binding
 
-Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console inicia la instalación/configuración, conserva una correlación segura con el Project, y Core valida el callback antes de crear el binding durable.
+Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console usa el token OAuth GitHub del usuario, transportado solo para ese descubrimiento, para listar repositorios visibles. Al seleccionar uno, Core se autentica como GitHub App y consulta directamente la instalación que tiene acceso al repositorio. La ausencia de acceso es `NOT_AUTHORIZED`, un resultado de producto que ofrece la URL de configuración centralizada de la App; no se enumeran instalaciones ni se infiere acceso desde OAuth.
 
-El binding conserva como mínimo Project, instalación, repository id estable, nombre, `integrationBranch` y estado enabled/disabled. `integrationBranch` usa `develop` por defecto y es configurable. Desconectar deshabilita/revoca el binding, impide aceptar eventos nuevos para ese Project y conserva Runs/evidencia según retención.
+Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar deshabilita/revoca el binding, impide aceptar eventos nuevos para ese Project y conserva Runs/evidencia según retención.
 
 ## Trigger PR-driven y lifecycle
 
@@ -169,7 +169,7 @@ OBSOLETE
 - Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
 - El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
 - La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
-- Mocks frontend deben implementar `INTEROP-2.0`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
+- Mocks frontend deben implementar `INTEROP-2.2`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
 
 ## Decisiones compartidas
 
@@ -179,7 +179,7 @@ OBSOLETE
 
 **Blocks:** NONE
 
-**Resolución:** GitHub App, binding Project<->Repository, eventos PR-driven, webhooks, Checks API, mínimo privilegio, human-in-the-loop y companion PR aprobado por humano. No se requiere workflow YAML y GitHub OAuth queda limitado a login mediante Supabase Auth.
+**Resolución:** GitHub App, binding Project<->Repository, eventos PR-driven, webhooks, Checks API, mínimo privilegio, human-in-the-loop y companion PR aprobado por humano. No se requiere workflow YAML. GitHub OAuth mediante Supabase Auth sirve para identidad y, con un provider token efímero, para descubrir repositorios visibles; la App sigue siendo la única autoridad de automatización.
 
 ### DEC-WEB-AUTH-001 — Identidad del navegador
 
@@ -195,7 +195,7 @@ OBSOLETE
 
 **Blocks:** NONE
 
-**Resolución:** `INTEROP-2.0` conserva HTTP asíncrono, Bearer de servicio, idempotencia y referencias efímeras; agrega execution profiles y evidencia neutral para Node/TypeScript y PHP/Laravel/PHPUnit.
+**Resolución:** `INTEROP-2.2` conserva HTTP asíncrono, Bearer de servicio, idempotencia y referencias efímeras; agrega execution profiles y evidencia neutral para Node/TypeScript y PHP/Laravel/PHPUnit.
 
 ### DEC-AUTH-001 — Autenticación Core<->Sandbox
 
@@ -247,4 +247,4 @@ OBSOLETE
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.0` sustituye `SYSTEM-1.6` como arquitectura objetivo. `SYSTEM-2.1` retira ZIP upload y generación manual como ruta de producto (ver `CHANGELOG.md`); no rompe compatibilidad de arquitectura con `SYSTEM-2.0`, la corrige antes de su primera implementación real. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.1` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.2` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto, y define repository discovery user-centric con automatización GitHub-App-centric. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.2` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
