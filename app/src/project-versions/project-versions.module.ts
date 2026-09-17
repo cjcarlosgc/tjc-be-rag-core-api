@@ -31,6 +31,7 @@ import { TestTargetsRepository } from './persistence/test-targets.repository.js'
     ProjectVersionsRepository,
     ZipExtractionService,
     FileDiscoveryService,
+    TypeScriptParserService,
   ],
 })
 export class ProjectVersionsModule {}
