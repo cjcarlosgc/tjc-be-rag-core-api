@@ -13,42 +13,35 @@ describe('GithubRepositoryAccessService', () => {
   let githubAppAuthService: {
     findInstallationForRepository: ReturnType<typeof vi.fn>;
     getInstallationToken: ReturnType<typeof vi.fn>;
+    getAppInfo: ReturnType<typeof vi.fn>;
   };
   let githubRepositoryContentService: { listBranches: ReturnType<typeof vi.fn> };
-  let configService: { get: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     githubAppAuthService = {
       findInstallationForRepository: vi.fn(),
       getInstallationToken: vi.fn().mockResolvedValue('installation-token'),
+      getAppInfo: vi.fn().mockResolvedValue({ slug: 'rag-tesis-gh-app', name: 'rag-tesis-gh-app' }),
     };
     githubRepositoryContentService = { listBranches: vi.fn() };
-    configService = {
-      get: vi.fn((key: string) => {
-        if (key === 'GITHUB_APP_SLUG') return 'tjc-core';
-        if (key === 'GITHUB_APP_NAME') return 'TJC Core';
-        return undefined;
-      }),
-    };
     service = new GithubRepositoryAccessService(
       githubAppAuthService as unknown as GithubAppAuthService,
       githubRepositoryContentService as unknown as GithubRepositoryContentService,
-      configService as never,
     );
   });
 
   describe('getAppInfo', () => {
-    it('builds the configure URL from GITHUB_APP_SLUG', () => {
-      expect(service.getAppInfo()).toEqual({
-        displayName: 'TJC Core',
-        configureUrl: 'https://github.com/apps/tjc-core/installations/new',
+    it('builds the configure URL from the slug resolved via GithubAppAuthService', async () => {
+      await expect(service.getAppInfo()).resolves.toEqual({
+        displayName: 'rag-tesis-gh-app',
+        configureUrl: 'https://github.com/apps/rag-tesis-gh-app/installations/new',
       });
     });
 
-    it('throws GithubAppUnavailableError when GITHUB_APP_SLUG is missing', () => {
-      configService.get.mockReturnValue(undefined);
+    it('propagates GithubAppUnavailableError from GithubAppAuthService', async () => {
+      githubAppAuthService.getAppInfo.mockRejectedValue(new GithubAppUnavailableError('boom'));
 
-      expect(() => service.getAppInfo()).toThrow(GithubAppUnavailableError);
+      await expect(service.getAppInfo()).rejects.toBeInstanceOf(GithubAppUnavailableError);
     });
   });
 

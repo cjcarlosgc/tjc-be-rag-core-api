@@ -65,16 +65,17 @@ export class RepositoryBindingsController {
   async verifyAppAccess(
     @Body() body: VerifyGitHubAppAccessRequestDto,
   ): Promise<GitHubAppAccessResponse> {
-    const installationId = await this.githubRepositoryAccessService.resolveInstallation(
-      body.repositoryName,
-    );
+    const [installationId, app] = await Promise.all([
+      this.githubRepositoryAccessService.resolveInstallation(body.repositoryName),
+      this.githubRepositoryAccessService.getAppInfo(),
+    ]);
 
     return {
       repositoryId: body.repositoryId,
       repositoryName: body.repositoryName,
       status: installationId ? 'AUTHORIZED' : 'NOT_AUTHORIZED',
       installationId,
-      app: this.githubRepositoryAccessService.getAppInfo(),
+      app,
     };
   }
 

@@ -1,5 +1,4 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AppException } from '../../common/errors/app.exception.js';
 import { ErrorCode } from '../../common/errors/error-code.enum.js';
 import {
@@ -24,18 +23,14 @@ export class GithubRepositoryAccessService {
   constructor(
     private readonly githubAppAuthService: GithubAppAuthService,
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
-    private readonly configService: ConfigService,
   ) {}
 
-  getAppInfo(): GitHubAppInfo {
-    const slug = this.configService.get<string>('GITHUB_APP_SLUG');
-
-    if (!slug) {
-      throw new GithubAppUnavailableError('GITHUB_APP_SLUG no está configurado.');
-    }
+  /** `slug`/`name` se resuelven contra GitHub (`GET /app`), no por env var. */
+  async getAppInfo(): Promise<GitHubAppInfo> {
+    const { slug, name } = await this.githubAppAuthService.getAppInfo();
 
     return {
-      displayName: this.configService.get<string>('GITHUB_APP_NAME') ?? slug,
+      displayName: name,
       configureUrl: `https://github.com/apps/${slug}/installations/new`,
     };
   }

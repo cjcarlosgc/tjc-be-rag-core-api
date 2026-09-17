@@ -158,4 +158,42 @@ describe('GithubAppAuthService', () => {
       );
     });
   });
+
+  describe('getAppInfo', () => {
+    it('resolves slug/name from GET /app', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 200, json: async () => ({ slug: 'rag-tesis-gh-app', name: 'rag-tesis-gh-app' }) });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const info = await service.getAppInfo();
+
+      expect(info).toEqual({ slug: 'rag-tesis-gh-app', name: 'rag-tesis-gh-app' });
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.github.com/app',
+        expect.objectContaining({ headers: expect.objectContaining({ Accept: 'application/vnd.github+json' }) }),
+      );
+    });
+
+    it('caches the result and does not call GitHub again', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 200, json: async () => ({ slug: 'rag-tesis-gh-app', name: 'rag-tesis-gh-app' }) });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await service.getAppInfo();
+      await service.getAppInfo();
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws GithubAppUnavailableError when GitHub rejects the request', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'bad jwt' }),
+      );
+
+      await expect(service.getAppInfo()).rejects.toBeInstanceOf(GithubAppUnavailableError);
+    });
+  });
 });

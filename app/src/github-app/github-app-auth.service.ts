@@ -21,6 +21,11 @@ interface CachedInstallationToken {
   expiresAt: number;
 }
 
+export interface GithubAppInfo {
+  slug: string;
+  name: string;
+}
+
 /**
  * Autenticación real como la GitHub App (HU33/34): JWT de App firmado con la
  * private key, intercambiado por un installation access token por
@@ -33,6 +38,7 @@ interface CachedInstallationToken {
 export class GithubAppAuthService {
   private readonly logger = new Logger(GithubAppAuthService.name);
   private readonly installationTokens = new Map<string, CachedInstallationToken>();
+  private appInfoCache: GithubAppInfo | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -128,5 +134,40 @@ export class GithubAppAuthService {
 
     const data = (await response.json()) as { id: number };
     return String(data.id);
+  }
+
+  /**
+   * HU30: `slug`/`name` de la propia App (para `app.configureUrl`/
+   * `app.displayName` de `verify-app-access`), resueltos vía `GET /app` en
+   * vez de configurarse por env var. Solo cambian si renombras la App, así
+   * que se cachean en memoria sin expiración.
+   */
+  async getAppInfo(): Promise<GithubAppInfo> {
+    if (this.appInfoCache) {
+      return this.appInfoCache;
+    }
+
+    const appJwt = await this.signAppJwt();
+    const response = await fetch('https://api.github.com/app', {
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      this.logger.warn(`No se pudo resolver la info de la GitHub App: ${response.status} ${body}`);
+      throw new GithubAppUnavailableError(
+        `GitHub App no pudo resolver su propia info (${response.status}).`,
+        response.status,
+      );
+    }
+
+    const data = (await response.json()) as { slug: string; name: string };
+    this.appInfoCache = { slug: data.slug, name: data.name };
+
+    return this.appInfoCache;
   }
 }

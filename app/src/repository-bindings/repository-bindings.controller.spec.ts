@@ -41,7 +41,7 @@ describe('RepositoryBindingsController', () => {
       resolveInstallation: vi.fn(),
       requireInstallation: vi.fn(),
       listBranches: vi.fn(),
-      getAppInfo: vi.fn().mockReturnValue({
+      getAppInfo: vi.fn().mockResolvedValue({
         displayName: 'TJC Core',
         configureUrl: 'https://github.com/apps/tjc-core/installations/new',
       }),
