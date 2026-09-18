@@ -142,19 +142,53 @@ enum SymbolChangeKind {
   POTENTIALLY_IMPACTED
 }
 
+enum FunctionalScope {
+  PROJECT
+  MODULE
+  CLASS
+  METHOD
+  SYMBOL
+}
+
+enum FunctionalQuestionStatus {
+  PENDING
+  ANSWERED
+  OBSOLETE
+}
+
+enum FunctionalAnswerChoice {
+  YES
+  NO
+  DEPENDS
+  UNKNOWN
+  FREE_TEXT
+}
+
+enum FunctionalKnowledgeSource {
+  HUMAN_ANSWER
+  APPROVED_IMPORT
+}
+
+enum FunctionalKnowledgeStatus {
+  ACTIVE
+  SUPERSEDED
+}
+
 model Project {
-  id                 String              @id @default(uuid())
-  name               String
-  ownerUserId        String?
-  currentVersionId   String?             @unique
-  currentVersion     ProjectVersion?     @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
-  versions           ProjectVersion[]    @relation("ProjectVersions")
-  testGenerationRuns TestGenerationRun[]
-  experimentRuns     ExperimentRun[]
-  repositoryBinding  RepositoryBinding?
-  analysisRuns       AnalysisRun[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                  String                @id @default(uuid())
+  name                String
+  ownerUserId         String?
+  currentVersionId    String?               @unique
+  currentVersion      ProjectVersion?       @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
+  versions            ProjectVersion[]      @relation("ProjectVersions")
+  testGenerationRuns  TestGenerationRun[]
+  experimentRuns      ExperimentRun[]
+  repositoryBinding   RepositoryBinding?
+  analysisRuns        AnalysisRun[]
+  functionalQuestions FunctionalQuestion[]
+  functionalKnowledge FunctionalKnowledge[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   @@index([ownerUserId])
   @@map("projects")
@@ -186,9 +220,9 @@ model RepositoryBinding {
 /// creación (CHANGESET = PR base SHA <-> HEAD actual). `indexMode` default
 /// BOOTSTRAP hasta que el corte de snapshot intelligence calcule el real.
 model AnalysisRun {
-  id                          String            @id @default(uuid())
+  id                          String               @id @default(uuid())
   projectId                   String
-  project                     Project           @relation(fields: [projectId], references: [id])
+  project                     Project              @relation(fields: [projectId], references: [id])
   repositoryId                String
   repositoryName              String
   prNumber                    Int
@@ -197,26 +231,27 @@ model AnalysisRun {
   headRef                     String
   baseSha                     String
   headSha                     String
-  draft                       Boolean           @default(false)
-  prState                     PullRequestState  @default(OPEN)
+  draft                       Boolean              @default(false)
+  prState                     PullRequestState     @default(OPEN)
   actorLogin                  String?
-  status                      AnalysisRunStatus @default(QUEUED)
-  current                     Boolean           @default(true)
-  attemptCount                Int               @default(0)
-  indexMode                   AnalysisIndexMode @default(BOOTSTRAP)
+  status                      AnalysisRunStatus    @default(QUEUED)
+  current                     Boolean              @default(true)
+  attemptCount                Int                  @default(0)
+  indexMode                   AnalysisIndexMode    @default(BOOTSTRAP)
   changesetBaseSha            String
   changesetHeadSha            String
   indexDeltaBaseSha           String?
   projectVersionId            String?
-  projectVersion              ProjectVersion?   @relation(fields: [projectVersionId], references: [id])
+  projectVersion              ProjectVersion?      @relation(fields: [projectVersionId], references: [id])
   symbols                     AnalysisSymbol[]
-  functionalBehaviorValidated Boolean           @default(false)
-  actionRequiredCount         Int               @default(0)
-  generatedTestsCount         Int               @default(0)
+  functionalQuestions         FunctionalQuestion[]
+  functionalBehaviorValidated Boolean              @default(false)
+  actionRequiredCount         Int                  @default(0)
+  generatedTestsCount         Int                  @default(0)
   resultSummary               String?
   completedAt                 DateTime?
-  createdAt                   DateTime          @default(now())
-  updatedAt                   DateTime          @updatedAt
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
 
   @@index([projectId])
   @@index([repositoryId, prNumber, current])
@@ -240,6 +275,59 @@ model AnalysisSymbol {
 
   @@index([analysisRunId])
   @@map("analysis_symbols")
+}
+
+/// HU35/36 (§6.11): una pregunta por símbolo `DIRECTLY_CHANGED` sin
+/// `FunctionalKnowledge` `ACTIVE` que lo cubra. `answerChoice`/`answerText`/
+/// `knowledgeId` quedan null hasta que se responde (`ANSWERED`). `OBSOLETE`
+/// llega cuando el Run que la generó se obsoleta (nuevo HEAD) antes de
+/// responderse — caso 15 de `spec.md`.
+model FunctionalQuestion {
+  id             String                   @id @default(uuid())
+  analysisRunId  String
+  analysisRun    AnalysisRun              @relation(fields: [analysisRunId], references: [id])
+  projectId      String
+  project        Project                  @relation(fields: [projectId], references: [id])
+  symbolLanguage AnalysisSymbolLanguage
+  symbolKind     AnalysisSymbolKind
+  qualifiedName  String
+  filePath       String
+  question       String
+  rationale      String
+  status         FunctionalQuestionStatus @default(PENDING)
+  answerChoice   FunctionalAnswerChoice?
+  answerText     String?
+  knowledgeId    String?
+  createdAt      DateTime                 @default(now())
+  answeredAt     DateTime?
+
+  @@index([analysisRunId])
+  @@index([projectId, status])
+  @@map("functional_questions")
+}
+
+/// HU35: regla funcional versionada por Project+scope+símbolo. Nunca se
+/// sobrescribe: superseder crea una fila `ACTIVE` nueva y pasa la anterior a
+/// `SUPERSEDED` (`supersedesId` la referencia). `targetRef` es
+/// `filePath::qualifiedName` del símbolo para scope `METHOD`/`SYMBOL`; null
+/// para scope `PROJECT` (no hay jerarquía MODULE/CLASS todavía — ver
+/// `functional-knowledge.service.ts`).
+model FunctionalKnowledge {
+  id               String                    @id @default(uuid())
+  projectId        String
+  project          Project                   @relation(fields: [projectId], references: [id])
+  scope            FunctionalScope
+  targetRef        String?
+  originalQuestion String
+  originalAnswer   String
+  normalizedRule   String
+  source           FunctionalKnowledgeSource @default(HUMAN_ANSWER)
+  status           FunctionalKnowledgeStatus @default(ACTIVE)
+  supersedesId     String?
+  createdAt        DateTime                  @default(now())
+
+  @@index([projectId, scope, targetRef, status])
+  @@map("functional_knowledge")
 }
 
 /// HU31: identidad durable de una entrega de webhook GitHub ya verificada

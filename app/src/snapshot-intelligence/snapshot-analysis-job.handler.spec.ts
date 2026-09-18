@@ -74,6 +74,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       startProcessing: vi.fn(),
       recordSnapshot: vi.fn(),
       completeRunFromSystem: vi.fn(),
+      markActionRequiredFromSystem: vi.fn(),
     };
     const repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
     const projectVersionsRepository = {
@@ -100,6 +101,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       materialize: vi.fn().mockResolvedValue({ dir: '/tmp/fake-workspace', cleanup: workspaceCleanup }),
     };
     const analysisSymbolsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
+    const functionalContextEvaluatorService = { evaluate: vi.fn().mockResolvedValue({ actionRequired: false }) };
     const embeddingProvider = { embedMany: vi.fn().mockResolvedValue([[0.1, 0.2]]) };
 
     const initialRun = buildRun();
@@ -131,6 +133,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       githubRepositoryContentService as never,
       githubSnapshotMaterializerService as never,
       analysisSymbolsRepository as never,
+      functionalContextEvaluatorService as never,
       embeddingProvider as never,
     );
 
@@ -151,6 +154,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       githubRepositoryContentService,
       githubSnapshotMaterializerService,
       analysisSymbolsRepository,
+      functionalContextEvaluatorService,
       embeddingProvider,
       workspaceCleanup,
       initialRun,
@@ -304,12 +308,39 @@ describe('SnapshotAnalysisJobHandler', () => {
     );
   });
 
-  it('does not close the run when the CHANGESET touches a source file (leaves it PROCESSING)', async () => {
-    const { handler, analysisRunsService } = setup();
+  it('leaves the run PROCESSING when the CHANGESET touches source but has enough functional context', async () => {
+    const { handler, analysisRunsService, functionalContextEvaluatorService } = setup();
 
     await handler.handle({ analysisRunId: 'run-1' });
 
+    expect(functionalContextEvaluatorService.evaluate).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'PROCESSING' }),
+    );
     expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+    expect(analysisRunsService.markActionRequiredFromSystem).not.toHaveBeenCalled();
+  });
+
+  it('marks ACTION_REQUIRED when the functional context evaluator says a question is needed', async () => {
+    const { handler, analysisRunsService, functionalContextEvaluatorService } = setup();
+    functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true });
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(analysisRunsService.markActionRequiredFromSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'PROCESSING' }),
+    );
+    expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+  });
+
+  it('does not evaluate functional context when the CHANGESET does not touch source', async () => {
+    const { handler, functionalContextEvaluatorService, githubRepositoryContentService, typeScriptParserService } =
+      setup();
+    githubRepositoryContentService.compare.mockResolvedValue([{ filename: 'README.md', status: 'modified' }]);
+    typeScriptParserService.parse.mockReturnValue([]);
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(functionalContextEvaluatorService.evaluate).not.toHaveBeenCalled();
   });
 
   it('transitions to INFRASTRUCTURE_FAILURE and rethrows when the GitHub API fails', async () => {

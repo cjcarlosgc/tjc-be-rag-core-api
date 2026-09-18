@@ -19,6 +19,7 @@ import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService, type CompareFile } from '../github-app/github-repository-content.service.js';
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
+import { FunctionalContextEvaluatorService } from '../functional-knowledge/functional-context-evaluator.service.js';
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
 import type { EmbeddingProvider } from '../providers/embedding-provider.interface.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
@@ -108,6 +109,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
     private readonly githubSnapshotMaterializerService: GithubSnapshotMaterializerService,
     private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
+    private readonly functionalContextEvaluatorService: FunctionalContextEvaluatorService,
     @Inject(EMBEDDING_PROVIDER) private readonly embeddingProvider: EmbeddingProvider,
   ) {}
 
@@ -208,6 +210,17 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         await this.analysisRunsService.completeRunFromSystem(run, 'NO_TEST_RELEVANT_CHANGES', {
           resultSummary: 'El CHANGESET no incluye cambios en archivos fuente (solo docs/config/formato).',
         });
+      } else {
+        // HU35/36: si falta conocimiento funcional para algún símbolo
+        // DIRECTLY_CHANGED, el Run termina en ACTION_REQUIRED aquí. Si hay
+        // contexto suficiente, retrieval/generación (HU37+) todavía no
+        // existen -el Run queda en PROCESSING, hueco documentado, no un
+        // status de cierre inventado-.
+        const evaluation = await this.functionalContextEvaluatorService.evaluate(run);
+
+        if (evaluation.actionRequired) {
+          await this.analysisRunsService.markActionRequiredFromSystem(run);
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido en snapshot intelligence.';

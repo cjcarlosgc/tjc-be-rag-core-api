@@ -14,6 +14,6 @@
 - [ ] HU31-HU32: dominio AnalysisRun, webhook y lifecycle PR/HEAD sobre bindings habilitados.
 - [ ] HU31: GitHub App real, webhooks, idempotencia y revocación.
 - [x] HU33-HU34: CHANGESET, INDEX DELTA, símbolos cambiados/impactados (reindexado completo del árbol en cada Run vía GitHub API real; sin persistencia incremental optimizada todavía — ver `snapshot-analysis-job.handler.ts`).
-- [ ] HU35-HU36: Functional Knowledge, Action Required y continuation.
+- [x] HU35-HU36: Functional Knowledge versionada (ACTIVE/SUPERSEDED), disparo de ACTION_REQUIRED por símbolo DIRECTLY_CHANGED sin cobertura, preguntas adaptativas una a la vez, conflicto HU51 (§6.11) y continuation job. Simplificaciones documentadas: sin normalización semántica de `normalizedRule` vía LLM, sin `visualAid`, conflicto por match exacto de scope+símbolo (sin jerarquía PROJECT⊃MODULE⊃CLASS) — ver `harness/state.json`. Cuando hay contexto suficiente el Run queda en PROCESSING: retrieval/generación (HU37+) no existen todavía.
 - [ ] HU39-HU40: Checks, review, freshness y companion PR.
 - [ ] HU41-HU42: adapters PHP/Laravel/PHPUnit en Core.

@@ -185,6 +185,15 @@ export class AnalysisRunsService {
 
   async markActionRequired(runId: string, ownerUserId: string): Promise<AnalysisRun> {
     const run = await this.findRunOrThrow(runId, ownerUserId);
+    return this.markActionRequiredFromSystem(run);
+  }
+
+  /**
+   * Gemelo sin scope de owner de `markActionRequired`, para el job handler
+   * de snapshot intelligence / continuation (HU35/36): el `run` ya viene
+   * resuelto por el job, que no tiene un usuario autenticado.
+   */
+  async markActionRequiredFromSystem(run: AnalysisRun): Promise<AnalysisRun> {
     return this.transitionTo(run, 'ACTION_REQUIRED', {
       actionRequiredCount: run.actionRequiredCount + 1,
     });
