@@ -10,7 +10,7 @@
 
 ## Implementación posterior — requiere selección/aprobación humana
 
-- [x] HU30: repository binding user-centric: discovery OAuth efímero, validación de GitHub App por repositorio, ramas por installation token y `integrationBranch` obligatoria sin default (endpoints implementados; falta smoke test end-to-end con installation real — ver `harness/state.json`).
+- [x] HU30: repository binding user-centric: discovery OAuth efímero, validación de GitHub App por repositorio, ramas por installation token y `integrationBranch` obligatoria sin default. Smoke test end-to-end contra Render+Supabase+GitHub reales confirmado para verify-app-access/branches/create binding; discovery (`GET /integrations/github/repositories`) sigue sin probarse porque requiere login GitHub OAuth real (provider token) — ver `harness/state.json`.
 - [ ] HU31-HU32: dominio AnalysisRun, webhook y lifecycle PR/HEAD sobre bindings habilitados.
 - [ ] HU31: GitHub App real, webhooks, idempotencia y revocación.
 - [x] HU33-HU34: CHANGESET, INDEX DELTA, símbolos cambiados/impactados (reindexado completo del árbol en cada Run vía GitHub API real; sin persistencia incremental optimizada todavía — ver `snapshot-analysis-job.handler.ts`).
