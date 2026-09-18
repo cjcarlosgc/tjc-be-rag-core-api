@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 import * as jose from 'jose';
 import { SupabaseJwtVerifier } from './supabase-jwt-verifier.js';
 import { InvalidTokenError } from './token-verifier.port.js';
@@ -112,5 +113,22 @@ describe('SupabaseJwtVerifier', () => {
       .sign(privateKey);
 
     await expect(verifier.verify(token)).rejects.toBeInstanceOf(InvalidTokenError);
+  });
+
+  it('logs the underlying jose error instead of only the generic message', async () => {
+    const verifier = makeVerifier();
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const token = await new jose.SignJWT({ sub: 'user-1' })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setIssuer('https://impostor.supabase.co/auth/v1')
+      .setAudience('authenticated')
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(privateKey);
+
+    await expect(verifier.verify(token)).rejects.toBeInstanceOf(InvalidTokenError);
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('JWTClaimValidationFailed'));
+    warnSpy.mockRestore();
   });
 });
