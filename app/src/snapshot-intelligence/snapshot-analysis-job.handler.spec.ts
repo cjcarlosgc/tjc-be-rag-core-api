@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SnapshotAnalysisJobHandler } from './snapshot-analysis-job.handler.js';
+import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
 import type { ParsedChunk } from '../project-versions/parsing/typescript-parser.service.js';
 import type { AnalysisRun, RepositoryBinding, ProjectVersion } from '../generated/prisma/client.js';
 
@@ -308,20 +309,21 @@ describe('SnapshotAnalysisJobHandler', () => {
     );
   });
 
-  it('leaves the run PROCESSING when the CHANGESET touches source but has enough functional context', async () => {
-    const { handler, analysisRunsService, functionalContextEvaluatorService } = setup();
+  it('enqueues the Validation job when the CHANGESET touches source but has enough functional context', async () => {
+    const { handler, analysisRunsService, functionalContextEvaluatorService, jobsService } = setup();
 
     await handler.handle({ analysisRunId: 'run-1' });
 
     expect(functionalContextEvaluatorService.evaluate).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'PROCESSING' }),
     );
+    expect(jobsService.enqueue).toHaveBeenCalledWith(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: 'run-1' });
     expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
     expect(analysisRunsService.markActionRequiredFromSystem).not.toHaveBeenCalled();
   });
 
   it('marks ACTION_REQUIRED when the functional context evaluator says a question is needed', async () => {
-    const { handler, analysisRunsService, functionalContextEvaluatorService } = setup();
+    const { handler, analysisRunsService, functionalContextEvaluatorService, jobsService } = setup();
     functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true });
 
     await handler.handle({ analysisRunId: 'run-1' });
@@ -330,6 +332,10 @@ describe('SnapshotAnalysisJobHandler', () => {
       expect.objectContaining({ status: 'PROCESSING' }),
     );
     expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+    expect(jobsService.enqueue).not.toHaveBeenCalledWith(
+      ANALYSIS_RUN_VALIDATION_JOB_TYPE,
+      expect.anything(),
+    );
   });
 
   it('does not evaluate functional context when the CHANGESET does not touch source', async () => {

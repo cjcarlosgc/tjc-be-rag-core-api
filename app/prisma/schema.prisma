@@ -220,9 +220,9 @@ model RepositoryBinding {
 /// creación (CHANGESET = PR base SHA <-> HEAD actual). `indexMode` default
 /// BOOTSTRAP hasta que el corte de snapshot intelligence calcule el real.
 model AnalysisRun {
-  id                          String               @id @default(uuid())
+  id                          String                  @id @default(uuid())
   projectId                   String
-  project                     Project              @relation(fields: [projectId], references: [id])
+  project                     Project                 @relation(fields: [projectId], references: [id])
   repositoryId                String
   repositoryName              String
   prNumber                    Int
@@ -231,27 +231,28 @@ model AnalysisRun {
   headRef                     String
   baseSha                     String
   headSha                     String
-  draft                       Boolean              @default(false)
-  prState                     PullRequestState     @default(OPEN)
+  draft                       Boolean                 @default(false)
+  prState                     PullRequestState        @default(OPEN)
   actorLogin                  String?
-  status                      AnalysisRunStatus    @default(QUEUED)
-  current                     Boolean              @default(true)
-  attemptCount                Int                  @default(0)
-  indexMode                   AnalysisIndexMode    @default(BOOTSTRAP)
+  status                      AnalysisRunStatus       @default(QUEUED)
+  current                     Boolean                 @default(true)
+  attemptCount                Int                     @default(0)
+  indexMode                   AnalysisIndexMode       @default(BOOTSTRAP)
   changesetBaseSha            String
   changesetHeadSha            String
   indexDeltaBaseSha           String?
   projectVersionId            String?
-  projectVersion              ProjectVersion?      @relation(fields: [projectVersionId], references: [id])
+  projectVersion              ProjectVersion?         @relation(fields: [projectVersionId], references: [id])
   symbols                     AnalysisSymbol[]
   functionalQuestions         FunctionalQuestion[]
-  functionalBehaviorValidated Boolean              @default(false)
-  actionRequiredCount         Int                  @default(0)
-  generatedTestsCount         Int                  @default(0)
+  generatedTestProposals      GeneratedTestProposal[]
+  functionalBehaviorValidated Boolean                 @default(false)
+  actionRequiredCount         Int                     @default(0)
+  generatedTestsCount         Int                     @default(0)
   resultSummary               String?
   completedAt                 DateTime?
-  createdAt                   DateTime             @default(now())
-  updatedAt                   DateTime             @updatedAt
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
 
   @@index([projectId])
   @@index([repositoryId, prNumber, current])
@@ -275,6 +276,37 @@ model AnalysisSymbol {
 
   @@index([analysisRunId])
   @@map("analysis_symbols")
+}
+
+enum GeneratedTestProposalStatus {
+  AVAILABLE
+  HELD
+  STALE
+  PUBLISHED
+}
+
+/// Corte "Validation" (plan.md #6): una propuesta por símbolo DIRECTLY_CHANGED
+/// METHOD/FUNCTION sin test existente. `storageKey` referencia el contenido
+/// real en Object Storage (mismo patrón que `Artifact.storageKey`, ZIP-era) —
+/// no se guarda el texto en Postgres. `HELD` incluye tanto BEHAVIORAL_MISMATCH
+/// como TECHNICAL_GENERATION_FAILURE (`failureSummary` distingue cuál).
+model GeneratedTestProposal {
+  id             String                      @id @default(uuid())
+  analysisRunId  String
+  analysisRun    AnalysisRun                 @relation(fields: [analysisRunId], references: [id])
+  relativePath   String
+  symbolLanguage AnalysisSymbolLanguage
+  symbolKind     AnalysisSymbolKind
+  qualifiedName  String
+  filePath       String
+  storageKey     String
+  contentSha256  String
+  status         GeneratedTestProposalStatus
+  failureSummary String?
+  createdAt      DateTime                    @default(now())
+
+  @@index([analysisRunId])
+  @@map("generated_test_proposals")
 }
 
 /// HU35/36 (§6.11): una pregunta por símbolo `DIRECTLY_CHANGED` sin

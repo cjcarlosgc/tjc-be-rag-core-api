@@ -4,6 +4,7 @@ import { JobsService } from '../jobs/jobs.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { FunctionalContextEvaluatorService } from './functional-context-evaluator.service.js';
+import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
 import type { AnalysisRun } from '../generated/prisma/client.js';
 
 function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
@@ -17,7 +18,7 @@ function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
 
 describe('FunctionalContinuationJobHandler', () => {
   function setup() {
-    const jobsService = { registerHandler: vi.fn() };
+    const jobsService = { registerHandler: vi.fn(), enqueue: vi.fn() };
     const analysisRunsRepository = { findById: vi.fn() };
     const analysisRunsService = { markActionRequiredFromSystem: vi.fn() };
     const functionalContextEvaluatorService = { evaluate: vi.fn() };
@@ -67,13 +68,15 @@ describe('FunctionalContinuationJobHandler', () => {
     expect(analysisRunsService.markActionRequiredFromSystem).toHaveBeenCalledWith(run);
   });
 
-  it('leaves the run PROCESSING when there is enough functional context now', async () => {
-    const { handler, analysisRunsRepository, analysisRunsService, functionalContextEvaluatorService } = setup();
+  it('enqueues the Validation job when there is enough functional context now', async () => {
+    const { handler, analysisRunsRepository, analysisRunsService, functionalContextEvaluatorService, jobsService } =
+      setup();
     analysisRunsRepository.findById.mockResolvedValue(buildRun());
     functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: false });
 
     await handler.handle({ analysisRunId: 'run-1' });
 
     expect(analysisRunsService.markActionRequiredFromSystem).not.toHaveBeenCalled();
+    expect(jobsService.enqueue).toHaveBeenCalledWith(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: 'run-1' });
   });
 });

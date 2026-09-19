@@ -761,6 +761,8 @@ interface TestPublicationResponse {
 
 La solicitud exige Run `SUCCESS`, proposals `AVAILABLE`, usuario autorizado y HEAD vigente. Core vuelve a comprobar freshness al ejecutar el job. Publica desde el HEAD validado a una rama `rag-tests/pr-<number>-<short-sha>` y abre companion PR hacia la feature branch original; no auto-mergea ni reabre un companion PR cerrado. `BEHAVIORAL_MISMATCH` conserva propuestas `HELD`. La conclusión del GitHub Check pertenece al `headSha` del Run y su `details_url` apunta a `/projects/{projectId}/runs/{analysisRunId}`; la merge policy pertenece al repositorio.
 
+**`GET .../test-proposals` implementado (2026-09-18, corte Validation).** El resto de §6.12 (Checks nativo por HEAD y `POST .../test-publications`/`GET /test-publications/{id}`, companion PR) sigue sin implementar. `GeneratedTestProposal.status` hoy solo usa `AVAILABLE`/`HELD` (`STALE`/`PUBLISHED` quedan reservados para cuando exista publicación); `HELD` cubre tanto `BEHAVIORAL_MISMATCH` como `TECHNICAL_GENERATION_FAILURE`, sin distinguirlos todavía en el campo `status` (sí en `AnalysisRun.status` y en `failureSummary`, campo interno no expuesto por este endpoint).
+
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 
 La integración es HTTP interna y asíncrona. RAG Core es el único consumidor.

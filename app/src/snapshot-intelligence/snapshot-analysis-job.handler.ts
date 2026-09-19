@@ -20,6 +20,7 @@ import { GithubRepositoryContentService, type CompareFile } from '../github-app/
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { FunctionalContextEvaluatorService } from '../functional-knowledge/functional-context-evaluator.service.js';
+import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
 import type { EmbeddingProvider } from '../providers/embedding-provider.interface.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
@@ -213,13 +214,14 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       } else {
         // HU35/36: si falta conocimiento funcional para algún símbolo
         // DIRECTLY_CHANGED, el Run termina en ACTION_REQUIRED aquí. Si hay
-        // contexto suficiente, retrieval/generación (HU37+) todavía no
-        // existen -el Run queda en PROCESSING, hueco documentado, no un
-        // status de cierre inventado-.
+        // contexto suficiente, se encola el job de Validation (corte
+        // plan.md #6: generación+Sandbox+clasificación).
         const evaluation = await this.functionalContextEvaluatorService.evaluate(run);
 
         if (evaluation.actionRequired) {
           await this.analysisRunsService.markActionRequiredFromSystem(run);
+        } else {
+          await this.jobsService.enqueue(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: run.id });
         }
       }
     } catch (error) {

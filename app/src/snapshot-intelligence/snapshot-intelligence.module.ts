@@ -16,5 +16,6 @@ import { SnapshotAnalysisJobHandler } from './snapshot-analysis-job.handler.js';
     FunctionalKnowledgeModule,
   ],
   providers: [GithubSnapshotMaterializerService, SnapshotAnalysisJobHandler],
+  exports: [GithubSnapshotMaterializerService],
 })
 export class SnapshotIntelligenceModule {}

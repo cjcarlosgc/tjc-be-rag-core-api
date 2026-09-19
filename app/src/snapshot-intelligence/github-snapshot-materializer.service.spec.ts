@@ -68,6 +68,23 @@ describe('GithubSnapshotMaterializerService', () => {
     await expect(stat(workspace.dir)).rejects.toThrow();
   });
 
+  it('always includes pnpm-lock.yaml even though it is not a pool file (needed by the Sandbox)', async () => {
+    setup();
+    githubRepositoryContentService.getTree.mockResolvedValue([
+      { path: 'src/a.ts' },
+      { path: 'pnpm-lock.yaml' },
+    ]);
+    githubRepositoryContentService.getFileContent.mockImplementation(
+      async (_repo: string, path: string) => `// content of ${path}`,
+    );
+
+    const workspace = await service.materialize(binding, 'head-sha');
+    createdDirs.push(workspace.dir);
+
+    const written = await readFile(join(workspace.dir, 'pnpm-lock.yaml'), 'utf8');
+    expect(written).toBe('// content of pnpm-lock.yaml');
+  });
+
   it('cleans up the temp dir if materialization fails partway through', async () => {
     setup();
     githubRepositoryContentService.getTree.mockResolvedValue([{ path: 'src/a.ts' }]);

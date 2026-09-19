@@ -33,7 +33,13 @@ export class GithubSnapshotMaterializerService {
         sha,
         token,
       );
-      const poolPaths = tree.map((entry) => entry.path).filter((path) => isPoolFile(path));
+      const allPaths = tree.map((entry) => entry.path);
+      // `pnpm-lock.yaml` no es un archivo "pool" (no se indexa como fuente),
+      // pero el corte de Validation lo necesita para ejecutar en el Sandbox
+      // (`interoperability-contract.md` §7.2: NODE_TYPESCRIPT lo exige,
+      // ausencia -> UNSUPPORTED_PACKAGE_MANAGER); se incluye siempre que
+      // exista, sin ampliar `isPoolFile` para no afectar la indexación.
+      const poolPaths = allPaths.filter((path) => isPoolFile(path) || path === 'pnpm-lock.yaml');
 
       await this.fetchAndWriteInBatches(binding.repositoryName, sha, token, dir, poolPaths);
 

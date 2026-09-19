@@ -17,6 +17,7 @@ import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
 import { GithubWebhooksModule } from './github-webhooks/github-webhooks.module.js';
 import { SnapshotIntelligenceModule } from './snapshot-intelligence/snapshot-intelligence.module.js';
 import { FunctionalKnowledgeModule } from './functional-knowledge/functional-knowledge.module.js';
+import { ValidationModule } from './validation/validation.module.js';
 import { HealthController } from './common/health/health.controller.js';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware.js';
 import { validateEnv } from './config/env.validation.js';
@@ -44,6 +45,7 @@ import { validateEnv } from './config/env.validation.js';
     GithubWebhooksModule,
     SnapshotIntelligenceModule,
     FunctionalKnowledgeModule,
+    ValidationModule,
   ],
   controllers: [HealthController],
 })
