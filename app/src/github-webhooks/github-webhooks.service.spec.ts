@@ -39,7 +39,11 @@ describe('GithubWebhooksService', () => {
     findByDeliveryId: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
   };
-  let repositoryBindingsRepository: { findByRepositoryId: ReturnType<typeof vi.fn> };
+  let repositoryBindingsRepository: {
+    findByRepositoryId: ReturnType<typeof vi.fn>;
+    updateStatus: ReturnType<typeof vi.fn>;
+    updateStatusByInstallation: ReturnType<typeof vi.fn>;
+  };
   let analysisRunsRepository: { findCurrentByPullRequest: ReturnType<typeof vi.fn> };
   let analysisRunsService: {
     startRunFromWebhook: ReturnType<typeof vi.fn>;
@@ -117,7 +121,11 @@ describe('GithubWebhooksService', () => {
       findByDeliveryId: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue(undefined),
     };
-    repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
+    repositoryBindingsRepository = {
+      findByRepositoryId: vi.fn().mockResolvedValue(binding),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateStatusByInstallation: vi.fn().mockResolvedValue(undefined),
+    };
     analysisRunsRepository = { findCurrentByPullRequest: vi.fn().mockResolvedValue(null) };
     analysisRunsService = {
       startRunFromWebhook: vi.fn().mockResolvedValue({ run: buildRun(), isNew: true }),
@@ -360,5 +368,91 @@ describe('GithubWebhooksService', () => {
     expect(analysisRunsService.startRunFromWebhook).not.toHaveBeenCalled();
     expect(analysisRunsService.closeRun).not.toHaveBeenCalled();
     expect(result.analysisRunId).toBeNull();
+  });
+
+  describe('installation (revocación)', () => {
+    it('marks every binding of the installation REVOKED on deleted', async () => {
+      const result = await service.handle(
+        buildRequest({ action: 'deleted', installation: { id: 999 } }, { eventName: 'installation' }),
+      );
+
+      expect(repositoryBindingsRepository.updateStatusByInstallation).toHaveBeenCalledWith('999', 'REVOKED');
+      expect(result.accepted).toBe(true);
+      expect(result.analysisRunId).toBeNull();
+    });
+
+    it('marks every binding of the installation DISABLED on suspend', async () => {
+      await service.handle(
+        buildRequest({ action: 'suspend', installation: { id: 999 } }, { eventName: 'installation' }),
+      );
+
+      expect(repositoryBindingsRepository.updateStatusByInstallation).toHaveBeenCalledWith('999', 'DISABLED');
+    });
+
+    it('marks every binding of the installation ENABLED on unsuspend', async () => {
+      await service.handle(
+        buildRequest({ action: 'unsuspend', installation: { id: 999 } }, { eventName: 'installation' }),
+      );
+
+      expect(repositoryBindingsRepository.updateStatusByInstallation).toHaveBeenCalledWith('999', 'ENABLED');
+    });
+
+    it('does nothing for actions that do not affect an existing binding (e.g. created)', async () => {
+      await service.handle(
+        buildRequest({ action: 'created', installation: { id: 999 } }, { eventName: 'installation' }),
+      );
+
+      expect(repositoryBindingsRepository.updateStatusByInstallation).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('installation_repositories (revocación por repo)', () => {
+    it('revokes only the binding of the repository that was removed', async () => {
+      await service.handle(
+        buildRequest(
+          {
+            action: 'removed',
+            installation: { id: 999 },
+            repositories_removed: [{ id: 123, full_name: 'org/repo' }],
+          },
+          { eventName: 'installation_repositories' },
+        ),
+      );
+
+      expect(repositoryBindingsRepository.findByRepositoryId).toHaveBeenCalledWith('123');
+      expect(repositoryBindingsRepository.updateStatus).toHaveBeenCalledWith('binding-1', 'REVOKED');
+    });
+
+    it('does not revoke a binding whose installationId does not match the event', async () => {
+      repositoryBindingsRepository.findByRepositoryId.mockResolvedValue({ ...binding, installationId: '111' });
+
+      await service.handle(
+        buildRequest(
+          {
+            action: 'removed',
+            installation: { id: 999 },
+            repositories_removed: [{ id: 123, full_name: 'org/repo' }],
+          },
+          { eventName: 'installation_repositories' },
+        ),
+      );
+
+      expect(repositoryBindingsRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('does nothing for the added action', async () => {
+      await service.handle(
+        buildRequest(
+          {
+            action: 'added',
+            installation: { id: 999 },
+            repositories_added: [{ id: 123, full_name: 'org/repo' }],
+          },
+          { eventName: 'installation_repositories' },
+        ),
+      );
+
+      expect(repositoryBindingsRepository.updateStatus).not.toHaveBeenCalled();
+    });
   });
 });

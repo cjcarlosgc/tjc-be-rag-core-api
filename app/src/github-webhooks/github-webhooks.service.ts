@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { isValidWebhookSignature } from './webhook-signature.util.js';
 import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js';
 import type { GithubPullRequestWebhookPayload } from './dto/pull-request-webhook.payload.js';
+import type {
+  GithubInstallationRepositoriesWebhookPayload,
+  GithubInstallationWebhookPayload,
+} from './dto/installation-webhook.payload.js';
 import type { GitHubWebhookAcceptedResponse } from './dto/webhook-accepted.response.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
@@ -26,7 +30,9 @@ export interface IncomingWebhookRequest {
  * HU31: firma sobre body crudo, normalización de `pull_request` e
  * idempotencia por delivery id. Solo bindings ENABLED cuya instalación
  * coincide con la del payload producen trabajo (`spec/contracts/
- * system-contract.md`, "AnalysisRun, Job y Check").
+ * system-contract.md`, "AnalysisRun, Job y Check"). También procesa
+ * `installation`/`installation_repositories` (revocación): mueve el/los
+ * binding(s) afectados a REVOKED/DISABLED/ENABLED según corresponda.
  */
 @Injectable()
 export class GithubWebhooksService {
@@ -75,6 +81,18 @@ export class GithubWebhooksService {
         duplicate: true,
         analysisRunId: existing.analysisRunId,
       };
+    }
+
+    if (request.eventName === 'installation') {
+      await this.handleInstallationEvent(request.payload as GithubInstallationWebhookPayload);
+      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
+    }
+
+    if (request.eventName === 'installation_repositories') {
+      await this.handleInstallationRepositoriesEvent(
+        request.payload as GithubInstallationRepositoriesWebhookPayload,
+      );
+      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
     }
 
     if (request.eventName !== 'pull_request') {
@@ -204,5 +222,45 @@ export class GithubWebhooksService {
 
     const closed = await this.analysisRunsService.closeRun(current, prState);
     return closed.id;
+  }
+
+  /**
+   * HU31 (revocación): `deleted` = App desinstalada, `suspend`/`unsuspend` =
+   * pausa reversible de la instalación completa. Sin dedup por delivery id
+   * -actualizar el status es naturalmente idempotente, reprocesar el mismo
+   * evento no cambia el resultado-.
+   */
+  private async handleInstallationEvent(payload: GithubInstallationWebhookPayload): Promise<void> {
+    const installationId = String(payload.installation.id);
+
+    if (payload.action === 'deleted') {
+      await this.repositoryBindingsRepository.updateStatusByInstallation(installationId, 'REVOKED');
+    } else if (payload.action === 'suspend') {
+      await this.repositoryBindingsRepository.updateStatusByInstallation(installationId, 'DISABLED');
+    } else if (payload.action === 'unsuspend') {
+      await this.repositoryBindingsRepository.updateStatusByInstallation(installationId, 'ENABLED');
+    }
+  }
+
+  /**
+   * HU31 (revocación): la instalación sigue viva, pero GitHub retiró acceso
+   * a un repositorio puntual (el usuario lo destildó en la configuración de
+   * la App). Solo afecta el binding de ese repo, no el resto de la
+   * instalación.
+   */
+  private async handleInstallationRepositoriesEvent(
+    payload: GithubInstallationRepositoriesWebhookPayload,
+  ): Promise<void> {
+    if (payload.action !== 'removed') {
+      return;
+    }
+
+    for (const repo of payload.repositories_removed ?? []) {
+      const binding = await this.repositoryBindingsRepository.findByRepositoryId(String(repo.id));
+
+      if (binding && binding.installationId === String(payload.installation.id)) {
+        await this.repositoryBindingsRepository.updateStatus(binding.id, 'REVOKED');
+      }
+    }
   }
 }

@@ -45,4 +45,19 @@ export class RepositoryBindingsRepository {
   findByRepositoryId(repositoryId: string): Promise<RepositoryBinding | null> {
     return this.prisma.repositoryBinding.findUnique({ where: { repositoryId } });
   }
+
+  /**
+   * HU31 (revocación): una instalación cubre potencialmente varios bindings
+   * (uno por repositorio). `ENABLED` nunca reactiva un binding `REVOKED`
+   * -`REVOKED` es más fuerte que un `unsuspend` de la instalación completa,
+   * ya sea porque la App se desinstaló (`installation.deleted`) o porque
+   * GitHub retiró el acceso a ese repo puntual
+   * (`installation_repositories.removed`)-.
+   */
+  async updateStatusByInstallation(installationId: string, status: RepositoryBindingStatus): Promise<void> {
+    await this.prisma.repositoryBinding.updateMany({
+      where: { installationId, ...(status === 'ENABLED' ? { status: { not: 'REVOKED' } } : {}) },
+      data: { status },
+    });
+  }
 }
