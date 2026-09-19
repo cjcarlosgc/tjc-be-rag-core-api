@@ -5,6 +5,7 @@ import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repositor
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { FunctionalContextEvaluatorService } from './functional-context-evaluator.service.js';
 import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
+import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.js';
 import type { AnalysisRun } from '../generated/prisma/client.js';
 
 function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
@@ -20,17 +21,31 @@ describe('FunctionalContinuationJobHandler', () => {
   function setup() {
     const jobsService = { registerHandler: vi.fn(), enqueue: vi.fn() };
     const analysisRunsRepository = { findById: vi.fn() };
-    const analysisRunsService = { markActionRequiredFromSystem: vi.fn() };
+    const analysisRunsService = {
+      markActionRequiredFromSystem: vi.fn().mockImplementation(async (run: AnalysisRun) => ({
+        ...run,
+        status: 'ACTION_REQUIRED',
+      })),
+    };
     const functionalContextEvaluatorService = { evaluate: vi.fn() };
+    const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
 
     const handler = new FunctionalContinuationJobHandler(
       jobsService as unknown as JobsService,
       analysisRunsRepository as unknown as AnalysisRunsRepository,
       analysisRunsService as unknown as AnalysisRunsService,
       functionalContextEvaluatorService as unknown as FunctionalContextEvaluatorService,
+      analysisRunChecksService as unknown as AnalysisRunChecksService,
     );
 
-    return { handler, jobsService, analysisRunsRepository, analysisRunsService, functionalContextEvaluatorService };
+    return {
+      handler,
+      jobsService,
+      analysisRunsRepository,
+      analysisRunsService,
+      functionalContextEvaluatorService,
+      analysisRunChecksService,
+    };
   }
 
   it('registers itself as a job handler on module init', () => {
@@ -58,7 +73,8 @@ describe('FunctionalContinuationJobHandler', () => {
   });
 
   it('marks ACTION_REQUIRED again when the evaluator finds a new uncovered symbol', async () => {
-    const { handler, analysisRunsRepository, analysisRunsService, functionalContextEvaluatorService } = setup();
+    const { handler, analysisRunsRepository, analysisRunsService, functionalContextEvaluatorService, analysisRunChecksService } =
+      setup();
     const run = buildRun();
     analysisRunsRepository.findById.mockResolvedValue(run);
     functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true });
@@ -66,6 +82,9 @@ describe('FunctionalContinuationJobHandler', () => {
     await handler.handle({ analysisRunId: 'run-1' });
 
     expect(analysisRunsService.markActionRequiredFromSystem).toHaveBeenCalledWith(run);
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ACTION_REQUIRED' }),
+    );
   });
 
   it('enqueues the Validation job when there is enough functional context now', async () => {

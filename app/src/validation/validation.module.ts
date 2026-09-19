@@ -9,6 +9,7 @@ import { SnapshotIntelligenceModule } from '../snapshot-intelligence/snapshot-in
 import { RetrievalModule } from '../retrieval/retrieval.module.js';
 import { GenerationModule } from '../generation/generation.module.js';
 import { SandboxModule } from '../sandbox/sandbox.module.js';
+import { ChecksModule } from '../checks/checks.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SandboxModule } from '../sandbox/sandbox.module.js';
     RetrievalModule,
     GenerationModule,
     SandboxModule,
+    ChecksModule,
   ],
   controllers: [AnalysisRunValidationController],
   providers: [GeneratedTestProposalsRepository, AnalysisRunValidationJobHandler],

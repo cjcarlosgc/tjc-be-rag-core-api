@@ -146,6 +146,13 @@ class EnvironmentVariables {
   @IsString()
   GITHUB_APP_PRIVATE_KEY_BASE64?: string;
 
+  @IsOptional()
+  @IsString()
+  CONSOLE_BASE_URL?: string;
+
+  @IsString()
+  GITHUB_CHECK_NAME: string = 'RAG Core Analysis';
+
   @IsBoolean()
   AUTH_BYPASS_ENABLED: boolean = false;
 

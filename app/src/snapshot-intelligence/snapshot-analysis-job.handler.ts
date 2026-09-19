@@ -21,6 +21,7 @@ import { GithubSnapshotMaterializerService } from './github-snapshot-materialize
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { FunctionalContextEvaluatorService } from '../functional-knowledge/functional-context-evaluator.service.js';
 import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
+import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.js';
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
 import type { EmbeddingProvider } from '../providers/embedding-provider.interface.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
@@ -111,6 +112,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     private readonly githubSnapshotMaterializerService: GithubSnapshotMaterializerService,
     private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
     private readonly functionalContextEvaluatorService: FunctionalContextEvaluatorService,
+    private readonly analysisRunChecksService: AnalysisRunChecksService,
     @Inject(EMBEDDING_PROVIDER) private readonly embeddingProvider: EmbeddingProvider,
   ) {}
 
@@ -128,9 +130,10 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     const binding = await this.repositoryBindingsRepository.findByRepositoryId(initialRun.repositoryId);
 
     if (!binding) {
-      await this.analysisRunsService.completeRunFromSystem(initialRun, 'INFRASTRUCTURE_FAILURE', {
+      const failed = await this.analysisRunsService.completeRunFromSystem(initialRun, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: `No se encontró el repository binding para "${initialRun.repositoryId}".`,
       });
+      await this.analysisRunChecksService.publishForRun(failed);
       return;
     }
 
@@ -208,9 +211,10 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       const changesetTouchesSource = changesetFiles.some((file) => isSourceFile(file.filename));
 
       if (!changesetTouchesSource) {
-        await this.analysisRunsService.completeRunFromSystem(run, 'NO_TEST_RELEVANT_CHANGES', {
+        const completed = await this.analysisRunsService.completeRunFromSystem(run, 'NO_TEST_RELEVANT_CHANGES', {
           resultSummary: 'El CHANGESET no incluye cambios en archivos fuente (solo docs/config/formato).',
         });
+        await this.analysisRunChecksService.publishForRun(completed);
       } else {
         // HU35/36: si falta conocimiento funcional para algún símbolo
         // DIRECTLY_CHANGED, el Run termina en ACTION_REQUIRED aquí. Si hay
@@ -219,7 +223,8 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         const evaluation = await this.functionalContextEvaluatorService.evaluate(run);
 
         if (evaluation.actionRequired) {
-          await this.analysisRunsService.markActionRequiredFromSystem(run);
+          const actionRequired = await this.analysisRunsService.markActionRequiredFromSystem(run);
+          await this.analysisRunChecksService.publishForRun(actionRequired);
         } else {
           await this.jobsService.enqueue(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: run.id });
         }
@@ -227,9 +232,10 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido en snapshot intelligence.';
       this.logger.error(`AnalysisRun ${run.id} falló en snapshot intelligence: ${message}`);
-      await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
+      const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: message,
       });
+      await this.analysisRunChecksService.publishForRun(failed);
       throw error;
     } finally {
       await workspace?.cleanup();

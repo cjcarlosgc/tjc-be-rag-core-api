@@ -7,9 +7,10 @@ import { FunctionalContextEvaluatorService } from './functional-context-evaluato
 import { FunctionalContinuationJobHandler } from './functional-continuation-job.handler.js';
 import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
 import { ProjectsModule } from '../projects/projects.module.js';
+import { ChecksModule } from '../checks/checks.module.js';
 
 @Module({
-  imports: [AnalysisRunsModule, ProjectsModule],
+  imports: [AnalysisRunsModule, ProjectsModule, ChecksModule],
   controllers: [FunctionalKnowledgeController],
   providers: [
     FunctionalKnowledgeService,

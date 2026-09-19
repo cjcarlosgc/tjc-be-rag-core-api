@@ -5,6 +5,7 @@ import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repositor
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { FunctionalContextEvaluatorService } from './functional-context-evaluator.service.js';
 import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
+import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.js';
 
 export interface FunctionalContinuationJobPayload {
   analysisRunId: string;
@@ -30,6 +31,7 @@ export class FunctionalContinuationJobHandler implements JobHandler<FunctionalCo
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly analysisRunsService: AnalysisRunsService,
     private readonly functionalContextEvaluatorService: FunctionalContextEvaluatorService,
+    private readonly analysisRunChecksService: AnalysisRunChecksService,
   ) {}
 
   onModuleInit(): void {
@@ -46,7 +48,8 @@ export class FunctionalContinuationJobHandler implements JobHandler<FunctionalCo
     const evaluation = await this.functionalContextEvaluatorService.evaluate(run);
 
     if (evaluation.actionRequired) {
-      await this.analysisRunsService.markActionRequiredFromSystem(run);
+      const actionRequired = await this.analysisRunsService.markActionRequiredFromSystem(run);
+      await this.analysisRunChecksService.publishForRun(actionRequired);
       return;
     }
 

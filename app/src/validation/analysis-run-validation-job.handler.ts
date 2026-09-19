@@ -24,6 +24,7 @@ import { GeneratedTestProposalsRepository } from './generated-test-proposals.rep
 import { toRetrievalTarget, findMatchingTestTarget } from './symbol-target.util.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
 import type { LLMProvider } from '../providers/llm-provider.interface.js';
+import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.js';
 import type { AnalysisRun, AnalysisSymbol } from '../generated/prisma/client.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
 
@@ -82,6 +83,7 @@ export class AnalysisRunValidationJobHandler
     private readonly sandboxExecutionService: SandboxExecutionService,
     private readonly objectStorageService: ObjectStorageService,
     private readonly generatedTestProposalsRepository: GeneratedTestProposalsRepository,
+    private readonly analysisRunChecksService: AnalysisRunChecksService,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
   ) {}
 
@@ -99,9 +101,10 @@ export class AnalysisRunValidationJobHandler
     const binding = await this.repositoryBindingsRepository.findByRepositoryId(run.repositoryId);
 
     if (!binding) {
-      await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
+      const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: `No se encontró el repository binding para "${run.repositoryId}".`,
       });
+      await this.analysisRunChecksService.publishForRun(failed);
       return;
     }
 
@@ -115,9 +118,10 @@ export class AnalysisRunValidationJobHandler
       ]);
 
       if (!version) {
-        await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
+        const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
           resultSummary: `El ProjectVersion "${run.projectVersionId}" no existe.`,
         });
+        await this.analysisRunChecksService.publishForRun(failed);
         return;
       }
 
@@ -167,17 +171,19 @@ export class AnalysisRunValidationJobHandler
       const finalStatus = this.classifyRun(outcomes);
       const availableCount = outcomes.filter((o) => o.kind === 'AVAILABLE').length;
 
-      await this.analysisRunsService.completeRunFromSystem(run, finalStatus, {
+      const completed = await this.analysisRunsService.completeRunFromSystem(run, finalStatus, {
         resultSummary: this.buildResultSummary(finalStatus, outcomes),
         generatedTestsCount: availableCount,
         functionalBehaviorValidated: finalStatus === 'SUCCESS' || finalStatus === 'NO_ADDITIONAL_TESTS_REQUIRED',
       });
+      await this.analysisRunChecksService.publishForRun(completed);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido en Validation.';
       this.logger.error(`AnalysisRun ${run.id} falló en Validation: ${message}`);
-      await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
+      const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: message,
       });
+      await this.analysisRunChecksService.publishForRun(failed);
       throw error;
     } finally {
       await workspace?.cleanup();

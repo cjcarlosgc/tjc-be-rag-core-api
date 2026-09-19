@@ -103,6 +103,7 @@ describe('SnapshotAnalysisJobHandler', () => {
     };
     const analysisSymbolsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
     const functionalContextEvaluatorService = { evaluate: vi.fn().mockResolvedValue({ actionRequired: false }) };
+    const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
     const embeddingProvider = { embedMany: vi.fn().mockResolvedValue([[0.1, 0.2]]) };
 
     const initialRun = buildRun();
@@ -116,6 +117,10 @@ describe('SnapshotAnalysisJobHandler', () => {
     analysisRunsService.completeRunFromSystem.mockImplementation(async (run: AnalysisRun, status: string) => ({
       ...run,
       status,
+    }));
+    analysisRunsService.markActionRequiredFromSystem.mockImplementation(async (run: AnalysisRun) => ({
+      ...run,
+      status: 'ACTION_REQUIRED',
     }));
 
     const handler = new SnapshotAnalysisJobHandler(
@@ -135,6 +140,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       githubSnapshotMaterializerService as never,
       analysisSymbolsRepository as never,
       functionalContextEvaluatorService as never,
+      analysisRunChecksService as never,
       embeddingProvider as never,
     );
 
@@ -156,6 +162,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       githubSnapshotMaterializerService,
       analysisSymbolsRepository,
       functionalContextEvaluatorService,
+      analysisRunChecksService,
       embeddingProvider,
       workspaceCleanup,
       initialRun,
@@ -296,7 +303,8 @@ describe('SnapshotAnalysisJobHandler', () => {
   });
 
   it('closes as NO_TEST_RELEVANT_CHANGES when the CHANGESET touches no source file', async () => {
-    const { handler, analysisRunsService, githubRepositoryContentService, typeScriptParserService } = setup();
+    const { handler, analysisRunsService, analysisRunChecksService, githubRepositoryContentService, typeScriptParserService } =
+      setup();
     githubRepositoryContentService.compare.mockResolvedValue([{ filename: 'README.md', status: 'modified' }]);
     typeScriptParserService.parse.mockReturnValue([]);
 
@@ -306,6 +314,9 @@ describe('SnapshotAnalysisJobHandler', () => {
       expect.objectContaining({ status: 'PROCESSING' }),
       'NO_TEST_RELEVANT_CHANGES',
       expect.objectContaining({ resultSummary: expect.any(String) }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'NO_TEST_RELEVANT_CHANGES' }),
     );
   });
 
@@ -323,7 +334,8 @@ describe('SnapshotAnalysisJobHandler', () => {
   });
 
   it('marks ACTION_REQUIRED when the functional context evaluator says a question is needed', async () => {
-    const { handler, analysisRunsService, functionalContextEvaluatorService, jobsService } = setup();
+    const { handler, analysisRunsService, analysisRunChecksService, functionalContextEvaluatorService, jobsService } =
+      setup();
     functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true });
 
     await handler.handle({ analysisRunId: 'run-1' });
@@ -335,6 +347,9 @@ describe('SnapshotAnalysisJobHandler', () => {
     expect(jobsService.enqueue).not.toHaveBeenCalledWith(
       ANALYSIS_RUN_VALIDATION_JOB_TYPE,
       expect.anything(),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ACTION_REQUIRED' }),
     );
   });
 

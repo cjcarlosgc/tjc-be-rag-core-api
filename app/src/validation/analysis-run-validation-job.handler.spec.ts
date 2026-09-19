@@ -80,7 +80,13 @@ describe('AnalysisRunValidationJobHandler', () => {
 
     const jobsService = { registerHandler: vi.fn() };
     const analysisRunsRepository = { findById: vi.fn() };
-    const analysisRunsService = { completeRunFromSystem: vi.fn() };
+    const analysisRunsService = {
+      completeRunFromSystem: vi.fn().mockImplementation(async (run: AnalysisRun, status: string, patch: object) => ({
+        ...run,
+        status,
+        ...patch,
+      })),
+    };
     const analysisSymbolsRepository = { findByAnalysisRun: vi.fn().mockResolvedValue([buildSymbol()]) };
     const repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
     const projectVersionsRepository = { findById: vi.fn().mockResolvedValue(buildVersion()) };
@@ -100,6 +106,7 @@ describe('AnalysisRunValidationJobHandler', () => {
     const objectStorageService = { put: vi.fn().mockResolvedValue(undefined) };
     const generatedTestProposalsRepository = { create: vi.fn().mockResolvedValue({ id: 'proposal-1' }) };
     const llmProvider = { generate: vi.fn().mockResolvedValue({ content: 'test content', inputTokens: 10, outputTokens: 20 }) };
+    const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
 
     const handler = new AnalysisRunValidationJobHandler(
       jobsService as never,
@@ -117,6 +124,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       sandboxExecutionService as never,
       objectStorageService as never,
       generatedTestProposalsRepository as never,
+      analysisRunChecksService as never,
       llmProvider as never,
     );
 
@@ -140,6 +148,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       objectStorageService,
       generatedTestProposalsRepository,
       llmProvider,
+      analysisRunChecksService,
       workspaceCleanup,
     };
   }
@@ -250,7 +259,8 @@ describe('AnalysisRunValidationJobHandler', () => {
   });
 
   it('completes SUCCESS and persists an AVAILABLE proposal when the sandbox run passes', async () => {
-    const { handler, generatedTestProposalsRepository, analysisRunsService, sandboxExecutionService } = await setup();
+    const { handler, generatedTestProposalsRepository, analysisRunsService, sandboxExecutionService, analysisRunChecksService } =
+      await setup();
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
@@ -264,6 +274,9 @@ describe('AnalysisRunValidationJobHandler', () => {
       expect.anything(),
       'SUCCESS',
       expect.objectContaining({ generatedTestsCount: 1, functionalBehaviorValidated: true }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'SUCCESS' }),
     );
   });
 
