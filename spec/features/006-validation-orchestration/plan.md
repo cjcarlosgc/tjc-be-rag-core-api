@@ -8,7 +8,7 @@
 
 ## Diseño técnico
 
-`TestExecutionService -> ObjectStorageService.presignGet -> SandboxExecutionService -> HTTP tjc-be-test-execution-sandbox`. Completar `202 + polling`, Bearer e idempotencia conforme a `INTEROP-1.5`; enviar referencias de descarga efímeras verificables, mapear `SandboxExecutionResultResponse` a `TestValidationResult` y persistirlo en Core sin conservar signed URLs. El adapter deriva una identidad UUID v5 por unidad lógica y reutiliza ese valor en `requestId`/`Idempotency-Key` durante retries.
+`TestExecutionService -> ObjectStorageService.presignGet -> SandboxExecutionService -> HTTP tjc-be-test-execution-sandbox`. Mantener `202 + polling`, Bearer e idempotencia conforme a `INTEROP-2.2`; enviar referencias de descarga efímeras verificables, mapear `SandboxExecutionResultResponse` y persistirlo en Core sin signed URLs. El adapter deriva una identidad UUID v5 por unidad lógica y reutiliza ese valor en `requestId`/`Idempotency-Key` durante retries.
 
 ## Validación
 

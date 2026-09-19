@@ -8,7 +8,10 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter.js';
 import { ObjectStorageService } from '../src/object-storage/object-storage.service.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
+import { authedRequest, overrideAuthTokenVerifier } from './support/auth-test-support.js';
 import type { Project } from '../src/generated/prisma/client.js';
+
+const OTHER_USER_ID = 'e2e-other-user';
 
 class FakePrismaService {
   private readonly projects = new Map<string, Project>();
@@ -16,12 +19,13 @@ class FakePrismaService {
   private sequence = 0;
 
   project = {
-    create: async ({ data }: { data: { name: string } }): Promise<Project> => {
+    create: async ({ data }: { data: { name: string; ownerUserId: string } }): Promise<Project> => {
       this.sequence += 1;
       const now = new Date();
       const project: Project = {
         id: randomUUID(),
         name: data.name,
+        ownerUserId: data.ownerUserId,
         currentVersionId: null,
         createdAt: now,
         updatedAt: now,
@@ -30,21 +34,28 @@ class FakePrismaService {
       this.insertionOrder.set(project.id, this.sequence);
       return project;
     },
-    findUnique: async ({ where }: { where: { id: string } }): Promise<Project | null> => {
-      return this.projects.get(where.id) ?? null;
+    findFirst: async ({
+      where,
+    }: {
+      where: { id: string; ownerUserId: string };
+    }): Promise<Project | null> => {
+      const project = this.projects.get(where.id);
+      return project && project.ownerUserId === where.ownerUserId ? project : null;
     },
     findMany: async ({
+      where,
       take,
       cursor,
       skip,
     }: {
+      where?: { ownerUserId?: string };
       take?: number;
       cursor?: { id: string };
       skip?: number;
     }): Promise<Project[]> => {
-      const sorted = [...this.projects.values()].sort(
-        (a, b) => (this.insertionOrder.get(b.id) ?? 0) - (this.insertionOrder.get(a.id) ?? 0),
-      );
+      const sorted = [...this.projects.values()]
+        .filter((project) => !where?.ownerUserId || project.ownerUserId === where.ownerUserId)
+        .sort((a, b) => (this.insertionOrder.get(b.id) ?? 0) - (this.insertionOrder.get(a.id) ?? 0));
       let startIndex = 0;
 
       if (cursor) {
@@ -61,14 +72,15 @@ describe('Projects (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(PrismaService)
-      .useClass(FakePrismaService)
-      .overrideProvider(ObjectStorageService)
-      .useClass(FakeObjectStorageService)
-      .compile();
+    const moduleFixture: TestingModule = await overrideAuthTokenVerifier(
+      Test.createTestingModule({
+        imports: [AppModule],
+      })
+        .overrideProvider(PrismaService)
+        .useClass(FakePrismaService)
+        .overrideProvider(ObjectStorageService)
+        .useClass(FakeObjectStorageService),
+    ).compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -82,8 +94,14 @@ describe('Projects (e2e)', () => {
     await app.close();
   });
 
+  it('rejects a request without an Authorization header with 401 AUTH_REQUIRED (HU29)', async () => {
+    const response = await request(app.getHttpServer()).post('/projects').send({ name: 'demo' }).expect(401);
+
+    expect(response.body.code).toBe('AUTH_REQUIRED');
+  });
+
   it('creates a project with a null currentVersionId', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .post('/projects')
       .send({ name: 'demo' })
       .expect(201);
@@ -93,7 +111,7 @@ describe('Projects (e2e)', () => {
   });
 
   it('rejects an empty name with the standard error envelope', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .post('/projects')
       .send({ name: '' })
       .expect(400);
@@ -106,12 +124,12 @@ describe('Projects (e2e)', () => {
   });
 
   it('returns the created project by id', async () => {
-    const created = await request(app.getHttpServer())
+    const created = await authedRequest(app)
       .post('/projects')
       .send({ name: 'fetched' })
       .expect(201);
 
-    const response = await request(app.getHttpServer())
+    const response = await authedRequest(app)
       .get(`/projects/${created.body.id}`)
       .expect(200);
 
@@ -119,7 +137,7 @@ describe('Projects (e2e)', () => {
   });
 
   it('returns a 404 PROJECT_NOT_FOUND envelope for an unknown id', async () => {
-    const response = await request(app.getHttpServer()).get('/projects/unknown').expect(404);
+    const response = await authedRequest(app).get('/projects/unknown').expect(404);
 
     expect(response.body).toMatchObject({
       statusCode: 404,
@@ -127,12 +145,33 @@ describe('Projects (e2e)', () => {
     });
   });
 
+  it('returns a 404 PROJECT_NOT_FOUND for a project owned by another user (HU29)', async () => {
+    const created = await authedRequest(app, OTHER_USER_ID)
+      .post('/projects')
+      .send({ name: 'private' })
+      .expect(201);
+
+    const response = await authedRequest(app).get(`/projects/${created.body.id}`).expect(404);
+
+    expect(response.body.code).toBe('PROJECT_NOT_FOUND');
+  });
+
+  it('never lists another owner\'s projects (HU29)', async () => {
+    await authedRequest(app, OTHER_USER_ID).post('/projects').send({ name: 'other-owner-project' }).expect(201);
+
+    const response = await authedRequest(app).get('/projects').query({ limit: 50 }).expect(200);
+
+    expect(
+      response.body.items.some((item: { name: string }) => item.name === 'other-owner-project'),
+    ).toBe(false);
+  });
+
   it('paginates the project list, most recently created first (HU25)', async () => {
     // En este punto del archivo ya existen "demo" y "fetched" (tests previos).
-    const third = await request(app.getHttpServer()).post('/projects').send({ name: 'third' }).expect(201);
-    const fourth = await request(app.getHttpServer()).post('/projects').send({ name: 'fourth' }).expect(201);
+    const third = await authedRequest(app).post('/projects').send({ name: 'third' }).expect(201);
+    const fourth = await authedRequest(app).post('/projects').send({ name: 'fourth' }).expect(201);
 
-    const firstPage = await request(app.getHttpServer()).get('/projects').query({ limit: 2 }).expect(200);
+    const firstPage = await authedRequest(app).get('/projects').query({ limit: 2 }).expect(200);
 
     expect(firstPage.body.items.map((item: { id: string }) => item.id)).toEqual([
       fourth.body.id,
@@ -140,7 +179,7 @@ describe('Projects (e2e)', () => {
     ]);
     expect(firstPage.body.nextCursor).toBe(third.body.id);
 
-    const secondPage = await request(app.getHttpServer())
+    const secondPage = await authedRequest(app)
       .get('/projects')
       .query({ limit: 2, cursor: firstPage.body.nextCursor })
       .expect(200);

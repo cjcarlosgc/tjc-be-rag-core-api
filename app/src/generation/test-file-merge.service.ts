@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Node, Project } from 'ts-morph';
 
+export function coLocatedSpecPath(filePath: string): string {
+  return `${filePath.replace(/\.tsx?$/, '')}.spec.ts`;
+}
+
 @Injectable()
 export class TestFileMergeService {
   /**

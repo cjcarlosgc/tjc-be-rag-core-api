@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { ExperimentsService } from './experiments.service.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 
+const OWNER_USER_ID = 'user-1';
+
 function makeDeps(overrides: Record<string, unknown> = {}) {
   return {
     projectsRepository: {
@@ -12,11 +14,11 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED' }),
     },
     testTargetsRepository: {
-      findById: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'FUNCTION' }),
+      findByIdForOwner: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'FUNCTION' }),
     },
     experimentRunsRepository: {
       create: vi.fn().mockResolvedValue({ id: 'exp-1' }),
-      findById: vi.fn(),
+      findByIdForOwner: vi.fn(),
       findRepetitions: vi.fn(),
     },
     jobsService: { enqueue: vi.fn().mockResolvedValue('job-1') },
@@ -48,13 +50,14 @@ function makeService(deps: ReturnType<typeof makeDeps>): ExperimentsService {
 
 describe('ExperimentsService', () => {
   describe('createRun', () => {
-    it('throws PROJECT_NOT_FOUND when the project does not exist', async () => {
+    it('throws PROJECT_NOT_FOUND when the project does not exist or belongs to another owner', async () => {
       const deps = makeDeps({ projectsRepository: { findById: vi.fn().mockResolvedValue(null) } });
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'missing', targetId: 'target-1' }, undefined),
+        service.createRun({ projectId: 'missing', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
+      expect(deps.projectsRepository.findById).toHaveBeenCalledWith('missing', OWNER_USER_ID);
     });
 
     it('throws PROJECT_INDEXING_IN_PROGRESS when the project has an active version', async () => {
@@ -67,7 +70,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_INDEXING_IN_PROGRESS });
     });
 
@@ -78,7 +81,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_READY });
     });
 
@@ -92,27 +95,31 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.ANALYSIS_NOT_FINISHED });
     });
 
-    it('throws UNRESOLVABLE_TARGET when the target does not exist', async () => {
-      const deps = makeDeps({ testTargetsRepository: { findById: vi.fn().mockResolvedValue(null) } });
+    it('throws UNRESOLVABLE_TARGET when the target does not exist or belongs to another owner', async () => {
+      const deps = makeDeps({
+        testTargetsRepository: { findByIdForOwner: vi.fn().mockResolvedValue(null) },
+      });
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'missing' }, undefined),
+        service.createRun({ projectId: 'project-1', targetId: 'missing' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
     });
 
     it('throws INVALID_GENERATION_TARGET when the target is a CLASS', async () => {
       const deps = makeDeps({
-        testTargetsRepository: { findById: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'CLASS' }) },
+        testTargetsRepository: {
+          findByIdForOwner: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'CLASS' }),
+        },
       });
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined),
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.INVALID_GENERATION_TARGET });
     });
 
@@ -120,7 +127,11 @@ describe('ExperimentsService', () => {
       const deps = makeDeps();
       const service = makeService(deps);
 
-      const result = await service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined);
+      const result = await service.createRun(
+        { projectId: 'project-1', targetId: 'target-1' },
+        undefined,
+        OWNER_USER_ID,
+      );
 
       expect(deps.experimentRunsRepository.create).toHaveBeenCalledWith(
         {
@@ -144,7 +155,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
       const dto = { projectId: 'project-1', targetId: 'target-1' };
 
-      await service.createRun(dto, 'client-key-1');
+      await service.createRun(dto, 'client-key-1', OWNER_USER_ID);
 
       expect(deps.idempotencyService.run).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -159,17 +170,19 @@ describe('ExperimentsService', () => {
   describe('getResults', () => {
     it('throws EXPERIMENT_NOT_FINISHED when the run is still RUNNING', async () => {
       const deps = makeDeps();
-      deps.experimentRunsRepository.findById = vi.fn().mockResolvedValue({ id: 'exp-1', status: 'RUNNING' });
+      deps.experimentRunsRepository.findByIdForOwner = vi
+        .fn()
+        .mockResolvedValue({ id: 'exp-1', status: 'RUNNING' });
       const service = makeService(deps);
 
-      await expect(service.getResults('exp-1')).rejects.toMatchObject({
+      await expect(service.getResults('exp-1', OWNER_USER_ID)).rejects.toMatchObject({
         code: ErrorCode.EXPERIMENT_NOT_FINISHED,
       });
     });
 
     it('aggregates rates, means and failure distribution per strategy', async () => {
       const deps = makeDeps();
-      deps.experimentRunsRepository.findById = vi.fn().mockResolvedValue({
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
         id: 'exp-1',
         projectVersionId: 'version-1',
         targetId: 'target-1',
@@ -198,7 +211,7 @@ describe('ExperimentsService', () => {
       ]);
       const service = makeService(deps);
 
-      const results = await service.getResults('exp-1');
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
       const ragMetrics = results.strategies.find((s) => s.strategy === 'RAG')!;
 
       expect(ragMetrics.validRate).toBeCloseTo(1 / 3, 6);

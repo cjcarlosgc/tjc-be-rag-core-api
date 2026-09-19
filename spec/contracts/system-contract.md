@@ -1,147 +1,250 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-1.5
-**Fecha de corte:** 2026-09-06
+**Versión del contrato:** SYSTEM-2.2
+**Fecha de corte:** 2026-09-17
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
-Frontend y Sandbox conservan una copia espejo con la misma versión. Una copia local no puede redefinir este contrato; todo cambio coordinado se consolida primero en el propietario y actualiza los tres `CHANGELOG.md`.
+Developer Console y Test Execution Sandbox conservan una copia espejo byte por byte. Una spec local puede detallar la implementación de su componente, pero no redefinir este contrato.
 
-## Componentes y llamadas permitidas
+## Arquitectura objetivo
 
-`tjc-fe-rag-developer-console -> tjc-be-rag-core-api -> tjc-be-test-execution-sandbox`
+RAG Test Studio adopta un flujo PR-driven. La unidad operativa principal es un `CHANGESET` asociado al HEAD de un Pull Request, no una selección manual `METHOD|CLASS|PROJECT` iniciada obligatoriamente desde la Console.
 
-- Developer Console es el frontend/cliente web de referencia. Consume únicamente RAG Core.
-- RAG Core es el backend principal: ingesta, indexación, retrieval/contexto, generación, experimento, orquestación, artefactos y métricas.
-- Test Execution Sandbox es el backend de ejecución aislada. Consume snapshots/artefactos autorizados, ejecuta Jest/Vitest y devuelve hechos objetivos.
-- El frontend nunca llama directamente al Sandbox. El Sandbox no consulta pgvector, no llama al LLM y no conoce la estrategia experimental.
+```text
+developer and/or coding agent
+  -> feature branch
+  -> Pull Request hacia integrationBranch
+  -> GitHub App
+  -> RAG Core
+  -> AnalysisRun + Job
+  -> contexto semántico + estructural + funcional + tests existentes
+  -> Sandbox
+  -> clasificación objetiva
+  -> GitHub Check + Console
+  -> revisión humana opcional de tests
+  -> companion PR
+```
 
-## Alcance técnico compartido
+- Developer Console es el control plane, workspace human-in-the-loop y superficie de revisión/trazabilidad. No es un launcher obligatorio.
+- RAG Core contiene inicialmente GitHub Integration, dominio, RAG, Functional Knowledge, generación, jobs, orquestación, métricas y publicación de resultados. No se crea un cuarto microservicio por defecto.
+- Test Execution Sandbox ejecuta perfiles aislados y devuelve hechos. Permanece ciego a GitHub, OAuth, usuarios, RAG, reglas funcionales, estrategia experimental y conclusiones de negocio.
+- PostgreSQL + pgvector, Supabase Storage, jobs DB-backed y containers efímeros permanecen vigentes. No se incorporan Redis, RabbitMQ o Kafka sin una decisión posterior.
 
-- Los proyectos analizados y ejecutados en V1 son exclusivamente TypeScript (`.ts`/`.tsx`) con Jest o Vitest.
-- La tesis puede describir el dominio como ecosistema JavaScript/TypeScript; esto no habilita JavaScript puro (`.js`, `.jsx`, `.mjs`, `.cjs`) en V1.
-- Todo proyecto ejecutable en el Sandbox V1 debe incluir `pnpm-lock.yaml`. El Sandbox instala con la versión de pnpm configurada y lockfile congelado; npm, Yarn y proyectos sin lockfile quedan fuera de alcance y deben producir `UNSUPPORTED_PACKAGE_MANAGER`.
-- Cada run se vincula a una `ProjectVersion` inmutable para que generación y validación utilicen exactamente el mismo snapshot.
-- La web es cliente de referencia; plugins IDE, PR/CI-CD autónomo y otros lenguajes son evolución futura.
+## Identidad de persona e integración GitHub
 
-## Persistencia y almacenamiento
+Son fronteras independientes:
 
-- RAG Core usa PostgreSQL + pgvector en Supabase para datos de dominio, chunks, embeddings y la cola DB-backed de jobs.
-- El proveedor de objetos aprobado es Supabase Storage mediante `@supabase/supabase-js`, exclusivamente desde RAG Core y detrás de su abstracción interna `ObjectStorageService`.
-- Supabase Storage conserva snapshots y artefactos; PostgreSQL/pgvector no se sustituye por Storage.
-- RAG Core conserva las keys internas de Storage, genera URLs firmadas temporales cuando el Sandbox necesita descargar una entrada y persiste el resultado final de la ejecución.
-- El Sandbox no recibe por defecto `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` ni `DATABASE_PASSWORD`; tampoco importa `@supabase/supabase-js` ni consulta PostgreSQL/pgvector directamente.
-- El navegador no recibe credenciales de Supabase ni accede directamente al bucket. No necesita `@supabase/supabase-js` ni `SUPABASE_PUBLISHABLE_KEY` mientras no exista una feature aprobada —por ejemplo Auth— que requiera acceso directo.
+1. **Login:** correo/contraseña o GitHub OAuth mediante Supabase Auth producen un `PlatformUser`. Google OAuth queda fuera de alcance.
+2. **Automatización de repositorio:** una GitHub App administra instalaciones, repositorios autorizados, webhooks, Checks y, cuando se habilite, ramas/PR.
 
-## Frontera de ejecución
+GitHub OAuth permite únicamente descubrir los repositorios visibles para la persona autenticada; no autoriza automatización, snapshots, Checks ni publicación. `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son conceptos independientes. No se implementa linking propio por coincidencia de correo; se admite únicamente el linking seguro que Supabase Auth aplique a identidades con correo verificado y configuración explícita. El actor de GitHub es metadata y no autoridad automática dentro de un Project.
 
-- RAG Core identifica el objeto por su key interna, genera una URL firmada de vida corta y la entrega al Sandbox dentro de la solicitud autenticada de ejecución.
-- La URL firmada es una capacidad efímera: no se persiste permanentemente, no se registra completa, no se devuelve al frontend y se descarta tras adquirir la entrada.
-- El proceso host del Sandbox descarga y verifica las entradas, prepara el workspace, ejecuta compilación/pruebas en un container sin secretos, captura resultados estructurados y elimina el workspace.
-- El Sandbox devuelve hechos, stdout/stderr acotados y métricas a RAG Core. RAG Core decide la validez de producto y persiste estados, resultados y evidencia.
-- Si un diseño futuro exigiera acceso directo del Sandbox a una base de datos, requiere decisión humana y un rol mínimo dedicado; el usuario administrador `postgres` y las credenciales de RAG Core están prohibidos.
+Los permisos de la GitHub App aplican mínimo privilegio:
 
-## Despliegue del Sandbox
+- metadata, contents y pull requests: read;
+- checks: write;
+- contents y pull requests: write solo al habilitar publicación;
+- sin Actions/workflows ni permisos administrativos innecesarios.
 
-- El destino operativo previsto es una máquina virtual Linux remota que ejecute el servicio Sandbox y Docker Engine; el proveedor concreto todavía no está seleccionado.
-- La selección futura priorizará servicios con modalidad gratuita o costo cero suficiente para el desarrollo y la evaluación, sin asumir que una oferta gratuita cumple aislamiento, disponibilidad o capacidad.
-- Hasta resolver el proveedor remoto, el entorno aprobado para desarrollo y prevalidación usa la MacBook del desarrollador encendida, con Docker Desktop activo. La VM Linux administrada por Docker Desktop aporta el motor que crea los containers efímeros de ejecución.
-- Este entorno local depende de la disponibilidad física del equipo, energía, conectividad y Docker Desktop; no se considera alta disponibilidad, despliegue empresarial ni evidencia de que el proveedor remoto haya sido elegido.
-- El método para exponer o enrutar el endpoint del Sandbox fuera de la MacBook, si llegara a necesitarse antes de la VM remota, no queda aprobado por esta decisión y debe preservar autenticación, cifrado y mínimo acceso.
+## Onboarding y repository binding
 
-## Autenticación e idempotencia entre componentes
+Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console usa el token OAuth GitHub del usuario, transportado solo para ese descubrimiento, para listar repositorios visibles. Al seleccionar uno, Core se autentica como GitHub App y consulta directamente la instalación que tiene acceso al repositorio. La ausencia de acceso es `NOT_AUTHORIZED`, un resultado de producto que ofrece la URL de configuración centralizada de la App; no se enumeran instalaciones ni se infiere acceso desde OAuth.
 
-- El navegador nunca conoce el secreto de servicio del Sandbox. Solo RAG Core puede invocar `/executions`.
-- Toda llamada Core→Sandbox a `/executions` usa `Authorization: Bearer <service-token>` y HTTPS fuera del entorno local. Los endpoints `/health/live` y `/health/ready` permanecen públicos y no revelan configuración sensible.
-- El token es un secreto opaco precompartido: no es JWT, no requiere proveedor de identidad y no contiene claims. Core y Sandbox reciben el mismo valor mediante `SANDBOX_SERVICE_TOKEN` en la configuración segura de cada host; nunca se versiona, persiste, registra ni inyecta al container que ejecuta código no confiable.
-- En desarrollo con Docker Desktop, cada backend recibe el secreto mediante su `.env` local ignorado. En una VM remota, el mismo contrato usa variables/secretos inyectados por el gestor de secretos del proveedor que se elija; `DEC-INF-001` no necesita resolverse para implementar el contrato local.
-- El frontend genera un UUID por acción lógica en `POST /test-runs`, `POST /experiments` y `POST /test-runs/{runId}/targets/{targetId}/retry`, lo envía como `Idempotency-Key` y conserva el mismo valor durante reintentos de transporte. Una nueva acción intencional usa una key nueva.
-- RAG Core persiste la key con una huella canónica del request y crea de forma atómica el recurso y su job DB-backed. Misma key + mismo request devuelve la operación original; misma key + request distinto devuelve `409 IDEMPOTENCY_CONFLICT`.
-- Cada subejecución Core→Sandbox usa un UUID v5 estable, distinto de la key raíz del frontend y derivado de la identidad durable del job y su unidad lógica. Ese UUID viaja tanto en `Idempotency-Key` como en `requestId` y se reutiliza en todos los reintentos de transporte/polling de la misma subejecución.
-- `POST /projects/index` continúa exento para no imponer retroactivamente este contrato a la ingesta existente.
+Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar deshabilita/revoca el binding, impide aceptar eventos nuevos para ese Project y conserva Runs/evidencia según retención. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU31): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`.
 
-## Experimento
+## Trigger PR-driven y lifecycle
 
-- La comparación principal es `RAG` vs `GENERALIST_AGENT`.
-- `GENERALIST_AGENT` explora el mismo snapshot mediante herramientas read-only controladas y decide qué referencias usar; no es un LLM aislado o sin contexto.
-- RAG adquiere contexto mediante retrieval híbrido semántico + estructural y un `ContextBuilder` explícito.
-- Ambos brazos comparten target, snapshot, familia/versión de LLM, parámetros comparables, Sandbox, runtime y reglas de validación. La tarea es equivalente, aunque las instrucciones de adquisición de contexto difieran.
-- La evaluación principal es first-shot, con tres repeticiones por target/estrategia por defecto y autorreparación desactivada.
-- El Sandbox es ciego: no recibe `RAG`, `GENERALIST_AGENT`, `BASELINE` ni conclusiones experimentales.
-- Se registran métricas de resultado/tiempo/tokens/costo y trazas propias de adquisición: chunks para RAG y tool calls/archivos inspeccionados para el agente.
-- No se adopta una ablación obligatoria semántico/estructural/híbrido ni una prohibición general de recuperar pruebas por supuesto leakage.
+Solo se analiza automáticamente un PR cuyo `base` coincide positivamente con `Project.integrationBranch`. No existe trigger global por `push` ni workflow YAML obligatorio.
 
-## Validación en empresa real
+Crean o reinician análisis:
 
-- La validación final usa el producto conectado en modo `live` en el área de desarrollo de una empresa real e independiente.
-- Datos mock sirven solo para desarrollo/demostración y nunca pueden exportarse o contabilizarse como evidencia experimental o empresarial.
-- Código, rutas, logs, diffs y artefactos se tratan como datos no confiables y potencialmente confidenciales.
-- Antes de desplegar o ingerir un repositorio empresarial debe resolverse `DEC-VAL-001`: cuentas/entorno, acceso, autorización, tratamiento frente a proveedores externos, retención/eliminación y evidencia exportable.
+- `pull_request:opened` si no es draft;
+- `pull_request:reopened` si está ready;
+- `pull_request:ready_for_review`;
+- `pull_request:synchronize`.
 
-## Disponibilidad al corte SYSTEM-1.5
+También se procesan `closed`, `edited` y `converted_to_draft` para mantener lifecycle:
 
-- RAG Core implementa las rutas HTTP y WebSocket contractuales hasta HU25; el Developer Console todavía debe completar adapters y vistas contra `INTEROP-1.5`.
-- El Sandbox implementa por separado `/executions`, autenticación Bearer, deduplicación, descarga/materialización y ejecución aislada de proyectos pnpm con Jest/Vitest.
-- RAG Core ya envía `Authorization: Bearer <SANDBOX_SERVICE_TOKEN>` en todo request a `/executions` y falla al arrancar ante una configuración parcial de `SANDBOX_URL`/`SANDBOX_SERVICE_TOKEN` (`DEC-AUTH-001`). RAG Core ya deriva y reutiliza las identidades hijas UUID v5 exactas de `DEC-IDEMP-001` para el fan-out hacia el Sandbox, en vez de keys aleatorias por intento.
-- RAG Core ya persiste y aplica la idempotencia del cliente en `POST /test-runs`, `POST /experiments` y el POST de retry (`IdempotencyRecord`, transacción atómica recurso+registro+job, replay/conflicto/carrera probados contra la Supabase real).
-- La integración Core↔Sandbox permanece pendiente de verificación real de extremo a extremo hasta que ambos servicios se desplieguen y se prueben juntos (esto no es una decisión abierta ni una tarea de código de Core, es la validación de integración entre repositorios).
+- draft no inicia análisis completo; ready crea el primer Run;
+- cambio de base fuera de `integrationBranch` desactiva el PR; entrada hacia la rama configurada crea Run para el HEAD vigente si está ready;
+- force-push equivale a `synchronize`;
+- nuevo HEAD marca el Run anterior `OBSOLETE` y crea otro;
+- cierre sin merge cancela/obsoleta trabajo no terminal sin borrar historial;
+- merge cierra el lifecycle y resultados tardíos no pueden publicarse como vigentes.
 
-### DEC-INT-001 — Contrato de ejecución Core↔Sandbox
+Fork PR se distingue de same-repository PR. Su publicación queda fuera del primer incremento hasta resolver permisos de escritura específicos.
+
+## AnalysisRun, Job y Check
+
+Un `AnalysisRun` valida un HEAD concreto de un PR concreto. Su identidad conceptual incluye Project, Repository, PR number, base SHA, head SHA, delivery/event y timestamps. Para un mismo Project/Repository/PR/HEAD existe una única identidad lógica vigente.
+
+Un Run no es un Job/Attempt. Reintentos técnicos y continuaciones pertenecen al mismo Run mientras el HEAD no cambie. `ACTION_REQUIRED` termina el job actual; una respuesta válida crea un continuation job sobre el mismo Run si el HEAD sigue vigente. Eventos duplicados se deduplican mediante delivery id más repository/PR/head/event/action.
+
+Core conserva un historial append-only de transiciones de status por Run (estado previo, estado nuevo, motivo, timestamp; HU53) para que un usuario autorizado entienda cómo llegó a su estado actual sin inferirlo de los timestamps sueltos; complementa esos timestamps, no los reemplaza.
+
+Todo Check pertenece al SHA del Run. Un resultado viejo nunca sobrescribe el Check del HEAD vigente. Core publica conclusión objetiva (`success|failure|action_required|neutral`); la configuración del repositorio decide si el Check es required.
+
+## CHANGESET, INDEX DELTA y símbolos
+
+- `PR CHANGESET = PR base SHA <-> current HEAD SHA`: qué se valida.
+- `INDEX DELTA = previous indexed HEAD <-> current HEAD`: qué se reindexa.
+
+El primer análisis realiza bootstrap del snapshot suficiente. Los siguientes actualizan artefactos cambiados/invalidados sin reindexar todo innecesariamente. Los Runs concurrentes quedan aislados por repository/PR/HEAD.
+
+El análisis produce símbolos `DIRECTLY_CHANGED` y `POTENTIALLY_IMPACTED`. TypeScript reconoce class, method, function, interface, type y enum; PHP reconoce class, method, function, interface, trait y enum. PR grandes se filtran, priorizan y pueden dividirse en batches sin fijar thresholds en este corte.
+
+## Contexto RAG y Functional Knowledge
+
+El Context Builder construye trazablemente:
+
+```text
+TARGET
++ SEMANTIC CODE CONTEXT
++ STRUCTURAL CODE CONTEXT
++ FUNCTIONAL CONTEXT
++ EXISTING TEST CONTEXT
+```
+
+`FunctionalKnowledge` es conocimiento funcional persistente y específico del Project. Core conserva pregunta/respuesta originales, regla normalizada, scope (`PROJECT|MODULE|CLASS|METHOD|SYMBOL`), referencia, fuente, estado (`ACTIVE|SUPERSEDED`), validez/versión, timestamp y embedding cuando corresponda.
+
+- Una regla no se sobrescribe silenciosamente: la anterior pasa a `SUPERSEDED` y la nueva a `ACTIVE`.
+- Antes de persistir una regla nueva, Core detecta si contradice una regla `ACTIVE` vigente en scope compatible y expone el conflicto para decisión humana explícita (`SUPERSEDE` o mantener la vigente) antes de contaminar el conocimiento persistido (HU51); no se resuelve automáticamente.
+- `No lo sé` puede registrarse como evidencia de pregunta, pero no crea una regla autoritativa `ACTIVE`.
+- Si falta conocimiento relevante, el Run pasa a `ACTION_REQUIRED`, no `ERROR`; el job termina y no deja runners esperando.
+- Si una regla vigente contradice un cambio, Core solicita decisión humana o clasifica con evidencia; no concluye automáticamente que el código está mal.
+- La Console ofrece Focus Mode de página completa con Project/repo/PR/commit/target, pregunta, motivo, respuesta, ayuda visual técnica opcional y preguntas adaptativas; no muestra un total fijo.
+- La navegación incluye una bandeja `Action Required`; el Check enlaza al Run concreto. Tras login, `returnTo` conserva el deep link original.
+- Responde un usuario autorizado por el Project; el autor del PR no obtiene autoridad por ser autor.
+
+## Baseline, generación y clasificación
+
+Antes de atribuir una falla a pruebas generadas, se ejecuta el baseline relevante de tests existentes.
+
+- baseline rojo -> `BASELINE_FAILED`;
+- cambio sin impacto de tests -> `NO_TEST_RELEVANT_CHANGES`;
+- tests existentes suficientes -> `NO_ADDITIONAL_TESTS_REQUIRED`;
+- test generado técnicamente válido que evidencia discrepancia -> `BEHAVIORAL_MISMATCH`;
+- namespace/import/API/mock/setup/sintaxis inválidos generados -> `TECHNICAL_GENERATION_FAILURE`;
+- Docker/red/storage/worker/runtime de plataforma -> `INFRASTRUCTURE_FAILURE`;
+- validación correcta -> `SUCCESS`.
+
+No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU48) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
+
+## Publicación human-in-the-loop
+
+Tras `SUCCESS`, un usuario autorizado revisa tests, target, reglas funcionales, contexto y evidencia. Antes de publicar, Core verifica que el HEAD actual coincida con el HEAD validado; de lo contrario la propuesta queda `STALE`.
+
+La publicación crea una rama equivalente a `rag-tests/pr-<number>-<short-sha>` desde el HEAD validado y un companion PR hacia la feature branch, nunca directamente hacia `develop`. Solo contiene tests/artefactos permitidos, no se auto-mergea y no se crea mientras exista `BEHAVIORAL_MISMATCH`. Si se cierra/rechaza, no se reabre automáticamente. Al mergearse modifica la feature branch y el PR original genera `synchronize`; como su base no es `integrationBranch`, el companion PR no recursa en el pipeline principal.
+
+## Estrategia de stacks
+
+- TypeScript + Jest/Vitest: compatibilidad mantenida; solo bugs, compatibilidad y refactors necesarios para adapters.
+- PHP + Laravel + PHPUnit: foco activo de nuevo desarrollo.
+
+Core evoluciona mediante adapters de lenguaje y framework de tests, sin dispersar condicionales por stack. PHP cubre filtering, parsing, símbolos, relaciones, chunking, targets, contexto, generación y descubrimiento de tests. Composer usa `composer.json` y `composer.lock` cuando existe.
+
+Sandbox conserva `NODE_TYPESCRIPT` y agrega realmente `PHP_LARAVEL_PHPUNIT` con PHP, Composer, dependencias Laravel, PHPUnit y container aislado. No se fija una única versión de PHP/Laravel hasta revisar repositorios reales. El Sandbox recibe un execution profile explícito y devuelve evidencia normalizada, sin interpretar comportamiento.
+
+## Estados conceptuales
+
+El dominio debe representar sin duplicados innecesarios:
+
+```text
+QUEUED
+PROCESSING
+ACTION_REQUIRED
+SUCCESS
+BEHAVIORAL_MISMATCH
+TECHNICAL_GENERATION_FAILURE
+INFRASTRUCTURE_FAILURE
+BASELINE_FAILED
+NO_ADDITIONAL_TESTS_REQUIRED
+NO_TEST_RELEVANT_CHANGES
+OBSOLETE
+```
+
+## Compatibilidad y legado
+
+- Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
+- El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
+- La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
+- Mocks frontend deben implementar `INTEROP-2.2`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
+
+## Decisiones compartidas
+
+### DEC-GH-001 — Integración PR-driven mediante GitHub App
 
 **Estado:** APROBADO
 
 **Blocks:** NONE
 
-**Resolución:** `INTEROP-1.5` define `POST /executions`, consulta de estado/resultado, `executionId`, `Idempotency-Key`, correlación, autenticación servicio-a-servicio, URLs firmadas temporales con integridad, estados, errores y evidencia acotada. RAG Core conserva Storage/PostgreSQL y persiste el resultado; el Sandbox no recibe credenciales Supabase/DB. Los límites concretos permanecen configuración del Sandbox y no son controlables por el request.
+**Resolución:** GitHub App, binding Project<->Repository, eventos PR-driven, webhooks, Checks API, mínimo privilegio, human-in-the-loop y companion PR aprobado por humano. No se requiere workflow YAML. GitHub OAuth mediante Supabase Auth sirve para identidad y, con un provider token efímero, para descubrir repositorios visibles; la App sigue siendo la única autoridad de automatización.
 
-### DEC-AUTH-001 — Autenticación Core↔Sandbox
-
-**Estado:** APROBADO
-
-**Blocks:** NONE. La parte cliente en RAG Core ya está implementada (`SANDBOX_SERVICE_TOKEN`, header `Authorization: Bearer`, validación de configuración parcial al arrancar); queda pendiente solo la verificación de integración real con el Sandbox desplegado.
-
-**Resolución:** usar `Authorization: Bearer` con un secreto opaco precompartido de alta entropía (mínimo recomendado: 32 bytes aleatorios), suministrado a ambos backends como `SANDBOX_SERVICE_TOKEN`. El Sandbox rechaza `/executions` sin token válido; Core exige la variable cuando `SANDBOX_URL` está configurada y falla al arrancar ante una configuración parcial. No se adopta JWT, Supabase Auth ni otro proveedor de identidad en V1. La rotación se coordina cambiando el secreto en ambos servicios; nunca llega al frontend ni al container de ejecución.
-
-### DEC-IDEMP-001 — Idempotencia de operaciones y subejecuciones
+### DEC-WEB-AUTH-001 — Identidad del navegador
 
 **Estado:** APROBADO
 
-**Blocks:** NONE. Materializado en RAG Core: `IdempotencyRecord` (`spec/transversal/persistence/spec.md`), `IdempotencyService`, y las identidades hijas UUID v5 exactas para el fan-out hacia el Sandbox (`spec/transversal/async-jobs/spec.md`).
+**Blocks:** NONE
 
-**Resolución:** el cliente genera una key UUID estable por acción lógica; Core la persiste junto con una huella canónica y responde con la operación original ante un replay equivalente. Para fan-out, Core deriva una key hija UUID v5 con el namespace estándar URL `6ba7b811-9dad-11d1-80b4-00c04fd430c8` y uno de estos nombres canónicos: `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}`, `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}` o `urn:tjc:sandbox-execution:v1:manual-retry:{retryJobId}:{targetId}`. La key hija coincide con `requestId` del Sandbox y se conserva en cualquier retry. La creación del recurso, la reserva de idempotencia y el job deben ser atómicos o recuperables sin duplicar trabajo.
+**Resolución:** Supabase Auth admite únicamente correo/contraseña y GitHub OAuth. Core valida el access token y autoriza por Project. Login e instalación GitHub App son independientes; Google OAuth y linking propio por correo quedan fuera de alcance.
 
-### DEC-INF-001 — Proveedor de la VM remota del Sandbox
+### DEC-INT-001 — Contrato Core<->Sandbox
+
+**Estado:** APROBADO
+
+**Blocks:** NONE
+
+**Resolución:** `INTEROP-2.2` conserva HTTP asíncrono, Bearer de servicio, idempotencia y referencias efímeras; agrega execution profiles y evidencia neutral para Node/TypeScript y PHP/Laravel/PHPUnit.
+
+### DEC-AUTH-001 — Autenticación Core<->Sandbox
+
+**Estado:** APROBADO
+
+**Blocks:** NONE
+
+**Resolución:** secreto opaco precompartido `SANDBOX_SERVICE_TOKEN`; no es JWT, no llega a la Console ni al container.
+
+### DEC-IDEMP-001 — Idempotencia
+
+**Estado:** APROBADO
+
+**Blocks:** NONE
+
+**Resolución:** keys durables y jobs DB-backed existentes se adaptan al lifecycle PR/HEAD. GitHub deliveries y continuaciones tienen identidades estables.
+
+### DEC-MET-001 — Mutation testing
 
 **Estado:** PENDING
 
-**Blocks:** únicamente el aprovisionamiento y despliegue del Sandbox en una VM remota compartida; no bloquea desarrollo, ejecución ni prevalidación en la MacBook con Docker Desktop, ni trabajo de Core o Frontend que use un endpoint configurable
+**Blocks:** únicamente investigación e implementación de mutation testing; no bloquea T-001 ni el pipeline principal.
 
-**Pregunta:** antes del despliegue remoto, comparar y seleccionar un servicio preferentemente gratuito que permita ejecutar Docker Engine y satisfaga CPU, memoria, disco, arquitectura, disponibilidad, límites/cuotas, red privada o exposición HTTPS, autenticación, firewall, observabilidad y tratamiento de datos. Definir también qué ocurre si el nivel gratuito se suspende, duerme o deja de ser suficiente. El implementador no elige silenciosamente un proveedor.
+**Pregunta:** definir herramientas, stacks, costo y rol metodológico antes de volver Mutation Score una métrica; no es requisito obligatorio en SDD 2.0.
 
-**Checkpoint (2026-09-06):** se confirma humanamente que el entorno local (MacBook con Docker Desktop) sigue siendo suficiente para desarrollo/prevalidación durante Sprint 2, Sprint 3 y Sprint 4; la selección del proveedor remoto se revisita explícitamente después de cerrar Sprint 4, no antes. Si en el futuro se selecciona un proveedor de nivel gratuito y ese nivel se suspende, duerme o resulta insuficiente, se requiere una nueva decisión humana explícita antes de continuar — no hay fallback automático silencioso a otro proveedor. Esta nota no resuelve la decisión: `DEC-INF-001` permanece `PENDING`.
-
-### DEC-MET-001 — Mutation score y StrykerJS
+### DEC-INF-001 — Infraestructura remota del Sandbox
 
 **Estado:** PENDING
 
-**Blocks:** únicamente un work item futuro que pretenda implementar mutation testing o promover mutation score a métrica experimental en cualquiera de los tres componentes; no bloquea HU19 ni el cierre del núcleo de Sprint 2
+**Blocks:** aprovisionamiento remoto; no bloquea desarrollo/prevalidación local ni T-001.
 
-**Pregunta:** inmediatamente después del núcleo de Sprint 2, investigar viabilidad homogénea en proyectos TypeScript con Jest/Vitest, alcance, costo/tiempo, configuración de StrykerJS, aislamiento en Sandbox, contrato de resultados y presentación en frontend. Presentar el análisis para aprobación antes de diseñar o implementar.
+**Pregunta:** seleccionar proveedor y controles de VM remota sin resolver silenciosamente costo, aislamiento, red o retención.
 
-### DEC-VAL-001 — Condiciones técnicas de validación empresarial
+### DEC-VAL-001 — Validación empresarial
 
 **Estado:** PENDING
 
-**Blocks:** únicamente despliegue e ingestión/ejecución de la validación en empresa; no bloquea desarrollo, demo ni prevalidación local
+**Blocks:** ingestión/despliegue con código empresarial y producción de evidencia empresarial; no bloquea T-001.
 
-**Pregunta:** antes de usar repositorios empresariales, definir entorno y propiedad de cuentas, acceso, autorización, tratamiento de código privado frente a proveedores externos, retención/eliminación y evidencia exportable sin filtrar información confidencial.
+**Pregunta:** aprobar autorización organizacional, retención, proveedores externos, protección de código y exportación de evidencia.
 
-## Decisiones compartidas referenciadas
+### DEC-EXP-FK-001 — Paridad experimental del contexto funcional
 
-- `DEC-CHUNK-001`, `DEC-EMB-001`, `DEC-RAG-001` y `DEC-EXP-002`: propiedad de RAG Core; solo bloquean sus alcances declarados.
-- `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-INF-001`, `DEC-MET-001` y `DEC-VAL-001` viven en este contrato porque una resolución exige sincronizar los tres componentes.
-- `DEC-SBX-002` es propiedad local del Sandbox; su consecuencia compartida en V1 es que los proyectos ejecutables deben usar pnpm y aportar `pnpm-lock.yaml`.
+**Estado:** PENDING
+
+**Blocks:** ejecución experimental que incorpore Functional Knowledge; no bloquea implementación del producto ni T-001.
+
+**Pregunta:** definir si ambos brazos reciben la misma información funcional para aislar la variable de adquisición/construcción de contexto.
 
 ## Regla de compatibilidad
 
-Cada contrato local debe declarar la versión `SYSTEM-*` e `INTEROP-*` contra la que fue sincronizado. Una operación `PENDING` no se convierte en contrato por existir en un mock, un plan o un repositorio consumidor.
+`SYSTEM-2.2` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto, y define repository discovery user-centric con automatización GitHub-App-centric. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.2` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.

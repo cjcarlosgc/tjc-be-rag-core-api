@@ -1,7 +1,9 @@
 # 007-artifacts — Especificación
 
-**Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED.  
-**Historias:** HU15, HU16, HU17, HU18
+**Estado:** RETIRED temporalmente para HU15-HU18 — ver `CHANGELOG.md`.  
+**Historias:** HU15, HU16, HU17, HU18, HU27
+
+> HU15-HU18 (artefactos de `TestGenerationRun`) quedan retirados junto con la generación manual: su único productor desapareció. Vuelven rediseñados sobre `AnalysisRun` con la publicación por companion PR (HU39-40). HU27 (trazas de contexto) permanece vigente para Experiments (`GET /experiments/{id}/context-traces`); su variante sobre `test-runs` queda retirada con este corte.
 
 ## Objetivo
 
@@ -14,6 +16,7 @@ Persistir y entregar artefactos generados/modificados de un TestGenerationRun.
 - Endpoints: artifact download, download all, diff.
 - Diff compara original congelado vs artifact final; CREATED -> 409 DIFF_NOT_AVAILABLE.
 - Las rutas y DTOs para listar, diff y descargar son los definidos en `spec/contracts/interoperability-contract.md`; `storageKey` nunca se expone al navegador.
+- `ArtifactResponse.targetIds` declara qué targets del run se materializaron en el archivo y permite abrir el contexto focalizado de un artefacto sin inferirlo por nombre.
 
 ## Fuera de alcance
 

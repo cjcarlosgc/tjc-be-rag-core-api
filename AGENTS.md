@@ -23,7 +23,7 @@ Este repositorio usa Specification-Driven Development (SDD). Este archivo es del
 - No marcar una tarea como terminada sin evidencia verificable.
 - Antes de cerrar: lint, test y build; agregar pruebas para correcciones cuando sea viable.
 - Antes de hacer push al cierre del sprint, el reviewer debe aprobar el rango completo que se publicará y registrar la evidencia de revisión.
-- No hacer commit, push, PR, merge o cambios de infraestructura externa sin solicitud explícita.
+- Commitear por corte con sentido lógico sin pedir permiso previo (`spec/constitution/delivery-workflow.md`, "Puerta de push"). No hacer push, PR, merge o cambios de infraestructura externa sin solicitud explícita en cada ocasión.
 - Si la causa raíz de un fallo está en otro componente (Developer Console, Test Execution Sandbox), no corregirla en ese repositorio: diagnosticar y entregar una indicación compacta al agente propio de ese componente (`spec/constitution/delivery-workflow.md`).
 - Esta sesión (RAG Core API) es la sesión desde la que el usuario coordina el trabajo con los demás componentes; puede delegar hacia la sesión de agente de otro componente, pero solo enviando el handoff después de que el usuario lo confirme explícitamente (`spec/constitution/delivery-workflow.md`, "Delegación entre sesiones de agente").
 - No almacenar secretos en el repositorio.

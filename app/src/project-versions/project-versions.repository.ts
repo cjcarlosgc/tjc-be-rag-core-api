@@ -5,8 +5,7 @@ import { ProjectVersionStatus, type TestFramework } from '../generated/prisma/en
 
 export interface CreatePendingVersionInput {
   projectId: string;
-  originalFileName: string;
-  sizeBytes: number;
+  commitSha: string;
 }
 
 @Injectable()
@@ -17,15 +16,27 @@ export class ProjectVersionsRepository {
     return this.prisma.projectVersion.create({
       data: {
         projectId: input.projectId,
-        originalFileName: input.originalFileName,
-        sizeBytes: input.sizeBytes,
+        commitSha: input.commitSha,
         status: ProjectVersionStatus.PENDING,
       },
     });
   }
 
+  /**
+   * Sin scoping por propietario: uso exclusivo de job handlers en segundo
+   * plano, que procesan un `projectVersionId` ya autorizado por la request
+   * HTTP que encoló el job y no tienen identidad de usuario en su contexto.
+   */
   findById(id: string): Promise<ProjectVersion | null> {
     return this.prisma.projectVersion.findUnique({ where: { id } });
+  }
+
+  /**
+   * Variante para rutas HTTP: filtra por propietario en la misma consulta
+   * (HU29) en vez de cargar y comprobar después.
+   */
+  findByIdForOwner(id: string, ownerUserId: string): Promise<ProjectVersion | null> {
+    return this.prisma.projectVersion.findFirst({ where: { id, project: { ownerUserId } } });
   }
 
   /**
@@ -54,8 +65,16 @@ export class ProjectVersionsRepository {
     return active !== null;
   }
 
-  async setSnapshot(id: string, snapshotKey: string): Promise<void> {
-    await this.prisma.projectVersion.update({ where: { id }, data: { snapshotKey } });
+  /**
+   * HU33: resuelve bootstrap (null, no hay snapshot previo) vs incremental
+   * (existe) para un Project. Un Project tiene a lo sumo un RepositoryBinding
+   * (HU30), así que el projectId ya identifica el repositorio sin join extra.
+   */
+  findLatestCompletedByProject(projectId: string): Promise<ProjectVersion | null> {
+    return this.prisma.projectVersion.findFirst({
+      where: { projectId, status: ProjectVersionStatus.COMPLETED },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async setStatus(id: string, status: ProjectVersionStatus): Promise<void> {

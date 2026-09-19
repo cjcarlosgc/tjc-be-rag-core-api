@@ -6,6 +6,7 @@
 - [x] Score/dedupe/config (`ContextBuilder`: peso semántico/estructural configurable, dedupe por chunk id, `minimumScore`/`topK`).
 - [x] Token budget (`maxContextTokens`, best-effort fill respetando el orden de score).
 - [x] GenerationContext y trazabilidad (`target`, `relatedChunks` con `matchedVia`, `metadata`, `retrievedChunks`/`selectedChunks`/`contextTokens` para métricas experimentales de 008).
+- [ ] Exponer a `011-context-traces` la decisión completa de cada candidato, incluidos los descartes por mínimo, top-K y token budget (HU27; no cubierto por las métricas agregadas existentes).
 - [x] Pruebas de aislamiento entre versiones (`findSimilarByEmbedding`/`findByProjectVersion` siempre filtran por `projectVersionId`; ver `retrieval.service.spec.ts`).
 - [ ] Investigar `DEC-RAG-001` después del núcleo de Sprint 2; no implementar test-aware mientras permanezca PENDING.
 

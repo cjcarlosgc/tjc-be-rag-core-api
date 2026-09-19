@@ -5,6 +5,7 @@
 - [x] GeneralistAgentGenerationStrategy con el set de herramientas read-only aprobado (`WorkspaceAgentTools`: `list_files`, `read_file`, `search_text`, `inspect_symbol` — este último cubre ir a definición + buscar referencias vía ts-morph, combinado en una sola herramienta como simplificación documentada), acotado al snapshot materializado (`ZipExtractionService`, mismo mecanismo que indexación/generación) y con tope configurable de tool calls (`AGENT_MAX_TOOL_CALLS`, default 20).
 - [x] Excluir `*.test.ts`/`*.spec.ts` del target actual de la vista de archivos del agente (`WorkspaceAgentTools` recibe `target.testFilePaths` como exclusión explícita).
 - [x] Persistir trayectoria completa de tool calls (orden, argumentos, resultado resumido) como evidencia auditable (`ExperimentRepetition.trajectory`, JSON).
+- [ ] Migrar la trayectoria resumida existente a `011-context-traces` con observaciones normalizadas, hashes, rangos, truncamiento, estados y archivos descubiertos paginables (HU28).
 - [x] ExperimentRun/Result (`ExperimentRun`, `ExperimentRepetition` en Prisma; `ExperimentRunsRepository`).
 - [x] Ejecución de 3x2 runs por target (`ExperimentJobHandler`: 2 strategies × 3 repeticiones = 6, cada una con workspace propio fresco).
 - [x] Captura de tokens/costos/tiempos (`generationDurationMs`/`executionDurationMs`/`totalDurationMs`, `inputTokens`/`outputTokens`/`totalTokens`, `estimatedCost` vía `cost-calculator.ts`, configurable por `LLM_INPUT_COST_PER_1K_TOKENS`/`LLM_OUTPUT_COST_PER_1K_TOKENS`, null — nunca 0 — cuando el proveedor no reporta tokens).

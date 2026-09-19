@@ -13,13 +13,13 @@ const DEFAULT_PAGE_LIMIT = 20;
 export class ProjectsService {
   constructor(private readonly projectsRepository: ProjectsRepository) {}
 
-  async create(dto: CreateProjectDto): Promise<ProjectResponse> {
-    const project = await this.projectsRepository.create(dto.name.trim());
+  async create(dto: CreateProjectDto, ownerUserId: string): Promise<ProjectResponse> {
+    const project = await this.projectsRepository.create(dto.name.trim(), ownerUserId);
     return this.toResponse(project);
   }
 
-  async getById(id: string): Promise<ProjectResponse> {
-    const project = await this.projectsRepository.findById(id);
+  async getById(id: string, ownerUserId: string): Promise<ProjectResponse> {
+    const project = await this.projectsRepository.findById(id, ownerUserId);
 
     if (!project) {
       throw new AppException(
@@ -32,9 +32,13 @@ export class ProjectsService {
     return this.toResponse(project);
   }
 
-  async list(limit: number | undefined, cursor: string | undefined): Promise<Page<ProjectResponse>> {
+  async list(
+    limit: number | undefined,
+    cursor: string | undefined,
+    ownerUserId: string,
+  ): Promise<Page<ProjectResponse>> {
     const take = limit ?? DEFAULT_PAGE_LIMIT;
-    const projects = await this.projectsRepository.findAll(take, cursor);
+    const projects = await this.projectsRepository.findAll(take, ownerUserId, cursor);
     const hasMore = projects.length > take;
     const items = (hasMore ? projects.slice(0, take) : projects).map((project) =>
       this.toResponse(project),

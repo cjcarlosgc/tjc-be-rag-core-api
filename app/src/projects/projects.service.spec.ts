@@ -14,9 +14,12 @@ describe('ProjectsService', () => {
     findAll: ReturnType<typeof vi.fn>;
   };
 
+  const OWNER_USER_ID = 'user-1';
+
   const project: Project = {
     id: 'project-1',
     name: 'demo',
+    ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -33,12 +36,12 @@ describe('ProjectsService', () => {
   });
 
   describe('create', () => {
-    it('trims the name and returns the serialized project', async () => {
+    it('trims the name, persists the owner and returns the serialized project', async () => {
       repository.create.mockResolvedValue(project);
 
-      const result = await service.create({ name: '  demo  ' });
+      const result = await service.create({ name: '  demo  ' }, OWNER_USER_ID);
 
-      expect(repository.create).toHaveBeenCalledWith('demo');
+      expect(repository.create).toHaveBeenCalledWith('demo', OWNER_USER_ID);
       expect(result).toEqual({
         id: 'project-1',
         name: 'demo',
@@ -50,18 +53,21 @@ describe('ProjectsService', () => {
   });
 
   describe('getById', () => {
-    it('returns the serialized project when found', async () => {
+    it('returns the serialized project when found for its owner', async () => {
       repository.findById.mockResolvedValue({ ...project, currentVersionId: 'version-1' });
 
-      const result = await service.getById('project-1');
+      const result = await service.getById('project-1', OWNER_USER_ID);
 
+      expect(repository.findById).toHaveBeenCalledWith('project-1', OWNER_USER_ID);
       expect(result.currentVersionId).toBe('version-1');
     });
 
-    it('throws PROJECT_NOT_FOUND when the project does not exist', async () => {
+    it('throws PROJECT_NOT_FOUND when the project does not exist or belongs to another owner', async () => {
       repository.findById.mockResolvedValue(null);
 
-      await expect(service.getById('missing')).rejects.toMatchObject<Partial<AppException>>({
+      await expect(
+        service.getById('missing', OWNER_USER_ID),
+      ).rejects.toMatchObject<Partial<AppException>>({
         code: ErrorCode.PROJECT_NOT_FOUND,
       });
     });
@@ -75,9 +81,9 @@ describe('ProjectsService', () => {
         { ...project, id: 'project-1' },
       ]);
 
-      const page = await service.list(2, undefined);
+      const page = await service.list(2, undefined, OWNER_USER_ID);
 
-      expect(repository.findAll).toHaveBeenCalledWith(2, undefined);
+      expect(repository.findAll).toHaveBeenCalledWith(2, OWNER_USER_ID, undefined);
       expect(page.items).toHaveLength(2);
       expect(page.items.map((item) => item.id)).toEqual(['project-3', 'project-2']);
       expect(page.nextCursor).toBe('project-2');
@@ -86,7 +92,7 @@ describe('ProjectsService', () => {
     it('returns nextCursor null when there is no further page', async () => {
       repository.findAll.mockResolvedValue([project]);
 
-      const page = await service.list(20, undefined);
+      const page = await service.list(20, undefined, OWNER_USER_ID);
 
       expect(page.items).toHaveLength(1);
       expect(page.nextCursor).toBeNull();
@@ -95,9 +101,9 @@ describe('ProjectsService', () => {
     it('passes the cursor through to the repository and applies the default limit', async () => {
       repository.findAll.mockResolvedValue([]);
 
-      await service.list(undefined, 'project-5');
+      await service.list(undefined, 'project-5', OWNER_USER_ID);
 
-      expect(repository.findAll).toHaveBeenCalledWith(20, 'project-5');
+      expect(repository.findAll).toHaveBeenCalledWith(20, OWNER_USER_ID, 'project-5');
     });
   });
 });

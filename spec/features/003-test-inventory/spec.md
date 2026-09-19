@@ -3,6 +3,8 @@
 **Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED.  
 **Historias:** HU06
 
+> **Retirado por SDD 2.1:** el disparador ZIP que poblaba este inventario queda retirado (ver `CHANGELOG.md`). El pipeline de detección de framework/targets se reutiliza desde `013-pr-driven-analysis` (HU33/34), con disparador PR-driven en vez de carga manual.
+
 ## Objetivo
 
 Construir el inventario de objetivos testables y pruebas existentes por ProjectVersion.

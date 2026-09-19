@@ -91,48 +91,362 @@ enum ExperimentStrategy {
   GENERALIST_AGENT
 }
 
-model Project {
-  id               String           @id @default(uuid())
-  name             String
-  currentVersionId String?          @unique
-  currentVersion   ProjectVersion?  @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
-  versions         ProjectVersion[] @relation("ProjectVersions")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+enum RepositoryBindingStatus {
+  ENABLED
+  DISABLED
+  REVOKED
+}
 
+enum AnalysisRunStatus {
+  QUEUED
+  PROCESSING
+  ACTION_REQUIRED
+  SUCCESS
+  BEHAVIORAL_MISMATCH
+  TECHNICAL_GENERATION_FAILURE
+  INFRASTRUCTURE_FAILURE
+  BASELINE_FAILED
+  NO_ADDITIONAL_TESTS_REQUIRED
+  NO_TEST_RELEVANT_CHANGES
+  OBSOLETE
+}
+
+enum PullRequestState {
+  OPEN
+  CLOSED
+  MERGED
+}
+
+enum AnalysisIndexMode {
+  BOOTSTRAP
+  INCREMENTAL
+}
+
+enum AnalysisSymbolLanguage {
+  TYPESCRIPT
+  PHP
+}
+
+enum AnalysisSymbolKind {
+  CLASS
+  METHOD
+  FUNCTION
+  INTERFACE
+  TYPE
+  TRAIT
+  ENUM
+}
+
+enum SymbolChangeKind {
+  DIRECTLY_CHANGED
+  POTENTIALLY_IMPACTED
+}
+
+enum FunctionalScope {
+  PROJECT
+  MODULE
+  CLASS
+  METHOD
+  SYMBOL
+}
+
+enum FunctionalQuestionStatus {
+  PENDING
+  ANSWERED
+  OBSOLETE
+}
+
+enum FunctionalAnswerChoice {
+  YES
+  NO
+  DEPENDS
+  UNKNOWN
+  FREE_TEXT
+}
+
+enum FunctionalKnowledgeSource {
+  HUMAN_ANSWER
+  APPROVED_IMPORT
+}
+
+enum FunctionalKnowledgeStatus {
+  ACTIVE
+  SUPERSEDED
+}
+
+model Project {
+  id                  String                @id @default(uuid())
+  name                String
+  ownerUserId         String?
+  currentVersionId    String?               @unique
+  currentVersion      ProjectVersion?       @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
+  versions            ProjectVersion[]      @relation("ProjectVersions")
+  testGenerationRuns  TestGenerationRun[]
+  experimentRuns      ExperimentRun[]
+  repositoryBinding   RepositoryBinding?
+  analysisRuns        AnalysisRun[]
+  functionalQuestions FunctionalQuestion[]
+  functionalKnowledge FunctionalKnowledge[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([ownerUserId])
   @@map("projects")
 }
 
-model ProjectVersion {
-  id               String               @id @default(uuid())
+/// HU30 (dominio): binding Project<->Repository detrás de la GitHub App.
+/// La sesión de instalación y el callback reales (`installationUrl`, validación
+/// contra la API de GitHub) quedan diferidos al corte de GitHub ingress; este
+/// modelo solo persiste el resultado ya validado del binding.
+model RepositoryBinding {
+  id                String                  @id @default(uuid())
+  projectId         String                  @unique
+  project           Project                 @relation(fields: [projectId], references: [id])
+  installationId    String
+  repositoryId      String                  @unique
+  repositoryName    String
+  integrationBranch String
+  status            RepositoryBindingStatus @default(ENABLED)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@map("repository_bindings")
+}
+
+/// HU32: un AnalysisRun representa un HEAD concreto de un PR concreto. Solo
+/// una identidad lógica por (projectId, repositoryId, prNumber) es `current`;
+/// un HEAD nuevo obsoleta el Run anterior sin importar su status previo.
+/// `changesetBaseSha`/`changesetHeadSha` se fijan a baseSha/headSha en la
+/// creación (CHANGESET = PR base SHA <-> HEAD actual). `indexMode` default
+/// BOOTSTRAP hasta que el corte de snapshot intelligence calcule el real.
+model AnalysisRun {
+  id                          String                  @id @default(uuid())
+  projectId                   String
+  project                     Project                 @relation(fields: [projectId], references: [id])
+  repositoryId                String
+  repositoryName              String
+  prNumber                    Int
+  prTitle                     String
+  baseRef                     String
+  headRef                     String
+  baseSha                     String
+  headSha                     String
+  draft                       Boolean                 @default(false)
+  prState                     PullRequestState        @default(OPEN)
+  actorLogin                  String?
+  status                      AnalysisRunStatus       @default(QUEUED)
+  current                     Boolean                 @default(true)
+  attemptCount                Int                     @default(0)
+  indexMode                   AnalysisIndexMode       @default(BOOTSTRAP)
+  changesetBaseSha            String
+  changesetHeadSha            String
+  indexDeltaBaseSha           String?
+  projectVersionId            String?
+  projectVersion              ProjectVersion?         @relation(fields: [projectVersionId], references: [id])
+  symbols                     AnalysisSymbol[]
+  functionalQuestions         FunctionalQuestion[]
+  generatedTestProposals      GeneratedTestProposal[]
+  testPublications            TestPublication[]
+  functionalBehaviorValidated Boolean                 @default(false)
+  actionRequiredCount         Int                     @default(0)
+  generatedTestsCount         Int                     @default(0)
+  resultSummary               String?
+  completedAt                 DateTime?
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+
+  @@index([projectId])
+  @@index([repositoryId, prNumber, current])
+  @@map("analysis_runs")
+}
+
+/// HU34: símbolos DIRECTLY_CHANGED (dentro del CHANGESET) y
+/// POTENTIALLY_IMPACTED (fuera del CHANGESET, importan un archivo cambiado)
+/// de un AnalysisRun. `qualifiedName` es `symbolName` o
+/// `parentSymbolName.symbolName` cuando aplica (p. ej. métodos de clase).
+model AnalysisSymbol {
+  id            String                 @id @default(uuid())
+  analysisRunId String
+  analysisRun   AnalysisRun            @relation(fields: [analysisRunId], references: [id])
+  language      AnalysisSymbolLanguage
+  kind          AnalysisSymbolKind
+  qualifiedName String
+  filePath      String
+  changeKind    SymbolChangeKind
+  createdAt     DateTime               @default(now())
+
+  @@index([analysisRunId])
+  @@map("analysis_symbols")
+}
+
+enum GeneratedTestProposalStatus {
+  AVAILABLE
+  HELD
+  STALE
+  PUBLISHED
+}
+
+/// Corte "Validation" (plan.md #6): una propuesta por símbolo DIRECTLY_CHANGED
+/// METHOD/FUNCTION sin test existente. `storageKey` referencia el contenido
+/// real en Object Storage (mismo patrón que `Artifact.storageKey`, ZIP-era) —
+/// no se guarda el texto en Postgres. `HELD` incluye tanto BEHAVIORAL_MISMATCH
+/// como TECHNICAL_GENERATION_FAILURE (`failureSummary` distingue cuál).
+model GeneratedTestProposal {
+  id             String                      @id @default(uuid())
+  analysisRunId  String
+  analysisRun    AnalysisRun                 @relation(fields: [analysisRunId], references: [id])
+  relativePath   String
+  symbolLanguage AnalysisSymbolLanguage
+  symbolKind     AnalysisSymbolKind
+  qualifiedName  String
+  filePath       String
+  storageKey     String
+  contentSha256  String
+  status         GeneratedTestProposalStatus
+  failureSummary String?
+  createdAt      DateTime                    @default(now())
+
+  @@index([analysisRunId])
+  @@map("generated_test_proposals")
+}
+
+enum TestPublicationStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  STALE
+  FAILED
+  CLOSED
+}
+
+/// HU40 (§6.12): publica un subconjunto de `GeneratedTestProposal` AVAILABLE
+/// como companion PR hacia la feature branch original. `proposalIds` fija
+/// qué propuestas se pidieron publicar (sin tabla de join separada).
+/// `sourceHeadSha` es el HEAD que se validó al solicitar; si ya no coincide
+/// con el HEAD real del PR al ejecutar el job, la publicación queda `STALE`
+/// sin tocar GitHub.
+model TestPublication {
+  id                         String                @id @default(uuid())
+  analysisRunId              String
+  analysisRun                AnalysisRun           @relation(fields: [analysisRunId], references: [id])
+  proposalIds                String[]
+  sourceHeadSha              String
+  status                     TestPublicationStatus @default(PENDING)
+  branchName                 String?
+  companionPullRequestNumber Int?
+  companionPullRequestUrl    String?
+  failureMessage             String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+
+  @@index([analysisRunId])
+  @@map("test_publications")
+}
+
+/// HU35/36 (§6.11): una pregunta por símbolo `DIRECTLY_CHANGED` sin
+/// `FunctionalKnowledge` `ACTIVE` que lo cubra. `answerChoice`/`answerText`/
+/// `knowledgeId` quedan null hasta que se responde (`ANSWERED`). `OBSOLETE`
+/// llega cuando el Run que la generó se obsoleta (nuevo HEAD) antes de
+/// responderse — caso 15 de `spec.md`.
+model FunctionalQuestion {
+  id             String                   @id @default(uuid())
+  analysisRunId  String
+  analysisRun    AnalysisRun              @relation(fields: [analysisRunId], references: [id])
+  projectId      String
+  project        Project                  @relation(fields: [projectId], references: [id])
+  symbolLanguage AnalysisSymbolLanguage
+  symbolKind     AnalysisSymbolKind
+  qualifiedName  String
+  filePath       String
+  question       String
+  rationale      String
+  status         FunctionalQuestionStatus @default(PENDING)
+  answerChoice   FunctionalAnswerChoice?
+  answerText     String?
+  knowledgeId    String?
+  createdAt      DateTime                 @default(now())
+  answeredAt     DateTime?
+
+  @@index([analysisRunId])
+  @@index([projectId, status])
+  @@map("functional_questions")
+}
+
+/// HU35: regla funcional versionada por Project+scope+símbolo. Nunca se
+/// sobrescribe: superseder crea una fila `ACTIVE` nueva y pasa la anterior a
+/// `SUPERSEDED` (`supersedesId` la referencia). `targetRef` es
+/// `filePath::qualifiedName` del símbolo para scope `METHOD`/`SYMBOL`; null
+/// para scope `PROJECT` (no hay jerarquía MODULE/CLASS todavía — ver
+/// `functional-knowledge.service.ts`).
+model FunctionalKnowledge {
+  id               String                    @id @default(uuid())
   projectId        String
-  project          Project              @relation("ProjectVersions", fields: [projectId], references: [id])
-  currentFor       Project?             @relation("ProjectCurrentVersion")
-  status           ProjectVersionStatus @default(PENDING)
-  originalFileName String?
-  sizeBytes        Int?
-  snapshotKey      String?
-  filesProcessed   Int?
-  chunksCount      Int?
+  project          Project                   @relation(fields: [projectId], references: [id])
+  scope            FunctionalScope
+  targetRef        String?
+  originalQuestion String
+  originalAnswer   String
+  normalizedRule   String
+  source           FunctionalKnowledgeSource @default(HUMAN_ANSWER)
+  status           FunctionalKnowledgeStatus @default(ACTIVE)
+  supersedesId     String?
+  createdAt        DateTime                  @default(now())
+
+  @@index([projectId, scope, targetRef, status])
+  @@map("functional_knowledge")
+}
+
+/// HU31: identidad durable de una entrega de webhook GitHub ya verificada
+/// (firma correcta), para deduplicar reintentos de GitHub sobre el mismo
+/// `x-github-delivery`. `analysisRunId` queda null cuando la entrega no
+/// produjo trabajo (evento ignorado, binding no ENABLED, base fuera de
+/// integrationBranch).
+model WebhookDelivery {
+  id            String   @id @default(uuid())
+  deliveryId    String   @unique
+  repositoryId  String
+  prNumber      Int
+  headSha       String
+  event         String
+  action        String
+  analysisRunId String?
+  createdAt     DateTime @default(now())
+
+  @@map("webhook_deliveries")
+}
+
+model ProjectVersion {
+  id                String               @id @default(uuid())
+  projectId         String
+  project           Project              @relation("ProjectVersions", fields: [projectId], references: [id])
+  currentFor        Project?             @relation("ProjectCurrentVersion")
+  status            ProjectVersionStatus @default(PENDING)
+  originalFileName  String?
+  sizeBytes         Int?
+  snapshotKey       String?
+  commitSha         String?
+  filesProcessed    Int?
+  chunksCount       Int?
   detectedFramework TestFramework?
-  targetsTotal     Int?
-  targetsWithTest  Int?
-  failureReason    String?
-  startedAt        DateTime?
-  completedAt      DateTime?
-  chunks           CodeChunk[]
-  testTargets      TestTarget[]
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  targetsTotal      Int?
+  targetsWithTest   Int?
+  failureReason     String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  chunks            CodeChunk[]
+  testTargets       TestTarget[]
+  analysisRuns      AnalysisRun[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@index([projectId])
   @@map("project_versions")
 }
 
 model CodeChunk {
-  id               String         @id @default(uuid())
+  id               String                       @id @default(uuid())
   projectVersionId String
-  projectVersion   ProjectVersion @relation(fields: [projectVersionId], references: [id])
+  projectVersion   ProjectVersion               @relation(fields: [projectVersionId], references: [id])
   filePath         String
   symbolKind       String
   symbolName       String?
@@ -140,32 +454,32 @@ model CodeChunk {
   startLine        Int
   endLine          Int
   content          String
-  importsUsed      String[]       @default([])
+  importsUsed      String[]                     @default([])
   tokenCount       Int?
-  partIndex        Int            @default(1)
-  partsTotal       Int            @default(1)
+  partIndex        Int                          @default(1)
+  partsTotal       Int                          @default(1)
   embedding        Unsupported("vector(1536)")?
-  createdAt        DateTime       @default(now())
+  createdAt        DateTime                     @default(now())
 
   @@index([projectVersionId])
   @@map("code_chunks")
 }
 
 model TestTarget {
-  id               String         @id @default(uuid())
+  id               String            @id @default(uuid())
   projectVersionId String
-  projectVersion   ProjectVersion @relation(fields: [projectVersionId], references: [id])
+  projectVersion   ProjectVersion    @relation(fields: [projectVersionId], references: [id])
   filePath         String
   symbolName       String
   methodName       String?
   targetType       TestTargetType
   startLine        Int
   endLine          Int
-  hasTest          Boolean        @default(false)
-  testFilePaths    String[]       @default([])
+  hasTest          Boolean           @default(false)
+  testFilePaths    String[]          @default([])
   targetRunResults TargetRunResult[]
   experimentRuns   ExperimentRun[]
-  createdAt        DateTime       @default(now())
+  createdAt        DateTime          @default(now())
 
   @@index([projectVersionId])
   @@map("test_targets")
@@ -174,6 +488,7 @@ model TestTarget {
 model TestGenerationRun {
   id               String            @id @default(uuid())
   projectId        String
+  project          Project           @relation(fields: [projectId], references: [id])
   projectVersionId String
   mode             GenerationMode
   targetId         String?
@@ -236,52 +551,53 @@ model Artifact {
 }
 
 model ExperimentRun {
-  id                  String             @id @default(uuid())
-  projectId           String
-  projectVersionId    String
-  targetId            String
-  target              TestTarget         @relation(fields: [targetId], references: [id])
-  status              ExperimentStatus   @default(PENDING)
-  completedRepetitions Int               @default(0)
-  totalRepetitions    Int                @default(6)
-  failureCode         String?
-  failureMessage      String?
-  startedAt           DateTime?
-  completedAt         DateTime?
-  repetitions         ExperimentRepetition[]
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id                   String                 @id @default(uuid())
+  projectId            String
+  project              Project                @relation(fields: [projectId], references: [id])
+  projectVersionId     String
+  targetId             String
+  target               TestTarget             @relation(fields: [targetId], references: [id])
+  status               ExperimentStatus       @default(PENDING)
+  completedRepetitions Int                    @default(0)
+  totalRepetitions     Int                    @default(6)
+  failureCode          String?
+  failureMessage       String?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  repetitions          ExperimentRepetition[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([projectId])
   @@map("experiment_runs")
 }
 
 model ExperimentRepetition {
-  id                  String             @id @default(uuid())
-  experimentId        String
-  experiment          ExperimentRun      @relation(fields: [experimentId], references: [id])
-  repetition          Int
-  strategy            ExperimentStrategy
-  compiled            Boolean?
-  executed            Boolean?
-  passed              Boolean?
-  valid               Boolean?
-  failureType         FailureType?
-  errorSummary        String?
+  id                   String             @id @default(uuid())
+  experimentId         String
+  experiment           ExperimentRun      @relation(fields: [experimentId], references: [id])
+  repetition           Int
+  strategy             ExperimentStrategy
+  compiled             Boolean?
+  executed             Boolean?
+  passed               Boolean?
+  valid                Boolean?
+  failureType          FailureType?
+  errorSummary         String?
   generationDurationMs Int?
-  executionDurationMs Int?
-  totalDurationMs     Int?
-  inputTokens         Int?
-  outputTokens        Int?
-  totalTokens         Int?
-  estimatedCost       Float?
-  retrievedChunks     Int?
-  selectedChunks      Int?
-  contextTokens       Int?
-  toolCalls           Int?
-  filesInspected      Int?
-  trajectory          Json?
-  createdAt           DateTime           @default(now())
+  executionDurationMs  Int?
+  totalDurationMs      Int?
+  inputTokens          Int?
+  outputTokens         Int?
+  totalTokens          Int?
+  estimatedCost        Float?
+  retrievedChunks      Int?
+  selectedChunks       Int?
+  contextTokens        Int?
+  toolCalls            Int?
+  filesInspected       Int?
+  trajectory           Json?
+  createdAt            DateTime           @default(now())
 
   @@index([experimentId])
   @@map("experiment_repetitions")

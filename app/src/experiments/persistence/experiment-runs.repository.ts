@@ -43,8 +43,20 @@ export class ExperimentRunsRepository {
     return (tx ?? this.prisma).experimentRun.create({ data: input });
   }
 
+  /**
+   * Sin scoping por propietario: uso exclusivo de job handlers en segundo
+   * plano y de lecturas internas encadenadas a un recurso ya autorizado.
+   */
   findById(id: string): Promise<ExperimentRun | null> {
     return this.prisma.experimentRun.findUnique({ where: { id } });
+  }
+
+  /**
+   * Variante para rutas HTTP: filtra por propietario en la misma consulta
+   * (HU29) en vez de cargar y comprobar después.
+   */
+  findByIdForOwner(id: string, ownerUserId: string): Promise<ExperimentRun | null> {
+    return this.prisma.experimentRun.findFirst({ where: { id, project: { ownerUserId } } });
   }
 
   markStarted(id: string): Promise<ExperimentRun> {

@@ -1,30 +1,16 @@
 import { Module } from '@nestjs/common';
-import { ProjectsModule } from '../projects/projects.module.js';
-import { ProjectVersionsModule } from '../project-versions/project-versions.module.js';
-import { RetrievalModule } from '../retrieval/retrieval.module.js';
-import { SandboxModule } from '../sandbox/sandbox.module.js';
-import { ArtifactsModule } from '../artifacts/artifacts.module.js';
-import { TestGenerationController } from './test-generation.controller.js';
-import { TestGenerationService } from './test-generation.service.js';
-import { TestGenerationRunsRepository } from './persistence/test-generation-runs.repository.js';
-import { GapAnalyzer } from './gap-analyzer.service.js';
 import { PromptBuilder } from './prompt-builder.service.js';
 import { TestFileMergeService } from './test-file-merge.service.js';
-import { TestGenerationJobHandler } from './test-generation-job.handler.js';
-import { RetryTargetJobHandler } from './retry-target-job.handler.js';
+import { GeneralistAgentService } from './agent/generalist-agent.service.js';
 
+/**
+ * Retirados los modos manuales de generación (SDD 2.0, ver CHANGELOG.md): sin
+ * controller propio. Expone únicamente las piezas agnósticas de modo/ZIP que
+ * reutilizan tanto Experiments (HU19, vigente) como la futura generación
+ * PR-driven (HU39-40).
+ */
 @Module({
-  imports: [ProjectsModule, ProjectVersionsModule, RetrievalModule, SandboxModule, ArtifactsModule],
-  controllers: [TestGenerationController],
-  providers: [
-    TestGenerationService,
-    TestGenerationRunsRepository,
-    GapAnalyzer,
-    PromptBuilder,
-    TestFileMergeService,
-    TestGenerationJobHandler,
-    RetryTargetJobHandler,
-  ],
-  exports: [PromptBuilder, TestFileMergeService],
+  providers: [PromptBuilder, TestFileMergeService, GeneralistAgentService],
+  exports: [PromptBuilder, TestFileMergeService, GeneralistAgentService],
 })
 export class GenerationModule {}

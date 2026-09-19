@@ -6,11 +6,19 @@ import { ProvidersModule } from './providers/providers.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
+import { AuthModule } from './common/auth/auth.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ProjectVersionsModule } from './project-versions/project-versions.module.js';
 import { RetrievalModule } from './retrieval/retrieval.module.js';
 import { GenerationModule } from './generation/generation.module.js';
 import { ExperimentsModule } from './experiments/experiments.module.js';
+import { RepositoryBindingsModule } from './repository-bindings/repository-bindings.module.js';
+import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
+import { GithubWebhooksModule } from './github-webhooks/github-webhooks.module.js';
+import { SnapshotIntelligenceModule } from './snapshot-intelligence/snapshot-intelligence.module.js';
+import { FunctionalKnowledgeModule } from './functional-knowledge/functional-knowledge.module.js';
+import { ValidationModule } from './validation/validation.module.js';
+import { PublicationsModule } from './publications/publications.module.js';
 import { HealthController } from './common/health/health.controller.js';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware.js';
 import { validateEnv } from './config/env.validation.js';
@@ -21,6 +29,7 @@ import { validateEnv } from './config/env.validation.js';
       isGlobal: true,
       validate: validateEnv,
     }),
+    AuthModule,
     PrismaModule,
     ObjectStorageModule,
     ProvidersModule,
@@ -32,6 +41,13 @@ import { validateEnv } from './config/env.validation.js';
     RetrievalModule,
     GenerationModule,
     ExperimentsModule,
+    RepositoryBindingsModule,
+    AnalysisRunsModule,
+    GithubWebhooksModule,
+    SnapshotIntelligenceModule,
+    FunctionalKnowledgeModule,
+    ValidationModule,
+    PublicationsModule,
   ],
   controllers: [HealthController],
 })
