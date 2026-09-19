@@ -37,6 +37,16 @@ export interface RepositoryBranch {
   protected: boolean;
 }
 
+interface GithubApiPullRequestResponse {
+  head: { sha: string };
+  state: 'open' | 'closed';
+}
+
+export interface PullRequestHead {
+  headSha: string;
+  state: 'open' | 'closed';
+}
+
 /**
  * Llamadas de solo lectura a la API REST de GitHub necesarias para HU33/34.
  * `repoFullName` es `owner/repo` (`RepositoryBinding.repositoryName`).
@@ -130,6 +140,14 @@ export class GithubRepositoryContentService {
     }
 
     return branches;
+  }
+
+  /** HU40: freshness check antes de publicar el companion PR. */
+  async getPullRequestHead(repoFullName: string, prNumber: number, token: string): Promise<PullRequestHead> {
+    const response = await this.request(`https://api.github.com/repos/${repoFullName}/pulls/${prNumber}`, token);
+    const data = (await response.json()) as GithubApiPullRequestResponse;
+
+    return { headSha: data.head.sha, state: data.state };
   }
 
   private async request(url: string, token: string): Promise<Response> {

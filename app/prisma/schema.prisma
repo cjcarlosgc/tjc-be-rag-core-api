@@ -246,6 +246,7 @@ model AnalysisRun {
   symbols                     AnalysisSymbol[]
   functionalQuestions         FunctionalQuestion[]
   generatedTestProposals      GeneratedTestProposal[]
+  testPublications            TestPublication[]
   functionalBehaviorValidated Boolean                 @default(false)
   actionRequiredCount         Int                     @default(0)
   generatedTestsCount         Int                     @default(0)
@@ -307,6 +308,39 @@ model GeneratedTestProposal {
 
   @@index([analysisRunId])
   @@map("generated_test_proposals")
+}
+
+enum TestPublicationStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  STALE
+  FAILED
+  CLOSED
+}
+
+/// HU40 (§6.12): publica un subconjunto de `GeneratedTestProposal` AVAILABLE
+/// como companion PR hacia la feature branch original. `proposalIds` fija
+/// qué propuestas se pidieron publicar (sin tabla de join separada).
+/// `sourceHeadSha` es el HEAD que se validó al solicitar; si ya no coincide
+/// con el HEAD real del PR al ejecutar el job, la publicación queda `STALE`
+/// sin tocar GitHub.
+model TestPublication {
+  id                         String                @id @default(uuid())
+  analysisRunId              String
+  analysisRun                AnalysisRun           @relation(fields: [analysisRunId], references: [id])
+  proposalIds                String[]
+  sourceHeadSha              String
+  status                     TestPublicationStatus @default(PENDING)
+  branchName                 String?
+  companionPullRequestNumber Int?
+  companionPullRequestUrl    String?
+  failureMessage             String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+
+  @@index([analysisRunId])
+  @@map("test_publications")
 }
 
 /// HU35/36 (§6.11): una pregunta por símbolo `DIRECTLY_CHANGED` sin

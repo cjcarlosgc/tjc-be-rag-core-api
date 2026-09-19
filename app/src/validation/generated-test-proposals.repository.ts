@@ -29,4 +29,22 @@ export class GeneratedTestProposalsRepository {
       orderBy: { createdAt: 'asc' },
     });
   }
+
+  /** HU40: valida que las propuestas a publicar pertenezcan de verdad a ese Run. */
+  findByIdsForRun(analysisRunId: string, ids: string[]): Promise<GeneratedTestProposal[]> {
+    return this.prisma.generatedTestProposal.findMany({
+      where: { analysisRunId, id: { in: ids } },
+    });
+  }
+
+  async markPublished(ids: string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+
+    await this.prisma.generatedTestProposal.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'PUBLISHED' },
+    });
+  }
 }

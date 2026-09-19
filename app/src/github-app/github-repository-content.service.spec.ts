@@ -104,6 +104,17 @@ describe('GithubRepositoryContentService', () => {
     });
   });
 
+  describe('getPullRequestHead', () => {
+    it('returns the head sha and state of a pull request', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ head: { sha: 'live-sha' }, state: 'open' })));
+
+      await expect(service.getPullRequestHead(REPO, 42, TOKEN)).resolves.toEqual({
+        headSha: 'live-sha',
+        state: 'open',
+      });
+    });
+  });
+
   describe('listBranches', () => {
     it('returns name/protected for each branch', async () => {
       vi.stubGlobal(

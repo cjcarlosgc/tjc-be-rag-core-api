@@ -24,5 +24,6 @@ import { ChecksModule } from '../checks/checks.module.js';
   ],
   controllers: [AnalysisRunValidationController],
   providers: [GeneratedTestProposalsRepository, AnalysisRunValidationJobHandler],
+  exports: [GeneratedTestProposalsRepository],
 })
 export class ValidationModule {}
