@@ -61,3 +61,16 @@ describe('RepositoryBindingsRepository — HU57 status transitions', () => {
     });
   });
 });
+
+describe('RepositoryBindingsRepository.findForRun (HU56)', () => {
+  it('requires the binding to belong to the Run project and the project to be alive', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const repository = new RepositoryBindingsRepository({ repositoryBinding: { findFirst } } as unknown as PrismaService);
+
+    await repository.findForRun({ repositoryId: 'r1', projectId: 'p1' });
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { repositoryId: 'r1', projectId: 'p1', project: { deletedAt: null } },
+    });
+  });
+});

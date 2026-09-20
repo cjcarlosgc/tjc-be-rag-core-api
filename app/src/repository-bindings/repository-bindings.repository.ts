@@ -5,6 +5,7 @@ import type {
   RepositoryBinding,
   RepositoryBindingStatus,
 } from '../generated/prisma/client.js';
+import { ownedProject } from '../common/persistence/owned-project.filter.js';
 
 export interface CreateRepositoryBindingInput {
   installationId: string;
@@ -34,7 +35,7 @@ export class RepositoryBindingsRepository {
     ownerUserId: string,
   ): Promise<RepositoryBinding | null> {
     return this.prisma.repositoryBinding.findFirst({
-      where: { projectId, project: { ownerUserId } },
+      where: { projectId, project: ownedProject(ownerUserId) },
     });
   }
 
@@ -64,6 +65,18 @@ export class RepositoryBindingsRepository {
    */
   findByRepositoryId(repositoryId: string): Promise<RepositoryBinding | null> {
     return this.prisma.repositoryBinding.findUnique({ where: { repositoryId } });
+  }
+
+  /**
+   * HU56: binding con el que un job puede operar sobre un Run. Exige que el
+   * binding siga perteneciendo al Project del Run y que el Project no esté
+   * borrado: así un repositorio re-vinculado a otro Project no procesa ni
+   * publica Runs del Project anterior.
+   */
+  findForRun(run: { repositoryId: string; projectId: string }): Promise<RepositoryBinding | null> {
+    return this.prisma.repositoryBinding.findFirst({
+      where: { repositoryId: run.repositoryId, projectId: run.projectId, project: { deletedAt: null } },
+    });
   }
 
   /**

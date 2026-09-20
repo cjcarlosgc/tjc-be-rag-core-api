@@ -188,6 +188,7 @@ model Project {
   name                String
   ownerUserId         String?
   currentVersionId    String?               @unique
+  deletedAt           DateTime?
   currentVersion      ProjectVersion?       @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
   versions            ProjectVersion[]      @relation("ProjectVersions")
   testGenerationRuns  TestGenerationRun[]

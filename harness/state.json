@@ -45,7 +45,7 @@
       "checkedAt": "2026-09-20T01:30:00-05:00"
     },
     "createdAt": "2026-09-20T01:00:00-05:00",
-    "updatedAt": "2026-09-20T02:00:00-05:00",
+    "updatedAt": "2026-09-20T02:20:00-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -59,7 +59,7 @@
     },
     "gates": {
       "sddVerified": "PASSED",
-      "implementationCompleted": "NOT_RUN",
+      "implementationCompleted": "PASSED",
       "independentReviewPassed": "NOT_RUN",
       "technicalChecksPassed": "NOT_RUN",
       "contractReviewed": "NOT_RUN",
@@ -81,6 +81,11 @@
           "checkpoint": "contract-approval",
           "checkedAt": "2026-09-20T02:00:00-05:00",
           "relevantPendingSyncIds": []
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "checkedAt": "2026-09-20T06:18:12.115Z",
+          "relevantPendingSyncIds": []
         }
       ],
       "publishedSyncIds": [
@@ -88,8 +93,15 @@
       ],
       "pendingRelevantSyncIds": []
     },
-    "evidence": [],
+    "evidence": [
+      "cd app && npm run lint -> sin hallazgos (oxlint src/ test/)",
+      "cd app && npm test -> 61 archivos, 469/469 tests en verde (antes del work item: 431)",
+      "cd app && npm run test:e2e -> 1 archivo, 8/8 en verde",
+      "cd app && npm run build -> nest build sin errores",
+      "node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-002-binding-lifecycle -> relevantPendingSyncIds [] (exit 0)",
+      "Commits del corte: 16da507 (HU57), commit HU56 posterior. Migraciones 20260920120000 y 20260920121000 escritas, NO aplicadas a Supabase."
+    ],
     "notes": "Origen: CONTRACT_SYNC CS-20260920-001 (Console -> Core, importado y ACKNOWLEDGED). HU56/HU57 son historias PROPUESTAS por Console (backlog PROPOSED); el usuario confirmó 2026-09-20: (a) un binding REVOKED se reactiva vía POST .../enable si la App recuperó acceso, (b) el fix de disable() sobre REVOKED y la validación binding.projectId en job handlers entran en este mismo work item. La spec y los contratos están redactados y esperan aprobación humana antes de implementar. El work item anterior quedó archivado en harness/reports/T-002-analysis-run-domain.md. 2026-09-20: usuario aprobó el contrato (SYSTEM-2.3/INTEROP-2.3, commit caa4336) y la implementación. Publicado CS-20260920-002 (Core -> Console, contrato definido). Falta un segundo CONTRACT_SYNC al terminar la implementación; contractSyncPublished sigue NOT_RUN hasta entonces. Sandbox no recibe evento (no consume estas rutas) pero su mirror SYSTEM/INTEROP queda en 2.2 hasta que se copie."
   },
-  "lastUpdatedAt": "2026-09-20T02:00:00-05:00"
+  "lastUpdatedAt": "2026-09-20T02:20:00-05:00"
 }

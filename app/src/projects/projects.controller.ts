@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { ProjectResponse } from './dto/project.response.js';
@@ -27,5 +27,11 @@ export class ProjectsController {
   @Get(':id')
   getById(@Param('id') id: string, @CurrentUserId() userId: string): Promise<ProjectResponse> {
     return this.projectsService.getById(id, userId);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id') id: string, @CurrentUserId() userId: string): Promise<void> {
+    await this.projectsService.delete(id, userId);
   }
 }

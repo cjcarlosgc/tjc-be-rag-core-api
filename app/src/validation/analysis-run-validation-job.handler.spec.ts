@@ -88,7 +88,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       })),
     };
     const analysisSymbolsRepository = { findByAnalysisRun: vi.fn().mockResolvedValue([buildSymbol()]) };
-    const repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
+    const repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
     const projectVersionsRepository = { findById: vi.fn().mockResolvedValue(buildVersion()) };
     const testTargetsRepository = { findByProjectVersion: vi.fn().mockResolvedValue([] as TestTarget[]) };
     const workspaceCleanup = vi.fn().mockResolvedValue(undefined);
@@ -165,7 +165,7 @@ describe('AnalysisRunValidationJobHandler', () => {
 
     await handler.handle({ analysisRunId: 'missing' }, 'job-1');
 
-    expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
   it('is a no-op when the run is not PROCESSING', async () => {
@@ -174,12 +174,12 @@ describe('AnalysisRunValidationJobHandler', () => {
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
-    expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
   it('completes as INFRASTRUCTURE_FAILURE when the repository binding no longer exists', async () => {
     const { handler, repositoryBindingsRepository, analysisRunsService } = await setup();
-    repositoryBindingsRepository.findByRepositoryId.mockResolvedValue(null);
+    repositoryBindingsRepository.findForRun.mockResolvedValue(null);
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 

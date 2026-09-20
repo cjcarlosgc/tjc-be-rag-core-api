@@ -32,7 +32,7 @@ export class AnalysisRunChecksService {
     }
 
     try {
-      const binding = await this.repositoryBindingsRepository.findByRepositoryId(run.repositoryId);
+      const binding = await this.repositoryBindingsRepository.findForRun(run);
 
       if (!binding) {
         return;

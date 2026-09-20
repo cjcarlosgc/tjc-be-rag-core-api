@@ -32,6 +32,19 @@ export class ProjectsService {
     return this.toResponse(project);
   }
 
+  /** HU56: borrado lógico; ajeno, inexistente o ya borrado responden igual (`404`). */
+  async delete(id: string, ownerUserId: string): Promise<void> {
+    const deleted = await this.projectsRepository.softDelete(id, ownerUserId);
+
+    if (!deleted) {
+      throw new AppException(
+        ErrorCode.PROJECT_NOT_FOUND,
+        `No existe un proyecto con id "${id}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
   async list(
     limit: number | undefined,
     cursor: string | undefined,

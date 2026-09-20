@@ -77,7 +77,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       completeRunFromSystem: vi.fn(),
       markActionRequiredFromSystem: vi.fn(),
     };
-    const repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
+    const repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
     const projectVersionsRepository = {
       findLatestCompletedByProject: vi.fn().mockResolvedValue(null),
       createPending: vi.fn().mockResolvedValue({ id: 'version-1' } as ProjectVersion),
@@ -196,7 +196,7 @@ describe('SnapshotAnalysisJobHandler', () => {
 
   it('fails as INFRASTRUCTURE_FAILURE when the repository binding no longer exists', async () => {
     const { handler, repositoryBindingsRepository, analysisRunsService, initialRun } = setup();
-    repositoryBindingsRepository.findByRepositoryId.mockResolvedValue(null);
+    repositoryBindingsRepository.findForRun.mockResolvedValue(null);
 
     await handler.handle({ analysisRunId: 'run-1' });
 

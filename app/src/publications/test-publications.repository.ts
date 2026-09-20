@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { TestPublication, TestPublicationStatus } from '../generated/prisma/client.js';
+import { ownedProject } from '../common/persistence/owned-project.filter.js';
 
 export interface CreateTestPublicationInput {
   analysisRunId: string;
@@ -30,7 +31,7 @@ export class TestPublicationsRepository {
 
   findByIdForOwner(id: string, ownerUserId: string): Promise<TestPublication | null> {
     return this.prisma.testPublication.findFirst({
-      where: { id, analysisRun: { project: { ownerUserId } } },
+      where: { id, analysisRun: { project: ownedProject(ownerUserId) } },
     });
   }
 

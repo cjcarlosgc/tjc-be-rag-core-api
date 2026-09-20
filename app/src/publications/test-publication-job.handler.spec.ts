@@ -70,7 +70,7 @@ describe('TestPublicationJobHandler', () => {
       markPublished: vi.fn().mockResolvedValue(undefined),
     };
     const analysisRunsRepository = { findById: vi.fn().mockResolvedValue(buildRun()) };
-    const repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
+    const repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
     const githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
     const githubRepositoryContentService = {
       getPullRequestHead: vi.fn().mockResolvedValue({ headSha: 'head-sha', state: 'open' }),
@@ -163,7 +163,7 @@ describe('TestPublicationJobHandler', () => {
 
   it('fails when the repository binding no longer exists', async () => {
     const { handler, repositoryBindingsRepository, testPublicationsRepository } = setup();
-    repositoryBindingsRepository.findByRepositoryId.mockResolvedValue(null);
+    repositoryBindingsRepository.findForRun.mockResolvedValue(null);
 
     await handler.handle({ publicationId: 'publication-1' });
 

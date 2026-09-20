@@ -6,6 +6,7 @@ import type {
   FunctionalKnowledgeStatus,
   FunctionalScope,
 } from '../generated/prisma/client.js';
+import { ownedProject } from '../common/persistence/owned-project.filter.js';
 
 export interface CreateFunctionalKnowledgeInput {
   projectId: string;
@@ -66,7 +67,7 @@ export class FunctionalKnowledgeRepository {
     cursor: string | undefined,
   ): Promise<FunctionalKnowledge[]> {
     return this.prisma.functionalKnowledge.findMany({
-      where: { projectId, project: { ownerUserId }, ...(status ? { status } : {}) },
+      where: { projectId, project: ownedProject(ownerUserId), ...(status ? { status } : {}) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

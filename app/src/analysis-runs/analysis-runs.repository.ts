@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AnalysisRun, AnalysisRunStatus, Prisma } from '../generated/prisma/client.js';
+import { ownedProject } from '../common/persistence/owned-project.filter.js';
 
 export interface CreateAnalysisRunInput {
   projectId: string;
@@ -51,7 +52,7 @@ export class AnalysisRunsRepository {
   }
 
   findByIdForOwner(id: string, ownerUserId: string): Promise<AnalysisRun | null> {
-    return this.prisma.analysisRun.findFirst({ where: { id, project: { ownerUserId } } });
+    return this.prisma.analysisRun.findFirst({ where: { id, project: ownedProject(ownerUserId) } });
   }
 
   /**
@@ -74,7 +75,7 @@ export class AnalysisRunsRepository {
     cursor: string | undefined,
   ): Promise<AnalysisRun[]> {
     return this.prisma.analysisRun.findMany({
-      where: { projectId, project: { ownerUserId }, ...(status ? { status } : {}) },
+      where: { projectId, project: ownedProject(ownerUserId), ...(status ? { status } : {}) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

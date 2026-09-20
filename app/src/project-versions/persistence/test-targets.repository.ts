@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { TestTarget } from '../../generated/prisma/client.js';
 import type { ResolvedTestTarget } from '../inventory/existing-test-resolver.service.js';
+import { ownedProject } from '../../common/persistence/owned-project.filter.js';
 
 @Injectable()
 export class TestTargetsRepository {
@@ -52,7 +53,7 @@ export class TestTargetsRepository {
    */
   findByIdForOwner(id: string, ownerUserId: string): Promise<TestTarget | null> {
     return this.prisma.testTarget.findFirst({
-      where: { id, projectVersion: { project: { ownerUserId } } },
+      where: { id, projectVersion: { project: ownedProject(ownerUserId) } },
     });
   }
 

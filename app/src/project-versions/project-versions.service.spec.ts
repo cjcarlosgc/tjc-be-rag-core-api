@@ -19,6 +19,7 @@ describe('ProjectVersionsService', () => {
     name: 'demo',
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
+    deletedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

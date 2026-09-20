@@ -98,7 +98,7 @@ export class AnalysisRunValidationJobHandler
       return;
     }
 
-    const binding = await this.repositoryBindingsRepository.findByRepositoryId(run.repositoryId);
+    const binding = await this.repositoryBindingsRepository.findForRun(run);
 
     if (!binding) {
       const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {

@@ -69,7 +69,7 @@ export class TestPublicationJobHandler implements JobHandler<TestPublicationJobP
         return;
       }
 
-      const binding = await this.repositoryBindingsRepository.findByRepositoryId(run.repositoryId);
+      const binding = await this.repositoryBindingsRepository.findForRun(run);
 
       if (!binding) {
         await this.fail(publication, `No se encontró el repository binding para "${run.repositoryId}".`);
