@@ -12,18 +12,12 @@
     "DONE"
   ],
   "activeWorkItem": {
-    "id": "T-002-analysis-run-domain",
+    "id": "T-002-binding-lifecycle",
     "workItemType": "PRODUCT",
     "storyIds": [
-      "HU30",
-      "HU31",
-      "HU32",
-      "HU33",
-      "HU34",
-      "HU35",
-      "HU36",
-      "HU39",
-      "HU40"
+      "HU56",
+      "HU57",
+      "HU30"
     ],
     "sprint": "T-002",
     "status": "IN_PROGRESS",
@@ -33,28 +27,25 @@
       "spec/backlog.md",
       "spec/features/013-pr-driven-analysis/spec.md",
       "spec/features/013-pr-driven-analysis/plan.md",
-      "spec/features/013-pr-driven-analysis/tasks.md"
+      "spec/features/013-pr-driven-analysis/tasks.md",
+      "spec/features/001-project-management/spec.md"
     ],
     "transversalPaths": [
       "spec/constitution/architecture.md",
-      "spec/constitution/tech-stack.md",
       "spec/constitution/conventions.md",
-      "spec/constitution/delivery-workflow.md"
+      "spec/constitution/delivery-workflow.md",
+      "spec/transversal/errors/spec.md",
+      "spec/transversal/persistence/spec.md"
     ],
     "approved": true,
     "decisionGate": {
       "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-MET-001",
-        "DEC-INF-001",
-        "DEC-VAL-001",
-        "DEC-EXP-FK-001"
-      ],
-      "checkedAt": "2026-09-13T09:00:00-05:00"
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-09-20T01:30:00-05:00"
     },
-    "createdAt": "2026-09-13T09:00:00-05:00",
-    "updatedAt": "2026-09-19T09:00:00-05:00",
+    "createdAt": "2026-09-20T01:00:00-05:00",
+    "updatedAt": "2026-09-20T02:00:00-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -71,32 +62,34 @@
       "implementationCompleted": "NOT_RUN",
       "independentReviewPassed": "NOT_RUN",
       "technicalChecksPassed": "NOT_RUN",
-      "contractReviewed": "NOT_APPLICABLE",
-      "canonicalContractSynced": "NOT_APPLICABLE",
-      "contractSyncPublished": "NOT_APPLICABLE",
+      "contractReviewed": "NOT_RUN",
+      "canonicalContractSynced": "PASSED",
+      "contractSyncPublished": "NOT_RUN",
       "interopSyncChecked": "PASSED",
       "noBlockingDecisions": "PASSED",
       "retryLimitRespected": "PASSED"
     },
     "coordination": {
-      "contractImpact": false,
+      "contractImpact": true,
       "pullCheckpoints": [
         {
           "checkpoint": "start",
-          "checkedAt": "2026-09-19T22:20:13-05:00",
+          "checkedAt": "2026-09-20T01:03:54-05:00",
           "relevantPendingSyncIds": []
         },
         {
-          "checkpoint": "before-done",
-          "checkedAt": "2026-09-19T22:21:30-05:00",
+          "checkpoint": "contract-approval",
+          "checkedAt": "2026-09-20T02:00:00-05:00",
           "relevantPendingSyncIds": []
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-20260920-002"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [],
-    "notes": "T-002 (dominio AnalysisRun + pipeline PR-driven) completo de punta a punta a nivel de código: HU30 (repository binding user-centric, discovery OAuth efímero + autorización GitHub-App-centric), HU31 (webhook ingress + revocación de instalación), HU32 (lifecycle AnalysisRun por PR/HEAD), HU33-34 (CHANGESET/INDEX DELTA/símbolos), HU35-36 (Functional Knowledge, Action Required, continuation, incluye HU51), Validation (plan.md corte #6, sin HU propia: genera+valida tests vía RAG+Sandbox, GeneratedTestProposal), HU39 (Checks nativos por HEAD) y HU40 (companion PR, publications/). Migraciones aplicadas contra Supabase: repository_binding_integration_branch_required, functional_knowledge, generated_test_proposals, test_publications. 431/431 tests, lint, build y boot manual en verde a fecha 2026-09-18. Detalle completo de cada corte y sus simplificaciones documentadas (sin baseline real -bloqueado en contrato Sandbox 1.6 vs 2.0-, sin normalización semántica vía LLM en Functional Knowledge, arm RAG-only, etc.) vive en CHANGELOG.md y spec/features/013-pr-driven-analysis/tasks.md — no se repite acá para no duplicar.\n\n2026-09-19: usuario reestructura el flujo de git. feature/T-001 se mergeó a main (merge commit dfb4559, árbol de archivos idéntico verificado). Va a crear `develop` desde `main`, las ramas de trabajo nuevas van a partir de `develop` (no más feature/T-001 como tronco), y Render se reconfigura para desplegar siempre desde `develop` (antes desplegaba directo desde feature/T-001). Sesiones futuras: confirmar en qué rama están antes de asumir que este archivo describe el HEAD actual.\n\nPENDIENTE (arrastrado, sin resolver): confirmar en github.com/settings/apps que la GitHub App real (rag-tesis-gh-app, id 4935151, slug rag-tesis-gh-app) tenga habilitados checks:write y contents/pull_requests:write (nunca se pudo verificar desde el agente); smoke test end-to-end del pipeline completo con un webhook real de PR (solo probado con unit tests, fetch/Prisma mockeados); discovery (GET /integrations/github/repositories) sin probar end-to-end, requiere login GitHub OAuth real vía Console; coordinar con el repo del Sandbox la migración a phase/executionProfile del contrato 2.0 para habilitar BASELINE_FAILED real; HU41-HU42 (PHP/Laravel) sin empezar."
+    "notes": "Origen: CONTRACT_SYNC CS-20260920-001 (Console -> Core, importado y ACKNOWLEDGED). HU56/HU57 son historias PROPUESTAS por Console (backlog PROPOSED); el usuario confirmó 2026-09-20: (a) un binding REVOKED se reactiva vía POST .../enable si la App recuperó acceso, (b) el fix de disable() sobre REVOKED y la validación binding.projectId en job handlers entran en este mismo work item. La spec y los contratos están redactados y esperan aprobación humana antes de implementar. El work item anterior quedó archivado en harness/reports/T-002-analysis-run-domain.md. 2026-09-20: usuario aprobó el contrato (SYSTEM-2.3/INTEROP-2.3, commit caa4336) y la implementación. Publicado CS-20260920-002 (Core -> Console, contrato definido). Falta un segundo CONTRACT_SYNC al terminar la implementación; contractSyncPublished sigue NOT_RUN hasta entonces. Sandbox no recibe evento (no consume estas rutas) pero su mirror SYSTEM/INTEROP queda en 2.2 hasta que se copie."
   },
-  "lastUpdatedAt": "2026-09-19T22:20:13-05:00"
+  "lastUpdatedAt": "2026-09-20T02:00:00-05:00"
 }
