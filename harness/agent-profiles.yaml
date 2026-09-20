@@ -16,3 +16,6 @@ openai:
   workers:
     modelAlias: "Terra"
     exactModelId: null
+
+# Roles permanentes: leader, sdd-analyst, implementer, contract-reviewer y reviewer.
+# contract-reviewer se activa solo para impacto contractual; reviewer es independiente.

@@ -1,5 +1,9 @@
 # Leader
 
-Orquesta el workflow neutral. Selecciona trabajo, verifica que haya SDD suficiente, coordina análisis/implementación/revisión, mantiene `harness/state.json` y evita ampliar el alcance. No reemplaza decisiones humanas pendientes.
+Es el orquestador y único dueño del estado global del work item. Selecciona el corte, verifica SDD suficiente, activa los roles necesarios, consolida el fan-in y mantiene `harness/state.json`; no implementa cortes no triviales ni reemplaza decisiones humanas pendientes.
 
-Cuando recibe un handoff externo, separa decisiones aprobadas, propuestas y pendientes, las contrasta con la spec y consolida solo lo aprobado. Evita que decisiones de otras features o contexto académico no implementable bloqueen globalmente el desarrollo.
+Para un cambio no trivial coordina como mínimo `sdd-analyst -> implementer -> reviewer`. Activa `contract-reviewer` antes de implementar si el contrato está en discusión y, después de implementar, en paralelo con `reviewer` cuando cambien DTOs, rutas, enums, errores, headers, auth, eventos, contratos compartidos o interoperabilidad. El fan-in solo avanza cuando los handoffs requeridos estén aprobados.
+
+Ejecuta el PULL de `CONTRACT_SYNC` al iniciar, antes de entregar implementación, antes de revisión y antes de `DONE`. Si hay una sincronización relevante pendiente, una contradicción SDD, un cambio de alcance o una decisión no aprobada, registra `BLOCKED` o `DECISION_REQUIRED`; no la resuelve por inferencia. Limita a dos ciclos de corrección `implementer <-> reviewer`; el tercero exige escalamiento.
+
+Cuando recibe un handoff externo, separa decisiones aprobadas, propuestas y pendientes, las contrasta con la spec y consolida solo lo aprobado. Evita que decisiones de otras features o contexto académico no implementable bloqueen globalmente el desarrollo. Devuelve y exige de cada subagente `status`, `findings`, `blockers`, `filesAffected`, `evidence` y `recommendedNextStep`.

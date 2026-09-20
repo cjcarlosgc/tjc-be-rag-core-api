@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "sddVersion": "2.1",
   "allowedStatuses": [
     "SELECTED",
@@ -8,10 +8,12 @@
     "IN_PROGRESS",
     "IN_REVIEW",
     "BLOCKED",
+    "DECISION_REQUIRED",
     "DONE"
   ],
   "activeWorkItem": {
     "id": "T-002-analysis-run-domain",
+    "workItemType": "PRODUCT",
     "storyIds": [
       "HU30",
       "HU31",
@@ -54,7 +56,47 @@
     "createdAt": "2026-09-13T09:00:00-05:00",
     "updatedAt": "2026-09-19T09:00:00-05:00",
     "blockedReason": null,
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": null,
+      "implementationAgent": null,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "PASSED",
+      "implementationCompleted": "NOT_RUN",
+      "independentReviewPassed": "NOT_RUN",
+      "technicalChecksPassed": "NOT_RUN",
+      "contractReviewed": "NOT_APPLICABLE",
+      "canonicalContractSynced": "NOT_APPLICABLE",
+      "contractSyncPublished": "NOT_APPLICABLE",
+      "interopSyncChecked": "PASSED",
+      "noBlockingDecisions": "PASSED",
+      "retryLimitRespected": "PASSED"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "checkedAt": "2026-09-19T22:20:13-05:00",
+          "relevantPendingSyncIds": []
+        },
+        {
+          "checkpoint": "before-done",
+          "checkedAt": "2026-09-19T22:21:30-05:00",
+          "relevantPendingSyncIds": []
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [],
     "notes": "T-002 (dominio AnalysisRun + pipeline PR-driven) completo de punta a punta a nivel de código: HU30 (repository binding user-centric, discovery OAuth efímero + autorización GitHub-App-centric), HU31 (webhook ingress + revocación de instalación), HU32 (lifecycle AnalysisRun por PR/HEAD), HU33-34 (CHANGESET/INDEX DELTA/símbolos), HU35-36 (Functional Knowledge, Action Required, continuation, incluye HU51), Validation (plan.md corte #6, sin HU propia: genera+valida tests vía RAG+Sandbox, GeneratedTestProposal), HU39 (Checks nativos por HEAD) y HU40 (companion PR, publications/). Migraciones aplicadas contra Supabase: repository_binding_integration_branch_required, functional_knowledge, generated_test_proposals, test_publications. 431/431 tests, lint, build y boot manual en verde a fecha 2026-09-18. Detalle completo de cada corte y sus simplificaciones documentadas (sin baseline real -bloqueado en contrato Sandbox 1.6 vs 2.0-, sin normalización semántica vía LLM en Functional Knowledge, arm RAG-only, etc.) vive en CHANGELOG.md y spec/features/013-pr-driven-analysis/tasks.md — no se repite acá para no duplicar.\n\n2026-09-19: usuario reestructura el flujo de git. feature/T-001 se mergeó a main (merge commit dfb4559, árbol de archivos idéntico verificado). Va a crear `develop` desde `main`, las ramas de trabajo nuevas van a partir de `develop` (no más feature/T-001 como tronco), y Render se reconfigura para desplegar siempre desde `develop` (antes desplegaba directo desde feature/T-001). Sesiones futuras: confirmar en qué rama están antes de asumir que este archivo describe el HEAD actual.\n\nPENDIENTE (arrastrado, sin resolver): confirmar en github.com/settings/apps que la GitHub App real (rag-tesis-gh-app, id 4935151, slug rag-tesis-gh-app) tenga habilitados checks:write y contents/pull_requests:write (nunca se pudo verificar desde el agente); smoke test end-to-end del pipeline completo con un webhook real de PR (solo probado con unit tests, fetch/Prisma mockeados); discovery (GET /integrations/github/repositories) sin probar end-to-end, requiere login GitHub OAuth real vía Console; coordinar con el repo del Sandbox la migración a phase/executionProfile del contrato 2.0 para habilitar BASELINE_FAILED real; HU41-HU42 (PHP/Laravel) sin empezar."
   },
-  "lastUpdatedAt": "2026-09-19T09:00:00-05:00"
+  "lastUpdatedAt": "2026-09-19T22:20:13-05:00"
 }
