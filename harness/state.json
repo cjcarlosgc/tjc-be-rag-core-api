@@ -20,7 +20,7 @@
       "HU30"
     ],
     "sprint": "T-002",
-    "status": "IN_PROGRESS",
+    "status": "DONE",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
@@ -45,7 +45,7 @@
       "checkedAt": "2026-09-20T01:30:00-05:00"
     },
     "createdAt": "2026-09-20T01:00:00-05:00",
-    "updatedAt": "2026-09-20T02:30:00-05:00",
+    "updatedAt": "2026-09-20T06:33:05.027Z",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -83,11 +83,11 @@
     "gates": {
       "sddVerified": "PASSED",
       "implementationCompleted": "PASSED",
-      "independentReviewPassed": "NOT_RUN",
-      "technicalChecksPassed": "NOT_RUN",
-      "contractReviewed": "NOT_RUN",
+      "independentReviewPassed": "PASSED",
+      "technicalChecksPassed": "PASSED",
+      "contractReviewed": "PASSED",
       "canonicalContractSynced": "PASSED",
-      "contractSyncPublished": "NOT_RUN",
+      "contractSyncPublished": "PASSED",
       "interopSyncChecked": "PASSED",
       "noBlockingDecisions": "PASSED",
       "retryLimitRespected": "PASSED"
@@ -114,10 +114,16 @@
           "checkpoint": "implementation-delivery",
           "checkedAt": "2026-09-20T06:27:36Z",
           "relevantPendingSyncIds": []
+        },
+        {
+          "checkpoint": "before-done",
+          "checkedAt": "2026-09-20T06:33:05.027Z",
+          "relevantPendingSyncIds": []
         }
       ],
       "publishedSyncIds": [
-        "CS-20260920-002"
+        "CS-20260920-002",
+        "CS-20260920-003"
       ],
       "pendingRelevantSyncIds": []
     },
@@ -131,9 +137,13 @@
       "Ciclo de corrección 1 (reviewCycles=1): cd app && npm run lint -> sin hallazgos",
       "Ciclo de corrección 1: npm test -> 61 archivos, 479/479",
       "Ciclo de corrección 1: npm run test:e2e -> 8/8; npm run build -> exit 0",
-      "Ciclo de corrección 1: contract-sync check --checkpoint implementation-delivery -> relevantPendingSyncIds [] (exit 0)"
+      "Ciclo de corrección 1: contract-sync check --checkpoint implementation-delivery -> relevantPendingSyncIds [] (exit 0)",
+      "Re-revisión ciclo 1 (77cab80..362198a): reviewer APPROVED (lint, test 479/479, build, e2e 8/8; FOR SHARE y softDelete verificados contra Postgres local descartable, 150 carreras create/softDelete sin huérfanos) y contract-reviewer APPROVED. Ambos ejecutaron check before-review sin syncs pendientes.",
+      "Leader, árbol final 695a82b: npm run lint OK; npm test 61 archivos / 479 tests; npm run test:e2e 8/8; npm run build exit 0; node harness/contract-sync.mjs check --checkpoint before-done sin pendientes.",
+      "CONTRACT_SYNC publicados a Console: CS-20260920-002 (contrato definido, caa4336) y CS-20260920-003 (implementación completada, sourceRevision 695a82b; supera a 002). Sandbox no recibe evento: no consume estas rutas; su mirror queda en 2.2 hasta que se copie.",
+      "Pendiente fuera del work item (requiere solicitud explícita del usuario): aplicar a Supabase las migraciones 20260920120000_binding_disabled_reason y 20260920121000_project_soft_delete; push/PR/merge y la aprobación del reviewer sobre el rango acumulado antes del push de cierre de sprint."
     ],
-    "notes": "Origen: CONTRACT_SYNC CS-20260920-001 (Console -> Core, importado y ACKNOWLEDGED). HU56/HU57 son historias PROPUESTAS por Console (backlog PROPOSED); el usuario confirmó 2026-09-20: (a) un binding REVOKED se reactiva vía POST .../enable si la App recuperó acceso, (b) el fix de disable() sobre REVOKED y la validación binding.projectId en job handlers entran en este mismo work item. La spec y los contratos están redactados y esperan aprobación humana antes de implementar. El work item anterior quedó archivado en harness/reports/T-002-analysis-run-domain.md. 2026-09-20: usuario aprobó el contrato (SYSTEM-2.3/INTEROP-2.3, commit caa4336) y la implementación. Publicado CS-20260920-002 (Core -> Console, contrato definido). Falta un segundo CONTRACT_SYNC al terminar la implementación; contractSyncPublished sigue NOT_RUN hasta entonces. Sandbox no recibe evento (no consume estas rutas) pero su mirror SYSTEM/INTEROP queda en 2.2 hasta que se copie."
+    "notes": "Origen: CONTRACT_SYNC CS-20260920-001 (Console -> Core, importado y ACKNOWLEDGED). HU56/HU57 son historias PROPUESTAS por Console (backlog PROPOSED); el usuario confirmó 2026-09-20: (a) un binding REVOKED se reactiva vía POST .../enable si la App recuperó acceso, (b) el fix de disable() sobre REVOKED y la validación binding.projectId en job handlers entran en este mismo work item. La spec y los contratos están redactados y esperan aprobación humana antes de implementar. El work item anterior quedó archivado en harness/reports/T-002-analysis-run-domain.md. 2026-09-20: usuario aprobó el contrato (SYSTEM-2.3/INTEROP-2.3, commit caa4336) y la implementación. Publicado CS-20260920-002 (Core -> Console, contrato definido). Falta un segundo CONTRACT_SYNC al terminar la implementación; contractSyncPublished sigue NOT_RUN hasta entonces. Sandbox no recibe evento (no consume estas rutas) pero su mirror SYSTEM/INTEROP queda en 2.2 hasta que se copie. 2026-09-20: cerrado tras 1 ciclo de corrección (F1 carrera POST binding vs DELETE Project, 404 PROJECT_NOT_FOUND en get/disable/enable, aclaraciones de contrato). F2 (enable no compara repositoryId real) queda como simplificación documentada. Las migraciones NO están aplicadas a Supabase."
   },
-  "lastUpdatedAt": "2026-09-20T02:30:00-05:00"
+  "lastUpdatedAt": "2026-09-20T06:33:05.027Z"
 }
