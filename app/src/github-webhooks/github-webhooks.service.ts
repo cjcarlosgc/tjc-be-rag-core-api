@@ -234,11 +234,11 @@ export class GithubWebhooksService {
     const installationId = String(payload.installation.id);
 
     if (payload.action === 'deleted') {
-      await this.repositoryBindingsRepository.updateStatusByInstallation(installationId, 'REVOKED');
+      await this.repositoryBindingsRepository.revokeByInstallation(installationId);
     } else if (payload.action === 'suspend') {
-      await this.repositoryBindingsRepository.updateStatusByInstallation(installationId, 'DISABLED');
+      await this.repositoryBindingsRepository.suspendByInstallation(installationId);
     } else if (payload.action === 'unsuspend') {
-      await this.repositoryBindingsRepository.updateStatusByInstallation(installationId, 'ENABLED');
+      await this.repositoryBindingsRepository.unsuspendByInstallation(installationId);
     }
   }
 

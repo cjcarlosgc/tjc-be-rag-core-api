@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU30-HU36, HU39-HU42
-**Contrato:** SYSTEM-2.2 / INTEROP-2.2
+**Contrato:** SYSTEM-2.3 / INTEROP-2.3
 
 ## Objetivo
 
@@ -15,6 +15,9 @@ RAG Core recibe eventos de una GitHub App para repositorios vinculados, crea un 
 - `pull_request:synchronize`, incluido force-push, obsoleta el Run previo y crea uno para el HEAD nuevo.
 - Solo `PR.base == Project.integrationBranch` activa análisis; la rama la elige el usuario entre las ramas reales autorizadas y no tiene default. No existe trigger global `push` ni workflow YAML obligatorio.
 - `CHANGESET` define qué validar; `INDEX DELTA` define qué reindexar.
+- Un repositorio (`repositoryId`) pertenece a lo sumo a un Project con binding. Vincularlo a un segundo Project es `409 REPOSITORY_ALREADY_BOUND`, nunca `500`, y no revela al Project ajeno.
+- Desconectar es una pausa (`DISABLED`, reversible con `POST .../enable`); `REVOKED` nunca se degrada a `DISABLED` y solo sale de `REVOKED` por reactivación explícita del usuario cuando Core revalida que la App recuperó acceso. `installation.unsuspend` solo rehabilita lo que la suspensión deshabilitó, no lo pausado por el usuario.
+- Eliminar un Project es lógico (HU56): libera el binding, cancela u obsoleta Runs y jobs en curso y oculta todo por API; el Run de un Project borrado, o cuyo `repositoryId` hoy pertenece a otro Project, no se procesa ni publica (Checks, publicaciones, validación, snapshot).
 - Solo el Run vigente publica Check vigente. La merge policy pertenece al repositorio.
 - `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD.
 - `UNKNOWN`/No lo sé no crea `FunctionalKnowledge ACTIVE`.

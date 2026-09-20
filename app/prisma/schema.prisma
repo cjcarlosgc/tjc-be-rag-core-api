@@ -97,6 +97,15 @@ enum RepositoryBindingStatus {
   REVOKED
 }
 
+/// HU57: por qué un binding está `DISABLED`. `USER` = pausa manual (solo el
+/// usuario la revierte); `INSTALLATION_SUSPENDED` = GitHub suspendió la
+/// instalación (`installation.unsuspend` la revierte). Null = no DISABLED, o
+/// un DISABLED anterior a esta columna, que se trata como pausa del usuario.
+enum BindingDisabledReason {
+  USER
+  INSTALLATION_SUSPENDED
+}
+
 enum AnalysisRunStatus {
   QUEUED
   PROCESSING
@@ -179,6 +188,7 @@ model Project {
   name                String
   ownerUserId         String?
   currentVersionId    String?               @unique
+  deletedAt           DateTime?
   currentVersion      ProjectVersion?       @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
   versions            ProjectVersion[]      @relation("ProjectVersions")
   testGenerationRuns  TestGenerationRun[]
@@ -207,6 +217,7 @@ model RepositoryBinding {
   repositoryName    String
   integrationBranch String
   status            RepositoryBindingStatus @default(ENABLED)
+  disabledReason    BindingDisabledReason?
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 

@@ -116,6 +116,16 @@ export class RepositoryBindingsController {
     return toProjectRepositoryBindingResponse(binding);
   }
 
+  @Post('projects/:projectId/integrations/github/enable')
+  @HttpCode(HttpStatus.OK)
+  async enable(
+    @Param('projectId') projectId: string,
+    @CurrentUserId() userId: string,
+  ): Promise<ProjectRepositoryBindingResponse> {
+    const binding = await this.repositoryBindingsService.enable(projectId, userId);
+    return toProjectRepositoryBindingResponse(binding);
+  }
+
   @Delete('projects/:projectId/integrations/github')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('projectId') projectId: string, @CurrentUserId() userId: string): Promise<void> {

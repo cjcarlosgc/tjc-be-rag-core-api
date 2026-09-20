@@ -17,6 +17,7 @@ Unificar errores HTTP y distinguir fallos de plataforma de resultados inválidos
 - En Sandbox, `requestId` distinto de `Idempotency-Key` produce `400 IDEMPOTENCY_KEY_MISMATCH`; Bearer ausente o inválido produce `401/403` sin revelar el token.
 - En navegador→Core, credencial ausente produce `401 AUTH_REQUIRED` y token inválido/expirado `401 INVALID_ACCESS_TOKEN`; los recursos ajenos usan el mismo `404` que los inexistentes.
 - Las trazas usan `404 CONTEXT_TRACE_NOT_FOUND` y `409 CONTEXT_TRACE_NOT_FINISHED`.
+- El binding usa `409 REPOSITORY_BINDING_ALREADY_EXISTS` (el Project ya tiene uno) y `409 REPOSITORY_ALREADY_BOUND` (otro Project usa el repositorio, con mensaje genérico que no revela al otro Project ni usuario). Una violación de unicidad de base de datos se mapea a estos `409`, nunca a `500`. Un Project borrado lógicamente responde igual que uno inexistente (`404 PROJECT_NOT_FOUND`).
 
 ## Fuera de alcance
 

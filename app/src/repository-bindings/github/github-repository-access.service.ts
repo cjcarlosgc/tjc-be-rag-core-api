@@ -55,6 +55,24 @@ export class GithubRepositoryAccessService {
     return installationId;
   }
 
+  /** HU57: `repositoryId` autoritativo según GitHub para `repositoryName`. */
+  async resolveRepositoryId(repositoryName: string, installationId: string): Promise<string> {
+    const token = await this.githubAppAuthService.getInstallationToken(installationId);
+
+    try {
+      return await this.githubRepositoryContentService.getRepositoryId(repositoryName, token);
+    } catch (error) {
+      if (error instanceof GithubAppUnavailableError && error.status === 404) {
+        throw new AppException(
+          ErrorCode.GITHUB_REPOSITORY_NOT_FOUND,
+          `No se encontró el repositorio "${repositoryName}" en GitHub.`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      throw error;
+    }
+  }
+
   async listBranches(
     repositoryName: string,
     installationId: string,

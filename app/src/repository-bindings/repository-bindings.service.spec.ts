@@ -14,10 +14,13 @@ describe('RepositoryBindingsService', () => {
     create: ReturnType<typeof vi.fn>;
     findByProjectForOwner: ReturnType<typeof vi.fn>;
     updateStatus: ReturnType<typeof vi.fn>;
+    reactivate: ReturnType<typeof vi.fn>;
+    findByRepositoryId: ReturnType<typeof vi.fn>;
   };
   let projectsRepository: { findById: ReturnType<typeof vi.fn> };
   let githubRepositoryAccessService: {
     requireInstallation: ReturnType<typeof vi.fn>;
+    resolveRepositoryId: ReturnType<typeof vi.fn>;
     listBranches: ReturnType<typeof vi.fn>;
   };
 
@@ -29,6 +32,7 @@ describe('RepositoryBindingsService', () => {
     name: 'demo',
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
+    deletedAt: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -41,6 +45,7 @@ describe('RepositoryBindingsService', () => {
     repositoryName: 'org/repo',
     integrationBranch: 'develop',
     status: 'ENABLED',
+    disabledReason: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -50,10 +55,13 @@ describe('RepositoryBindingsService', () => {
       create: vi.fn(),
       findByProjectForOwner: vi.fn(),
       updateStatus: vi.fn(),
+      reactivate: vi.fn(),
+      findByRepositoryId: vi.fn().mockResolvedValue(null),
     };
-    projectsRepository = { findById: vi.fn() };
+    projectsRepository = { findById: vi.fn().mockResolvedValue(project) };
     githubRepositoryAccessService = {
       requireInstallation: vi.fn().mockResolvedValue('install-1'),
+      resolveRepositoryId: vi.fn().mockResolvedValue('repo-1'),
       listBranches: vi.fn().mockResolvedValue([{ name: 'main', protected: false }]),
     };
 
@@ -137,6 +145,113 @@ describe('RepositoryBindingsService', () => {
     });
   });
 
+  describe('create — repository conflicts (HU57)', () => {
+    const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
+
+    beforeEach(() => {
+      projectsRepository.findById.mockResolvedValue(project);
+      repository.findByProjectForOwner.mockResolvedValue(null);
+    });
+
+    it('throws REPOSITORY_ALREADY_BOUND (409) with a generic message when another project uses the repository', async () => {
+      repository.findByRepositoryId.mockResolvedValue({ ...binding, projectId: 'other-project' });
+
+      const error = await service.create(PROJECT_ID, input, OWNER_USER_ID).catch((e: AppException) => e);
+
+      expect(error).toMatchObject({ code: ErrorCode.REPOSITORY_ALREADY_BOUND });
+      expect((error as AppException).message).not.toContain('other-project');
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(githubRepositoryAccessService.listBranches).not.toHaveBeenCalled();
+    });
+
+    it('checks the App access before the repository conflict', async () => {
+      const accessError = new AppException(ErrorCode.GITHUB_APP_ACCESS_REQUIRED, 'no access', 403);
+      githubRepositoryAccessService.requireInstallation.mockRejectedValue(accessError);
+      repository.findByRepositoryId.mockResolvedValue({ ...binding, projectId: 'other-project' });
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(accessError);
+    });
+
+    it('checks the repository conflict before the branch', async () => {
+      repository.findByRepositoryId.mockResolvedValue({ ...binding, projectId: 'other-project' });
+      githubRepositoryAccessService.listBranches.mockResolvedValue([]);
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
+        code: ErrorCode.REPOSITORY_ALREADY_BOUND,
+      });
+    });
+
+    it('does not trust the client repositoryId: a mismatch with GitHub is GITHUB_REPOSITORY_NOT_FOUND', async () => {
+      githubRepositoryAccessService.resolveRepositoryId.mockResolvedValue('real-repo-id');
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
+        code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND,
+      });
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('maps a concurrent unique violation on the repository to REPOSITORY_ALREADY_BOUND, never 500', async () => {
+      repository.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
+        code: ErrorCode.REPOSITORY_ALREADY_BOUND,
+      });
+    });
+
+    it('maps a concurrent unique violation on the project to REPOSITORY_BINDING_ALREADY_EXISTS', async () => {
+      repository.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+      repository.findByProjectForOwner.mockResolvedValueOnce(null).mockResolvedValueOnce(binding);
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
+        code: ErrorCode.REPOSITORY_BINDING_ALREADY_EXISTS,
+      });
+    });
+
+    it('rethrows non-unique persistence errors untouched', async () => {
+      const boom = new Error('connection lost');
+      repository.create.mockRejectedValue(boom);
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(boom);
+    });
+  });
+
+  describe('project visibility (HU56): PROJECT_NOT_FOUND vs REPOSITORY_BINDING_NOT_FOUND', () => {
+    const cases: Array<[string, () => Promise<unknown>]> = [
+      ['get', () => service.get(PROJECT_ID, OWNER_USER_ID)],
+      ['disable', () => service.disable(PROJECT_ID, OWNER_USER_ID)],
+      ['enable', () => service.enable(PROJECT_ID, OWNER_USER_ID)],
+    ];
+
+    it.each(cases)('%s answers PROJECT_NOT_FOUND for a deleted, foreign or missing project', async (_name, call) => {
+      projectsRepository.findById.mockResolvedValue(null);
+
+      await expect(call()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.PROJECT_NOT_FOUND,
+      });
+      expect(repository.findByProjectForOwner).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)('%s answers REPOSITORY_BINDING_NOT_FOUND for a live project without binding', async (_name, call) => {
+      repository.findByProjectForOwner.mockResolvedValue(null);
+
+      await expect(call()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
+      });
+      expect(projectsRepository.findById).toHaveBeenCalledWith(PROJECT_ID, OWNER_USER_ID);
+    });
+  });
+
+  describe('create — concurrent project deletion (HU56)', () => {
+    it('propagates PROJECT_NOT_FOUND when the project was deleted while calling GitHub', async () => {
+      const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
+      repository.findByProjectForOwner.mockResolvedValue(null);
+      const gone = new AppException(ErrorCode.PROJECT_NOT_FOUND, 'gone', 404);
+      repository.create.mockRejectedValue(gone);
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(gone);
+    });
+  });
+
   describe('get', () => {
     it('returns the binding scoped by owner', async () => {
       repository.findByProjectForOwner.mockResolvedValue(binding);
@@ -158,35 +273,93 @@ describe('RepositoryBindingsService', () => {
     });
   });
 
-  describe('disable / enable', () => {
-    it('disable transitions an existing binding to DISABLED', async () => {
+  describe('disable', () => {
+    it('pauses an ENABLED binding as a user pause (DISABLED, reason USER)', async () => {
       repository.findByProjectForOwner.mockResolvedValue(binding);
       repository.updateStatus.mockResolvedValue({ ...binding, status: 'DISABLED' });
 
       const result = await service.disable(PROJECT_ID, OWNER_USER_ID);
 
-      expect(repository.updateStatus).toHaveBeenCalledWith(binding.id, 'DISABLED');
+      expect(repository.updateStatus).toHaveBeenCalledWith(binding.id, 'DISABLED', 'USER');
       expect(result.status).toBe('DISABLED');
     });
 
-    it('enable transitions an existing binding to ENABLED', async () => {
-      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'DISABLED' });
-      repository.updateStatus.mockResolvedValue(binding);
+    it('never degrades a REVOKED binding to DISABLED', async () => {
+      const revoked = { ...binding, status: 'REVOKED' as const };
+      repository.findByProjectForOwner.mockResolvedValue(revoked);
 
-      const result = await service.enable(PROJECT_ID, OWNER_USER_ID);
+      const result = await service.disable(PROJECT_ID, OWNER_USER_ID);
 
-      expect(repository.updateStatus).toHaveBeenCalledWith(binding.id, 'ENABLED');
-      expect(result.status).toBe('ENABLED');
+      expect(repository.updateStatus).not.toHaveBeenCalled();
+      expect(result).toEqual(revoked);
     });
 
-    it('disable throws REPOSITORY_BINDING_NOT_FOUND when the project has no binding', async () => {
+    it('turns a suspension pause into a user pause so unsuspend will not reactivate it', async () => {
+      const suspended = { ...binding, status: 'DISABLED' as const, disabledReason: 'INSTALLATION_SUSPENDED' as const };
+      repository.findByProjectForOwner.mockResolvedValue(suspended);
+      repository.updateStatus.mockResolvedValue({ ...suspended, disabledReason: 'USER' });
+
+      await service.disable(PROJECT_ID, OWNER_USER_ID);
+
+      expect(repository.updateStatus).toHaveBeenCalledWith(binding.id, 'DISABLED', 'USER');
+    });
+
+    it('throws REPOSITORY_BINDING_NOT_FOUND when the project has no binding', async () => {
       repository.findByProjectForOwner.mockResolvedValue(null);
 
       await expect(service.disable(PROJECT_ID, OWNER_USER_ID)).rejects.toMatchObject<
         Partial<AppException>
-      >({
-        code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
-      });
+      >({ code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND });
+    });
+  });
+
+  describe('enable (HU57)', () => {
+    it('reactivates a DISABLED binding after revalidating the App and refreshing the installation', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'DISABLED', disabledReason: 'USER' });
+      githubRepositoryAccessService.requireInstallation.mockResolvedValue('install-2');
+      repository.reactivate.mockResolvedValue({ ...binding, installationId: 'install-2' });
+
+      const result = await service.enable(PROJECT_ID, OWNER_USER_ID);
+
+      expect(githubRepositoryAccessService.requireInstallation).toHaveBeenCalledWith('org/repo');
+      expect(repository.reactivate).toHaveBeenCalledWith(binding.id, 'install-2');
+      expect(result.status).toBe('ENABLED');
+    });
+
+    it('reactivates a REVOKED binding when the App recovered access', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
+      repository.reactivate.mockResolvedValue(binding);
+
+      await service.enable(PROJECT_ID, OWNER_USER_ID);
+
+      expect(repository.reactivate).toHaveBeenCalledWith(binding.id, 'install-1');
+    });
+
+    it('keeps REVOKED and throws GITHUB_APP_ACCESS_REQUIRED when the App has no access', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
+      const accessError = new AppException(ErrorCode.GITHUB_APP_ACCESS_REQUIRED, 'no access', 403);
+      githubRepositoryAccessService.requireInstallation.mockRejectedValue(accessError);
+
+      await expect(service.enable(PROJECT_ID, OWNER_USER_ID)).rejects.toBe(accessError);
+      expect(repository.reactivate).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent: an ENABLED binding is returned as is, without revalidating', async () => {
+      repository.findByProjectForOwner.mockResolvedValue(binding);
+
+      const result = await service.enable(PROJECT_ID, OWNER_USER_ID);
+
+      expect(result).toEqual(binding);
+      expect(githubRepositoryAccessService.requireInstallation).not.toHaveBeenCalled();
+      expect(repository.reactivate).not.toHaveBeenCalled();
+    });
+
+    it('throws REPOSITORY_BINDING_NOT_FOUND when the project has no binding', async () => {
+      repository.findByProjectForOwner.mockResolvedValue(null);
+
+      await expect(service.enable(PROJECT_ID, OWNER_USER_ID)).rejects.toMatchObject<
+        Partial<AppException>
+      >({ code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND });
     });
   });
 });

@@ -6,6 +6,7 @@ import type {
   FunctionalQuestion,
   FunctionalQuestionStatus,
 } from '../generated/prisma/client.js';
+import { ownedProject } from '../common/persistence/owned-project.filter.js';
 
 export type FunctionalQuestionWithRun = FunctionalQuestion & { analysisRun: AnalysisRun };
 
@@ -72,7 +73,7 @@ export class FunctionalQuestionsRepository {
     return this.prisma.functionalQuestion.findMany({
       where: {
         status,
-        project: { ownerUserId },
+        project: ownedProject(ownerUserId),
         ...(projectId ? { projectId } : {}),
       },
       include: { analysisRun: true },

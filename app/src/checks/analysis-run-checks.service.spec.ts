@@ -25,19 +25,20 @@ const binding: RepositoryBinding = {
   repositoryName: 'org/repo',
   integrationBranch: 'main',
   status: 'ENABLED',
+  disabledReason: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
 
 describe('AnalysisRunChecksService', () => {
   let service: AnalysisRunChecksService;
-  let repositoryBindingsRepository: { findByRepositoryId: ReturnType<typeof vi.fn> };
+  let repositoryBindingsRepository: { findForRun: ReturnType<typeof vi.fn> };
   let githubAppAuthService: { getInstallationToken: ReturnType<typeof vi.fn> };
   let githubChecksService: { createCheckRun: ReturnType<typeof vi.fn> };
   let configService: { get: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
+    repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
     githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
     githubChecksService = { createCheckRun: vi.fn().mockResolvedValue(undefined) };
     configService = {
@@ -58,7 +59,9 @@ describe('AnalysisRunChecksService', () => {
   it('publishes a check-run with the mapped conclusion for a terminal status', async () => {
     await service.publishForRun(buildRun({ status: 'SUCCESS' }));
 
-    expect(repositoryBindingsRepository.findByRepositoryId).toHaveBeenCalledWith('123');
+    expect(repositoryBindingsRepository.findForRun).toHaveBeenCalledWith(
+      expect.objectContaining({ repositoryId: '123' }),
+    );
     expect(githubAppAuthService.getInstallationToken).toHaveBeenCalledWith('999');
     expect(githubChecksService.createCheckRun).toHaveBeenCalledWith(
       'org/repo',
@@ -85,11 +88,11 @@ describe('AnalysisRunChecksService', () => {
   it('does nothing for a non-publishable status (e.g. PROCESSING)', async () => {
     await service.publishForRun(buildRun({ status: 'PROCESSING' }));
 
-    expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
   it('does nothing when there is no repository binding', async () => {
-    repositoryBindingsRepository.findByRepositoryId.mockResolvedValue(null);
+    repositoryBindingsRepository.findForRun.mockResolvedValue(null);
 
     await service.publishForRun(buildRun());
 

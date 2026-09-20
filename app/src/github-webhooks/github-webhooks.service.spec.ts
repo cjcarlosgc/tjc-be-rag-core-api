@@ -42,7 +42,9 @@ describe('GithubWebhooksService', () => {
   let repositoryBindingsRepository: {
     findByRepositoryId: ReturnType<typeof vi.fn>;
     updateStatus: ReturnType<typeof vi.fn>;
-    updateStatusByInstallation: ReturnType<typeof vi.fn>;
+    revokeByInstallation: ReturnType<typeof vi.fn>;
+    suspendByInstallation: ReturnType<typeof vi.fn>;
+    unsuspendByInstallation: ReturnType<typeof vi.fn>;
   };
   let analysisRunsRepository: { findCurrentByPullRequest: ReturnType<typeof vi.fn> };
   let analysisRunsService: {
@@ -59,6 +61,7 @@ describe('GithubWebhooksService', () => {
     repositoryName: 'org/repo',
     integrationBranch: 'develop',
     status: 'ENABLED',
+    disabledReason: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -124,7 +127,9 @@ describe('GithubWebhooksService', () => {
     repositoryBindingsRepository = {
       findByRepositoryId: vi.fn().mockResolvedValue(binding),
       updateStatus: vi.fn().mockResolvedValue(undefined),
-      updateStatusByInstallation: vi.fn().mockResolvedValue(undefined),
+      revokeByInstallation: vi.fn().mockResolvedValue(undefined),
+      suspendByInstallation: vi.fn().mockResolvedValue(undefined),
+      unsuspendByInstallation: vi.fn().mockResolvedValue(undefined),
     };
     analysisRunsRepository = { findCurrentByPullRequest: vi.fn().mockResolvedValue(null) };
     analysisRunsService = {
@@ -376,25 +381,25 @@ describe('GithubWebhooksService', () => {
         buildRequest({ action: 'deleted', installation: { id: 999 } }, { eventName: 'installation' }),
       );
 
-      expect(repositoryBindingsRepository.updateStatusByInstallation).toHaveBeenCalledWith('999', 'REVOKED');
+      expect(repositoryBindingsRepository.revokeByInstallation).toHaveBeenCalledWith('999');
       expect(result.accepted).toBe(true);
       expect(result.analysisRunId).toBeNull();
     });
 
-    it('marks every binding of the installation DISABLED on suspend', async () => {
+    it('suspends the installation bindings (INSTALLATION_SUSPENDED) on suspend', async () => {
       await service.handle(
         buildRequest({ action: 'suspend', installation: { id: 999 } }, { eventName: 'installation' }),
       );
 
-      expect(repositoryBindingsRepository.updateStatusByInstallation).toHaveBeenCalledWith('999', 'DISABLED');
+      expect(repositoryBindingsRepository.suspendByInstallation).toHaveBeenCalledWith('999');
     });
 
-    it('marks every binding of the installation ENABLED on unsuspend', async () => {
+    it('resumes only suspension-disabled bindings on unsuspend (never user-paused ones)', async () => {
       await service.handle(
         buildRequest({ action: 'unsuspend', installation: { id: 999 } }, { eventName: 'installation' }),
       );
 
-      expect(repositoryBindingsRepository.updateStatusByInstallation).toHaveBeenCalledWith('999', 'ENABLED');
+      expect(repositoryBindingsRepository.unsuspendByInstallation).toHaveBeenCalledWith('999');
     });
 
     it('does nothing for actions that do not affect an existing binding (e.g. created)', async () => {
@@ -402,7 +407,9 @@ describe('GithubWebhooksService', () => {
         buildRequest({ action: 'created', installation: { id: 999 } }, { eventName: 'installation' }),
       );
 
-      expect(repositoryBindingsRepository.updateStatusByInstallation).not.toHaveBeenCalled();
+      expect(repositoryBindingsRepository.revokeByInstallation).not.toHaveBeenCalled();
+      expect(repositoryBindingsRepository.suspendByInstallation).not.toHaveBeenCalled();
+      expect(repositoryBindingsRepository.unsuspendByInstallation).not.toHaveBeenCalled();
     });
   });
 

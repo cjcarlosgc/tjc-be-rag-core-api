@@ -13,6 +13,7 @@ describe('RepositoryBindingsController', () => {
     create: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
     disable: ReturnType<typeof vi.fn>;
+    enable: ReturnType<typeof vi.fn>;
   };
   let githubUserRepositoriesService: { list: ReturnType<typeof vi.fn> };
   let githubRepositoryAccessService: {
@@ -30,12 +31,13 @@ describe('RepositoryBindingsController', () => {
     repositoryName: 'acme/widgets',
     integrationBranch: 'main',
     status: 'ENABLED',
+    disabledReason: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
 
   beforeEach(() => {
-    repositoryBindingsService = { create: vi.fn(), get: vi.fn(), disable: vi.fn() };
+    repositoryBindingsService = { create: vi.fn(), get: vi.fn(), disable: vi.fn(), enable: vi.fn() };
     githubUserRepositoriesService = { list: vi.fn() };
     githubRepositoryAccessService = {
       resolveInstallation: vi.fn(),
@@ -158,6 +160,15 @@ describe('RepositoryBindingsController', () => {
       await controller.remove('project-1', 'user-1');
 
       expect(repositoryBindingsService.disable).toHaveBeenCalledWith('project-1', 'user-1');
+    });
+
+    it('enable reactivates the binding and maps the response', async () => {
+      repositoryBindingsService.enable.mockResolvedValue(binding);
+
+      const result = await controller.enable('project-1', 'user-1');
+
+      expect(repositoryBindingsService.enable).toHaveBeenCalledWith('project-1', 'user-1');
+      expect(result.status).toBe('ENABLED');
     });
   });
 });

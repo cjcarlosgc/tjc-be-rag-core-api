@@ -127,7 +127,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       return;
     }
 
-    const binding = await this.repositoryBindingsRepository.findByRepositoryId(initialRun.repositoryId);
+    const binding = await this.repositoryBindingsRepository.findForRun(initialRun);
 
     if (!binding) {
       const failed = await this.analysisRunsService.completeRunFromSystem(initialRun, 'INFRASTRUCTURE_FAILURE', {

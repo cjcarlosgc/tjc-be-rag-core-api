@@ -26,6 +26,7 @@ describe('AnalysisRunsService', () => {
     name: 'demo',
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
+    deletedAt: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };

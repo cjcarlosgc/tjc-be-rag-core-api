@@ -12,6 +12,7 @@ describe('ProjectsService', () => {
     create: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
     findAll: ReturnType<typeof vi.fn>;
+    softDelete: ReturnType<typeof vi.fn>;
   };
 
   const OWNER_USER_ID = 'user-1';
@@ -21,12 +22,13 @@ describe('ProjectsService', () => {
     name: 'demo',
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
+    deletedAt: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
 
   beforeEach(async () => {
-    repository = { create: vi.fn(), findById: vi.fn(), findAll: vi.fn() };
+    repository = { create: vi.fn(), findById: vi.fn(), findAll: vi.fn(), softDelete: vi.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [ProjectsService, { provide: ProjectsRepository, useValue: repository }],
@@ -104,6 +106,23 @@ describe('ProjectsService', () => {
       await service.list(undefined, 'project-5', OWNER_USER_ID);
 
       expect(repository.findAll).toHaveBeenCalledWith(20, OWNER_USER_ID, 'project-5');
+    });
+  });
+
+  describe('delete (HU56)', () => {
+    it('soft-deletes an owned project', async () => {
+      repository.softDelete.mockResolvedValue(true);
+
+      await expect(service.delete('project-1', OWNER_USER_ID)).resolves.toBeUndefined();
+      expect(repository.softDelete).toHaveBeenCalledWith('project-1', OWNER_USER_ID);
+    });
+
+    it('answers PROJECT_NOT_FOUND for a missing, foreign or already deleted project', async () => {
+      repository.softDelete.mockResolvedValue(false);
+
+      await expect(service.delete('project-1', OWNER_USER_ID)).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.PROJECT_NOT_FOUND,
+      });
     });
   });
 });

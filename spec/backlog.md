@@ -1,6 +1,6 @@
 # Product Backlog global
 
-**Estado:** línea base global vigente SDD 2.1 / SYSTEM-2.2 / INTEROP-2.2
+**Estado:** línea base global vigente SDD 2.1 / SYSTEM-2.3 / INTEROP-2.3
 
 Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD local indica su participación concreta. La numeración expresa trazabilidad y orden lógico, no ejecución estrictamente secuencial.
 
@@ -113,6 +113,10 @@ completo por historia en `harness/reports/console-backlog-formalization.md`
 | HU53 | EP10 | H | P1 | Mostrar el historial de transiciones de estado de un AnalysisRun | Como usuario autorizado, quiero ver el historial cronológico de transiciones de estado de un `AnalysisRun`, para entender cómo llegó a su estado actual sin adivinar a partir de 3 timestamps sueltos. |
 | HU54 | EP08 | H | P1 | Extender Context Explorer con contexto funcional y de tests existentes | Como usuario autorizado, quiero que el árbol de contexto de un Run muestre también el conocimiento funcional y la evidencia de tests existentes que alimentaron el Context Builder, no solo candidatos RAG, para auditar el contexto completo detrás de una generación. |
 | HU55 | EP10 | H | P1 | Listar Analysis Runs cross-proyecto para el Workspace Overview | Como usuario autorizado, quiero un listado de Analysis Runs que abarque todos mis proyectos, para ver de un vistazo qué necesita mi atención sin entrar proyecto por proyecto. |
+| HU56 | EP01 | H | P1 | Eliminar un proyecto de forma lógica | Como usuario autorizado, quiero eliminar un proyecto para que deje de aparecer en la plataforma y su repositorio quede libre para vincularse a otro proyecto, sin borrar físicamente su evidencia. |
+| HU57 | EP10 | H | P1 | Reactivar un binding desconectado y rechazar repositorios ya vinculados | Como usuario autorizado, quiero pausar y reactivar el binding de un Project y recibir un error claro si el repositorio elegido ya está vinculado a otro Project, para controlar cuándo se analizan los PR sin errores internos. |
+
+HU56-HU57 — registradas 2026-09-20 por Console (`CONTRACT_SYNC` CS-20260920-001) a partir de probar el binding contra Core real (`500` al vincular un repositorio ya usado por otro Project). Aprobadas por el usuario el 2026-09-20 junto con dos decisiones: un binding `REVOKED` se reactiva por `POST .../enable` si la App recuperó acceso, y el fix de `disable()` sobre `REVOKED` y la validación de binding en los job handlers entran en el mismo work item (`T-002-binding-lifecycle`). Contrato en INTEROP-2.3 §6.1/§6.8; implementado en Core (`T-002-binding-lifecycle`).
 
 2026-09-15: los 4 contratos que Core debía definir para desbloquear a
 Console quedaron definidos y hoy están consolidados en **INTEROP-2.2** (`spec/contracts/interoperability-contract.md`
