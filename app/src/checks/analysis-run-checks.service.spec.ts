@@ -25,6 +25,7 @@ const binding: RepositoryBinding = {
   repositoryName: 'org/repo',
   integrationBranch: 'main',
   status: 'ENABLED',
+  disabledReason: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
