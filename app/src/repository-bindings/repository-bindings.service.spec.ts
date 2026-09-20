@@ -58,7 +58,7 @@ describe('RepositoryBindingsService', () => {
       reactivate: vi.fn(),
       findByRepositoryId: vi.fn().mockResolvedValue(null),
     };
-    projectsRepository = { findById: vi.fn() };
+    projectsRepository = { findById: vi.fn().mockResolvedValue(project) };
     githubRepositoryAccessService = {
       requireInstallation: vi.fn().mockResolvedValue('install-1'),
       resolveRepositoryId: vi.fn().mockResolvedValue('repo-1'),
@@ -212,6 +212,43 @@ describe('RepositoryBindingsService', () => {
       repository.create.mockRejectedValue(boom);
 
       await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(boom);
+    });
+  });
+
+  describe('project visibility (HU56): PROJECT_NOT_FOUND vs REPOSITORY_BINDING_NOT_FOUND', () => {
+    const cases: Array<[string, () => Promise<unknown>]> = [
+      ['get', () => service.get(PROJECT_ID, OWNER_USER_ID)],
+      ['disable', () => service.disable(PROJECT_ID, OWNER_USER_ID)],
+      ['enable', () => service.enable(PROJECT_ID, OWNER_USER_ID)],
+    ];
+
+    it.each(cases)('%s answers PROJECT_NOT_FOUND for a deleted, foreign or missing project', async (_name, call) => {
+      projectsRepository.findById.mockResolvedValue(null);
+
+      await expect(call()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.PROJECT_NOT_FOUND,
+      });
+      expect(repository.findByProjectForOwner).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)('%s answers REPOSITORY_BINDING_NOT_FOUND for a live project without binding', async (_name, call) => {
+      repository.findByProjectForOwner.mockResolvedValue(null);
+
+      await expect(call()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
+      });
+      expect(projectsRepository.findById).toHaveBeenCalledWith(PROJECT_ID, OWNER_USER_ID);
+    });
+  });
+
+  describe('create — concurrent project deletion (HU56)', () => {
+    it('propagates PROJECT_NOT_FOUND when the project was deleted while calling GitHub', async () => {
+      const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
+      repository.findByProjectForOwner.mockResolvedValue(null);
+      const gone = new AppException(ErrorCode.PROJECT_NOT_FOUND, 'gone', 404);
+      repository.create.mockRejectedValue(gone);
+
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(gone);
     });
   });
 

@@ -11,7 +11,7 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 ## 1. Compatibilidad y autoridad
 
 - Las rutas manuales de carga ZIP y generación por modos (`METHOD|CLASS|PROJECT`) anteriores a SDD 2.0 quedan retiradas; no existe compatibilidad legacy paralela. El único disparador de análisis es PR-driven (`AnalysisRun`).
-- `INTEROP-2.3` es la versión documental vigente. Hereda de `INTEROP-2.1` el lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP, y de `INTEROP-2.2` el discovery OAuth user-centric y la autorización GitHub-App-centric del repository binding (§6.8). Es aditivo (sin cambios incompatibles): agrega `DELETE /projects/{projectId}` (§6.1), `POST /projects/{projectId}/integrations/github/enable` y el error `REPOSITORY_ALREADY_BOUND` (§6.8) — HU56/HU57, solicitados por Console (`CS-20260920-001`). **Definido, pendiente de implementación.**
+- `INTEROP-2.3` es la versión documental vigente. Hereda de `INTEROP-2.1` el lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP, y de `INTEROP-2.2` el discovery OAuth user-centric y la autorización GitHub-App-centric del repository binding (§6.8). Es aditivo (sin cambios incompatibles): agrega `DELETE /projects/{projectId}` (§6.1), `POST /projects/{projectId}/integrations/github/enable` y el error `REPOSITORY_ALREADY_BOUND` (§6.8) — HU56/HU57, solicitados por Console (`CS-20260920-001`) e implementados en Core.
 - 2026-09-15: se define contrato (sin implementar) para 4 capacidades formalizadas como historia en `spec/backlog.md` (HU48-HU55, registradas originalmente por Console) que estaban bloqueadas por falta de contrato: `CreateExperimentRequest` reapunta a `AnalysisRun`/símbolo (§6.5, HU48), historial de transiciones de `AnalysisRun` (§6.10, HU53), listado de Analysis Runs cross-proyecto (§6.10, HU55) y detección de conflicto de Functional Knowledge (§6.11, HU51). Cada bloque queda marcado **Definido, pendiente de implementación**.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -104,7 +104,7 @@ El navegador consume solamente RAG Core.
 - `POST /projects` → `201 ProjectResponse`.
 - `GET /projects/{projectId}` → `200 ProjectResponse`.
 - `GET /projects?cursor&limit` → `200 Page<ProjectResponse>`.
-- `DELETE /projects/{projectId}` → `204` (HU56, **definido, pendiente de implementación**).
+- `DELETE /projects/{projectId}` → `204` (HU56).
 
 ```ts
 interface HealthResponse {
@@ -464,7 +464,7 @@ Repository discovery is user-centric; repository automation is GitHub-App-centri
 - `GET /integrations/github/repositories/{owner}/{repo}/branches` -> `200 GitHubRepositoryBranchesResponse`.
 - `POST /projects/{projectId}/integrations/github` -> `201 ProjectRepositoryBindingResponse`.
 - `GET /projects/{projectId}/integrations/github` -> `200 ProjectRepositoryBindingResponse`.
-- `POST /projects/{projectId}/integrations/github/enable` -> `200 ProjectRepositoryBindingResponse` (HU57, **definido, pendiente de implementación**).
+- `POST /projects/{projectId}/integrations/github/enable` -> `200 ProjectRepositoryBindingResponse` (HU57).
 - `DELETE /projects/{projectId}/integrations/github` -> `204`.
 
 ```ts
@@ -514,9 +514,9 @@ interface ProjectRepositoryBindingResponse {
 }
 ```
 
-Core valida `repositoryId` y `repositoryName` contra GitHub antes de devolver autorización o persistir. `installationId` es evidencia resuelta por Core: no se acepta desde el navegador y es `null` cuando el resultado es `NOT_AUTHORIZED`. Las ramas se consultan con el installation access token, por lo que un repositorio sin acceso devuelve `403 GITHUB_APP_ACCESS_REQUIRED`. La creación exige que `integrationBranch` exista; no hay default. `NOT_AUTHORIZED` no es un error HTTP. Desconectar (`DELETE .../integrations/github`) deja el binding `DISABLED`: es una pausa reversible que conserva la fila y su `repositoryId`, deja de aceptar eventos nuevos y no borra Runs ni Functional Knowledge. Sobre un binding `REVOKED` responde `204` sin cambiar el estado (nunca lo degrada a `DISABLED`); sobre uno ya `DISABLED`, `204`.
+Core valida `repositoryId` y `repositoryName` contra GitHub antes de persistir (`POST .../integrations/github`). `verify-app-access` devuelve `repositoryId` y `repositoryName` tal como se enviaron; la validación autoritativa del id ocurre en `POST .../integrations/github`. `installationId` es evidencia resuelta por Core: no se acepta desde el navegador y es `null` cuando el resultado es `NOT_AUTHORIZED`. Las ramas se consultan con el installation access token, por lo que un repositorio sin acceso devuelve `403 GITHUB_APP_ACCESS_REQUIRED`. La creación exige que `integrationBranch` exista; no hay default. `NOT_AUTHORIZED` no es un error HTTP. Desconectar (`DELETE .../integrations/github`) deja el binding `DISABLED`: es una pausa reversible que conserva la fila y su `repositoryId`, deja de aceptar eventos nuevos y no borra Runs ni Functional Knowledge. Sobre un binding `REVOKED` responde `204` sin cambiar el estado (nunca lo degrada a `DISABLED`); sobre uno ya `DISABLED`, `204`. `installation.suspend` solo pausa bindings `ENABLED`; no altera `REVOKED` ni `DISABLED`.
 
-Reglas de `POST .../integrations/github` (HU57), en este orden de validación: `404 PROJECT_NOT_FOUND`, `409 REPOSITORY_BINDING_ALREADY_EXISTS` (el Project ya tiene binding), `403 GITHUB_APP_ACCESS_REQUIRED`, `409 REPOSITORY_ALREADY_BOUND`, `404 INTEGRATION_BRANCH_NOT_FOUND`. Core resuelve el `repositoryId` real contra GitHub y no confía en el enviado por el cliente. `REPOSITORY_ALREADY_BOUND` significa que otro Project ya usa ese repositorio; su mensaje es genérico y no revela el Project ni el usuario ajeno. Una violación de unicidad concurrente se traduce al `409` correspondiente, nunca a `500`.
+Reglas de `POST .../integrations/github` (HU57), en este orden de validación: `404 PROJECT_NOT_FOUND`, `409 REPOSITORY_BINDING_ALREADY_EXISTS` (el Project ya tiene binding), `403 GITHUB_APP_ACCESS_REQUIRED`, `404 GITHUB_REPOSITORY_NOT_FOUND`, `409 REPOSITORY_ALREADY_BOUND`, `404 INTEGRATION_BRANCH_NOT_FOUND`. Core resuelve el `repositoryId` real contra GitHub y no confía en el enviado por el cliente. Si GitHub no encuentra el repositorio, o su `repositoryId` real no coincide con el enviado para `repositoryName`, responde `404 GITHUB_REPOSITORY_NOT_FOUND` sin persistir. Esta validación ocurre después de comprobar el acceso de la App y antes de comprobar si otro Project ya usa el repositorio. `REPOSITORY_ALREADY_BOUND` significa que otro Project ya usa ese repositorio; su mensaje es genérico y no revela el Project ni el usuario ajeno. Una violación de unicidad concurrente se traduce al `409` correspondiente, nunca a `500`.
 
 Reglas de `POST .../integrations/github/enable` (HU57): pasa `DISABLED` a `ENABLED` y es idempotente (un binding ya `ENABLED` responde `200` con el mismo cuerpo, sin revalidar). Antes de reactivar Core revalida el acceso de la App (installation resuelta por Core) y refresca `installationId`; sin acceso responde `403 GITHUB_APP_ACCESS_REQUIRED` y el estado no cambia. Un binding `REVOKED` también se reactiva por esta ruta si la revalidación confirma que la App recuperó acceso al repositorio (así un Project sale de `REVOKED` sin borrarse); si no hay acceso, `403 GITHUB_APP_ACCESS_REQUIRED` y sigue `REVOKED`. Sin Project propio: `404 PROJECT_NOT_FOUND`; sin binding: `404 REPOSITORY_BINDING_NOT_FOUND`.
 

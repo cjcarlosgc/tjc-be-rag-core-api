@@ -101,6 +101,7 @@ export class RepositoryBindingsService {
   }
 
   async get(projectId: string, ownerUserId: string): Promise<RepositoryBinding> {
+    await this.findProjectOrThrow(projectId, ownerUserId);
     return this.findBindingOrThrow(projectId, ownerUserId);
   }
 
@@ -109,6 +110,7 @@ export class RepositoryBindingsService {
    * binding `REVOKED` no cambia nada: nunca se degrada a `DISABLED`.
    */
   async disable(projectId: string, ownerUserId: string): Promise<RepositoryBinding> {
+    await this.findProjectOrThrow(projectId, ownerUserId);
     const binding = await this.findBindingOrThrow(projectId, ownerUserId);
 
     if (binding.status === 'REVOKED') {
@@ -124,6 +126,7 @@ export class RepositoryBindingsService {
    * Idempotente: un binding ya `ENABLED` se devuelve sin revalidar.
    */
   async enable(projectId: string, ownerUserId: string): Promise<RepositoryBinding> {
+    await this.findProjectOrThrow(projectId, ownerUserId);
     const binding = await this.findBindingOrThrow(projectId, ownerUserId);
 
     if (binding.status === 'ENABLED') {

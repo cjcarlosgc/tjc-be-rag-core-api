@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   BindingDisabledReason,
@@ -6,6 +6,8 @@ import type {
   RepositoryBindingStatus,
 } from '../generated/prisma/client.js';
 import { ownedProject } from '../common/persistence/owned-project.filter.js';
+import { AppException } from '../common/errors/app.exception.js';
+import { ErrorCode } from '../common/errors/error-code.enum.js';
 
 export interface CreateRepositoryBindingInput {
   installationId: string;
@@ -18,15 +20,37 @@ export interface CreateRepositoryBindingInput {
 export class RepositoryBindingsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * HU56: el insert corre en una transacción que primero toma `FOR SHARE` sobre
+   * el Project vivo. `ProjectsRepository.softDelete` actualiza esa misma fila,
+   * así que un DELETE concurrente se serializa: o el binding se inserta antes
+   * y el borrado lo elimina, o el Project ya está borrado y esto responde 404.
+   * Sin esto un POST lento (3 llamadas a GitHub) podía dejar un binding
+   * huérfano que retenía el `repositoryId` para siempre.
+   */
   create(projectId: string, input: CreateRepositoryBindingInput): Promise<RepositoryBinding> {
-    return this.prisma.repositoryBinding.create({
-      data: {
-        projectId,
-        installationId: input.installationId,
-        repositoryId: input.repositoryId,
-        repositoryName: input.repositoryName,
-        integrationBranch: input.integrationBranch,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const alive = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "projects" WHERE "id" = ${projectId} AND "deletedAt" IS NULL FOR SHARE
+      `;
+
+      if (alive.length === 0) {
+        throw new AppException(
+          ErrorCode.PROJECT_NOT_FOUND,
+          `No existe un proyecto con id "${projectId}".`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return tx.repositoryBinding.create({
+        data: {
+          projectId,
+          installationId: input.installationId,
+          repositoryId: input.repositoryId,
+          repositoryName: input.repositoryName,
+          integrationBranch: input.integrationBranch,
+        },
+      });
     });
   }
 
@@ -62,9 +86,13 @@ export class RepositoryBindingsRepository {
   /**
    * Sin scope de owner: la usa el ingress de GitHub, que identifica el
    * binding por el repositoryId del webhook, no por un usuario autenticado.
+   * HU56 (defensa en profundidad): un binding cuyo Project está borrado se
+   * trata como inexistente, aunque el borrado ya elimina la fila.
    */
   findByRepositoryId(repositoryId: string): Promise<RepositoryBinding | null> {
-    return this.prisma.repositoryBinding.findUnique({ where: { repositoryId } });
+    return this.prisma.repositoryBinding.findFirst({
+      where: { repositoryId, project: { deletedAt: null } },
+    });
   }
 
   /**

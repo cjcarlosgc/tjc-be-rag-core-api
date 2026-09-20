@@ -74,3 +74,48 @@ describe('RepositoryBindingsRepository.findForRun (HU56)', () => {
     });
   });
 });
+
+describe('RepositoryBindingsRepository.create (HU56 — carrera con DELETE /projects)', () => {
+  const input = { installationId: 'i1', repositoryId: 'r1', repositoryName: 'org/repo', integrationBranch: 'main' };
+  let tx: { $queryRaw: ReturnType<typeof vi.fn>; repositoryBinding: { create: ReturnType<typeof vi.fn> } };
+  let repository: RepositoryBindingsRepository;
+
+  beforeEach(() => {
+    tx = { $queryRaw: vi.fn(), repositoryBinding: { create: vi.fn().mockResolvedValue({ id: 'b1' }) } };
+    const prisma = { $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)) };
+    repository = new RepositoryBindingsRepository(prisma as unknown as PrismaService);
+  });
+
+  it('locks the live project (FOR SHARE) and inserts inside the same transaction', async () => {
+    tx.$queryRaw.mockResolvedValue([{ id: 'p1' }]);
+
+    const result = await repository.create('p1', input);
+
+    expect(result).toEqual({ id: 'b1' });
+    const sql = (tx.$queryRaw.mock.calls[0][0] as string[]).join('?');
+    expect(sql).toContain('FROM "projects"');
+    expect(sql).toContain('"deletedAt" IS NULL');
+    expect(sql).toContain('FOR SHARE');
+    expect(tx.repositoryBinding.create).toHaveBeenCalledWith({
+      data: { projectId: 'p1', installationId: 'i1', repositoryId: 'r1', repositoryName: 'org/repo', integrationBranch: 'main' },
+    });
+  });
+
+  it('throws PROJECT_NOT_FOUND and inserts nothing when the project is no longer alive', async () => {
+    tx.$queryRaw.mockResolvedValue([]);
+
+    await expect(repository.create('p1', input)).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(tx.repositoryBinding.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('RepositoryBindingsRepository.findByRepositoryId (HU56)', () => {
+  it('treats a binding whose project is logically deleted as nonexistent', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const repository = new RepositoryBindingsRepository({ repositoryBinding: { findFirst } } as unknown as PrismaService);
+
+    await repository.findByRepositoryId('r1');
+
+    expect(findFirst).toHaveBeenCalledWith({ where: { repositoryId: 'r1', project: { deletedAt: null } } });
+  });
+});

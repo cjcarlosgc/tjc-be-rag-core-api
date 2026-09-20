@@ -45,7 +45,7 @@
       "checkedAt": "2026-09-20T01:30:00-05:00"
     },
     "createdAt": "2026-09-20T01:00:00-05:00",
-    "updatedAt": "2026-09-20T02:20:00-05:00",
+    "updatedAt": "2026-09-20T02:30:00-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -53,8 +53,31 @@
       "implementationAgent": null,
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
-      "reviewCycles": 0,
+      "handoffs": [
+        {
+          "role": "reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "F1 (media): carrera POST binding vs DELETE /projects dejaba un binding huérfano que retenía el repositoryId",
+            "F2 (baja): enable no compara el repositoryId real de GitHub (documentada como simplificación)",
+            "F3 (baja, documental): marcadores 'pendiente de implementación' y segundo CONTRACT_SYNC"
+          ],
+          "blockers": [],
+          "correctionApplied": "F1: insert del binding en $transaction con SELECT ... FOR SHARE sobre el Project vivo + findByRepositoryId ignora Projects borrados; F2: simplificación documentada en CHANGELOG/tasks.md; F3: marcadores quitados, segundo sync pendiente del leader"
+        },
+        {
+          "role": "contract-reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "MEDIA: get/disable/enable respondían REPOSITORY_BINDING_NOT_FOUND en vez de PROJECT_NOT_FOUND para un Project borrado/ajeno",
+            "BAJA: contrato sin el 404 GITHUB_REPOSITORY_NOT_FOUND en el orden de POST binding, sin aclaración de verify-app-access ni de installation.suspend",
+            "BAJA: marcadores 'pendiente de implementación' falsos"
+          ],
+          "blockers": [],
+          "correctionApplied": "findProjectOrThrow antes de findBindingOrThrow con tests; INTEROP §6.8 actualizado; marcadores quitados; nota de disabledReason null en persistence"
+        }
+      ],
+      "reviewCycles": 1,
       "maxReviewCycles": 2
     },
     "gates": {
@@ -86,6 +109,11 @@
           "checkpoint": "implementation-delivery",
           "checkedAt": "2026-09-20T06:18:12.115Z",
           "relevantPendingSyncIds": []
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "checkedAt": "2026-09-20T06:27:36Z",
+          "relevantPendingSyncIds": []
         }
       ],
       "publishedSyncIds": [
@@ -99,9 +127,13 @@
       "cd app && npm run test:e2e -> 1 archivo, 8/8 en verde",
       "cd app && npm run build -> nest build sin errores",
       "node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-002-binding-lifecycle -> relevantPendingSyncIds [] (exit 0)",
-      "Commits del corte: 16da507 (HU57), commit HU56 posterior. Migraciones 20260920120000 y 20260920121000 escritas, NO aplicadas a Supabase."
+      "Commits del corte: 16da507 (HU57), commit HU56 posterior. Migraciones 20260920120000 y 20260920121000 escritas, NO aplicadas a Supabase.",
+      "Ciclo de corrección 1 (reviewCycles=1): cd app && npm run lint -> sin hallazgos",
+      "Ciclo de corrección 1: npm test -> 61 archivos, 479/479",
+      "Ciclo de corrección 1: npm run test:e2e -> 8/8; npm run build -> exit 0",
+      "Ciclo de corrección 1: contract-sync check --checkpoint implementation-delivery -> relevantPendingSyncIds [] (exit 0)"
     ],
     "notes": "Origen: CONTRACT_SYNC CS-20260920-001 (Console -> Core, importado y ACKNOWLEDGED). HU56/HU57 son historias PROPUESTAS por Console (backlog PROPOSED); el usuario confirmó 2026-09-20: (a) un binding REVOKED se reactiva vía POST .../enable si la App recuperó acceso, (b) el fix de disable() sobre REVOKED y la validación binding.projectId en job handlers entran en este mismo work item. La spec y los contratos están redactados y esperan aprobación humana antes de implementar. El work item anterior quedó archivado en harness/reports/T-002-analysis-run-domain.md. 2026-09-20: usuario aprobó el contrato (SYSTEM-2.3/INTEROP-2.3, commit caa4336) y la implementación. Publicado CS-20260920-002 (Core -> Console, contrato definido). Falta un segundo CONTRACT_SYNC al terminar la implementación; contractSyncPublished sigue NOT_RUN hasta entonces. Sandbox no recibe evento (no consume estas rutas) pero su mirror SYSTEM/INTEROP queda en 2.2 hasta que se copie."
   },
-  "lastUpdatedAt": "2026-09-20T02:20:00-05:00"
+  "lastUpdatedAt": "2026-09-20T02:30:00-05:00"
 }
