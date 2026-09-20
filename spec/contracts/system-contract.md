@@ -1,7 +1,7 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.2
-**Fecha de corte:** 2026-09-17
+**Versión del contrato:** SYSTEM-2.3
+**Fecha de corte:** 2026-09-20
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
@@ -51,7 +51,9 @@ Los permisos de la GitHub App aplican mínimo privilegio:
 
 Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console usa el token OAuth GitHub del usuario, transportado solo para ese descubrimiento, para listar repositorios visibles. Al seleccionar uno, Core se autentica como GitHub App y consulta directamente la instalación que tiene acceso al repositorio. La ausencia de acceso es `NOT_AUTHORIZED`, un resultado de producto que ofrece la URL de configuración centralizada de la App; no se enumeran instalaciones ni se infiere acceso desde OAuth.
 
-Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar deshabilita/revoca el binding, impide aceptar eventos nuevos para ese Project y conserva Runs/evidencia según retención. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU31): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`.
+Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU31): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core revalida que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
+
+Eliminar un `Project` es un borrado lógico irreversible desde la API (sin restauración): el Project y todo lo que cuelga de él dejan de ser visibles, se libera su binding para que el repositorio pueda vincularse a otro Project, y los Runs y jobs en curso se cancelan u obsoletan. Runs, versiones y Functional Knowledge se conservan como evidencia, sin exposición por la API. Un webhook de un repositorio sin binding se ignora.
 
 ## Trigger PR-driven y lifecycle
 
@@ -169,7 +171,7 @@ OBSOLETE
 - Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
 - El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
 - La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
-- Mocks frontend deben implementar `INTEROP-2.2`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
+- Mocks frontend deben implementar `INTEROP-2.3`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
 
 ## Decisiones compartidas
 
@@ -247,4 +249,4 @@ OBSOLETE
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.2` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto, y define repository discovery user-centric con automatización GitHub-App-centric. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.2` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.3` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto y el repository discovery user-centric con automatización GitHub-App-centric de `SYSTEM-2.2`, y agrega el ciclo de vida del binding (pausa/reactivación, un repositorio por Project) y el borrado lógico de Project (HU56/HU57). No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.3` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.

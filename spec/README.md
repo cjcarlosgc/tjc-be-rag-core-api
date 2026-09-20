@@ -2,7 +2,7 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-**Línea base vigente:** SDD 2.1 / SYSTEM-2.2 / INTEROP-2.2.
+**Línea base vigente:** SDD 2.1 / SYSTEM-2.3 / INTEROP-2.3.
 
 Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> constitución aplicable -> `backlog.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables.
 

@@ -1,6 +1,6 @@
 # Arquitectura SDD 2.0
 
-**Contratos compartidos:** SYSTEM-2.2 / INTEROP-2.2
+**Contratos compartidos:** SYSTEM-2.3 / INTEROP-2.3
 **Estado:** aprobado con decisiones `PENDING` explícitas
 
 ## Topología

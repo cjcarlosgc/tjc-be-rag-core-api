@@ -12,7 +12,7 @@ Gestionar la identidad estable de un proyecto y su versión actual exitosa.
 - `Project` representa el proyecto lógico.
 - `Project.currentVersionId` solo cambia al completar exitosamente una indexación.
 - Crear proyecto no implica indexarlo.
-- No borrar historial de versiones/runs desde V1.
+- No borrar físicamente historial de versiones/runs desde V1. Eliminar un Project (HU56, `DELETE /projects/{projectId}`) es lógico (`deletedAt`): conserva versiones, Runs y Functional Knowledge como evidencia, los oculta por API y libera el binding de repositorio; no hay restauración.
 
 ## Fuera de alcance
 
