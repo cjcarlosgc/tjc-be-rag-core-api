@@ -239,6 +239,31 @@ OBSOLETE
 
 **Pregunta:** aprobar autorización organizacional, retención, proveedores externos, protección de código y exportación de evidencia.
 
+### DEC-ORG-001 — Organizaciones y compartición de Projects
+
+**Estado:** PROPOSED
+
+**Blocks:** HU58-HU64; no bloquea T-002 ni el resto del backlog. No cierra `DEC-VAL-001`; su cambio de login (HU62) modifica `DEC-WEB-AUTH-001` solo cuando esta decisión se apruebe.
+
+**Propuesta:** GitHub es la fuente de verdad de la autorización y Core persiste solo lo necesario para poder revocar por evento.
+
+- **Workspaces:** el home ofrece la cuenta personal (siempre) y cada organización del usuario. El "equipo" es la organización; los Teams de GitHub no son workspace y solo aportan permisos de forma indirecta. Un Project guarda su organización (`githubOrgId`, `login`; nulo = personal) porque al crearse aún no tiene repositorio.
+- **Login:** solo GitHub (HU62). La identidad se resuelve por el `githubUserId` numérico que Core obtiene de la Admin API de Supabase con el `sub` del token; nunca de `user_metadata`, que el propio usuario puede editar.
+- **Roles (jerarquía Admin ⊃ Maintainer ⊃ Reader):** Admin es solo el owner de la organización (en el workspace personal, quien lo creó) y es además Maintainer; solo Admin crea, renombra y elimina Projects (el borrado sigue siendo lógico). Maintainer es quien tiene permiso `maintain`, `write` o `admin` sobre el repositorio vinculado; opera el día a día (binding, preguntas funcionales, publicación, experimentos). Reader es quien tiene `triage` o `read`: solo consulta.
+- **Visibilidad:** se ve un Project si se tiene al menos `read` sobre su repositorio vinculado, también en el workspace personal. Un Project sin repositorio solo lo ven los Admin (todos los owners de la organización; en personal, su creador). Un recurso no visible responde el mismo `404` que uno inexistente.
+- **Binding:** un Project tiene un solo repositorio y no se revincula (para otro repositorio se elimina el Project y se crea otro). En una organización solo se ofrecen y aceptan repositorios de esa organización; en el workspace personal, solo los propios. Vincular exige permiso `maintain`/`write` (o `admin`) sobre el repositorio, porque la GitHub App publica con permisos de escritura. Vincular, pausar y reactivar lo hacen Admin y Maintainer; como el Project sin repositorio solo lo ven los Admin, el primer vínculo es de un Admin. Un renombre del repositorio actualiza el nombre; una transferencia a otra organización o su eliminación pasa el binding a `REVOKED` sin borrar evidencia.
+- **Alta y revocación:** el acceso se crea automáticamente al entrar, verificando en vivo el rol o permiso del usuario con el installation token de la App; nadie invita. La revocación no usa caché ni depende del inicio de sesión: los webhooks de la App en el ingress existente (§6.9) actualizan o borran el registro de acceso, y un job periódico de reconciliación sobre la cola existente corrige webhooks perdidos.
+- **Persistencia mínima:** el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y un registro de acceso `(projectId, userId, rol, verifiedAt)`. No hay tablas `Organization` ni `Membership`.
+- Se conserva el invariante de que ninguna identidad implica autorización de la otra: ver un Project no autoriza la automatización sobre el repositorio, que sigue autorizada solo por la GitHub App.
+
+**Preguntas abiertas (verificaciones técnicas):**
+- ¿Puede el installation token leer el rol en la organización y el permiso de un colaborador, y qué permisos nuevos necesita la App (p. ej. Members: read)?
+- ¿Qué eventos cubren cada vía de acceso (colaborador directo, equipo, permiso base de la organización, cambio de rol, transferencia o renombre de repositorio) y cuáles no?
+- Frecuencia del job de reconciliación y comportamiento cuando GitHub no responde.
+- Qué pasa con un Project cuando su organización desaparece o pierde a todos sus Admin.
+- Códigos de error nuevos: repositorio fuera de la organización, repositorio ajeno en el workspace personal y permiso insuficiente para vincular.
+- Límite aceptado: solo se comparte con quien tiene acceso al repositorio en GitHub.
+
 ### DEC-EXP-FK-001 — Paridad experimental del contexto funcional
 
 **Estado:** PENDING
