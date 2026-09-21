@@ -100,4 +100,27 @@ describe('validateEnv', () => {
       validateEnv(baseConfig({ NODE_ENV: 'production', AUTH_BYPASS_ENABLED: 'true' })),
     ).toThrow(/DEC-WEB-AUTH-001/);
   });
+
+  it('exposes a synthetic numeric GitHub identity for the bypass (HU62)', () => {
+    const result = validateEnv(baseConfig({ AUTH_BYPASS_ENABLED: 'true', AUTH_BYPASS_GITHUB_USER_ID: '12345' }));
+
+    expect(result.AUTH_BYPASS_GITHUB_USER_ID).toBe('12345');
+    expect(validateEnv(baseConfig()).AUTH_BYPASS_GITHUB_USER_ID).toMatch(/^\d+$/);
+  });
+
+  it('rejects a non-numeric AUTH_BYPASS_GITHUB_USER_ID', () => {
+    expect(() => validateEnv(baseConfig({ AUTH_BYPASS_GITHUB_USER_ID: 'octocat' }))).toThrow(/inválida/);
+  });
+
+  it('rejects the bypass with a synthetic GitHub identity in production (HU62)', () => {
+    expect(() =>
+      validateEnv(
+        baseConfig({
+          NODE_ENV: 'production',
+          AUTH_BYPASS_ENABLED: 'true',
+          AUTH_BYPASS_GITHUB_USER_ID: '12345',
+        }),
+      ),
+    ).toThrow(/DEC-WEB-AUTH-001/);
+  });
 });

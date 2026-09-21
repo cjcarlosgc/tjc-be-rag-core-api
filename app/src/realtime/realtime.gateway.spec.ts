@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RealtimeGateway } from './realtime.gateway.js';
+import { AppException } from '../common/errors/app.exception.js';
+import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { InvalidTokenError } from '../common/auth/token-verifier.port.js';
 
 function makeSocket(userId = 'user-1') {
   return {
@@ -11,11 +14,12 @@ function makeSocket(userId = 'user-1') {
 
 function makeGateway(options: { projectVersionOwned?: boolean } = {}) {
   const { projectVersionOwned = true } = options;
+  const sessionAuth = { authenticate: vi.fn() };
   const projectVersionsRepository = {
     findByIdForOwner: vi.fn().mockResolvedValue(projectVersionOwned ? { id: 'version-1' } : null),
   };
-  const gateway = new RealtimeGateway(projectVersionsRepository as never);
-  return { gateway, projectVersionsRepository };
+  const gateway = new RealtimeGateway(projectVersionsRepository as never, sessionAuth as never);
+  return { gateway, projectVersionsRepository, sessionAuth };
 }
 
 function attachServer(gateway: RealtimeGateway) {
@@ -72,5 +76,84 @@ describe('RealtimeGateway', () => {
     expect(() =>
       gateway.emitProjectVersionUpdate('version-1', { id: 'version-1' } as never),
     ).not.toThrow();
+  });
+
+  describe('handshake authentication (HU62)', () => {
+    function attachMiddleware(gateway: RealtimeGateway) {
+      let middleware!: (socket: unknown, next: (err?: Error) => void) => void;
+      gateway.afterInit({ use: (fn: typeof middleware) => (middleware = fn) } as never);
+      return (handshake: Record<string, unknown>) => {
+        const socket = { handshake, data: {} as Record<string, unknown> };
+        return new Promise<{ error?: Error & { data?: unknown }; socket: typeof socket }>((resolve) => {
+          middleware(socket, (error) => resolve({ error: error as never, socket }));
+        });
+      };
+    }
+
+    it('resolves the identity from the handshake token with the same service as HTTP', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      sessionAuth.authenticate.mockResolvedValue({ userId: 'user-1', githubUserId: '4242' });
+      const connect = attachMiddleware(gateway);
+
+      const { error, socket } = await connect({ auth: { token: 'good' }, headers: {} });
+
+      expect(error).toBeUndefined();
+      expect(sessionAuth.authenticate).toHaveBeenCalledWith('good');
+      expect(socket.data).toMatchObject({ userId: 'user-1', githubUserId: '4242' });
+    });
+
+    it('reads the token from the Authorization header when auth.token is absent', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      sessionAuth.authenticate.mockResolvedValue({ userId: 'user-1', githubUserId: '4242' });
+      const connect = attachMiddleware(gateway);
+
+      await connect({ headers: { authorization: 'Bearer from-header' } });
+
+      expect(sessionAuth.authenticate).toHaveBeenCalledWith('from-header');
+    });
+
+    it('accepts a socket without a token (the per-message guard still requires it)', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      const connect = attachMiddleware(gateway);
+
+      const { error } = await connect({ headers: {} });
+
+      expect(error).toBeUndefined();
+      expect(sessionAuth.authenticate).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid token with err.data.code INVALID_ACCESS_TOKEN, not retryable', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      sessionAuth.authenticate.mockRejectedValue(new InvalidTokenError('expired'));
+      const connect = attachMiddleware(gateway);
+
+      const { error } = await connect({ auth: { token: 'bad' }, headers: {} });
+
+      expect(error?.data).toMatchObject({ code: 'INVALID_ACCESS_TOKEN', retryable: false });
+    });
+
+    it('rejects a valid token without GitHub identity with GITHUB_IDENTITY_REQUIRED, not retryable', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      sessionAuth.authenticate.mockRejectedValue(
+        new AppException(ErrorCode.GITHUB_IDENTITY_REQUIRED, 'sin identidad', 401),
+      );
+      const connect = attachMiddleware(gateway);
+
+      const { error } = await connect({ auth: { token: 'good' }, headers: {} });
+
+      expect(error?.data).toMatchObject({ code: 'GITHUB_IDENTITY_REQUIRED', retryable: false });
+    });
+
+    it('rejects with IDENTITY_UNAVAILABLE and retryable true when the identity cannot be resolved', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      sessionAuth.authenticate.mockRejectedValue(
+        new AppException(ErrorCode.IDENTITY_UNAVAILABLE, 'caída', 503),
+      );
+      const connect = attachMiddleware(gateway);
+
+      const { error } = await connect({ auth: { token: 'good' }, headers: {} });
+
+      expect(error?.data).toMatchObject({ code: 'IDENTITY_UNAVAILABLE', retryable: true });
+    });
   });
 });

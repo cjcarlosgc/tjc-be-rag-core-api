@@ -8,13 +8,13 @@ Todas sin iniciar. Requiere aprobación humana del work item (`AWAITING_APPROVAL
 
 ## Corte 1 — HU62 + identidad (bundle A)
 
-- [ ] Migración `user_github_identities` (sin backfill) y repositorio.
-- [ ] `SupabaseIdentityPort` + adapter (Admin API por `sub`, `identities[].id` del provider `github`) + fake de tests.
-- [ ] Resolver y persistir `githubUserId` tras validar el JWT (HTTP y handshake WebSocket por la misma vía); nunca leer `user_metadata`.
-- [ ] `AUTH_BYPASS` de desarrollo con identidad GitHub sintética configurada, sin llamar a Supabase y rechazado en producción.
-- [ ] `401 GITHUB_IDENTITY_REQUIRED` y `503 IDENTITY_UNAVAILABLE` con el envelope estándar.
-- [ ] Pruebas (identidad presente/ausente, metadata manipulada, Admin API caída con y sin vínculo, bypass).
-- [ ] Actualizar `012-web-authentication` (tareas de calidad: login solo GitHub; correo deshabilitado tras la Console; manual linking deshabilitado).
+- [x] Migración `user_github_identities` (sin backfill) y repositorio. Evidencia: `app/prisma/migrations/20260921120000_user_github_identities/migration.sql` (generada con `prisma migrate diff`, **escrita y NO aplicada a Supabase**), `UserGithubIdentitiesRepository`.
+- [x] `SupabaseIdentityPort` + adapter (Admin API por `sub`, `identities[].id` del provider `github`) + fake de tests. Evidencia: `app/src/common/auth/supabase-admin-identity.adapter.ts` y `app/test/support/fake-supabase-identity.port.ts`.
+- [x] Resolver y persistir `githubUserId` tras validar el JWT (HTTP y handshake WebSocket por la misma vía); nunca leer `user_metadata`. Evidencia: `GithubIdentityService`, `SessionAuthService` (guard HTTP/WS y `io.use()` del `RealtimeGateway` con `err.data`).
+- [x] `AUTH_BYPASS` de desarrollo con identidad GitHub sintética configurada (`AUTH_BYPASS_GITHUB_USER_ID`), sin llamar a Supabase y rechazado en producción (validación de entorno y resolvedor).
+- [x] `401 GITHUB_IDENTITY_REQUIRED` y `503 IDENTITY_UNAVAILABLE` con el envelope estándar (HTTP y rechazo de handshake WebSocket).
+- [x] Pruebas (identidad presente/ausente, metadata manipulada, Admin API caída con y sin vínculo, bypass). Evidencia: specs de `common/auth`, `realtime.gateway.spec.ts`, `env.validation.spec.ts` y `test/github-identity.e2e-spec.ts`.
+- [x] Actualizar `012-web-authentication` (tareas de calidad: login solo GitHub; correo deshabilitado tras la Console; manual linking deshabilitado). Las tareas de despliegue quedaron registradas en `012-web-authentication/tasks.md` sin marcar.
 
 ## Corte 4a — HU64, la corrección de seguridad (bundle A; justo tras el corte 1)
 
