@@ -79,7 +79,8 @@ export class ExperimentsService {
       );
     }
 
-    const target = await this.testTargetsRepository.findByIdForOwner(dto.targetId, ownerUserId);
+    // El target debe pertenecer al Project indicado (no basta con verlo en otro): mismo 404 que uno inexistente.
+    const target = await this.testTargetsRepository.findByIdForOwner(dto.targetId, ownerUserId, dto.projectId);
 
     if (!target) {
       throw new AppException(

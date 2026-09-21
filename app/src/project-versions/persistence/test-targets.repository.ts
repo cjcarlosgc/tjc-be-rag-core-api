@@ -51,9 +51,13 @@ export class TestTargetsRepository {
    * Variante para rutas HTTP: filtra por propietario en la misma consulta
    * (HU29) en vez de cargar y comprobar después.
    */
-  findByIdForOwner(id: string, userId: string): Promise<TestTarget | null> {
+  findByIdForOwner(id: string, userId: string, projectId?: string): Promise<TestTarget | null> {
     return this.prisma.testTarget.findFirst({
-      where: { id, projectVersion: { project: accessibleProject(userId) } },
+      where: {
+        id,
+        // Con `projectId` el target debe pertenecer a ESE Project (no basta con verlo en otro).
+        projectVersion: { ...(projectId === undefined ? {} : { projectId }), project: accessibleProject(userId) },
+      },
     });
   }
 

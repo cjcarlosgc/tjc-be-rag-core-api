@@ -133,6 +133,20 @@ describe('ExperimentsService', () => {
       ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
     });
 
+    it('looks the target up scoped to the requested project, so a target of another project is UNRESOLVABLE_TARGET', async () => {
+      const deps = makeDeps({
+        testTargetsRepository: { findByIdForOwner: vi.fn().mockResolvedValue(null) },
+      });
+      const service = makeService(deps);
+
+      await expect(
+        service.createRun({ projectId: 'project-1', targetId: 'target-of-project-2' }, undefined, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
+      expect(deps.testTargetsRepository.findByIdForOwner).toHaveBeenCalledWith('target-of-project-2', OWNER_USER_ID, 'project-1');
+      expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
+      expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
+    });
+
     it('throws INVALID_GENERATION_TARGET when the target is a CLASS', async () => {
       const deps = makeDeps({
         testTargetsRepository: {
