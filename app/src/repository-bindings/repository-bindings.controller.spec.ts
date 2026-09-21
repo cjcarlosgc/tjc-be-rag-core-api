@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RepositoryBindingsController } from './repository-bindings.controller.js';
 import { RepositoryBindingsService } from './repository-bindings.service.js';
@@ -142,6 +143,12 @@ describe('RepositoryBindingsController', () => {
         code: ErrorCode.REPOSITORY_PERMISSION_INSUFFICIENT,
         status: 403,
       });
+    });
+
+    it('is declared to answer 200 (INTEROP §6.8), not the Nest default 201 for POST', () => {
+      const httpCode = Reflect.getMetadata('__httpCode__', RepositoryBindingsController.prototype.verifyAppAccess);
+
+      expect(httpCode).toBe(200);
     });
 
     it('returns NOT_AUTHORIZED without revealing the installation when the user has no visibility', async () => {

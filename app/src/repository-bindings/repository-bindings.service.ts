@@ -70,11 +70,8 @@ export class RepositoryBindingsService {
     );
 
     if (owner.repositoryId !== input.repositoryId) {
-      throw new AppException(
-        ErrorCode.GITHUB_REPOSITORY_NOT_FOUND,
-        `El repositorio "${input.repositoryName}" no corresponde al repositoryId indicado.`,
-        HttpStatus.NOT_FOUND,
-      );
+      // Mismo 404 (código, HTTP y mensaje) que "no existe" y "sin permiso": no distingue los tres casos.
+      throw this.githubRepositoryAccessService.repositoryNotFound(input.repositoryName);
     }
 
     const repositoryId = owner.repositoryId;
