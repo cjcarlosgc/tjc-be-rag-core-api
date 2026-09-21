@@ -652,3 +652,19 @@ model IdempotencyRecord {
   @@unique([scope, idempotencyKey])
   @@map("idempotency_records")
 }
+
+/// 014 (HU62, DEC-ORG-001): vínculo `PlatformUser -> githubUserId`. `userId` es
+/// el `sub` de Supabase (mismo tipo que `Project.ownerUserId`). Se puebla una
+/// vez con la Admin API de Supabase (`identities[].id` del provider `github`),
+/// nunca desde `user_metadata`. `githubLogin` es solo presentación y nunca
+/// autoriza. El `githubUserId` es único e inmutable: la aplicación no lo
+/// actualiza tras crearlo.
+model UserGithubIdentity {
+  userId       String   @id
+  githubUserId String   @unique
+  githubLogin  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_github_identities")
+}

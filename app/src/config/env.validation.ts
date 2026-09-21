@@ -1,5 +1,16 @@
 import { plainToInstance } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 class EnvironmentVariables {
   @IsIn(['development', 'production', 'test'])
@@ -158,6 +169,10 @@ class EnvironmentVariables {
 
   @IsString()
   AUTH_BYPASS_USER_ID: string = 'local-dev-user';
+
+  /** HU62: identidad GitHub sintética (id numérico) que aporta el bypass; nunca en producción. */
+  @Matches(/^\d+$/, { message: 'AUTH_BYPASS_GITHUB_USER_ID debe ser un id numérico de GitHub.' })
+  AUTH_BYPASS_GITHUB_USER_ID: string = '900000001';
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

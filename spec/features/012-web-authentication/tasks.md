@@ -22,6 +22,13 @@
 - [ ] Preservar `returnTo` en deep links de Runs/Focus Mode.
 - [ ] Verificar mediante contract/security tests que login GitHub no concede acceso a repositorios ni a bindings de otro Project.
 
+## Adaptación HU62 (014, corte 1)
+
+- [x] Resolver la identidad GitHub de toda sesión (`SupabaseIdentityPort`, tabla `user_github_identities`, `401 GITHUB_IDENTITY_REQUIRED`, `503 IDENTITY_UNAVAILABLE`, `AUTH_BYPASS_GITHUB_USER_ID`) por la misma vía en HTTP y en el handshake WebSocket.
+- [ ] Aplicar la migración `user_github_identities` a Supabase (escrita, no aplicada) al desplegar el bundle A.
+- [ ] Login solo GitHub: deshabilitar el proveedor de correo y contraseña en Supabase Auth solo después de que la Console publique el login solo GitHub, nunca antes (precondición de despliegue).
+- [ ] Verificar que el manual linking de identidades de Supabase permanece deshabilitado (precondición de despliegue).
+
 ## Retomar en una sesión nueva
 
 1. Leer este archivo, `spec/features/012-web-authentication/spec.md`/`plan.md`, y `harness/state.json` (`activeWorkItem.id = "HU29-web-authentication"`, estado `IN_PROGRESS`, `approved: true`).
