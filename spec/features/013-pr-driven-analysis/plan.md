@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-- SYSTEM-2.3 e INTEROP-2.3.
+- SYSTEM-2.4 e INTEROP-2.4.
 - ownership HU29, jobs DB-backed, object storage, snapshots, retrieval, generación, Sandbox client, artifacts y traces existentes.
 
 ## Cortes de implementación
@@ -21,7 +21,7 @@ Cada corte reutiliza capacidades internas existentes sin conservar APIs, DTOs o 
 
 ## Verificación
 
-- Contract tests para INTEROP-2.3 y fixtures compartidos por copia, no por paquete oculto.
+- Contract tests para INTEROP-2.4 y fixtures compartidos por copia, no por paquete oculto.
 - Tests de discovery sin/ con provider token inválido, repositorio visible sin App, autorización App, ramas por installation token, creación con rama real y webhook firmado/alterado/duplicado.
 - Tests de state machine para draft/base change/closed/merged/force-push/new HEAD durante processing o action required.
 - Matriz de ownership 404 sobre bindings, Runs, preguntas, conocimiento y publicaciones.
