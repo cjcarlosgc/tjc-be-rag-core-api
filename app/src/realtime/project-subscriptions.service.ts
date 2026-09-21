@@ -90,6 +90,27 @@ export class ProjectSubscriptionsService {
     return evicted;
   }
 
+  /**
+   * Segunda comprobación de una suscripción recién registrada (`subscribe:project-version`): con el
+   * socket ya en el mapa y en la sala, vuelve a evaluar el predicado de visibilidad (sin GitHub). Si el
+   * usuario ya no ve el Project (una revocación llegó entre la verificación y el registro, cuando
+   * `revalidateProject` aún no podía ver el socket), lo expulsa y devuelve `false`.
+   */
+  async revalidateSocket(socketId: string, projectId: string): Promise<boolean> {
+    const entry = this.sockets.get(socketId);
+
+    if (!entry) {
+      return false;
+    }
+
+    if (await this.accessRepository.findVisible(projectId, entry.userId)) {
+      return true;
+    }
+
+    await this.evict(socketId, projectId);
+    return false;
+  }
+
   /** Expulsión incondicional de un usuario de un Project (p. ej. su registro se borró). */
   async evictUser(projectId: string, userId: string): Promise<number> {
     let evicted = 0;

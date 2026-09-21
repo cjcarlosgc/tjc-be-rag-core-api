@@ -21,6 +21,7 @@ import { InMemoryPrisma } from './support/in-memory-prisma.js';
 import { authedRequest, e2eGithubUserId, overrideAuthTokenVerifier } from './support/auth-test-support.js';
 import {
   INTEROP_ROLE_MATRIX,
+  ROLES_OF_ROW,
   SECOND_ROW_LISTINGS,
   matrixKey,
   readContractMatrixRows,
@@ -335,6 +336,17 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       for (const row of Object.keys(fixtureRows) as ContractRow[]) {
         expect([...rows[row]].sort(), `fila ${row}`).toEqual([...fixtureRows[row]].sort());
       }
+    });
+
+    it('every fixture entry declares a role consistent with the contract row it is listed under', () => {
+      for (const entry of INTEROP_ROLE_MATRIX) {
+        expect(ROLES_OF_ROW[entry.row], `${entry.method} ${entry.path}: role ${entry.role} en la fila ${entry.row}`).toContain(entry.role);
+      }
+      // La única ruta con una segunda fila (`POST /projects` como Admin) conserva su rol de ruta: sin rol de Project.
+      const [second] = SECOND_ROW_LISTINGS;
+      const listed = INTEROP_ROLE_MATRIX.find((entry) => entry.spec === second.spec);
+      expect(listed?.row).toBe('SIN_ROL');
+      expect(listed?.role).toBe('NONE');
     });
 
     it('the WebSocket handshake declares its exception and the subscribe declares Reader', () => {

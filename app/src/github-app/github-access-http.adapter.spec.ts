@@ -259,6 +259,16 @@ describe('GithubAccessHttpAdapter (HU64)', () => {
       expect(urls()[1]).toBe('https://api.github.com/app/installations?per_page=100&page=2');
     });
 
+    it('an installations listing that reaches the page cap is UNVERIFIABLE, never a truncated OK (it is used to deny)', async () => {
+      const fullPage = Array.from({ length: 100 }, (_, index) =>
+        installation(index + 1, { id: 1000 + index, login: `org-${index}`, type: 'Organization' }),
+      );
+      fetchMock.mockImplementation(() => Promise.resolve(json(fullPage))); // una Response nueva por página
+
+      await expect(adapter.listOrganizationInstallations()).resolves.toEqual({ status: 'UNVERIFIABLE' });
+      expect(fetchMock).toHaveBeenCalledTimes(10);
+    });
+
     it.each([401, 403, 404, 429, 500])('maps %s to UNVERIFIABLE (never an empty list)', async (status) => {
       fetchMock.mockResolvedValue(json({ message: 'nope' }, status));
 
@@ -345,10 +355,18 @@ describe('GithubAccessHttpAdapter (HU64)', () => {
       expect(urls()).toEqual(['https://api.github.com/orgs/acme/members?role=admin&per_page=100&page=1']);
     });
 
-    it('returns an empty OK list for an organization without owners', async () => {
+    it('an EMPTY list with HTTP 200 is UNVERIFIABLE (a GitHub organization cannot have zero owners: it is a visibility artifact)', async () => {
       fetchMock.mockResolvedValue(json([]));
 
-      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'OK', value: [] });
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'UNVERIFIABLE' });
+    });
+
+    it('a listing that reaches the page cap with a full last page is UNVERIFIABLE, never a truncated OK', async () => {
+      const fullPage = Array.from({ length: 100 }, (_, index) => ({ id: index + 1, login: `owner-${index}` }));
+      fetchMock.mockImplementation(() => Promise.resolve(json(fullPage))); // una Response nueva por página
+
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'UNVERIFIABLE' });
+      expect(fetchMock).toHaveBeenCalledTimes(10);
     });
 
     it('maps 404 to NOT_FOUND, 403/5xx to UNVERIFIABLE and an uninstalled App to NOT_INSTALLED', async () => {

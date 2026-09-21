@@ -418,12 +418,21 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       expect(writer.leave).toHaveBeenCalled();
     });
 
-    it('organization without owners or that GitHub no longer finds: hidden', async () => {
+    it('organization that GitHub no longer finds (owners read NOT_FOUND): hidden', async () => {
       setUp();
-      h.github.setOwners('acme', []);
+      h.github.setOrganizationMode('acme', 'NOT_FOUND');
 
       expect((await run())?.organizations).toMatchObject({ hidden: 1 });
       expect(h.recordsOf('p2')).toEqual([]);
+    });
+
+    it('an EMPTY owners list (a visibility artifact, an organization cannot have zero owners) hides nothing: unverifiable', async () => {
+      setUp();
+      h.github.setOwners('acme', []);
+
+      expect((await run())?.organizations).toMatchObject({ hidden: 0, unverifiable: 1 });
+      expect(h.recordsOf('p1')).toHaveLength(3);
+      expect(h.bindingOf('p1').status).toBe('ENABLED');
     });
 
     it('organization deleted while its installation record lingers (owners read NOT_INSTALLED): hidden', async () => {

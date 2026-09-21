@@ -11,7 +11,7 @@ import type {
   RepositoryRef,
 } from '../../src/github-app/github-access.port.js';
 
-export type FakeGithubMode = 'NORMAL' | 'UNVERIFIABLE' | 'NOT_INSTALLED';
+export type FakeGithubMode = 'NORMAL' | 'UNVERIFIABLE' | 'NOT_INSTALLED' | 'NOT_FOUND';
 
 export interface FakeGithubCall {
   method:

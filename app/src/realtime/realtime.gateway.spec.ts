@@ -18,7 +18,7 @@ function makeGateway() {
   const projectAccess = {
     requireForResource: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'READER' }),
   };
-  const subscriptions = { track: vi.fn(), untrack: vi.fn(), forget: vi.fn() };
+  const subscriptions = { track: vi.fn(), untrack: vi.fn(), forget: vi.fn(), revalidateSocket: vi.fn().mockResolvedValue(true) };
   const gateway = new RealtimeGateway(sessionAuth as never, projectAccess as never, subscriptions as never);
   return { gateway, projectAccess, sessionAuth, subscriptions };
 }
@@ -43,6 +43,40 @@ describe('RealtimeGateway', () => {
       expect(client.join).toHaveBeenCalledWith('project-version:version-1');
       expect(subscriptions.track).toHaveBeenCalledWith(client, 'user-1', 'version-1', 'project-1');
       expect(ack).toEqual({ subscribed: true, code: null, retryable: false });
+    });
+
+    it('registers the socket BEFORE joining the room and re-checks visibility AFTER (race with a revocation)', async () => {
+      const { gateway, subscriptions } = makeGateway();
+      const client = makeSocket();
+      const order: string[] = [];
+      subscriptions.track.mockImplementation(() => order.push('track'));
+      client.join.mockImplementation(() => Promise.resolve(order.push('join')));
+      subscriptions.revalidateSocket.mockImplementation(() => Promise.resolve(order.push('revalidate') > 0));
+
+      await gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
+
+      expect(order).toEqual(['track', 'join', 'revalidate']);
+      expect(subscriptions.revalidateSocket).toHaveBeenCalledWith('socket-1', 'project-1');
+    });
+
+    it('a revocation that lands between the verification and the registration: evicted, leaves the room and acks { false, null, false }', async () => {
+      const { gateway, subscriptions } = makeGateway();
+      const client = makeSocket();
+      subscriptions.revalidateSocket.mockResolvedValue(false); // el usuario ya no ve el Project
+
+      const ack = await gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
+
+      expect(ack).toEqual({ subscribed: false, code: null, retryable: false });
+      expect(client.leave).toHaveBeenCalledWith('project-version:version-1');
+    });
+
+    it('a failure joining the room unregisters the socket and propagates', async () => {
+      const { gateway, subscriptions } = makeGateway();
+      const client = makeSocket();
+      client.join.mockRejectedValue(new Error('adapter down'));
+
+      await expect(gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' })).rejects.toThrow('adapter down');
+      expect(subscriptions.untrack).toHaveBeenCalledWith('socket-1', 'version-1');
     });
 
     it('acks { false, GITHUB_VERIFICATION_UNAVAILABLE, retryable: true } when GitHub cannot verify the access, without joining', async () => {

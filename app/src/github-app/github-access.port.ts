@@ -124,6 +124,10 @@ export interface GithubAccessPort {
     githubUserId: string,
   ): Promise<GithubLookup<OrganizationMembership>>;
 
-  /** Owners (`role=admin`) de la organización; una lista vacía es `OK` (organización sin owners). */
+  /**
+   * Owners (`role=admin`) de la organización. Una organización de GitHub no puede tener cero
+   * owners: un `200` con lista vacía es un artefacto de visibilidad y el adaptador lo devuelve como
+   * `UNVERIFIABLE`, nunca `OK []`.
+   */
   listOrganizationOwners(organization: OrganizationRef): Promise<GithubLookup<OrganizationOwner[]>>;
 }

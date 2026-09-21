@@ -5,7 +5,7 @@ import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
 import { VerificationContext } from '../project-access/organization-access.resolver.js';
 import { accessBackoffMs } from './access-backoff.js';
 import { ACCESS_REVERIFY_JOB_TYPE, parseReverifyPayload, type AccessReverifyPayload } from './access-reverify.scope.js';
-import { AccessReverifyService, pendingRetries } from './access-reverify.service.js';
+import { AccessReverifyService } from './access-reverify.service.js';
 
 /**
  * `ACCESS_REVERIFY` (`INTEROP-2.4` §6.9): reverifica en vivo los registros que señala un evento
@@ -42,13 +42,18 @@ export class AccessReverifyJobHandler implements JobHandler<AccessReverifyPayloa
     const summary = await this.reverify.reverifyScope(scope, new VerificationContext());
     this.logger.log(`ACCESS_REVERIFY ${scope.scope}: ${JSON.stringify(summary)}`);
 
-    const retries = pendingRetries(summary);
+    // Un error INESPERADO en un registro (base de datos, bug) sigue el camino normal `fail` del job:
+    // consume intentos con su backoff corto hasta `FAILED` y se ve en la cola. Solo "GitHub no
+    // pudo verificar" se reprograma sin consumir intentos (no es un fallo del job).
+    if (summary.failed > 0) {
+      throw new Error(`ACCESS_REVERIFY ${scope.scope}: ${summary.failed} registro(s) fallaron con un error inesperado.`);
+    }
 
-    if (retries > 0) {
+    if (summary.unverifiable > 0) {
       const deferrals = scope.deferrals ?? 0;
       throw new RescheduleJobError(
         accessBackoffMs(deferrals),
-        `GitHub no permitió verificar ${retries} registro(s) (${scope.scope}); reintento ${deferrals + 1} con backoff.`,
+        `GitHub no permitió verificar ${summary.unverifiable} registro(s) (${scope.scope}); reintento ${deferrals + 1} con backoff.`,
         { ...scope, deferrals: deferrals + 1 },
       );
     }

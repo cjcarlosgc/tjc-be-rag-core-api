@@ -136,17 +136,19 @@ describe('OrganizationLifecycleService (HU61)', () => {
       expect(h.bindingOf('p1').status).toBe('REVOKED');
     });
 
-    it.each(['NOT_INSTALLED'] as const)('HIDDEN when the owners read answers %s', async (mode) => {
+    it.each(['NOT_INSTALLED', 'NOT_FOUND'] as const)('HIDDEN when GitHub confirms it: the owners read answers %s', async (mode) => {
       h.github.setOrganizationMode(ORG_LOGIN, mode);
 
       expect(await h.organizations.reconcile(org, await installations())).toBe('HIDDEN');
       expect(h.recordsOf('p2')).toEqual([]);
     });
 
-    it('HIDDEN when the organization has no owners', async () => {
+    it('an EMPTY owners list is never a confirmation: UNVERIFIABLE, nothing hidden (a GitHub organization cannot have zero owners)', async () => {
       h.github.setOwners(ORG_LOGIN, []);
 
-      expect(await h.organizations.reconcile(org, await installations())).toBe('HIDDEN');
+      expect(await h.organizations.reconcile(org, await installations())).toBe('UNVERIFIABLE');
+      expect(h.recordsOf('p1')).toHaveLength(3);
+      expect(h.bindingOf('p1').status).toBe('ENABLED');
     });
 
     it('UNVERIFIABLE (nothing touched) when the owners read is not verifiable (network, 5xx, rate limit, Members: read missing)', async () => {
@@ -171,7 +173,7 @@ describe('OrganizationLifecycleService (HU61)', () => {
     });
 
     it('FAILED (and it never throws) when hiding fails unexpectedly', async () => {
-      h.github.setOwners(ORG_LOGIN, []);
+      h.github.setOrganizationMode(ORG_LOGIN, 'NOT_FOUND');
       vi.spyOn(h.organizations, 'hide').mockRejectedValue(new Error('db down'));
 
       expect(await h.organizations.reconcile(org, await installations())).toBe('FAILED');

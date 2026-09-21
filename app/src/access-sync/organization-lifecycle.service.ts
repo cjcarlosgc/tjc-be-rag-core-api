@@ -7,8 +7,8 @@ import { BindingLifecycleService } from './binding-lifecycle.service.js';
 
 /**
  * Resultado de la parte (a) de la reconciliación para una organización: `HIDDEN` sus Projects
- * quedaron ocultos (GitHub confirma que ya no es resoluble, la App se desinstaló o no tiene
- * owners), `RENAMED` cambió el login guardado, `UNVERIFIABLE` no se pudo comprobar (no se toca
+ * quedaron ocultos (GitHub CONFIRMA que ya no es resoluble o que la App se desinstaló; una lista de
+ * owners vacía NO es confirmación), `RENAMED` cambió el login guardado, `UNVERIFIABLE` no se pudo comprobar (no se toca
  * nada), `FAILED` error inesperado.
  */
 export type OrganizationReconciliation = 'OK' | 'RENAMED' | 'HIDDEN' | 'UNVERIFIABLE' | 'FAILED';
@@ -16,7 +16,7 @@ export type OrganizationReconciliation = 'OK' | 'RENAMED' | 'HIDDEN' | 'UNVERIFI
 /**
  * Ciclo de vida de la organización sobre `projects.githubOrgId/githubOrgLogin` (HU61,
  * `DEC-ORG-001` "Ciclo de vida de la organización"): si la organización desaparece, se
- * desinstala la App o queda sin owners, sus Projects y su evidencia se CONSERVAN pero dejan de
+ * o se desinstala la App, sus Projects y su evidencia se CONSERVAN pero dejan de
  * verse (binding `REVOKED` y registros borrados, Admin incluido); reaparecen cuando la App se
  * reinstala o la organización vuelve, porque el acceso se recrea al entrar, y con el binding
  * `REVOKED` hasta que un Admin lo reactive. Nunca se reasignan a otro workspace.
@@ -66,7 +66,7 @@ export class OrganizationLifecycleService {
    * Parte (a) de la reconciliación para UNA organización con registros de acceso, contra la
    * lista de instalaciones de la App ya leída (`installations`, `OK`): la organización debe ser
    * resoluble (instalación presente), la App seguir instalada y tener al menos un owner activo;
-   * si no, sus Projects quedan ocultos. Una instalación suspendida o una lectura no verificable
+   * si GitHub CONFIRMA lo contrario (instalación ausente, `NOT_FOUND`/`NOT_INSTALLED`), sus Projects quedan ocultos. Una instalación suspendida o una lectura no verificable
    * (red, `5xx`, límite de tasa, `Members: read` ausente) conserva todo. Nunca lanza. Además
    * corrige el login guardado con el vigente de la instalación (un `organization.renamed`
    * perdido o fuera de orden).
@@ -101,9 +101,10 @@ export class OrganizationLifecycleService {
           await this.hide(organization.organizationId);
           return 'HIDDEN';
         case 'OK':
+          // Una organización de GitHub no puede tener cero owners: una lista vacía es un artefacto de
+          // visibilidad, no una confirmación. Nunca oculta (el adaptador ya la devuelve `UNVERIFIABLE`).
           if (owners.value.length === 0) {
-            await this.hide(organization.organizationId);
-            return 'HIDDEN';
+            return 'UNVERIFIABLE';
           }
       }
 

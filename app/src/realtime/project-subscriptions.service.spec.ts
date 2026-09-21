@@ -60,6 +60,28 @@ describe('ProjectSubscriptionsService (HU59, HU60, WebSocket §6.6)', () => {
     expect(service.projectsOf('writer-socket')).toEqual(['org-project']);
   });
 
+  describe('revalidateSocket (second check of a fresh subscription)', () => {
+    it('true while the user still sees the project; false and evicted (only that socket) when the access disappeared before the socket was tracked', async () => {
+      const writer = socketOf('writer-socket');
+      const reader = socketOf('reader-socket');
+      service.track(writer, 'writer', 'v1', 'org-project');
+      expect(await service.revalidateSocket('writer-socket', 'org-project')).toBe(true);
+
+      // La revocación borró el registro ANTES de que `reader` se registrara: `revalidateProject` no pudo verlo.
+      db.tables.projectAccess = db.tables.projectAccess.filter((row) => row.userId !== 'reader');
+      service.track(reader, 'reader', 'v1', 'org-project');
+
+      expect(await service.revalidateSocket('reader-socket', 'org-project')).toBe(false);
+      expect(reader.leave).toHaveBeenCalledWith('project-version:v1');
+      expect(service.projectsOf('reader-socket')).toEqual([]);
+      expect(writer.leave).not.toHaveBeenCalled();
+    });
+
+    it('false for a socket that is not tracked', async () => {
+      expect(await service.revalidateSocket('nobody', 'org-project')).toBe(false);
+    });
+  });
+
   it('evicts every subscriber of a logically deleted project, the Admin included', async () => {
     const admin = socketOf('admin-socket');
     const writer = socketOf('writer-socket');

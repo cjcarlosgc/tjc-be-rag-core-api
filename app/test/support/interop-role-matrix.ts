@@ -81,6 +81,17 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
 ];
 
 /**
+ * Roles que una entrada puede declarar según la fila del contrato donde aparece. La fila "Sin rol
+ * de Project" admite `NONE` (sesión GitHub válida) y `PUBLIC` (sin sesión); las demás filas son su rol.
+ */
+export const ROLES_OF_ROW: Record<ContractRow, readonly ContractRole[]> = {
+  SIN_ROL: ['NONE', 'PUBLIC'],
+  READER: ['READER'],
+  MAINTAINER: ['MAINTAINER'],
+  ADMIN: ['ADMIN'],
+};
+
+/**
  * `POST /projects` aparece en dos filas del contrato: "Sin rol de Project" (personal:
  * cualquiera) y "Admin" (`POST /projects` en una organización). En Core es una ruta sin rol
  * de Project cuyo servicio exige Admin de la organización en vivo (`WORKSPACE_ADMIN_REQUIRED`).

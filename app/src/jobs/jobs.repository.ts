@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { Job, Prisma } from '../generated/prisma/client.js';
+import { Prisma, type Job } from '../generated/prisma/client.js';
 import { JobStatus } from '../generated/prisma/enums.js';
+
+/**
+ * "Ahora" en UTC como `timestamp` SIN zona, comparable con las columnas de `jobs` (`timestamp(3)`,
+ * que Prisma escribe en UTC). `now()` es `timestamptz`: comparado o asignado a un `timestamp` se
+ * convierte con la zona de la SESIÓN, así que con una base en otra zona (p. ej. `America/Bogota`)
+ * los reclamos, backoffs y locks obsoletos se desfasarían. Esta expresión no depende de la sesión.
+ */
+const UTC_NOW = Prisma.raw(`(now() AT TIME ZONE 'utc')`);
 
 /** Umbral por defecto de un lock `RUNNING` obsoleto (`JOBS_STALE_LOCK_MS`). */
 export const DEFAULT_STALE_LOCK_MS = 600_000;
@@ -56,11 +64,11 @@ export class JobsRepository {
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
       INSERT INTO "jobs" ("id", "type", "payload", "status", "attempts", "maxAttempts", "availableAt", "dedupeKey", "createdAt", "updatedAt")
       SELECT ${randomUUID()}, ${input.type}, ${JSON.stringify(input.payload)}::jsonb, 'PENDING'::"JobStatus", 0, ${input.maxAttempts},
-             now() + make_interval(secs => ${delaySeconds}::double precision), ${input.dedupeKey}, now(), now()
+             ${UTC_NOW} + make_interval(secs => ${delaySeconds}::double precision), ${input.dedupeKey}, ${UTC_NOW}, ${UTC_NOW}
       WHERE NOT (${input.skipIfRunning === true}::boolean AND EXISTS (
         SELECT 1 FROM "jobs" r
         WHERE r."status" = 'RUNNING' AND r."dedupeKey" = ${input.dedupeKey}
-          AND r."lockedAt" > now() - make_interval(secs => ${staleSeconds}::double precision)
+          AND r."lockedAt" > ${UTC_NOW} - make_interval(secs => ${staleSeconds}::double precision)
       ))
       ON CONFLICT ("dedupeKey") WHERE "status" = 'PENDING' AND "dedupeKey" IS NOT NULL DO NOTHING
       RETURNING "id";
@@ -79,14 +87,14 @@ export class JobsRepository {
     const staleSeconds = staleLockMs / 1000;
     const rows = await this.prisma.$queryRaw<Job[]>`
       UPDATE "jobs"
-      SET "status" = 'RUNNING', "lockedAt" = now(), "lockedBy" = ${workerId}, "updatedAt" = now()
+      SET "status" = 'RUNNING', "lockedAt" = ${UTC_NOW}, "lockedBy" = ${workerId}, "updatedAt" = ${UTC_NOW}
       WHERE "id" = (
         SELECT j."id" FROM "jobs" j
-        WHERE j."status" = 'PENDING' AND j."availableAt" <= now()
+        WHERE j."status" = 'PENDING' AND j."availableAt" <= ${UTC_NOW}
           AND (j."dedupeKey" IS NULL OR NOT EXISTS (
             SELECT 1 FROM "jobs" r
             WHERE r."status" = 'RUNNING' AND r."dedupeKey" = j."dedupeKey"
-              AND r."lockedAt" > now() - make_interval(secs => ${staleSeconds}::double precision)
+              AND r."lockedAt" > ${UTC_NOW} - make_interval(secs => ${staleSeconds}::double precision)
           ))
         ORDER BY j."availableAt"
         FOR UPDATE OF j SKIP LOCKED
@@ -162,7 +170,7 @@ export class JobsRepository {
     const stale = await this.prisma.$queryRaw<Job[]>`
       SELECT * FROM "jobs"
       WHERE "status" = 'RUNNING' AND "dedupeKey" IS NOT NULL
-        AND "lockedAt" <= now() - make_interval(secs => ${staleSeconds}::double precision)
+        AND "lockedAt" <= ${UTC_NOW} - make_interval(secs => ${staleSeconds}::double precision)
       ORDER BY "lockedAt"
       LIMIT ${limit};
     `;
@@ -181,8 +189,8 @@ export class JobsRepository {
    */
   async expedite(dedupeKey: string): Promise<number> {
     return this.prisma.$executeRaw`
-      UPDATE "jobs" SET "availableAt" = now(), "updatedAt" = now()
-      WHERE "status" = 'PENDING' AND "dedupeKey" = ${dedupeKey} AND "availableAt" > now()
+      UPDATE "jobs" SET "availableAt" = ${UTC_NOW}, "updatedAt" = ${UTC_NOW}
+      WHERE "status" = 'PENDING' AND "dedupeKey" = ${dedupeKey} AND "availableAt" > ${UTC_NOW}
     `;
   }
 

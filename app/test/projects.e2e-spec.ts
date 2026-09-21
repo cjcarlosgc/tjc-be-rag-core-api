@@ -60,6 +60,14 @@ describe('Projects (e2e)', () => {
     expect(response.body.id).toBeDefined();
   });
 
+  it('trims the name and rejects a name made only of whitespace with 400 (same as PATCH)', async () => {
+    const created = await authedRequest(app, 'trim-user').post('/projects').send({ name: '  padded  ' }).expect(201);
+    expect(created.body.name).toBe('padded');
+
+    const response = await authedRequest(app, 'trim-user').post('/projects').send({ name: '   ' }).expect(400);
+    expect(response.body).toMatchObject({ statusCode: 400, code: 'INVALID_REQUEST' });
+  });
+
   it('rejects an empty name with the standard error envelope', async () => {
     const response = await authedRequest(app)
       .post('/projects')

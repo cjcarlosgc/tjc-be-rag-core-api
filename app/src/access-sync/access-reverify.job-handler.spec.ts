@@ -285,10 +285,10 @@ describe('AccessReverifyJobHandler (HU61)', () => {
       expect(h.queue.jobs[0].payload).toEqual({ scope: 'REPOSITORY', repositoryId: '100', deferrals: 1 });
     });
 
-    it('an unexpected error on ONE record does not stop the others and the job is retried (chain survives)', async () => {
+    it('an unexpected error on ONE record does not stop the others and follows the NORMAL failure path (consumes attempts, no deferral counter), until FAILED', async () => {
       h.github.removePermission(W, 'gh-writer');
       const original = h.access.reverify.bind(h.access);
-      vi.spyOn(h.access, 'reverify').mockImplementation((projectId, userId, githubUserId, context) =>
+      const failing = vi.spyOn(h.access, 'reverify').mockImplementation((projectId, userId, githubUserId, context) =>
         userId === 'boss' ? Promise.reject(new Error('lock timeout')) : original(projectId, userId, githubUserId, context),
       );
       await enqueue({ scope: 'REPOSITORY', repositoryId: '100' });
@@ -296,12 +296,32 @@ describe('AccessReverifyJobHandler (HU61)', () => {
       await run();
 
       expect(h.recordsOf('p1')).not.toContain('writer:MAINTAINER'); // los demás se procesaron
-      expect(h.queue.jobs[0]).toMatchObject({ status: 'PENDING', attempts: 0, payload: { deferrals: 1 } });
+      expect(h.queue.jobs[0]).toMatchObject({ status: 'PENDING', attempts: 1, payload: { scope: 'REPOSITORY', repositoryId: '100' } });
+      expect(h.queue.jobs[0].payload).not.toHaveProperty('deferrals');
+      expect(h.queue.jobs[0].lastError).toContain('error inesperado');
 
-      vi.restoreAllMocks();
       h.queue.advance(60_000);
       await run();
-      expect(h.queue.jobs[0].status).toBe('COMPLETED');
+      expect(h.queue.jobs[0]).toMatchObject({ status: 'PENDING', attempts: 2 });
+      h.queue.advance(60_000);
+      await run();
+      expect(h.queue.jobs[0]).toMatchObject({ status: 'FAILED', attempts: 3 }); // visible en la cola, no en silencio
+
+      failing.mockRestore();
+    });
+
+    it('when a record fails unexpectedly AND another is only not verifiable, the failure wins (normal path)', async () => {
+      const original = h.access.reverify.bind(h.access);
+      vi.spyOn(h.access, 'reverify').mockImplementation((projectId, userId, githubUserId, context) => {
+        if (userId === 'boss') return Promise.reject(new Error('boom'));
+        if (userId === 'reader') return Promise.resolve('UNVERIFIABLE' as const);
+        return original(projectId, userId, githubUserId, context);
+      });
+      await enqueue({ scope: 'REPOSITORY', repositoryId: '100' });
+
+      await run();
+
+      expect(h.queue.jobs[0]).toMatchObject({ attempts: 1 });
     });
 
     it('a new event of the same scope absorbed into the backoff PENDING is brought forward and runs right away', async () => {

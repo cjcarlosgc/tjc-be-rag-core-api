@@ -586,6 +586,48 @@ describe('GithubWebhooksService', () => {
       expect(organizationLifecycle.hide).not.toHaveBeenCalled();
     });
 
+    it('a failure revoking ONE binding does not stop the others nor hiding the organization, and the ingress still answers 202', async () => {
+      const second = { ...binding, id: 'binding-2', projectId: 'project-2', repositoryId: '124' };
+      repositoryBindingsRepository.findByInstallation.mockResolvedValue([binding, second]);
+      bindingLifecycle.revokeBinding.mockRejectedValueOnce(new Error('lock timeout'));
+
+      const result = await service.handle(
+        buildRequest({ action: 'deleted', installation: { id: 999, account: { id: 42, type: 'Organization' } } }, { eventName: 'installation' }),
+      );
+
+      expect(result).toEqual({ deliveryId: 'delivery-1', accepted: true, duplicate: false, analysisRunId: null });
+      expect(bindingLifecycle.revokeBinding).toHaveBeenCalledTimes(2);
+      expect(bindingLifecycle.revokeBinding).toHaveBeenCalledWith(second);
+      expect(organizationLifecycle.hide).toHaveBeenCalledWith('42');
+    });
+
+    it('a failure hiding the organization is recorded and the ingress still answers 202 (the reconciliation finishes it)', async () => {
+      organizationLifecycle.hide.mockRejectedValue(new Error('incompleto'));
+
+      const result = await service.handle(
+        buildRequest({ action: 'deleted', installation: { id: 999, account: { id: 42, type: 'Organization' } } }, { eventName: 'installation' }),
+      );
+
+      expect(result.accepted).toBe(true);
+      expect(bindingLifecycle.revokeBinding).toHaveBeenCalledWith(binding);
+    });
+
+    it('installation_repositories.removed isolates the failure per repository and still answers 202', async () => {
+      const other = { ...binding, id: 'binding-2', projectId: 'project-2', repositoryId: '124' };
+      repositoryBindingsRepository.findByRepositoryId.mockImplementation((id: string) => Promise.resolve(id === '123' ? binding : other));
+      bindingLifecycle.revokeBinding.mockRejectedValueOnce(new Error('lock timeout'));
+
+      const result = await service.handle(
+        buildRequest(
+          { action: 'removed', installation: { id: 999 }, repositories_removed: [{ id: 123, full_name: 'org/a' }, { id: 124, full_name: 'org/b' }] },
+          { eventName: 'installation_repositories' },
+        ),
+      );
+
+      expect(result.accepted).toBe(true);
+      expect(bindingLifecycle.revokeBinding).toHaveBeenCalledWith(other);
+    });
+
     it('suspend, unsuspend and installation_repositories never hide the organization', async () => {
       const account = { id: 42, type: 'Organization' };
       await service.handle(buildRequest({ action: 'suspend', installation: { id: 999, account } }, { eventName: 'installation' }));

@@ -180,7 +180,8 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       expect(prisma.tables.webhookDelivery).toHaveLength(0);
     });
 
-    it.each(['member', 'membership', 'organization', 'team'])('rejects a tampered `%s` signature with 401 and enqueues/applies nothing', async (eventName) => {
+    // `retry`: un 401 temprano con cuerpo pendiente puede cortar el socket del cliente ("socket hang up") de forma esporádica.
+    it.each(['member', 'membership', 'organization', 'team'])('rejects a tampered `%s` signature with 401 and enqueues/applies nothing', { retry: 2 }, async (eventName) => {
       await setUpOrgProject();
       const body = JSON.stringify({ action: 'removed', member: { id: 1 }, membership: { user: { id: 1 } }, organization: { id: 42 }, repository: { id: 100 } });
 

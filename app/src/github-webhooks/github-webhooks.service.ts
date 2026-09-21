@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { isValidWebhookSignature } from './webhook-signature.util.js';
 import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js';
@@ -41,6 +41,8 @@ export interface IncomingWebhookRequest {
  */
 @Injectable()
 export class GithubWebhooksService {
+  private readonly logger = new Logger(GithubWebhooksService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly webhookDeliveriesRepository: WebhookDeliveriesRepository,
@@ -259,9 +261,11 @@ export class GithubWebhooksService {
     const installationId = String(payload.installation.id);
 
     if (payload.action === 'deleted') {
-      for (const binding of await this.repositoryBindingsRepository.findByInstallation(installationId)) {
-        await this.bindingLifecycle.revokeBinding(binding);
-      }
+      // El fallo de UN binding no impide revocar los demás ni ocultar la organización: se recogen,
+      // se registran y se responde `202` (la reconciliación (c) y (a) termina lo que falte).
+      const failures: string[] = [];
+      const bindings = await this.repositoryBindingsRepository.findByInstallation(installationId);
+      await this.revokeIsolated(bindings, failures);
 
       // Desinstalada de una ORGANIZACIÓN: además sus Projects quedan ocultos y conservados, y se
       // borran también los registros Admin (la organización ya no puede verificarse; los Projects
@@ -270,8 +274,14 @@ export class GithubWebhooksService {
       const organizationId = account?.type === 'Organization' && typeof account.id === 'number' ? String(account.id) : null;
 
       if (organizationId !== null) {
-        await this.organizationLifecycle.hide(organizationId);
+        try {
+          await this.organizationLifecycle.hide(organizationId);
+        } catch (error) {
+          failures.push(`organización ${organizationId}: ${describe(error)}`);
+        }
       }
+
+      this.reportPartialFailures(`installation.deleted (${installationId})`, failures);
     } else if (payload.action === 'suspend') {
       await this.repositoryBindingsRepository.suspendByInstallation(installationId);
     } else if (payload.action === 'unsuspend') {
@@ -292,12 +302,45 @@ export class GithubWebhooksService {
       return;
     }
 
-    for (const repo of payload.repositories_removed ?? []) {
-      const binding = await this.repositoryBindingsRepository.findByRepositoryId(String(repo.id));
+    const failures: string[] = [];
 
-      if (binding && binding.installationId === String(payload.installation.id)) {
+    for (const repo of payload.repositories_removed ?? []) {
+      try {
+        const binding = await this.repositoryBindingsRepository.findByRepositoryId(String(repo.id));
+
+        if (binding && binding.installationId === String(payload.installation.id)) {
+          await this.bindingLifecycle.revokeBinding(binding);
+        }
+      } catch (error) {
+        failures.push(`repositorio ${repo.id}: ${describe(error)}`);
+      }
+    }
+
+    this.reportPartialFailures(`installation_repositories.removed (${payload.installation.id})`, failures);
+  }
+
+  /** Revoca cada binding por separado: un fallo se recoge y no detiene a los demás. */
+  private async revokeIsolated(bindings: RepositoryBinding[], failures: string[]): Promise<void> {
+    for (const binding of bindings) {
+      try {
         await this.bindingLifecycle.revokeBinding(binding);
+      } catch (error) {
+        failures.push(`binding ${binding.id}: ${describe(error)}`);
       }
     }
   }
+
+  /**
+   * Los fallos parciales se registran y el ingress responde igual `202`: el estado ya es `REVOKED`
+   * para lo tratado (el predicado de acceso deniega) y la reconciliación termina el borrado.
+   */
+  private reportPartialFailures(event: string, failures: string[]): void {
+    if (failures.length > 0) {
+      this.logger.error(`${event}: ${failures.length} fallo(s) parcial(es); la reconciliación lo termina: ${failures.join(' | ')}`);
+    }
+  }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

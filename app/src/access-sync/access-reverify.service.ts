@@ -25,7 +25,7 @@ export interface ReverifySummary {
   revoked: number;
   /** GitHub no pudo verificar: se conserva el registro y se reintenta con backoff. */
   unverifiable: number;
-  /** Error inesperado al reverificar un registro (se trata como no verificable: se reintenta). */
+  /** Error inesperado al reverificar un registro: el job falla por el camino normal (consume intentos), no se reprograma. */
   failed: number;
   /** Registros sin identidad GitHub persistida (no deberían existir): no se pueden verificar y se omiten. */
   skipped: number;
@@ -40,9 +40,6 @@ export const emptyReverifySummary = (): ReverifySummary => ({
   failed: 0,
   skipped: 0,
 });
-
-/** Lo que NO pudo completarse y debe reintentarse (no verificable o con error). */
-export const pendingRetries = (summary: ReverifySummary): number => summary.unverifiable + summary.failed;
 
 const COUNTER = {
   UNCHANGED: 'unchanged',

@@ -221,6 +221,13 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
       return { status: outcome.kind };
     }
 
+    // Una organización de GitHub no puede tener cero owners: un 200 con lista vacía es un artefacto de
+    // visibilidad (p. ej. `Members: read` ausente o un límite de la lectura), no una ausencia confirmada.
+    if (outcome.body.length === 0) {
+      this.logger.warn(`La lista de owners de "${organization.organizationLogin}" llegó vacía con 200: no verificable.`);
+      return { status: 'UNVERIFIABLE' };
+    }
+
     return {
       status: 'OK',
       value: outcome.body.map((member) => ({ githubUserId: String(member.id), login: member.login })),
@@ -268,7 +275,10 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
     }
   }
 
-  /** Lista paginada (`per_page`/`page`); el primer fallo de una página aborta todo el listado. */
+  /**
+   * Lista paginada (`per_page`/`page`); el primer fallo de una página aborta todo el listado y un
+   * listado que alcanza el tope de páginas es `UNVERIFIABLE` (no se devuelve un OK truncado).
+   */
   private async getAllPages<T>(path: string, token: string): Promise<HttpOutcome<T[]>> {
     const separator = path.includes('?') ? '&' : '?';
     const items: T[] = [];
@@ -288,8 +298,11 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
       }
     }
 
-    this.logger.warn(`Listado de "${path}" truncado tras ${MAX_PAGES} páginas.`);
-    return { kind: 'OK', body: items };
+    // Tope alcanzado con la última página llena: puede haber más. Los listados que usa el adaptador
+    // (instalaciones y owners) sirven para NEGAR (ocultar una organización, denegar un acceso), y un
+    // listado truncado no prueba una ausencia: no es verificable, nunca un OK parcial.
+    this.logger.warn(`Listado de "${path}" alcanzó el tope de ${MAX_PAGES} páginas: se trata como no verificable.`);
+    return { kind: 'UNVERIFIABLE' };
   }
 
   private async get<T>(path: string, token: string): Promise<HttpOutcome<T>> {

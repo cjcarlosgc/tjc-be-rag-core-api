@@ -117,8 +117,22 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayDisconnect {
 
     try {
       const { project } = await this.projectAccess.requireForResource(userId, 'projectVersion', projectVersionId, 'READER');
-      await client.join(projectVersionRoom(projectVersionId));
+      // Se registra ANTES de unir la sala y se vuelve a comprobar la visibilidad DESPUÉS: una revocación
+      // que llegó entre la verificación y este registro ya corrió `revalidateProject` sin ver al socket.
       this.subscriptions.track(client, userId, projectVersionId, project.id);
+
+      try {
+        await client.join(projectVersionRoom(projectVersionId));
+      } catch (error) {
+        this.subscriptions.untrack(client.id, projectVersionId);
+        throw error;
+      }
+
+      if (!(await this.subscriptions.revalidateSocket(client.id, project.id))) {
+        await client.leave(projectVersionRoom(projectVersionId));
+        return NOT_VISIBLE;
+      }
+
       return SUBSCRIBED;
     } catch (error) {
       if (error instanceof AppException) {
