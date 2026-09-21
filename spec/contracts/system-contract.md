@@ -35,7 +35,7 @@ developer and/or coding agent
 
 Son fronteras independientes:
 
-1. **Login:** correo/contraseña o GitHub OAuth mediante Supabase Auth producen un `PlatformUser`. Google OAuth queda fuera de alcance.
+1. **Login:** solo GitHub OAuth mediante Supabase Auth produce un `PlatformUser` (`DEC-ORG-001`, HU62; el correo y la contraseña se retiran). Google OAuth queda fuera de alcance.
 2. **Automatización de repositorio:** una GitHub App administra instalaciones, repositorios autorizados, webhooks, Checks y, cuando se habilite, ramas/PR.
 
 GitHub OAuth permite únicamente descubrir los repositorios visibles para la persona autenticada; no autoriza automatización, snapshots, Checks ni publicación. `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son conceptos independientes. No se implementa linking propio por coincidencia de correo; se admite únicamente el linking seguro que Supabase Auth aplique a identidades con correo verificado y configuración explícita. El actor de GitHub es metadata y no autoridad automática dentro de un Project.
@@ -189,7 +189,7 @@ OBSOLETE
 
 **Blocks:** NONE
 
-**Resolución:** Supabase Auth admite únicamente correo/contraseña y GitHub OAuth. Core valida el access token y autoriza por Project. Login e instalación GitHub App son independientes; Google OAuth y linking propio por correo quedan fuera de alcance.
+**Resolución:** Supabase Auth admite únicamente GitHub OAuth (el correo y la contraseña se retiraron por `DEC-ORG-001`, HU62). Core valida el access token y autoriza por Project. Login e instalación GitHub App son independientes; Google OAuth y linking propio por correo quedan fuera de alcance.
 
 ### DEC-INT-001 — Contrato Core<->Sandbox
 
@@ -241,11 +241,11 @@ OBSOLETE
 
 ### DEC-ORG-001 — Organizaciones y compartición de Projects
 
-**Estado:** PROPOSED
+**Estado:** APROBADO (2026-09-20, por el usuario)
 
-**Blocks:** HU58-HU64; no bloquea T-002 ni el resto del backlog. No cierra `DEC-VAL-001`; su cambio de login (HU62) modifica `DEC-WEB-AUTH-001` solo cuando esta decisión se apruebe.
+**Blocks:** NONE. No cierra `DEC-VAL-001`. Modifica `DEC-WEB-AUTH-001`: el login pasa a ser solo GitHub (HU62). Lo no probado contra una organización real es criterio de aceptación de los cortes que lo usan y **condición para desplegar**, no para implementar (ver "Precondiciones de despliegue").
 
-**Propuesta:** GitHub es la fuente de verdad de la autorización y Core persiste solo lo necesario para poder revocar por evento.
+**Resolución:** GitHub es la fuente de verdad de la autorización y Core persiste solo lo necesario para poder revocar por evento.
 
 - **Workspaces:** el home ofrece la cuenta personal (siempre) y cada organización donde la GitHub App está instalada y el usuario es miembro; Core la obtiene listando las instalaciones de la App y verificando la membresía con el token de la App, sin depender del token del usuario ni del scope `read:org`. Una organización aparece cuando alguien instala la App en ella. El "equipo" es la organización; los Teams de GitHub no son workspace y solo aportan permisos de forma indirecta. Un Project guarda su organización (`githubOrgId`, `login`; nulo = personal) porque al crearse aún no tiene repositorio.
 - **Login:** solo GitHub (HU62). La identidad se resuelve por el `githubUserId` numérico que Core obtiene de la Admin API de Supabase con el `sub` del token; nunca de `user_metadata`, que el propio usuario puede editar.
@@ -267,6 +267,11 @@ OBSOLETE
 - **Identidad (PROBADO):** la Admin API de Supabase `GET /auth/v1/admin/users/{sub}` devuelve `identities[]`; el listado `GET /admin/users` devuelve `identities: null`, así que se debe consultar por id. El `githubUserId` numérico es `identities[].id` (igual a `identity_data.provider_id` y `identity_data.sub`), nunca `user_metadata`.
 - **Prerrequisito de despliegue (decidido 2026-09-20):** la App es hoy privada (`GET /apps/{slug}` sin autenticación responde `404`) y solo puede instalarse en la cuenta de su dueño, sin ninguna instalación de organización; eso impide también el workspace personal de cualquier otro usuario. Se decide hacerla **pública ("Any account") sin listing en Marketplace**, cambio externo en la configuración de la App que realiza el usuario. Además cada organización debe aceptar `Members: read`. Una lista de cuentas permitidas en Core queda como mejora futura fuera de esta decisión.
 - Los códigos de error nuevos se nombran al consolidar el contrato en INTEROP.
+
+**Precondiciones de despliegue** (ninguna bloquea implementar ni probar con fakes):
+1. La GitHub App es pública ("Any account"), sin listing en Marketplace, y tiene `Members: read` y los eventos `member`, `membership`, `organization`, `team` y `repository` suscritos; cada organización acepta el permiso.
+2. Se validan contra una organización real, con la App instalada, las lecturas aún no probadas: rol de owner (`memberships`), permiso heredado por Team o permiso base, y membresía `pending`.
+3. El proveedor de correo y contraseña de Supabase Auth se deshabilita cuando la Console solo ofrezca GitHub.
 
 ### DEC-EXP-FK-001 — Paridad experimental del contexto funcional
 
