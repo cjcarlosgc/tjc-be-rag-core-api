@@ -1,19 +1,21 @@
 # 014 — Organizaciones, workspaces y acceso derivado de GitHub
 
-**Estado:** DEFINIDO, pendiente de verificación SDD y aprobación humana. Contiene puntos `PROPOSED` de `DEC-ORG-002` que bloquean los cortes 3 y 4.
+**Estado:** DEFINIDO, pendiente de verificación SDD y aprobación humana. Sin decisiones bloqueantes.
 **Story IDs:** HU58-HU64
 **Contrato:** SYSTEM-2.4 / INTEROP-2.4 (§6.1, §6.8, §6.9, §6.13)
-**Decisiones:** `DEC-ORG-001` APROBADO (2026-09-20); `DEC-ORG-002` PROPOSED (casos borde).
+**Decisiones:** `DEC-ORG-001` APROBADO (2026-09-20); `DEC-ORG-002` APROBADO (2026-09-20; casos borde y enmienda de visibilidad personal).
 
 ## Objetivo
 
-Permitir que un equipo trabaje sobre los mismos Projects sin que Core administre miembros: GitHub es la fuente de verdad de la autorización. Core ofrece workspaces (cuenta personal y organizaciones donde la GitHub App está instalada), deriva un rol Admin/Maintainer/Reader por Project, y pierde el acceso cuando GitHub lo revoca. El login pasa a ser solo GitHub.
+Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin que Core administre miembros: GitHub es la fuente de verdad de la autorización. Core ofrece workspaces (cuenta personal y organizaciones donde la GitHub App está instalada), deriva un rol Admin/Maintainer/Reader por Project, y pierde el acceso cuando GitHub lo revoca. El login pasa a ser solo GitHub.
 
 ## Invariantes
 
 - Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App; el provider token OAuth del usuario solo sirve para discovery y nunca se usa para verificar accesos.
-- Core no administra miembros ni invitaciones. No existen tablas `Organization` ni `Membership`; la persistencia mínima es el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y el registro `(projectId, userId, rol, verifiedAt)`.
+- Los Projects personales no se comparten: los ve únicamente su creador, siempre como Admin y sin registro de acceso; solo se comparte mediante organizaciones (`DEC-ORG-002`). `GET /projects` nunca devuelve Projects personales de otra persona.
+- Core no administra miembros ni invitaciones. No existen tablas `Organization` ni `Membership`; la persistencia mínima es el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y el registro `(projectId, userId, rol, verifiedAt)`, que existe solo para Projects de organización.
 - El `githubUserId` sale de `identities[].id` de la Admin API de Supabase consultada por `sub`, nunca de `user_metadata`.
+- El `read` implícito de un repositorio público no cuenta como acceso: en una organización se exige además ser miembro activo. Un binding `REVOKED` deja el Project visible solo a los Admin.
 - Jerarquía Admin ⊃ Maintainer ⊃ Reader. Reader solo consulta; Maintainer opera binding, preguntas funcionales, publicaciones y experimentos; solo Admin crea, renombra y elimina Projects. La matriz de `INTEROP-2.4` §6.13 clasifica cada ruta.
 - Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente, `403 PROJECT_ROLE_INSUFFICIENT`. Un rol nunca se infiere del payload de un webhook: siempre sale de una verificación viva con el installation token.
 - El registro de acceso no tiene TTL ni caché: rige hasta que un evento o la reconciliación horaria lo cambia. Si GitHub no responde, Core conserva lo registrado y no concede nada nuevo (`503 GITHUB_VERIFICATION_UNAVAILABLE` en accesos directos; los listados omiten lo no verificado).
@@ -27,9 +29,9 @@ Permitir que un equipo trabaje sobre los mismos Projects sin que Core administre
 - **HU62 — login solo GitHub:** el correo y la contraseña se retiran; Core exige identidad GitHub en toda sesión (`401 GITHUB_IDENTITY_REQUIRED`). Consolidado en `012-web-authentication`.
 - **HU58 — workspaces:** `GET /workspaces` lista la cuenta personal y cada organización con la App instalada donde el usuario es miembro activo, con su rol (`ADMIN` = owner, `MEMBER`).
 - **HU63 — ciclo de vida del Project:** `POST /projects` con `workspaceId` (solo owner en una organización; omitido = personal), `PATCH /projects/{projectId}` para renombrar y `DELETE` ajustado, todos solo Admin. Un Project nace sin repositorio y solo lo ven sus Admin.
-- **HU59 — acceso automático:** el registro de acceso se crea al entrar, verificando en vivo el rol o permiso; nadie invita.
-- **HU60 — roles derivados de GitHub:** Admin = owner de la organización (en personal, el creador), Maintainer = `maintain`/`write`/`admin` sobre el repositorio vinculado, Reader = `triage`/`read`. `ProjectResponse` expone `workspace` y `role`; redefine el alcance de HU45.
-- **HU64 — restricciones de binding:** `GET /integrations/github/repositories?workspaceId`, `REPOSITORY_OUTSIDE_WORKSPACE`, `REPOSITORY_PERMISSION_INSUFFICIENT` y el orden de validación de `POST .../integrations/github`.
+- **HU59 — acceso automático:** en un Project de organización el registro de acceso se crea al entrar, verificando en vivo el rol o permiso; nadie invita.
+- **HU60 — roles derivados de GitHub:** Admin = owner de la organización (en personal, el creador, siempre y sin verificación), Maintainer = `maintain`/`write`/`admin` sobre el repositorio vinculado, Reader = `triage`/`read`. `ProjectResponse` expone `workspace` y `role`; redefine el alcance de HU45 y solo aplica a organizaciones.
+- **HU64 — restricciones de binding:** `GET /integrations/github/repositories?workspaceId`, permiso mínimo en `verify-app-access` y `branches` (corrección de seguridad), `REPOSITORY_OUTSIDE_WORKSPACE`, `REPOSITORY_PERMISSION_INSUFFICIENT` y el orden de validación de `POST .../integrations/github`.
 - **HU61 — pérdida de acceso:** eventos `member`, `membership`, `organization`, `team` y `repository` en el ingress existente más una reconciliación horaria; sin cambios en el modelo de análisis PR-driven.
 
 ## Casos operativos obligatorios
@@ -38,14 +40,17 @@ Permitir que un equipo trabaje sobre los mismos Projects sin que Core administre
 2. Miembro de una organización con la App instalada: aparece el workspace; no owner que intenta crear recibe `403 WORKSPACE_ADMIN_REQUIRED`.
 3. Owner crea un Project en la organización: nace sin repositorio y solo lo ven los owners; el primer vínculo lo hace un Admin.
 4. Repositorio de otra organización o ajeno en personal: `400 REPOSITORY_OUTSIDE_WORKSPACE`; con solo `read`/`triage`: `403 REPOSITORY_PERMISSION_INSUFFICIENT`; sin ningún permiso: `404 GITHUB_REPOSITORY_NOT_FOUND`.
-5. Miembro con `write` entra por un deep link a un Run: se verifica en vivo, se crea el registro `MAINTAINER` y puede responder la pregunta funcional y publicar; un Reader solo consulta (`403` en `answers`, `test-publications`, `POST /experiments` y binding).
-6. Se elimina un colaborador directo (`member.removed`): se reverifica, se borra el registro (o se conserva el de quien aún tiene acceso por Team u organización) y las suscripciones WebSocket de ese usuario al Project se cierran.
+5. Miembro de la organización con `write` entra por un deep link a un Run de un Project de la organización: se verifica en vivo, se crea el registro `MAINTAINER` y puede responder la pregunta funcional y publicar; un Reader solo consulta (`403` en `answers`, `test-publications`, `POST /experiments` y binding).
+6. Se elimina un colaborador directo de un repositorio de un Project de organización (`member.removed`): se reverifica, se borra el registro (o se conserva el de quien aún tiene acceso por Team u organización) y las suscripciones WebSocket de ese usuario al Project se cierran.
 7. Cambia el rol en la organización o el permiso base sin evento fiable: la reconciliación horaria lo corrige dentro de la hora.
 8. GitHub no responde: los registros existentes siguen vigentes, `GET /workspaces` y los listados no ofrecen lo nuevo y un acceso directo no verificable responde `503`; la reconciliación no revoca nada y se reprograma.
 9. Renombre del repositorio: se actualiza `repositoryName`; transferencia fuera del workspace o eliminación: binding `REVOKED`, evidencia intacta.
 10. Se desinstala la App de la organización o la organización desaparece: sus Projects dejan de verse para todos y se conservan; al reinstalar reaparecen con binding `REVOKED` hasta que un Admin lo reactive.
 11. Usuario sin identidad GitHub en Supabase (cuenta antigua de correo): `401 GITHUB_IDENTITY_REQUIRED`.
-12. Matriz de autorización: cada ruta de `INTEROP-2.4` §6.13 responde `404` sin visibilidad, `403` con rol insuficiente y funciona con el rol mínimo.
+12. Project personal: solo su creador lo ve; cualquier otra persona, colaborador de su repositorio incluido, recibe `404`, y `GET /projects` nunca lo lista. Un repositorio público vinculado a un Project de organización no hace visible el Project a quien no es miembro activo.
+13. Con el binding `REVOKED`, un Maintainer o Reader deja de ver el Project y el Admin lo reactiva con `POST .../enable` o lo elimina.
+14. `verify-app-access` y `branches` con permiso menor a `maintain`: `403 REPOSITORY_PERMISSION_INSUFFICIENT`; sin visibilidad: `NOT_AUTHORIZED` y `404` respectivamente.
+15. Matriz de autorización: cada ruta de `INTEROP-2.4` §6.13 responde `404` sin visibilidad, `403` con rol insuficiente y funciona con el rol mínimo.
 
 ## Seguridad y auditoría
 
@@ -62,5 +67,6 @@ Un token de usuario no llega a GitHub salvo el provider token en el discovery. V
 
 - Gestión de miembros, invitaciones o roles propios en Core; el "equipo" es la organización y los Teams de GitHub no son workspace.
 - Marketplace, lista de cuentas permitidas en Core y caché de permisos.
+- Compartir Projects personales con colaboradores.
 - Reasignar Projects entre workspaces o cambiar el repositorio de un Project.
 - `DEC-VAL-001` (autorización organizacional empresarial): no se cierra.
