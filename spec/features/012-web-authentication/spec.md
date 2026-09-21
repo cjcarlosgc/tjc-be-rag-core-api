@@ -23,6 +23,10 @@ Establecer `PlatformUser` mediante Supabase Auth para todos los flujos de Consol
 - `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son independientes. No se implementa linking propio por coincidencia de correo; se aceptan únicamente las garantías nativas de Supabase Auth para identidades verificadas.
 - Los deep links de Runs/Focus Mode preservan `returnTo` durante login y no redirigen al home genérico.
 
+## Cambio propuesto (no vigente)
+
+`PROPOSED` 2026-09-20 (HU62, `DEC-ORG-001`): retirar el inicio de sesión con correo y contraseña y autenticar únicamente con GitHub. Hasta que se apruebe, lo descrito arriba sigue vigente.
+
 ## Fuera de alcance
 
 - Linking custom de cuentas por correo, persistencia de tokens del proveedor GitHub o automatización con OAuth de usuario.
