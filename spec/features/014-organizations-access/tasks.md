@@ -1,6 +1,6 @@
 # 014 — Tareas
 
-Todas sin iniciar. Requiere aprobación humana (`AWAITING_APPROVAL`) y respuesta a `DEC-ORG-002` antes de los cortes 3 y 4. Contrato ya consolidado en SYSTEM-2.4 / INTEROP-2.4; al terminar cada corte con impacto contractual, Core publica `CONTRACT_SYNC` a Console (nunca se edita su repositorio).
+Todas sin iniciar. Requiere aprobación humana (`AWAITING_APPROVAL`); `DEC-ORG-001` y `DEC-ORG-002` están aprobados y no bloquean. Contrato ya consolidado en SYSTEM-2.4 / INTEROP-2.4; al terminar cada corte con impacto contractual, Core publica `CONTRACT_SYNC` a Console (nunca se edita su repositorio).
 
 ## Corte 1 — HU62 + identidad
 
@@ -20,22 +20,22 @@ Todas sin iniciar. Requiere aprobación humana (`AWAITING_APPROVAL`) y respuesta
 - [ ] `ProjectResponse` con `workspace` y `role` (interino: `ADMIN`, predicado del creador).
 - [ ] Pruebas del corte y de contrato.
 
-## Corte 3 — HU59 + HU60 (bloqueado por `DEC-ORG-002.1`, `.2`, `.3`)
+## Corte 3 — HU59 + HU60
 
-- [ ] Migración `project_access` + enum `ProjectRole`, con inserción del registro `ADMIN` del creador en la transacción de `POST /projects`.
-- [ ] `accessibleProject(userId, minRole)` y `rolesAtLeast`; sustituir todos los usos de `ownedProject` (projects, versions, targets, runs, functional knowledge, questions, publications, bindings, experiments).
+- [ ] Migración `project_access` + enum `ProjectRole` (solo Projects de organización), con inserción del registro `ADMIN` del creador en la transacción de `POST /projects` en una organización; un Project personal no crea registro.
+- [ ] `accessibleProject(userId, minRole)` (rama personal por `ownerUserId`, rama de organización por registro) y `rolesAtLeast`; sustituir todos los usos de `ownedProject` (projects, versions, targets, runs, functional knowledge, questions, publications, bindings, experiments).
 - [ ] `ProjectAccessService` (alta al entrar, `404`/`403`/`503`) y decorador de rol mínimo aplicado a cada ruta según la matriz de INTEROP §6.13.
-- [ ] Derivación de rol (owner de organización, permiso de repositorio, visibilidad de Project sin repositorio y con binding `REVOKED`) con fakes.
+- [ ] Derivación de rol (owner de organización, permiso de repositorio con membresía activa exigida y sin `read` implícito público, visibilidad de Project sin repositorio y con binding `REVOKED`) con fakes.
 - [ ] Listados sin filtro/`workspaceId` y cross-proyecto sobre Projects visibles; omisión de lo no verificable.
 - [ ] `RealtimeGateway`: rol Reader al suscribirse y salida de salas al perder el acceso.
 - [ ] Matriz e2e ruta x rol y pruebas de caída de GitHub.
 
-## Corte 4 — HU64 (bloqueado por `DEC-ORG-002.4` solo en su parte de endurecimiento)
+## Corte 4 — HU64
 
 - [ ] Filtro por `workspaceId` en `GET /integrations/github/repositories` (organización: solo esa organización; personal: solo propios).
 - [ ] `REPOSITORY_OUTSIDE_WORKSPACE` y `REPOSITORY_PERMISSION_INSUFFICIENT` en el orden de INTEROP §6.8; `404` para quien no tiene ningún permiso.
 - [ ] Rol Maintainer en binding/`enable`/pausa; sin ruta de revinculación.
-- [ ] Permiso mínimo en `verify-app-access` y `branches` si se aprueba `DEC-ORG-002.4`.
+- [ ] Permiso mínimo `maintain`/`write`/`admin` en `verify-app-access` y `branches` (`403 REPOSITORY_PERMISSION_INSUFFICIENT`; sin visibilidad `404` y `NOT_AUTHORIZED`), como corrección de seguridad del contrato anterior.
 - [ ] Pruebas del orden de validación y de no sondeo de repositorios ajenos.
 
 ## Corte 5 — HU61
