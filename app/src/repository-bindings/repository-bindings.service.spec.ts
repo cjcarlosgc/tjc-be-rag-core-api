@@ -255,12 +255,25 @@ describe('RepositoryBindingsService', () => {
       });
     });
 
-    it('the no-permission 404 is indistinguishable from a repository that does not exist', async () => {
-      const noPermission = await create(OTHER_GITHUB_ID).catch((e: AppException) => e);
-      github.removeRepository('org/repo');
-      const missing = await create(OTHER_GITHUB_ID).catch((e: AppException) => e);
+    it('the three "not found" cases answer exactly the same 404 (code, HTTP status and message): missing repository, no permission, forged repositoryId', async () => {
+      const bodyOf = async (run: () => Promise<unknown>) => {
+        const error = (await run().catch((e: AppException) => e)) as AppException;
+        return { code: error.code, status: error.getStatus(), message: error.message, details: error.details };
+      };
 
-      expect(noPermission).toMatchObject({ code: missing.code, status: missing.status });
+      // 1. Sin permiso alguno sobre un repositorio que sí existe.
+      const noPermission = await bodyOf(() => create(OTHER_GITHUB_ID));
+      // 2. repositoryId falso enviado por el cliente para un repositorio real.
+      const forgedId = await bodyOf(() =>
+        service.create(PROJECT_ID, { ...input, repositoryId: 'forged-id' }, OWNER_USER_ID, CREATOR_GITHUB_ID),
+      );
+      // 3. El repositorio no existe.
+      github.removeRepository('org/repo');
+      const missing = await bodyOf(() => create(OTHER_GITHUB_ID));
+
+      expect(noPermission).toMatchObject({ code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND, status: 404 });
+      expect(forgedId).toEqual(noPermission);
+      expect(missing).toEqual(noPermission);
     });
 
     it.each(['read', 'triage'] as const)(

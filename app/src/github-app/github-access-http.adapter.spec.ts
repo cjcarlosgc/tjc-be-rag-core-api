@@ -131,37 +131,42 @@ describe('GithubAccessHttpAdapter (HU64)', () => {
       await expect(adapter.getRepositoryPermission(REPO, '1001')).resolves.toEqual({ status: 'NOT_INSTALLED' });
     });
 
-    it('retries once with the freshly resolved login when a cached login answers 404 (renamed account)', async () => {
-      fetchMock
-        .mockResolvedValueOnce(json({ login: 'old-name' }))
-        .mockResolvedValueOnce(json({ permission: 'write', role_name: 'write' }));
-      await adapter.getRepositoryPermission(REPO, '1001'); // cachea old-name
-      fetchMock.mockReset();
-      fetchMock
-        .mockResolvedValueOnce(json({}, 404)) // permiso con el login cacheado
-        .mockResolvedValueOnce(json({ login: 'new-name' })) // login recién resuelto
-        .mockResolvedValueOnce(json({ permission: 'admin', role_name: 'admin' }));
+    it('resolves the login from the numeric id on every verification (no login cache)', async () => {
+      fetchMock.mockImplementation(() => Promise.resolve(json({ login: 'octocat', permission: 'write', role_name: 'write' })));
 
-      await expect(adapter.getRepositoryPermission(REPO, '1001')).resolves.toEqual({ status: 'OK', value: 'admin' });
-      expect(urls()).toEqual([
-        'https://api.github.com/repos/acme/widgets/collaborators/old-name/permission',
-        'https://api.github.com/user/1001',
-        'https://api.github.com/repos/acme/widgets/collaborators/new-name/permission',
-      ]);
+      await adapter.getRepositoryPermission(REPO, '1001');
+      await adapter.getRepositoryPermission(REPO, '1001');
+
+      expect(urls().filter((url) => url.endsWith('/user/1001'))).toHaveLength(2);
     });
 
-    it('does not retry when the fresh login equals the cached one', async () => {
-      fetchMock
-        .mockResolvedValueOnce(json({ login: 'octocat' }))
-        .mockResolvedValueOnce(json({ permission: 'write', role_name: 'write' }));
-      await adapter.getRepositoryPermission(REPO, '1001');
-      fetchMock.mockReset();
-      fetchMock
-        .mockResolvedValueOnce(json({}, 404))
-        .mockResolvedValueOnce(json({ login: 'octocat' }));
+    it('a login renamed or reassigned to another person does not inherit the permission of the original user', async () => {
+      // Antes: "octocat" (id 1001) tiene write. Después la cuenta 1001 se renombra a "renamed" y
+      // "octocat" pasa a otra persona (id 2002), sin ningún permiso sobre el repositorio.
+      const permissions: Record<string, Response> = {
+        octocat: json({ permission: 'write', role_name: 'write' }),
+        renamed: json({}, 404),
+      };
+      let currentLoginOf1001 = 'octocat';
+      fetchMock.mockImplementation((url: string) => {
+        if (url.endsWith('/user/1001')) return Promise.resolve(json({ id: 1001, login: currentLoginOf1001 }));
+        if (url.endsWith('/user/2002')) return Promise.resolve(json({ id: 2002, login: 'octocat-new-owner' }));
+        const login = /collaborators\/([^/]+)\/permission/.exec(url)?.[1] ?? '';
+        return Promise.resolve((permissions[login] ?? json({}, 404)).clone());
+      });
 
-      await expect(adapter.getRepositoryPermission(REPO, '1001')).resolves.toEqual({ status: 'NOT_FOUND' });
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await expect(adapter.getRepositoryPermission(REPO, '1001')).resolves.toEqual({ status: 'OK', value: 'write' });
+
+      currentLoginOf1001 = 'renamed';
+      permissions.renamed = json({ permission: 'write', role_name: 'write' });
+      permissions.octocat = json({}, 404); // el login antiguo ahora es de otra persona sin acceso
+
+      // El usuario original sigue resuelto por su id (login nuevo) y conserva su permiso...
+      await expect(adapter.getRepositoryPermission(REPO, '1001')).resolves.toEqual({ status: 'OK', value: 'write' });
+      expect(urls().at(-1)).toContain('/collaborators/renamed/permission');
+      // ...y la persona que ahora se llama "octocat" (id 2002) no hereda el permiso de la cuenta 1001.
+      await expect(adapter.getRepositoryPermission(REPO, '2002')).resolves.toEqual({ status: 'NOT_FOUND' });
+      expect(urls().at(-1)).toContain('/collaborators/octocat-new-owner/permission');
     });
   });
 });

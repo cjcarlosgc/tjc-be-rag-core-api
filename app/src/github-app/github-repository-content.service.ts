@@ -142,14 +142,6 @@ export class GithubRepositoryContentService {
     return branches;
   }
 
-  /** HU57: id numérico real del repositorio; el `repositoryId` del cliente no es autoridad. */
-  async getRepositoryId(repoFullName: string, token: string): Promise<string> {
-    const response = await this.request(`https://api.github.com/repos/${repoFullName}`, token);
-    const data = (await response.json()) as { id: number };
-
-    return String(data.id);
-  }
-
   /** HU40: freshness check antes de publicar el companion PR. */
   async getPullRequestHead(repoFullName: string, prNumber: number, token: string): Promise<PullRequestHead> {
     const response = await this.request(`https://api.github.com/repos/${repoFullName}/pulls/${prNumber}`, token);

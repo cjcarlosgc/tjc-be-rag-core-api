@@ -296,7 +296,7 @@ describe('Repository access and binding validation (HU64, corte 4a, e2e)', () =>
         .send({ repositoryId: '100', repositoryName: 'creator/repo' });
 
     it('AUTHORIZED with the installation for a user with admin/maintain/write', async () => {
-      const response = await verify().expect(201);
+      const response = await verify().expect(200);
 
       expect(response.body).toMatchObject({ status: 'AUTHORIZED', installationId: 'install-1' });
     });
@@ -310,7 +310,7 @@ describe('Repository access and binding validation (HU64, corte 4a, e2e)', () =>
     });
 
     it('NOT_AUTHORIZED, without revealing the installation, for a user with no permission', async () => {
-      const response = await verify(STRANGER).expect(201);
+      const response = await verify(STRANGER).expect(200);
 
       expect(response.body).toMatchObject({ status: 'NOT_AUTHORIZED', installationId: null });
     });
@@ -318,7 +318,7 @@ describe('Repository access and binding validation (HU64, corte 4a, e2e)', () =>
     it('NOT_AUTHORIZED when the App is not installed', async () => {
       installations.clear();
 
-      const response = await verify().expect(201);
+      const response = await verify().expect(200);
 
       expect(response.body).toMatchObject({ status: 'NOT_AUTHORIZED', installationId: null });
     });

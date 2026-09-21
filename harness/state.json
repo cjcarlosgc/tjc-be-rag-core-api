@@ -55,7 +55,7 @@
       "checkedAt": "2026-09-21T09:00:00-05:00"
     },
     "createdAt": "2026-09-20T03:00:00-05:00",
-    "updatedAt": "2026-09-21T07:20:00Z",
+    "updatedAt": "2026-09-21T08:20:00Z",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -105,9 +105,27 @@
           "status": "APPROVED",
           "summary": "Bundle A implementado (corte 1 HU62 identidad GitHub + corte 4a HU64 corrección de seguridad del binding), un commit por corte; sin cambios de contrato. Migración user_github_identities escrita y NO aplicada a Supabase. Falta revisión independiente, contract-reviewer sobre la implementación y el CONTRACT_SYNC de implementación del bundle A.",
           "commit": "8ad4fa5"
+        },
+        {
+          "from": "reviewer",
+          "status": "CHANGES_REQUESTED",
+          "summary": "Bundle A: HIGH tabla user_github_identities sin RLS/REVOKE (Data API de Supabase); MEDIUM caché de login sin TTL en el adapter de GitHub; verify-app-access responde 201 (contrato 200); código muerto getRepositoryId.",
+          "commit": "8ad4fa5"
+        },
+        {
+          "from": "contract-reviewer",
+          "status": "CHANGES_REQUESTED",
+          "summary": "Bundle A: F1 (MEDIUM) el mismatch de repositoryId debe responder el mismo 404 que 'no existe' y 'sin permiso'; ajustes de plan.md/CHANGELOG/INTEROP (los edita el leader).",
+          "commit": "8ad4fa5"
+        },
+        {
+          "from": "implementer",
+          "status": "APPROVED",
+          "summary": "Ciclo de corrección 1 aplicado: migración con RLS y REVOKE condicional (sin aplicar), caché de login eliminada con test de login reasignado, verify-app-access 200, getRepositoryId borrado, mismatch de repositoryId con el mismo repositoryNotFound y test de los tres cuerpos, plan.md con las firmas reales del puerto, CHANGELOG y procedimiento del vínculo huérfano en 012/tasks.md.",
+          "commit": "HEAD del commit de corrección 1 (ver git log)"
         }
       ],
-      "reviewCycles": 2,
+      "reviewCycles": 1,
       "maxReviewCycles": 2
     },
     "gates": {
@@ -139,6 +157,11 @@
           "checkpoint": "implementation-delivery",
           "checkedAt": "2026-09-21T07:13:51.077Z",
           "relevantPendingSyncIds": []
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "checkedAt": "2026-09-21T08:13:07.792Z",
+          "relevantPendingSyncIds": []
         }
       ],
       "publishedSyncIds": [
@@ -148,9 +171,10 @@
     },
     "evidence": [
       "Revisión contractual de INTEROP-2.4 (3 pasadas independientes; 2 ciclos de corrección de 2 permitidos): APPROVED sobre ff618c3. PULL before-review sin syncs pendientes en las tres. validate-harness OK.",
-      "Bundle A (corte 1 = 6236255, corte 4a = 8ad4fa5), desde app/: npm run lint (oxlint, exit 0), npm test (65 archivos, 608 tests en verde; línea base previa 61 archivos y 479 tests), npm run build (nest build, exit 0), npm run test:e2e (3 archivos, 41 tests en verde; línea base previa 1 archivo y 8 tests). Ningún test llama a Supabase ni a GitHub reales (fakes de SupabaseIdentityPort y GithubAccessPort). PULL implementation-delivery sin syncs pendientes: node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces. Migración prisma/migrations/20260921120000_user_github_identities escrita (prisma migrate diff) y NO aplicada a Supabase. independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan aquí."
+      "Bundle A (corte 1 = 6236255, corte 4a = 8ad4fa5), desde app/: npm run lint (oxlint, exit 0), npm test (65 archivos, 608 tests en verde; línea base previa 61 archivos y 479 tests), npm run build (nest build, exit 0), npm run test:e2e (3 archivos, 41 tests en verde; línea base previa 1 archivo y 8 tests). Ningún test llama a Supabase ni a GitHub reales (fakes de SupabaseIdentityPort y GithubAccessPort). PULL implementation-delivery sin syncs pendientes: node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces. Migración prisma/migrations/20260921120000_user_github_identities escrita (prisma migrate diff) y NO aplicada a Supabase. independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan aquí.",
+      "Ciclo de corrección 1 (bundle A), desde app/: npm run lint (oxlint, exit 0), npm test (65 archivos, 609 tests en verde), npm run build (exit 0), npm run test:e2e (3 archivos, 41 tests en verde); fakes, sin llamadas reales a Supabase ni GitHub. PULL implementation-delivery sin syncs pendientes: node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces. La migración sigue sin aplicarse. independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan."
     ],
     "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md. 2026-09-21: usuario aprobó el contrato SYSTEM-2.4/INTEROP-2.4 y el work item (commit 6464970). Publicado CS-20260921-001 (definición). Bundle A primero: corte 1 (HU62 + identidad) + 4a (corrección de seguridad del binding); el bundle A espera a que la Console solo-GitHub esté publicada. Bundle B (2+3+5) después. contractSyncPublished sigue NOT_RUN hasta los syncs de implementación de A y B."
   },
-  "lastUpdatedAt": "2026-09-21T07:20:00Z"
+  "lastUpdatedAt": "2026-09-21T08:20:00Z"
 }

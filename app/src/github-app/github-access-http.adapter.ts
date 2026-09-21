@@ -27,14 +27,13 @@ type HttpOutcome<T> = { kind: 'OK'; body: T } | { kind: 'NOT_FOUND' } | { kind: 
 
 /**
  * Adapter productivo de `GithubAccessPort`: solo installation token de la App
- * (`Metadata: read`), nunca el token OAuth del usuario. La caché del login es
- * solo un ahorro de una llamada: un `404` del permiso con un login cacheado se
- * reintenta una vez con el login recién resuelto.
+ * (`Metadata: read`), nunca el token OAuth del usuario. El login se resuelve por
+ * `GET /user/{id}` en cada verificación, sin caché: un login renombrado o
+ * reasignado a otra persona nunca hereda el permiso del usuario original.
  */
 @Injectable()
 export class GithubAccessHttpAdapter implements GithubAccessPort {
   private readonly logger = new Logger(GithubAccessHttpAdapter.name);
-  private readonly loginByGithubUserId = new Map<string, string>();
 
   constructor(private readonly githubAppAuthService: GithubAppAuthService) {}
 
@@ -71,27 +70,13 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
       return token;
     }
 
-    const cachedLogin = this.loginByGithubUserId.get(githubUserId);
-    const login = cachedLogin ?? (await this.resolveLogin(githubUserId, token));
+    const login = await this.resolveLogin(githubUserId, token);
 
     if (login === 'UNVERIFIABLE' || login === 'NOT_FOUND') {
       return { status: login };
     }
 
-    let outcome = await this.readPermission(repository, login, token);
-
-    if (outcome.kind === 'NOT_FOUND' && cachedLogin) {
-      // El login cacheado pudo cambiar (renombre de la cuenta): un único reintento con el actual.
-      const fresh = await this.resolveLogin(githubUserId, token);
-
-      if (fresh === 'UNVERIFIABLE' || fresh === 'NOT_FOUND') {
-        return { status: fresh };
-      }
-
-      if (fresh !== cachedLogin) {
-        outcome = await this.readPermission(repository, fresh, token);
-      }
-    }
+    const outcome = await this.readPermission(repository, login, token);
 
     if (outcome.kind !== 'OK') {
       return { status: outcome.kind };
@@ -124,7 +109,6 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
       return 'UNVERIFIABLE';
     }
 
-    this.loginByGithubUserId.set(githubUserId, outcome.body.login);
     return outcome.body.login;
   }
 

@@ -87,6 +87,7 @@ export class RepositoryBindingsController {
    * (no revela la instalación); permiso menor: `403`; no verificable: `503`.
    */
   @Post('integrations/github/repositories/verify-app-access')
+  @HttpCode(HttpStatus.OK)
   async verifyAppAccess(
     @Body() body: VerifyGitHubAppAccessRequestDto,
     @CurrentGithubUserId() githubUserId: string,

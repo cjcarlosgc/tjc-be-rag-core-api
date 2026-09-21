@@ -28,6 +28,8 @@
 - [ ] Aplicar la migración `user_github_identities` a Supabase (escrita, no aplicada) al desplegar el bundle A.
 - [ ] Login solo GitHub: deshabilitar el proveedor de correo y contraseña en Supabase Auth solo después de que la Console publique el login solo GitHub, nunca antes (precondición de despliegue).
 - [ ] Verificar que el manual linking de identidades de Supabase permanece deshabilitado (precondición de despliegue).
+- [ ] Procedimiento operativo (vínculo huérfano): si una persona elimina y recrea su cuenta de Supabase, el nuevo `sub` intenta vincular un `githubUserId` que sigue asociado al `sub` anterior en `user_github_identities` (columna `githubUserId` única) y recibe `401 GITHUB_IDENTITY_REQUIRED` de forma permanente hasta borrar la fila huérfana. Solución manual, con la conexión directa a PostgreSQL y verificando antes que el `sub` de la fila ya no existe en `auth.users`: `SELECT "userId", "githubUserId", "githubLogin" FROM "user_github_identities" WHERE "githubUserId" = '<id numérico de GitHub>';` y luego `DELETE FROM "user_github_identities" WHERE "userId" = '<sub anterior>' AND "githubUserId" = '<id numérico de GitHub>';`. La siguiente petición del nuevo `sub` resuelve y persiste el vínculo correcto. No se borra una fila cuyo `sub` siga existiendo en Supabase. Los Projects del `sub` anterior no se reasignan (`ownerUserId` no cambia).
+- [x] La tabla `user_github_identities` es la raíz de confianza de la identidad: la migración habilita RLS sin políticas y revoca `anon`/`authenticated` (solo si esos roles existen) para que la Data API de Supabase no la exponga. Verificar tras aplicar la migración que la Data API no devuelve filas de la tabla.
 
 ## Retomar en una sesión nueva
 
