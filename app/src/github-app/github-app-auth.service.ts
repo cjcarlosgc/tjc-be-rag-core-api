@@ -91,6 +91,7 @@ export class GithubAppAuthService {
       );
       throw new GithubAppUnavailableError(
         `GitHub App no pudo autenticar la instalación "${installationId}" (${response.status}).`,
+        response.status,
       );
     }
 

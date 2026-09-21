@@ -18,13 +18,13 @@ Todas sin iniciar. Requiere aprobación humana del work item (`AWAITING_APPROVAL
 
 ## Corte 4a — HU64, la corrección de seguridad (bundle A; justo tras el corte 1)
 
-- [ ] `GithubAccessPort.getRepositoryOwner`/`getRepositoryPermission` (resolviendo el login por `GET /user/{id}`) con fake y adapter HTTP; resultado `UNVERIFIABLE` distinto de `null`.
-- [ ] `POST .../integrations/github` con el orden de INTEROP §6.8: sin permiso -> `404 GITHUB_REPOSITORY_NOT_FOUND` antes de `REPOSITORY_OUTSIDE_WORKSPACE`; `400 REPOSITORY_OUTSIDE_WORKSPACE` (personal: propietario = creador); `403 REPOSITORY_PERMISSION_INSUFFICIENT`; `409 REPOSITORY_ALREADY_BOUND` solo después; `503` ante permiso no verificable.
-- [ ] `verify-app-access` y `branches` con permiso mínimo `maintain`/`write`/`admin` (`403`; sin visibilidad `NOT_AUTHORIZED` y `404`; no verificable `503`).
-- [ ] `POST .../enable` sobre un binding `REVOKED` valida propietario (personal) y `repositoryId` como `POST` binding (`404 GITHUB_REPOSITORY_NOT_FOUND`, `400 REPOSITORY_OUTSIDE_WORKSPACE`; sigue `REVOKED`); la rama de organización va en el corte 3.
-- [ ] Orden en `branches` (App no instalada `403` antes de los `404`/`403` de permiso) y en `verify-app-access` (`NOT_AUTHORIZED`) con la App no instalada.
-- [ ] `workspaceId` en `GET /integrations/github/repositories` solo con el workspace personal; el de organización responde `404 WORKSPACE_NOT_FOUND` hasta el corte 3.
-- [ ] Pruebas del orden de validación y de no sondeo de repositorios ajenos; regresión de `013`.
+- [x] `GithubAccessPort.getRepositoryOwner`/`getRepositoryPermission` (resolviendo el login por `GET /user/{id}`) con fake y adapter HTTP; resultado `UNVERIFIABLE` distinto de `null`. Evidencia: `app/src/github-app/github-access.port.ts` (resultado `OK | NOT_FOUND | NOT_INSTALLED | UNVERIFIABLE`; los métodos reciben `{ installationId, repositoryName }` porque las lecturas de GitHub se direccionan por `owner/repo` con el installation token), `github-access-http.adapter.ts` y `app/test/support/fake-github-access.port.ts`.
+- [x] `POST .../integrations/github` con el orden de INTEROP §6.8: sin permiso -> `404 GITHUB_REPOSITORY_NOT_FOUND` antes de `REPOSITORY_OUTSIDE_WORKSPACE`; `400 REPOSITORY_OUTSIDE_WORKSPACE` (personal: propietario = creador); `403 REPOSITORY_PERMISSION_INSUFFICIENT`; `409 REPOSITORY_ALREADY_BOUND` solo después; `503` ante permiso no verificable.
+- [x] `verify-app-access` y `branches` con permiso mínimo `maintain`/`write`/`admin` (`403`; sin visibilidad `NOT_AUTHORIZED` y `404`; no verificable `503`).
+- [x] `POST .../enable` sobre un binding `REVOKED` valida propietario (personal) y `repositoryId` como `POST` binding (`404 GITHUB_REPOSITORY_NOT_FOUND`, `400 REPOSITORY_OUTSIDE_WORKSPACE`; sigue `REVOKED`); la rama de organización va en el corte 3.
+- [x] Orden en `branches` (App no instalada `403` antes de los `404`/`403` de permiso) y en `verify-app-access` (`NOT_AUTHORIZED`) con la App no instalada.
+- [x] `workspaceId` en `GET /integrations/github/repositories` solo con el workspace personal; el de organización responde `404 WORKSPACE_NOT_FOUND` hasta el corte 3.
+- [x] Pruebas del orden de validación y de no sondeo de repositorios ajenos; regresión de `013`. Evidencia: specs de `repository-bindings/` y `github-app/`, `test/repository-access.e2e-spec.ts` (HTTP: orden de `POST` binding, `enable` sobre `REVOKED`, `verify-app-access`, `branches`, discovery).
 
 ## Corte 2 — HU63 + HU58 (bundle B; paso de integración)
 

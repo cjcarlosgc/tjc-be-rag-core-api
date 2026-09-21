@@ -14,7 +14,7 @@ const apiRepo = {
   id: 42,
   name: 'widgets',
   full_name: 'acme/widgets',
-  owner: { login: 'acme', type: 'Organization', avatar_url: 'https://example.com/a.png' },
+  owner: { id: 777, login: 'acme', type: 'Organization', avatar_url: 'https://example.com/a.png' },
   private: true,
   default_branch: 'main',
   permissions: { admin: false, maintain: true, push: true, pull: true },
@@ -74,5 +74,39 @@ describe('GithubUserRepositoriesService', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, false, 500)));
 
     await expect(service.list(PROVIDER_TOKEN, 1, 30)).rejects.toBeInstanceOf(GithubAppUnavailableError);
+  });
+
+  describe('personal workspace filter (HU64)', () => {
+    const mine = { ...apiRepo, id: 1, full_name: 'octocat/mine', owner: { id: 1001, login: 'octocat', type: 'User', avatar_url: null } };
+    const org = { ...apiRepo, id: 2, full_name: 'acme/widgets' };
+
+    it('asks GitHub for owned repositories only and keeps the ones whose owner id is the personal account', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse([mine, org]));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await service.list(PROVIDER_TOKEN, 1, 30, { personalOwnerId: '1001' });
+
+      expect(fetchMock.mock.calls[0][0]).toContain('affiliation=owner');
+      expect(result.items.map((item) => item.repositoryName)).toEqual(['octocat/mine']);
+    });
+
+    it('keeps paginating from the raw page size, not from the filtered count', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse([mine, org])));
+
+      const result = await service.list(PROVIDER_TOKEN, 1, 2, { personalOwnerId: '1001' });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.hasNextPage).toBe(true);
+    });
+
+    it('does not filter nor add the affiliation without a workspace (compatibility)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse([mine, org]));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await service.list(PROVIDER_TOKEN, 1, 30);
+
+      expect(fetchMock.mock.calls[0][0]).not.toContain('affiliation');
+      expect(result.items).toHaveLength(2);
+    });
   });
 });
