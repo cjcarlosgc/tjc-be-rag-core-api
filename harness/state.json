@@ -12,22 +12,25 @@
     "DONE"
   ],
   "activeWorkItem": {
-    "id": "T-002-binding-lifecycle",
+    "id": "T-003-org-workspaces",
     "workItemType": "PRODUCT",
     "storyIds": [
-      "HU56",
-      "HU57",
-      "HU30"
+      "HU58",
+      "HU59",
+      "HU60",
+      "HU61",
+      "HU62",
+      "HU63",
+      "HU64"
     ],
-    "sprint": "T-002",
-    "status": "DONE",
+    "sprint": "T-003",
+    "status": "SELECTED",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
       "spec/backlog.md",
+      "spec/features/012-web-authentication/spec.md",
       "spec/features/013-pr-driven-analysis/spec.md",
-      "spec/features/013-pr-driven-analysis/plan.md",
-      "spec/features/013-pr-driven-analysis/tasks.md",
       "spec/features/001-project-management/spec.md"
     ],
     "transversalPaths": [
@@ -37,15 +40,15 @@
       "spec/transversal/errors/spec.md",
       "spec/transversal/persistence/spec.md"
     ],
-    "approved": true,
+    "approved": false,
     "decisionGate": {
-      "checked": true,
+      "checked": false,
       "blockingDecisionIds": [],
       "nonBlockingDecisionIds": [],
-      "checkedAt": "2026-09-20T01:30:00-05:00"
+      "checkedAt": null
     },
-    "createdAt": "2026-09-20T01:00:00-05:00",
-    "updatedAt": "2026-09-20T06:33:05.027Z",
+    "createdAt": "2026-09-20T03:00:00-05:00",
+    "updatedAt": "2026-09-20T03:00:00-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -53,97 +56,36 @@
       "implementationAgent": null,
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [
-        {
-          "role": "reviewer",
-          "status": "CHANGES_REQUESTED",
-          "findings": [
-            "F1 (media): carrera POST binding vs DELETE /projects dejaba un binding huérfano que retenía el repositoryId",
-            "F2 (baja): enable no compara el repositoryId real de GitHub (documentada como simplificación)",
-            "F3 (baja, documental): marcadores 'pendiente de implementación' y segundo CONTRACT_SYNC"
-          ],
-          "blockers": [],
-          "correctionApplied": "F1: insert del binding en $transaction con SELECT ... FOR SHARE sobre el Project vivo + findByRepositoryId ignora Projects borrados; F2: simplificación documentada en CHANGELOG/tasks.md; F3: marcadores quitados, segundo sync pendiente del leader"
-        },
-        {
-          "role": "contract-reviewer",
-          "status": "CHANGES_REQUESTED",
-          "findings": [
-            "MEDIA: get/disable/enable respondían REPOSITORY_BINDING_NOT_FOUND en vez de PROJECT_NOT_FOUND para un Project borrado/ajeno",
-            "BAJA: contrato sin el 404 GITHUB_REPOSITORY_NOT_FOUND en el orden de POST binding, sin aclaración de verify-app-access ni de installation.suspend",
-            "BAJA: marcadores 'pendiente de implementación' falsos"
-          ],
-          "blockers": [],
-          "correctionApplied": "findProjectOrThrow antes de findBindingOrThrow con tests; INTEROP §6.8 actualizado; marcadores quitados; nota de disabledReason null en persistence"
-        }
-      ],
-      "reviewCycles": 1,
+      "handoffs": [],
+      "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "PASSED",
-      "implementationCompleted": "PASSED",
-      "independentReviewPassed": "PASSED",
-      "technicalChecksPassed": "PASSED",
-      "contractReviewed": "PASSED",
-      "canonicalContractSynced": "PASSED",
-      "contractSyncPublished": "PASSED",
+      "sddVerified": "NOT_RUN",
+      "implementationCompleted": "NOT_RUN",
+      "independentReviewPassed": "NOT_RUN",
+      "technicalChecksPassed": "NOT_RUN",
+      "contractReviewed": "NOT_RUN",
+      "canonicalContractSynced": "NOT_RUN",
+      "contractSyncPublished": "NOT_RUN",
       "interopSyncChecked": "PASSED",
-      "noBlockingDecisions": "PASSED",
-      "retryLimitRespected": "PASSED"
+      "noBlockingDecisions": "NOT_RUN",
+      "retryLimitRespected": "NOT_RUN"
     },
     "coordination": {
       "contractImpact": true,
       "pullCheckpoints": [
         {
           "checkpoint": "start",
-          "checkedAt": "2026-09-20T01:03:54-05:00",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "contract-approval",
-          "checkedAt": "2026-09-20T02:00:00-05:00",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-20T06:18:12.115Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-20T06:27:36Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "before-done",
-          "checkedAt": "2026-09-20T06:33:05.027Z",
+          "checkedAt": "2026-09-21T03:17:48.874Z",
           "relevantPendingSyncIds": []
         }
       ],
-      "publishedSyncIds": [
-        "CS-20260920-002",
-        "CS-20260920-003"
-      ],
+      "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
-    "evidence": [
-      "cd app && npm run lint -> sin hallazgos (oxlint src/ test/)",
-      "cd app && npm test -> 61 archivos, 469/469 tests en verde (antes del work item: 431)",
-      "cd app && npm run test:e2e -> 1 archivo, 8/8 en verde",
-      "cd app && npm run build -> nest build sin errores",
-      "node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-002-binding-lifecycle -> relevantPendingSyncIds [] (exit 0)",
-      "Commits del corte: 16da507 (HU57), commit HU56 posterior. Migraciones 20260920120000 y 20260920121000 escritas y aplicadas a Supabase el 2026-09-20.",
-      "Ciclo de corrección 1 (reviewCycles=1): cd app && npm run lint -> sin hallazgos",
-      "Ciclo de corrección 1: npm test -> 61 archivos, 479/479",
-      "Ciclo de corrección 1: npm run test:e2e -> 8/8; npm run build -> exit 0",
-      "Ciclo de corrección 1: contract-sync check --checkpoint implementation-delivery -> relevantPendingSyncIds [] (exit 0)",
-      "Re-revisión ciclo 1 (77cab80..362198a): reviewer APPROVED (lint, test 479/479, build, e2e 8/8; FOR SHARE y softDelete verificados contra Postgres local descartable, 150 carreras create/softDelete sin huérfanos) y contract-reviewer APPROVED. Ambos ejecutaron check before-review sin syncs pendientes.",
-      "Leader, árbol final 695a82b: npm run lint OK; npm test 61 archivos / 479 tests; npm run test:e2e 8/8; npm run build exit 0; node harness/contract-sync.mjs check --checkpoint before-done sin pendientes.",
-      "CONTRACT_SYNC publicados a Console: CS-20260920-002 (contrato definido, caa4336) y CS-20260920-003 (implementación completada, sourceRevision 695a82b; supera a 002). Sandbox no recibe evento: no consume estas rutas; su mirror queda en 2.2 hasta que se copie.",
-      "2026-09-20 (solicitud explícita del usuario): `npx prisma migrate status` mostró solo 20260920120000_binding_disabled_reason y 20260920121000_project_soft_delete pendientes; `npx prisma migrate deploy` las aplicó a Supabase y `migrate status` devolvió 'Database schema is up to date!'. Pendiente: aprobación del reviewer sobre el rango acumulado antes del push de cierre de sprint; PR/merge solo por solicitud explícita."
-    ],
-    "notes": "Origen: CONTRACT_SYNC CS-20260920-001 (Console -> Core, importado y ACKNOWLEDGED). HU56/HU57 son historias PROPUESTAS por Console (backlog PROPOSED); el usuario confirmó 2026-09-20: (a) un binding REVOKED se reactiva vía POST .../enable si la App recuperó acceso, (b) el fix de disable() sobre REVOKED y la validación binding.projectId en job handlers entran en este mismo work item. La spec y los contratos están redactados y esperan aprobación humana antes de implementar. El work item anterior quedó archivado en harness/reports/T-002-analysis-run-domain.md. 2026-09-20: usuario aprobó el contrato (SYSTEM-2.3/INTEROP-2.3, commit caa4336) y la implementación. Publicado CS-20260920-002 (Core -> Console, contrato definido). Falta un segundo CONTRACT_SYNC al terminar la implementación; contractSyncPublished sigue NOT_RUN hasta entonces. Sandbox no recibe evento (no consume estas rutas) pero su mirror SYSTEM/INTEROP queda en 2.2 hasta que se copie. 2026-09-20: cerrado tras 1 ciclo de corrección (F1 carrera POST binding vs DELETE Project, 404 PROJECT_NOT_FOUND en get/disable/enable, aclaraciones de contrato). F2 (enable no compara repositoryId real) queda como simplificación documentada. Las migraciones se aplicaron a Supabase el 2026-09-20."
+    "evidence": [],
+    "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md."
   },
-  "lastUpdatedAt": "2026-09-20T06:33:05.027Z"
+  "lastUpdatedAt": "2026-09-20T03:00:00-05:00"
 }
