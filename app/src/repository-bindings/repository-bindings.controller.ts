@@ -12,7 +12,10 @@ import {
 } from '@nestjs/common';
 import { RepositoryBindingsService } from './repository-bindings.service.js';
 import { GithubUserRepositoriesService } from './github/github-user-repositories.service.js';
-import { GithubRepositoryAccessService } from './github/github-repository-access.service.js';
+import {
+  GithubRepositoryAccessService,
+  isSufficientRepositoryPermission,
+} from './github/github-repository-access.service.js';
 import { ListGithubRepositoriesQueryDto } from './dto/list-github-repositories-query.dto.js';
 import { VerifyGitHubAppAccessRequestDto } from './dto/github-app-access.dto.js';
 import type { GitHubAppAccessResponse } from './dto/github-app-access.dto.js';
@@ -23,6 +26,7 @@ import {
   toProjectRepositoryBindingResponse,
   type ProjectRepositoryBindingResponse,
 } from './dto/repository-binding.response.js';
+import { CurrentGithubUserId } from '../common/auth/current-github-user-id.decorator.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -42,6 +46,7 @@ export class RepositoryBindingsController {
   async listRepositories(
     @Query() query: ListGithubRepositoriesQueryDto,
     @Headers('x-github-provider-token') providerToken: string | undefined,
+    @CurrentGithubUserId() githubUserId: string,
   ): Promise<Page<GitHubUserRepositoryResponse>> {
     if (!providerToken) {
       throw new AppException(
@@ -51,9 +56,24 @@ export class RepositoryBindingsController {
       );
     }
 
+    // HU64 (bundle A): el único workspace es el personal, cuyo id es el githubUserId
+    // de la sesión; el de una organización responde 404 hasta el corte 3.
+    if (query.workspaceId !== undefined && query.workspaceId !== githubUserId) {
+      throw new AppException(
+        ErrorCode.WORKSPACE_NOT_FOUND,
+        `No existe un workspace con id "${query.workspaceId}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     const page = parseCursor(query.cursor);
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
-    const result = await this.githubUserRepositoriesService.list(providerToken, page, limit);
+    const result = await this.githubUserRepositoriesService.list(
+      providerToken,
+      page,
+      limit,
+      query.workspaceId === undefined ? undefined : { personalOwnerId: githubUserId },
+    );
 
     return {
       items: result.items,
@@ -61,32 +81,64 @@ export class RepositoryBindingsController {
     };
   }
 
+  /**
+   * HU64: solo con permiso `maintain`/`write`/`admin` del usuario sobre el
+   * repositorio. App no instalada o sin visibilidad del usuario: `NOT_AUTHORIZED`
+   * (no revela la instalación); permiso menor: `403`; no verificable: `503`.
+   */
   @Post('integrations/github/repositories/verify-app-access')
   async verifyAppAccess(
     @Body() body: VerifyGitHubAppAccessRequestDto,
+    @CurrentGithubUserId() githubUserId: string,
   ): Promise<GitHubAppAccessResponse> {
-    const [installationId, app] = await Promise.all([
-      this.githubRepositoryAccessService.resolveInstallation(body.repositoryName),
-      this.githubRepositoryAccessService.getAppInfo(),
-    ]);
+    const installationId = await this.githubRepositoryAccessService.resolveInstallation(
+      body.repositoryName,
+    );
+    let authorizedInstallationId: string | null = null;
+
+    if (installationId) {
+      const permission = await this.githubRepositoryAccessService.getUserPermission(
+        body.repositoryName,
+        installationId,
+        githubUserId,
+      );
+
+      if (permission !== 'NONE' && permission !== 'APP_NOT_INSTALLED') {
+        if (!isSufficientRepositoryPermission(permission)) {
+          throw this.githubRepositoryAccessService.permissionInsufficient();
+        }
+        authorizedInstallationId = installationId;
+      }
+    }
 
     return {
       repositoryId: body.repositoryId,
       repositoryName: body.repositoryName,
-      status: installationId ? 'AUTHORIZED' : 'NOT_AUTHORIZED',
-      installationId,
-      app,
+      status: authorizedInstallationId ? 'AUTHORIZED' : 'NOT_AUTHORIZED',
+      installationId: authorizedInstallationId,
+      app: await this.githubRepositoryAccessService.getAppInfo(),
     };
   }
 
+  /**
+   * HU64, en este orden: App no instalada `403 GITHUB_APP_ACCESS_REQUIRED`, sin
+   * visibilidad `404 GITHUB_REPOSITORY_NOT_FOUND`, permiso menor `403
+   * REPOSITORY_PERMISSION_INSUFFICIENT`, no verificable `503`.
+   */
   @Get('integrations/github/repositories/:owner/:repo/branches')
   async listBranches(
     @Param('owner') owner: string,
     @Param('repo') repo: string,
+    @CurrentGithubUserId() githubUserId: string,
   ): Promise<GitHubRepositoryBranchesResponse> {
     const repositoryName = `${owner}/${repo}`;
     const installationId = await this.githubRepositoryAccessService.requireInstallation(
       repositoryName,
+    );
+    await this.githubRepositoryAccessService.requireSufficientUserPermission(
+      repositoryName,
+      installationId,
+      githubUserId,
     );
     const items = await this.githubRepositoryAccessService.listBranches(
       repositoryName,
@@ -102,8 +154,9 @@ export class RepositoryBindingsController {
     @Param('projectId') projectId: string,
     @Body() body: CreateRepositoryBindingRequestDto,
     @CurrentUserId() userId: string,
+    @CurrentGithubUserId() githubUserId: string,
   ): Promise<ProjectRepositoryBindingResponse> {
-    const binding = await this.repositoryBindingsService.create(projectId, body, userId);
+    const binding = await this.repositoryBindingsService.create(projectId, body, userId, githubUserId);
     return toProjectRepositoryBindingResponse(binding);
   }
 
@@ -121,8 +174,9 @@ export class RepositoryBindingsController {
   async enable(
     @Param('projectId') projectId: string,
     @CurrentUserId() userId: string,
+    @CurrentGithubUserId() githubUserId: string,
   ): Promise<ProjectRepositoryBindingResponse> {
-    const binding = await this.repositoryBindingsService.enable(projectId, userId);
+    const binding = await this.repositoryBindingsService.enable(projectId, userId, githubUserId);
     return toProjectRepositoryBindingResponse(binding);
   }
 

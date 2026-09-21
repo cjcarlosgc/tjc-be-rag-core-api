@@ -4,8 +4,12 @@ import { RepositoryBindingsService } from './repository-bindings.service.js';
 import { RepositoryBindingsRepository } from './repository-bindings.repository.js';
 import { GithubRepositoryAccessService } from './github/github-repository-access.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { GITHUB_ACCESS_PORT } from '../github-app/github-access.port.js';
+import { GithubAppAuthService, GithubAppUnavailableError } from '../github-app/github-app-auth.service.js';
+import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { FakeGithubAccessPort } from '../../test/support/fake-github-access.port.js';
 import type { Project, RepositoryBinding } from '../generated/prisma/client.js';
 
 describe('RepositoryBindingsService', () => {
@@ -18,13 +22,17 @@ describe('RepositoryBindingsService', () => {
     findByRepositoryId: ReturnType<typeof vi.fn>;
   };
   let projectsRepository: { findById: ReturnType<typeof vi.fn> };
-  let githubRepositoryAccessService: {
-    requireInstallation: ReturnType<typeof vi.fn>;
-    resolveRepositoryId: ReturnType<typeof vi.fn>;
-    listBranches: ReturnType<typeof vi.fn>;
+  let githubAppAuthService: {
+    findInstallationForRepository: ReturnType<typeof vi.fn>;
+    getInstallationToken: ReturnType<typeof vi.fn>;
   };
+  let githubRepositoryContentService: { listBranches: ReturnType<typeof vi.fn> };
+  let github: FakeGithubAccessPort;
 
   const OWNER_USER_ID = 'user-1';
+  /** `githubUserId` del creador: propietario de `org/repo` salvo que un test diga otra cosa. */
+  const CREATOR_GITHUB_ID = '1001';
+  const OTHER_GITHUB_ID = '2002';
   const PROJECT_ID = 'project-1';
 
   const project: Project = {
@@ -50,6 +58,13 @@ describe('RepositoryBindingsService', () => {
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
 
+  const ownedByCreator = {
+    repositoryId: 'repo-1',
+    ownerId: CREATOR_GITHUB_ID,
+    ownerLogin: 'creator',
+    ownerType: 'User' as const,
+  };
+
   beforeEach(async () => {
     repository = {
       create: vi.fn(),
@@ -59,18 +74,26 @@ describe('RepositoryBindingsService', () => {
       findByRepositoryId: vi.fn().mockResolvedValue(null),
     };
     projectsRepository = { findById: vi.fn().mockResolvedValue(project) };
-    githubRepositoryAccessService = {
-      requireInstallation: vi.fn().mockResolvedValue('install-1'),
-      resolveRepositoryId: vi.fn().mockResolvedValue('repo-1'),
+    githubAppAuthService = {
+      findInstallationForRepository: vi.fn().mockResolvedValue('install-1'),
+      getInstallationToken: vi.fn().mockResolvedValue('token'),
+    };
+    githubRepositoryContentService = {
       listBranches: vi.fn().mockResolvedValue([{ name: 'main', protected: false }]),
     };
+    github = new FakeGithubAccessPort()
+      .addRepository('org/repo', ownedByCreator)
+      .setPermission('org/repo', CREATOR_GITHUB_ID, 'admin');
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RepositoryBindingsService,
+        GithubRepositoryAccessService,
         { provide: RepositoryBindingsRepository, useValue: repository },
         { provide: ProjectsRepository, useValue: projectsRepository },
-        { provide: GithubRepositoryAccessService, useValue: githubRepositoryAccessService },
+        { provide: GithubAppAuthService, useValue: githubAppAuthService },
+        { provide: GithubRepositoryContentService, useValue: githubRepositoryContentService },
+        { provide: GITHUB_ACCESS_PORT, useValue: github },
       ],
     }).compile();
 
@@ -80,15 +103,16 @@ describe('RepositoryBindingsService', () => {
   describe('create', () => {
     const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
 
+    const create = () => service.create(PROJECT_ID, input, OWNER_USER_ID, CREATOR_GITHUB_ID);
+
     it('resolves the installation, validates the branch and creates the binding', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue(null);
       repository.create.mockResolvedValue(binding);
 
-      const result = await service.create(PROJECT_ID, input, OWNER_USER_ID);
+      const result = await create();
 
-      expect(githubRepositoryAccessService.requireInstallation).toHaveBeenCalledWith('org/repo');
-      expect(githubRepositoryAccessService.listBranches).toHaveBeenCalledWith('org/repo', 'install-1');
+      expect(githubAppAuthService.findInstallationForRepository).toHaveBeenCalledWith('org', 'repo');
+      expect(githubRepositoryContentService.listBranches).toHaveBeenCalledWith('org/repo', 'token');
       expect(repository.create).toHaveBeenCalledWith(PROJECT_ID, {
         installationId: 'install-1',
         repositoryId: 'repo-1',
@@ -101,117 +125,222 @@ describe('RepositoryBindingsService', () => {
     it('throws PROJECT_NOT_FOUND when the project does not belong to the owner', async () => {
       projectsRepository.findById.mockResolvedValue(null);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject<
-        Partial<AppException>
-      >({ code: ErrorCode.PROJECT_NOT_FOUND });
+      await expect(create()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.PROJECT_NOT_FOUND,
+      });
       expect(repository.create).not.toHaveBeenCalled();
+      expect(github.calls).toEqual([]);
     });
 
     it('throws REPOSITORY_BINDING_ALREADY_EXISTS when the project already has a binding', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue(binding);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject<
-        Partial<AppException>
-      >({ code: ErrorCode.REPOSITORY_BINDING_ALREADY_EXISTS });
+      await expect(create()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.REPOSITORY_BINDING_ALREADY_EXISTS,
+      });
       expect(repository.create).not.toHaveBeenCalled();
     });
 
     it('throws INTEGRATION_BRANCH_NOT_FOUND when the chosen branch does not exist', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue(null);
-      githubRepositoryAccessService.listBranches.mockResolvedValue([
-        { name: 'develop', protected: false },
-      ]);
+      githubRepositoryContentService.listBranches.mockResolvedValue([{ name: 'develop', protected: false }]);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject<
-        Partial<AppException>
-      >({ code: ErrorCode.INTEGRATION_BRANCH_NOT_FOUND });
+      await expect(create()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.INTEGRATION_BRANCH_NOT_FOUND,
+      });
       expect(repository.create).not.toHaveBeenCalled();
     });
 
-    it('propagates GITHUB_APP_ACCESS_REQUIRED when the App has no access to the repository', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
+    it('answers GITHUB_APP_ACCESS_REQUIRED when the App has no access to the repository', async () => {
       repository.findByProjectForOwner.mockResolvedValue(null);
-      const accessError = new AppException(
-        ErrorCode.GITHUB_APP_ACCESS_REQUIRED,
-        'no access',
-        403,
-      );
-      githubRepositoryAccessService.requireInstallation.mockRejectedValue(accessError);
+      githubAppAuthService.findInstallationForRepository.mockResolvedValue(null);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(accessError);
+      await expect(create()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.GITHUB_APP_ACCESS_REQUIRED,
+      });
       expect(repository.create).not.toHaveBeenCalled();
+      expect(github.calls).toEqual([]);
     });
   });
 
   describe('create — repository conflicts (HU57)', () => {
     const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
+    const create = () => service.create(PROJECT_ID, input, OWNER_USER_ID, CREATOR_GITHUB_ID);
 
     beforeEach(() => {
-      projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue(null);
     });
 
     it('throws REPOSITORY_ALREADY_BOUND (409) with a generic message when another project uses the repository', async () => {
       repository.findByRepositoryId.mockResolvedValue({ ...binding, projectId: 'other-project' });
 
-      const error = await service.create(PROJECT_ID, input, OWNER_USER_ID).catch((e: AppException) => e);
+      const error = await create().catch((e: AppException) => e);
 
       expect(error).toMatchObject({ code: ErrorCode.REPOSITORY_ALREADY_BOUND });
       expect((error as AppException).message).not.toContain('other-project');
       expect(repository.create).not.toHaveBeenCalled();
-      expect(githubRepositoryAccessService.listBranches).not.toHaveBeenCalled();
+      expect(githubRepositoryContentService.listBranches).not.toHaveBeenCalled();
     });
 
     it('checks the App access before the repository conflict', async () => {
-      const accessError = new AppException(ErrorCode.GITHUB_APP_ACCESS_REQUIRED, 'no access', 403);
-      githubRepositoryAccessService.requireInstallation.mockRejectedValue(accessError);
+      githubAppAuthService.findInstallationForRepository.mockResolvedValue(null);
       repository.findByRepositoryId.mockResolvedValue({ ...binding, projectId: 'other-project' });
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(accessError);
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.GITHUB_APP_ACCESS_REQUIRED });
     });
 
     it('checks the repository conflict before the branch', async () => {
       repository.findByRepositoryId.mockResolvedValue({ ...binding, projectId: 'other-project' });
-      githubRepositoryAccessService.listBranches.mockResolvedValue([]);
+      githubRepositoryContentService.listBranches.mockResolvedValue([]);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
-        code: ErrorCode.REPOSITORY_ALREADY_BOUND,
-      });
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_ALREADY_BOUND });
     });
 
     it('does not trust the client repositoryId: a mismatch with GitHub is GITHUB_REPOSITORY_NOT_FOUND', async () => {
-      githubRepositoryAccessService.resolveRepositoryId.mockResolvedValue('real-repo-id');
+      github.addRepository('org/repo', { ...ownedByCreator, repositoryId: 'real-repo-id' });
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
-        code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND,
-      });
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND });
       expect(repository.create).not.toHaveBeenCalled();
     });
 
     it('maps a concurrent unique violation on the repository to REPOSITORY_ALREADY_BOUND, never 500', async () => {
       repository.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
-        code: ErrorCode.REPOSITORY_ALREADY_BOUND,
-      });
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_ALREADY_BOUND });
     });
 
     it('maps a concurrent unique violation on the project to REPOSITORY_BINDING_ALREADY_EXISTS', async () => {
       repository.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
       repository.findByProjectForOwner.mockResolvedValueOnce(null).mockResolvedValueOnce(binding);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toMatchObject({
-        code: ErrorCode.REPOSITORY_BINDING_ALREADY_EXISTS,
-      });
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_BINDING_ALREADY_EXISTS });
     });
 
     it('rethrows non-unique persistence errors untouched', async () => {
       const boom = new Error('connection lost');
       repository.create.mockRejectedValue(boom);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(boom);
+      await expect(create()).rejects.toBe(boom);
+    });
+  });
+
+  describe('create — owner and permission validation (HU64, corte 4a)', () => {
+    const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
+    const create = (githubUserId = CREATOR_GITHUB_ID) =>
+      service.create(PROJECT_ID, input, OWNER_USER_ID, githubUserId);
+
+    beforeEach(() => {
+      repository.findByProjectForOwner.mockResolvedValue(null);
+      repository.create.mockResolvedValue(binding);
+    });
+
+    it('a repository owned by the creator is bound', async () => {
+      await expect(create()).resolves.toEqual(binding);
+    });
+
+    it('a repository of another account with write permission is REPOSITORY_OUTSIDE_WORKSPACE (400)', async () => {
+      github.setPermission('org/repo', OTHER_GITHUB_ID, 'write');
+
+      await expect(create(OTHER_GITHUB_ID)).rejects.toMatchObject({
+        code: ErrorCode.REPOSITORY_OUTSIDE_WORKSPACE,
+        status: 400,
+      });
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('a repository of another account with no permission at all is GITHUB_REPOSITORY_NOT_FOUND, before REPOSITORY_OUTSIDE_WORKSPACE', async () => {
+      await expect(create(OTHER_GITHUB_ID)).rejects.toMatchObject({
+        code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND,
+        status: 404,
+      });
+    });
+
+    it('the no-permission 404 is indistinguishable from a repository that does not exist', async () => {
+      const noPermission = await create(OTHER_GITHUB_ID).catch((e: AppException) => e);
+      github.removeRepository('org/repo');
+      const missing = await create(OTHER_GITHUB_ID).catch((e: AppException) => e);
+
+      expect(noPermission).toMatchObject({ code: missing.code, status: missing.status });
+    });
+
+    it.each(['read', 'triage'] as const)(
+      'permission %s on the repository is REPOSITORY_PERMISSION_INSUFFICIENT (403) once the owner matches',
+      async (level) => {
+        github.setPermission('org/repo', CREATOR_GITHUB_ID, level);
+
+        await expect(create()).rejects.toMatchObject({
+          code: ErrorCode.REPOSITORY_PERMISSION_INSUFFICIENT,
+          status: 403,
+        });
+        expect(repository.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['maintain', 'write', 'admin'] as const)('permission %s is sufficient', async (level) => {
+      github.setPermission('org/repo', CREATOR_GITHUB_ID, level);
+
+      await expect(create()).resolves.toEqual(binding);
+    });
+
+    it('does not probe foreign repositories: the ownership and permission checks come before REPOSITORY_ALREADY_BOUND', async () => {
+      repository.findByRepositoryId.mockResolvedValue({ ...binding, projectId: 'other-project' });
+
+      // Sin permiso: 404, sin llegar a saber que el repositorio está vinculado.
+      await expect(create(OTHER_GITHUB_ID)).rejects.toMatchObject({ code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND });
+      expect(repository.findByRepositoryId).not.toHaveBeenCalled();
+
+      // Con permiso pero ajeno: 400, tampoco llega al conflicto.
+      github.setPermission('org/repo', OTHER_GITHUB_ID, 'admin');
+      await expect(create(OTHER_GITHUB_ID)).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_OUTSIDE_WORKSPACE });
+      expect(repository.findByRepositoryId).not.toHaveBeenCalled();
+
+      // Con permiso insuficiente sobre un repositorio propio: 403.
+      github.setPermission('org/repo', CREATOR_GITHUB_ID, 'read');
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_PERMISSION_INSUFFICIENT });
+      expect(repository.findByRepositoryId).not.toHaveBeenCalled();
+
+      // Solo un dueño con permiso suficiente ve REPOSITORY_ALREADY_BOUND.
+      github.setPermission('org/repo', CREATOR_GITHUB_ID, 'admin');
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_ALREADY_BOUND });
+    });
+
+    it('answers 503 GITHUB_VERIFICATION_UNAVAILABLE, never 404 or an ownership error, when the permission is unverifiable', async () => {
+      github.permissionMode = 'UNVERIFIABLE';
+
+      await expect(create()).rejects.toMatchObject({
+        code: ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE,
+        status: 503,
+      });
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('answers 503 GITHUB_VERIFICATION_UNAVAILABLE when the repository owner is unverifiable', async () => {
+      github.ownerMode = 'UNVERIFIABLE';
+
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE });
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('answers 503 (not 500) when GitHub fails while resolving the installation', async () => {
+      githubAppAuthService.findInstallationForRepository.mockRejectedValue(
+        new GithubAppUnavailableError('boom', 500),
+      );
+
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE });
+    });
+
+    it('answers GITHUB_APP_ACCESS_REQUIRED when the installation disappears between lookups', async () => {
+      github.ownerMode = 'NOT_INSTALLED';
+
+      await expect(create()).rejects.toMatchObject({ code: ErrorCode.GITHUB_APP_ACCESS_REQUIRED });
+    });
+
+    it('reads the permission of the session GitHub identity, never of another user', async () => {
+      await create();
+
+      expect(github.calls.filter((call) => call.method === 'getRepositoryPermission')).toEqual([
+        { method: 'getRepositoryPermission', repositoryName: 'org/repo', githubUserId: CREATOR_GITHUB_ID },
+      ]);
     });
   });
 
@@ -219,7 +348,7 @@ describe('RepositoryBindingsService', () => {
     const cases: Array<[string, () => Promise<unknown>]> = [
       ['get', () => service.get(PROJECT_ID, OWNER_USER_ID)],
       ['disable', () => service.disable(PROJECT_ID, OWNER_USER_ID)],
-      ['enable', () => service.enable(PROJECT_ID, OWNER_USER_ID)],
+      ['enable', () => service.enable(PROJECT_ID, OWNER_USER_ID, CREATOR_GITHUB_ID)],
     ];
 
     it.each(cases)('%s answers PROJECT_NOT_FOUND for a deleted, foreign or missing project', async (_name, call) => {
@@ -248,7 +377,7 @@ describe('RepositoryBindingsService', () => {
       const gone = new AppException(ErrorCode.PROJECT_NOT_FOUND, 'gone', 404);
       repository.create.mockRejectedValue(gone);
 
-      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID)).rejects.toBe(gone);
+      await expect(service.create(PROJECT_ID, input, OWNER_USER_ID, CREATOR_GITHUB_ID)).rejects.toBe(gone);
     });
   });
 
@@ -265,9 +394,7 @@ describe('RepositoryBindingsService', () => {
     it('throws REPOSITORY_BINDING_NOT_FOUND when there is none', async () => {
       repository.findByProjectForOwner.mockResolvedValue(null);
 
-      await expect(service.get(PROJECT_ID, OWNER_USER_ID)).rejects.toMatchObject<
-        Partial<AppException>
-      >({
+      await expect(service.get(PROJECT_ID, OWNER_USER_ID)).rejects.toMatchObject<Partial<AppException>>({
         code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
       });
     });
@@ -307,59 +434,101 @@ describe('RepositoryBindingsService', () => {
     it('throws REPOSITORY_BINDING_NOT_FOUND when the project has no binding', async () => {
       repository.findByProjectForOwner.mockResolvedValue(null);
 
-      await expect(service.disable(PROJECT_ID, OWNER_USER_ID)).rejects.toMatchObject<
-        Partial<AppException>
-      >({ code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND });
+      await expect(service.disable(PROJECT_ID, OWNER_USER_ID)).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
+      });
     });
   });
 
   describe('enable (HU57)', () => {
+    const enable = (githubUserId = CREATOR_GITHUB_ID) => service.enable(PROJECT_ID, OWNER_USER_ID, githubUserId);
+
     it('reactivates a DISABLED binding after revalidating the App and refreshing the installation', async () => {
       repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'DISABLED', disabledReason: 'USER' });
-      githubRepositoryAccessService.requireInstallation.mockResolvedValue('install-2');
+      githubAppAuthService.findInstallationForRepository.mockResolvedValue('install-2');
       repository.reactivate.mockResolvedValue({ ...binding, installationId: 'install-2' });
 
-      const result = await service.enable(PROJECT_ID, OWNER_USER_ID);
+      const result = await enable();
 
-      expect(githubRepositoryAccessService.requireInstallation).toHaveBeenCalledWith('org/repo');
+      expect(githubAppAuthService.findInstallationForRepository).toHaveBeenCalledWith('org', 'repo');
       expect(repository.reactivate).toHaveBeenCalledWith(binding.id, 'install-2');
       expect(result.status).toBe('ENABLED');
     });
 
-    it('reactivates a REVOKED binding when the App recovered access', async () => {
+    it('does not read owner or permission for a DISABLED binding (only REVOKED is revalidated)', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'DISABLED', disabledReason: 'USER' });
+      repository.reactivate.mockResolvedValue(binding);
+
+      await enable();
+
+      expect(github.calls).toEqual([]);
+    });
+
+    it('reactivates a REVOKED binding when the App recovered access and the owner and repositoryId match', async () => {
       repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
       repository.reactivate.mockResolvedValue(binding);
 
-      await service.enable(PROJECT_ID, OWNER_USER_ID);
+      await enable();
 
       expect(repository.reactivate).toHaveBeenCalledWith(binding.id, 'install-1');
     });
 
     it('keeps REVOKED and throws GITHUB_APP_ACCESS_REQUIRED when the App has no access', async () => {
       repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
-      const accessError = new AppException(ErrorCode.GITHUB_APP_ACCESS_REQUIRED, 'no access', 403);
-      githubRepositoryAccessService.requireInstallation.mockRejectedValue(accessError);
+      githubAppAuthService.findInstallationForRepository.mockResolvedValue(null);
 
-      await expect(service.enable(PROJECT_ID, OWNER_USER_ID)).rejects.toBe(accessError);
+      await expect(enable()).rejects.toMatchObject({ code: ErrorCode.GITHUB_APP_ACCESS_REQUIRED });
+      expect(repository.reactivate).not.toHaveBeenCalled();
+    });
+
+    it('keeps REVOKED with 404 GITHUB_REPOSITORY_NOT_FOUND when the repository was deleted and recreated (other repositoryId)', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
+      github.addRepository('org/repo', { ...ownedByCreator, repositoryId: 'recreated-repo-id' });
+
+      await expect(enable()).rejects.toMatchObject({ code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND, status: 404 });
+      expect(repository.reactivate).not.toHaveBeenCalled();
+    });
+
+    it('keeps REVOKED with 404 when GitHub no longer finds the repository', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
+      github.removeRepository('org/repo');
+
+      await expect(enable()).rejects.toMatchObject({ code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND });
+      expect(repository.reactivate).not.toHaveBeenCalled();
+    });
+
+    it('keeps REVOKED with 400 REPOSITORY_OUTSIDE_WORKSPACE when the repository was transferred out of the workspace', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
+      github.addRepository('org/repo', { ...ownedByCreator, ownerId: OTHER_GITHUB_ID, ownerLogin: 'other' });
+
+      await expect(enable()).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_OUTSIDE_WORKSPACE, status: 400 });
+      expect(repository.reactivate).not.toHaveBeenCalled();
+    });
+
+    it('answers 503 and keeps REVOKED when the owner cannot be verified', async () => {
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'REVOKED' });
+      github.ownerMode = 'UNVERIFIABLE';
+
+      await expect(enable()).rejects.toMatchObject({ code: ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE });
       expect(repository.reactivate).not.toHaveBeenCalled();
     });
 
     it('is idempotent: an ENABLED binding is returned as is, without revalidating', async () => {
       repository.findByProjectForOwner.mockResolvedValue(binding);
 
-      const result = await service.enable(PROJECT_ID, OWNER_USER_ID);
+      const result = await enable();
 
       expect(result).toEqual(binding);
-      expect(githubRepositoryAccessService.requireInstallation).not.toHaveBeenCalled();
+      expect(githubAppAuthService.findInstallationForRepository).not.toHaveBeenCalled();
       expect(repository.reactivate).not.toHaveBeenCalled();
     });
 
     it('throws REPOSITORY_BINDING_NOT_FOUND when the project has no binding', async () => {
       repository.findByProjectForOwner.mockResolvedValue(null);
 
-      await expect(service.enable(PROJECT_ID, OWNER_USER_ID)).rejects.toMatchObject<
-        Partial<AppException>
-      >({ code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND });
+      await expect(enable()).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
+      });
     });
   });
 });

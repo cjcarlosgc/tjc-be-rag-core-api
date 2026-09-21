@@ -125,6 +125,15 @@ describe('GithubAppAuthService', () => {
 
       await expect(service.getInstallationToken('999')).rejects.toBeInstanceOf(GithubAppUnavailableError);
     });
+
+    it('carries the HTTP status so callers can tell an uninstalled App (404) from an outage (HU64)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => 'not found' }),
+      );
+
+      await expect(service.getInstallationToken('999')).rejects.toMatchObject({ status: 404 });
+    });
   });
 
   describe('findInstallationForRepository', () => {
