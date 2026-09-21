@@ -660,6 +660,11 @@ model Job {
   availableAt DateTime  @default(now())
   lockedAt    DateTime?
   lockedBy    String?
+  /// 014 (HU61): clave de deduplicación de los jobs de acceso (`ACCESS_RECONCILIATION`,
+  /// `ACCESS_REVERIFY`); nula en los demás tipos. La unicidad NO la declara Prisma: la
+  /// migración crea un índice único PARCIAL (`WHERE status = 'PENDING' AND "dedupeKey" IS
+  /// NOT NULL`), es decir, solo sobre filas PENDING, nunca sobre RUNNING.
+  dedupeKey   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
