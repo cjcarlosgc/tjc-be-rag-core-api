@@ -68,3 +68,11 @@ Todas sin iniciar. Requiere aprobación humana del work item (`AWAITING_APPROVAL
 - [ ] Lint, test y build; e2e de la matriz; revisión independiente y `contract-reviewer`.
 - [ ] `CONTRACT_SYNC` a Console: el de definición al aprobar el contrato (leader) y uno de implementación por bundle (A y B), con las rutas, DTOs, errores, orden de despliegue y `breaking: false` cualificado.
 - [ ] Registrar la evidencia de las precondiciones de despliegue (Console solo GitHub publicada antes del bundle A, bundle A antes de que terceros instalen la App (hasta entonces no instalada por terceros, idealmente privada), App pública con `Members: read` y eventos, validación contra una organización real incluido un colaborador externo, manual linking deshabilitado, correo deshabilitado tras la Console solo GitHub) como criterio de aceptación, sin bloquear el merge.
+
+## Notas de implementación de la revisión contractual (2026-09-21, no requieren nuevo ciclo)
+
+- Jobs (corte 5a): al reprogramar un `ACCESS_REVERIFY` cuyo `dedupeKey` ya tiene otro `PENDING` (por backoff de "no verificable" o por reclamo de un lock obsoleto), completar o descartar el job actual en lugar de devolverlo a `PENDING`, para no chocar con el índice único parcial.
+- Reclamo de jobs: `claimNext` debe excluir un `PENDING` cuyo `dedupeKey` coincida con un `RUNNING` no obsoleto (una sola sentencia; los tipos sin `dedupeKey` no cambian). El reclamo de `RUNNING` obsoletos es infraestructura nueva del corte 5a.
+- `repository.transferred` y la reconciliación (c) para Projects de organización comparan con `projects.githubOrgId` (columna del corte 2): esa rama se implementa en el corte 5b. Hasta el corte 3 solo existen Projects personales.
+- WebSocket (corte 1): añadir la tarea de rechazo en el handshake con `io.use()` y `err.data` (`GITHUB_IDENTITY_REQUIRED`, `IDENTITY_UNAVAILABLE`, `INVALID_ACCESS_TOKEN`). Hoy la autenticación es un guard por mensaje. Un rechazo de middleware desactiva la reconexión automática del cliente, así que `retryable: true` exige `connect()` manual; la Console actual no usa `auth` y cae al polling.
+

@@ -24,7 +24,7 @@
       "HU64"
     ],
     "sprint": "T-003",
-    "status": "SPEC_VERIFIED",
+    "status": "AWAITING_APPROVAL",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
@@ -55,13 +55,13 @@
       "checkedAt": "2026-09-21T09:00:00-05:00"
     },
     "createdAt": "2026-09-20T03:00:00-05:00",
-    "updatedAt": "2026-09-21T11:00:00-05:00",
+    "updatedAt": "2026-09-21T12:00:00-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
       "implementationAgent": null,
-      "contractReviewAgent": null,
+      "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
       "handoffs": [
         {
@@ -87,6 +87,18 @@
           "status": "CHANGES_REQUESTED",
           "summary": "Re-revisión ciclo 1: F1-F17 resueltos; 10 hallazgos nuevos (R1 mayor: dedupe de jobs sobre RUNNING rompe autoprogramación y revocación; R2-R5 dependencias de 5a, predicado con REVOKED, enable de REVOKED, alcance de reconciliación; R6-R10 texto). Sin decisiones de usuario.",
           "commit": "63c0f8e"
+        },
+        {
+          "from": "sdd-analyst",
+          "status": "APPROVED",
+          "summary": "Ciclo de corrección 2: R1-R10 aplicados (dedupe de jobs solo PENDING con dedupeKey, 5a sin project_access, predicado con REVOKED en petición, enable de REVOKED con validación, lock único, SubscribeAck/connect_error aditivos, gating de workspaceId, NOT_INSTALLED).",
+          "commit": "ff618c3"
+        },
+        {
+          "from": "contract-reviewer",
+          "status": "APPROVED",
+          "summary": "Comprobación ligera tras el ciclo 2: sin blockers. Cuatro notas menores de implementación (N1-N4) registradas en 014/tasks.md.",
+          "commit": "ff618c3"
         }
       ],
       "reviewCycles": 2,
@@ -97,7 +109,7 @@
       "implementationCompleted": "NOT_RUN",
       "independentReviewPassed": "NOT_RUN",
       "technicalChecksPassed": "NOT_RUN",
-      "contractReviewed": "NOT_RUN",
+      "contractReviewed": "PASSED",
       "canonicalContractSynced": "PASSED",
       "contractSyncPublished": "NOT_RUN",
       "interopSyncChecked": "PASSED",
@@ -116,8 +128,10 @@
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
-    "evidence": [],
+    "evidence": [
+      "Revisión contractual de INTEROP-2.4 (3 pasadas independientes; 2 ciclos de corrección de 2 permitidos): APPROVED sobre ff618c3. PULL before-review sin syncs pendientes en las tres. validate-harness OK."
+    ],
     "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md."
   },
-  "lastUpdatedAt": "2026-09-21T11:00:00-05:00"
+  "lastUpdatedAt": "2026-09-21T12:00:00-05:00"
 }
