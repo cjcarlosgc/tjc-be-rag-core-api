@@ -8,8 +8,9 @@ export class CreateProjectDto {
   name!: string;
 
   /**
-   * `WorkspaceRefResponse.id`; omitido o igual al id del workspace personal =
-   * personal. Hasta el corte 3 el de una organización responde `404 WORKSPACE_NOT_FOUND`.
+   * `WorkspaceRefResponse.id`; omitido o igual al id del workspace personal = personal.
+   * Con el de una organización solo crea un owner (`403 WORKSPACE_ADMIN_REQUIRED` a un
+   * miembro que no lo es); un valor que no es un workspace del usuario, `404 WORKSPACE_NOT_FOUND`.
    */
   @IsOptional()
   @IsString()

@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { TestTargetsRepository } from '../project-versions/persistence/test-targets.repository.js';
 import { JobsService } from '../jobs/jobs.service.js';
@@ -36,7 +36,7 @@ function rate(repetitions: ExperimentRepetition[], predicate: (r: ExperimentRepe
 @Injectable()
 export class ExperimentsService {
   constructor(
-    private readonly projectsRepository: ProjectsRepository,
+    private readonly projectAccess: ProjectAccessService,
     private readonly projectVersionsRepository: ProjectVersionsRepository,
     private readonly testTargetsRepository: TestTargetsRepository,
     private readonly experimentRunsRepository: ExperimentRunsRepository,
@@ -50,15 +50,8 @@ export class ExperimentsService {
     idempotencyKey: string | undefined,
     ownerUserId: string,
   ): Promise<ExperimentAcceptedResponse> {
-    const project = await this.projectsRepository.findById(dto.projectId, ownerUserId);
-
-    if (!project) {
-      throw new AppException(
-        ErrorCode.PROJECT_NOT_FOUND,
-        `No existe el proyecto ${dto.projectId}.`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    // HU60: crear un experimento exige Maintainer (Reader `403`, no visible `404`).
+    const { project } = await this.projectAccess.require(ownerUserId, dto.projectId, 'MAINTAINER');
 
     if (await this.projectVersionsRepository.hasActiveVersion(dto.projectId)) {
       throw new AppException(

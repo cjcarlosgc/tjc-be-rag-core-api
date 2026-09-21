@@ -7,6 +7,7 @@ import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter
 import { GITHUB_ACCESS_PORT } from '../src/github-app/github-access.port.js';
 import { ObjectStorageService } from '../src/object-storage/object-storage.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { InMemoryPrisma } from './support/in-memory-prisma.js';
 import { FakeGithubAccessPort } from './support/fake-github-access.port.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
 import {
@@ -23,7 +24,7 @@ const OWNER = 'workspace-owner';
 const OWNER_GH = e2eGithubUserId(OWNER);
 const LONER = 'workspace-loner';
 
-class FakePrismaService {}
+const prisma = new InMemoryPrisma();
 
 function organization(id: number, login: string) {
   return {
@@ -48,7 +49,7 @@ describe('Workspaces (HU58, corte 2, e2e)', () => {
     const moduleFixture = await overrideAuthTokenVerifier(
       Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(PrismaService)
-        .useClass(FakePrismaService)
+        .useValue(prisma)
         .overrideProvider(ObjectStorageService)
         .useClass(FakeObjectStorageService)
         .overrideProvider(GITHUB_ACCESS_PORT)
@@ -67,6 +68,7 @@ describe('Workspaces (HU58, corte 2, e2e)', () => {
   });
 
   beforeEach(() => {
+    prisma.reset();
     github.reset();
   });
 
@@ -137,16 +139,5 @@ describe('Workspaces (HU58, corte 2, e2e)', () => {
 
     expect(response.body.items).toHaveLength(1);
     expect(response.body.items[0]).toMatchObject({ kind: 'PERSONAL', id: MEMBER_GH, role: 'ADMIN' });
-  });
-
-  it('keeps organization ids out of POST/GET /projects until cut 3, even for an organization the user belongs to', async () => {
-    github.addOrganization(organization(10, 'acme')).setMembership('acme', MEMBER_GH, { role: 'admin', state: 'active' });
-
-    const created = await authedRequest(app, MEMBER).post('/projects').send({ name: 'x', workspaceId: '10' }).expect(404);
-    const listed = await authedRequest(app, MEMBER).get('/projects').query({ workspaceId: '10' }).expect(404);
-
-    expect(created.body.code).toBe('WORKSPACE_NOT_FOUND');
-    expect(listed.body.code).toBe('WORKSPACE_NOT_FOUND');
-    expect(github.calls).toEqual([]); // el rechazo no consulta a GitHub
   });
 });

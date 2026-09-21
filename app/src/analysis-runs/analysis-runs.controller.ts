@@ -38,6 +38,20 @@ export class AnalysisRunsController {
     };
   }
 
+  /** HU55: cross-proyecto (Projects visibles del usuario); declarada antes de `analysis-runs/:id`. */
+  @Get('analysis-runs')
+  async listVisible(
+    @Query() query: ListAnalysisRunsQueryDto,
+    @CurrentUserId() userId: string,
+  ): Promise<Page<AnalysisRunSummaryResponse>> {
+    const page = await this.analysisRunsService.listVisible(query.status, query.limit, query.cursor, userId);
+
+    return {
+      items: page.items.map((run) => toAnalysisRunSummaryResponse(run)),
+      nextCursor: page.nextCursor,
+    };
+  }
+
   @Get('analysis-runs/:id')
   async getById(
     @Param('id') id: string,

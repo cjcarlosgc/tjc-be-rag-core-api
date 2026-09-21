@@ -4,10 +4,10 @@ import {
   GithubRepositoryAccessService,
   isSufficientRepositoryPermission,
 } from './github/github-repository-access.service.js';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
-import type { RepositoryBinding } from '../generated/prisma/client.js';
+import type { Project, RepositoryBinding } from '../generated/prisma/client.js';
 
 export interface CreateRepositoryBindingByOwnerInput {
   repositoryId: string;
@@ -21,22 +21,25 @@ export interface CreateRepositoryBindingByOwnerInput {
  * `integrationBranch` exista entre las ramas reales del repositorio;
  * el navegador nunca aporta la instalación como autoridad.
  *
- * HU64 (corte 4a): `create` y `enable` sobre `REVOKED` validan propietario y
- * permiso con la identidad GitHub de la sesión. Hasta el corte 3 solo existen
- * Projects personales: el propietario del repositorio debe ser la cuenta del
- * creador (que es quien llama, `ownedProject`).
+ * HU64: `create` y `enable` sobre `REVOKED` validan propietario y permiso con la
+ * identidad GitHub de la sesión. El propietario esperado es el workspace del Project:
+ * la organización (`githubOrgId`) o, en un Project personal, la cuenta de su creador
+ * (que es quien llama, el único que lo ve). HU60: vincular, pausar y reactivar exigen
+ * Maintainer (que incluye a Admin); un Project sin repositorio o con binding `REVOKED`
+ * solo lo ve un Admin, así que el primer vínculo y la reactivación de un `REVOKED` los
+ * hace un Admin sin regla adicional.
  */
 @Injectable()
 export class RepositoryBindingsService {
   constructor(
     private readonly repositoryBindingsRepository: RepositoryBindingsRepository,
-    private readonly projectsRepository: ProjectsRepository,
+    private readonly projectAccess: ProjectAccessService,
     private readonly githubRepositoryAccessService: GithubRepositoryAccessService,
   ) {}
 
   /**
-   * Orden de validación de `INTEROP-2.4` §6.8: Project no visible (404), binding
-   * existente (409), App sin acceso (403), repositorio inexistente, `repositoryId`
+   * Orden de validación de `INTEROP-2.4` §6.8: Project no visible (404), rol menor que
+   * Maintainer (403), binding existente (409), App sin acceso (403), repositorio inexistente, `repositoryId`
    * distinto o sin ningún permiso del usuario (404, un solo paso), propietario
    * ajeno (400), permiso `read`/`triage` (403), repositorio ya vinculado (409)
    * y rama inexistente (404). Las validaciones de propietario y permiso van
@@ -45,14 +48,14 @@ export class RepositoryBindingsService {
   async create(
     projectId: string,
     input: CreateRepositoryBindingByOwnerInput,
-    ownerUserId: string,
+    userId: string,
     githubUserId: string,
   ): Promise<RepositoryBinding> {
-    await this.findProjectOrThrow(projectId, ownerUserId);
+    const { project } = await this.projectAccess.require(userId, projectId, 'MAINTAINER');
 
     const existing = await this.repositoryBindingsRepository.findByProjectForOwner(
       projectId,
-      ownerUserId,
+      userId,
     );
 
     if (existing) {
@@ -90,8 +93,9 @@ export class RepositoryBindingsService {
       throw this.githubRepositoryAccessService.appAccessRequired(input.repositoryName);
     }
 
-    // Project personal: el propietario real del repositorio debe ser la cuenta del creador.
-    if (owner.ownerId !== githubUserId) {
+    // El propietario real del repositorio debe ser el workspace del Project: la organización o,
+    // en un Project personal, la cuenta de su creador.
+    if (owner.ownerId !== expectedOwnerId(project, githubUserId)) {
       throw this.githubRepositoryAccessService.outsideWorkspace();
     }
 
@@ -133,24 +137,25 @@ export class RepositoryBindingsService {
       // Carrera con otro POST: la violación de unicidad nunca sale como 500.
       const sameProject = await this.repositoryBindingsRepository.findByProjectForOwner(
         projectId,
-        ownerUserId,
+        userId,
       );
       throw sameProject ? this.bindingAlreadyExists(projectId) : this.repositoryAlreadyBound();
     }
   }
 
-  async get(projectId: string, ownerUserId: string): Promise<RepositoryBinding> {
-    await this.findProjectOrThrow(projectId, ownerUserId);
-    return this.findBindingOrThrow(projectId, ownerUserId);
+  /** Reader basta: un Reader consulta el estado del binding aquí (no en `verify-app-access`). */
+  async get(projectId: string, userId: string): Promise<RepositoryBinding> {
+    await this.projectAccess.require(userId, projectId, 'READER');
+    return this.findBindingOrThrow(projectId, userId);
   }
 
   /**
    * Desconectar es una pausa reversible (`DISABLED`, motivo `USER`). Sobre un
    * binding `REVOKED` no cambia nada: nunca se degrada a `DISABLED`.
    */
-  async disable(projectId: string, ownerUserId: string): Promise<RepositoryBinding> {
-    await this.findProjectOrThrow(projectId, ownerUserId);
-    const binding = await this.findBindingOrThrow(projectId, ownerUserId);
+  async disable(projectId: string, userId: string): Promise<RepositoryBinding> {
+    await this.projectAccess.require(userId, projectId, 'MAINTAINER');
+    const binding = await this.findBindingOrThrow(projectId, userId);
 
     if (binding.status === 'REVOKED') {
       return binding;
@@ -165,13 +170,14 @@ export class RepositoryBindingsService {
    * Idempotente: un binding ya `ENABLED` se devuelve sin revalidar.
    *
    * HU64: reactivar un `REVOKED` valida además el `repositoryId` y el
-   * propietario como `create` (repositorio eliminado y recreado con el mismo
-   * nombre: 404; transferido fuera del workspace: 400); en ambos casos sigue
-   * `REVOKED`.
+   * propietario (la organización del Project o la cuenta del creador) como `create`
+   * (repositorio eliminado y recreado con el mismo nombre: 404; transferido fuera
+   * del workspace: 400); en ambos casos sigue `REVOKED`. Un `REVOKED` solo lo ve un
+   * Admin (predicado de acceso), que es quien lo reactiva.
    */
-  async enable(projectId: string, ownerUserId: string, githubUserId: string): Promise<RepositoryBinding> {
-    await this.findProjectOrThrow(projectId, ownerUserId);
-    const binding = await this.findBindingOrThrow(projectId, ownerUserId);
+  async enable(projectId: string, userId: string, githubUserId: string): Promise<RepositoryBinding> {
+    const { project } = await this.projectAccess.require(userId, projectId, 'MAINTAINER');
+    const binding = await this.findBindingOrThrow(projectId, userId);
 
     if (binding.status === 'ENABLED') {
       return binding;
@@ -191,7 +197,7 @@ export class RepositoryBindingsService {
         throw this.githubRepositoryAccessService.repositoryNotFound(binding.repositoryName);
       }
 
-      if (owner.ownerId !== githubUserId) {
+      if (owner.ownerId !== expectedOwnerId(project, githubUserId)) {
         throw this.githubRepositoryAccessService.outsideWorkspace();
       }
     }
@@ -216,25 +222,13 @@ export class RepositoryBindingsService {
     );
   }
 
-  private async findProjectOrThrow(projectId: string, ownerUserId: string): Promise<void> {
-    const project = await this.projectsRepository.findById(projectId, ownerUserId);
-
-    if (!project) {
-      throw new AppException(
-        ErrorCode.PROJECT_NOT_FOUND,
-        `No existe un proyecto con id "${projectId}".`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
-  }
-
   private async findBindingOrThrow(
     projectId: string,
-    ownerUserId: string,
+    userId: string,
   ): Promise<RepositoryBinding> {
     const binding = await this.repositoryBindingsRepository.findByProjectForOwner(
       projectId,
-      ownerUserId,
+      userId,
     );
 
     if (!binding) {
@@ -247,6 +241,11 @@ export class RepositoryBindingsService {
 
     return binding;
   }
+}
+
+/** Id de GitHub del propietario esperado del repositorio: la organización, o la cuenta del creador en un Project personal. */
+function expectedOwnerId(project: Pick<Project, 'githubOrgId'>, githubUserId: string): string {
+  return project.githubOrgId ?? githubUserId;
 }
 
 function isUniqueViolation(error: unknown): boolean {

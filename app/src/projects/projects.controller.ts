@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
 import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { ProjectResponse } from './dto/project.response.js';
 import { ListProjectsQueryDto } from './dto/list-projects-query.dto.js';
 import type { Page } from '../common/dto/page.response.js';
@@ -37,6 +38,16 @@ export class ProjectsController {
     @CurrentGithubUserId() githubUserId: string,
   ): Promise<ProjectResponse> {
     return this.projectsService.getById(id, userId, githubUserId);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateProjectDto,
+    @CurrentUserId() userId: string,
+    @CurrentGithubUserId() githubUserId: string,
+  ): Promise<ProjectResponse> {
+    return this.projectsService.update(id, dto, userId, githubUserId);
   }
 
   @Delete(':id')

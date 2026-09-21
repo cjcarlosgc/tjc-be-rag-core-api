@@ -9,6 +9,7 @@ import type { GithubRepositoryContentService } from '../github-app/github-reposi
 import { GithubAppUnavailableError } from '../github-app/github-app-auth.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { OrganizationAccessResolver } from '../project-access/organization-access.resolver.js';
 import { FakeGithubAccessPort } from '../../test/support/fake-github-access.port.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
 
@@ -62,6 +63,7 @@ describe('RepositoryBindingsController', () => {
         githubRepositoryContentService as unknown as GithubRepositoryContentService,
         github,
       ),
+      new OrganizationAccessResolver(github),
     );
   });
 
@@ -105,10 +107,56 @@ describe('RepositoryBindingsController', () => {
       });
     });
 
-    it('answers 404 WORKSPACE_NOT_FOUND for the id of an organization or any other workspace (bundle A)', async () => {
+    it('answers 404 WORKSPACE_NOT_FOUND for a workspaceId that is not a workspace of the user (not numeric, App not installed, not a member)', async () => {
+      github.addOrganization({
+        installationId: 'inst-9',
+        organizationId: '9',
+        organizationLogin: 'stranger-org',
+        avatarUrl: null,
+        suspended: false,
+      });
+
+      for (const workspaceId of ['octocat', '424242', '9']) {
+        await expect(
+          controller.listRepositories({ workspaceId }, 'provider-token', GITHUB_USER_ID),
+        ).rejects.toMatchObject({ code: ErrorCode.WORKSPACE_NOT_FOUND, status: 404 });
+      }
+      expect(githubUserRepositoriesService.list).not.toHaveBeenCalled();
+    });
+
+    it('filters to the repositories of an organization where the user is an active member (HU64 4b)', async () => {
+      githubUserRepositoriesService.list.mockResolvedValue({ items: [], hasNextPage: false });
+      github
+        .addOrganization({
+          installationId: 'inst-42',
+          organizationId: '42',
+          organizationLogin: 'acme',
+          avatarUrl: null,
+          suspended: false,
+        })
+        .setMembership('acme', GITHUB_USER_ID, { role: 'member', state: 'active' });
+
+      await controller.listRepositories({ workspaceId: '42' }, 'provider-token', GITHUB_USER_ID);
+
+      expect(githubUserRepositoriesService.list).toHaveBeenCalledWith('provider-token', 1, 30, {
+        organizationOwnerId: '42',
+      });
+    });
+
+    it('answers 503 GITHUB_VERIFICATION_UNAVAILABLE, never 404, when the membership cannot be verified', async () => {
+      github
+        .addOrganization({
+          installationId: 'inst-42',
+          organizationId: '42',
+          organizationLogin: 'acme',
+          avatarUrl: null,
+          suspended: false,
+        })
+        .setOrganizationMode('acme', 'UNVERIFIABLE');
+
       await expect(
-        controller.listRepositories({ workspaceId: '424242' }, 'provider-token', GITHUB_USER_ID),
-      ).rejects.toMatchObject({ code: ErrorCode.WORKSPACE_NOT_FOUND, status: 404 });
+        controller.listRepositories({ workspaceId: '42' }, 'provider-token', GITHUB_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE, status: 503 });
       expect(githubUserRepositoriesService.list).not.toHaveBeenCalled();
     });
   });

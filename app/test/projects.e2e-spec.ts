@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -14,68 +13,10 @@ import {
   e2eGithubUserId,
   overrideAuthTokenVerifier,
 } from './support/auth-test-support.js';
-import type { Project } from '../src/generated/prisma/client.js';
+import { InMemoryPrisma } from './support/in-memory-prisma.js';
 
 const OTHER_USER_ID = 'e2e-other-user';
 const OWN_GITHUB_ID = e2eGithubUserId(E2E_TEST_USER_ID);
-
-class FakePrismaService {
-  private readonly projects = new Map<string, Project>();
-  private readonly insertionOrder = new Map<string, number>();
-  private sequence = 0;
-
-  project = {
-    create: async ({ data }: { data: { name: string; ownerUserId: string } }): Promise<Project> => {
-      this.sequence += 1;
-      const now = new Date();
-      const project: Project = {
-        id: randomUUID(),
-        name: data.name,
-        ownerUserId: data.ownerUserId,
-        currentVersionId: null,
-        deletedAt: null,
-        githubOrgId: null,
-        githubOrgLogin: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      this.projects.set(project.id, project);
-      this.insertionOrder.set(project.id, this.sequence);
-      return project;
-    },
-    findFirst: async ({
-      where,
-    }: {
-      where: { id: string; ownerUserId: string };
-    }): Promise<Project | null> => {
-      const project = this.projects.get(where.id);
-      return project && project.ownerUserId === where.ownerUserId ? project : null;
-    },
-    findMany: async ({
-      where,
-      take,
-      cursor,
-      skip,
-    }: {
-      where?: { ownerUserId?: string };
-      take?: number;
-      cursor?: { id: string };
-      skip?: number;
-    }): Promise<Project[]> => {
-      const sorted = [...this.projects.values()]
-        .filter((project) => !where?.ownerUserId || project.ownerUserId === where.ownerUserId)
-        .sort((a, b) => (this.insertionOrder.get(b.id) ?? 0) - (this.insertionOrder.get(a.id) ?? 0));
-      let startIndex = 0;
-
-      if (cursor) {
-        const cursorIndex = sorted.findIndex((project) => project.id === cursor.id);
-        startIndex = cursorIndex === -1 ? sorted.length : cursorIndex + (skip ?? 0);
-      }
-
-      return take !== undefined ? sorted.slice(startIndex, startIndex + take) : sorted.slice(startIndex);
-    },
-  };
-}
 
 describe('Projects (e2e)', () => {
   let app: INestApplication;
@@ -86,7 +27,7 @@ describe('Projects (e2e)', () => {
         imports: [AppModule],
       })
         .overrideProvider(PrismaService)
-        .useClass(FakePrismaService)
+        .useValue(new InMemoryPrisma())
         .overrideProvider(ObjectStorageService)
         .useClass(FakeObjectStorageService),
     ).compile();

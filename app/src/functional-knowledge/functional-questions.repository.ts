@@ -6,7 +6,7 @@ import type {
   FunctionalQuestion,
   FunctionalQuestionStatus,
 } from '../generated/prisma/client.js';
-import { ownedProject } from '../common/persistence/owned-project.filter.js';
+import { accessibleProject } from '../common/persistence/accessible-project.filter.js';
 
 export type FunctionalQuestionWithRun = FunctionalQuestion & { analysisRun: AnalysisRun };
 
@@ -64,7 +64,7 @@ export class FunctionalQuestionsRepository {
 
   /** HU55-ish: `projectId` es opcional -inbox cross-project del usuario-. */
   findActionRequired(
-    ownerUserId: string,
+    userId: string,
     projectId: string | undefined,
     status: FunctionalQuestionStatus,
     take: number,
@@ -73,7 +73,7 @@ export class FunctionalQuestionsRepository {
     return this.prisma.functionalQuestion.findMany({
       where: {
         status,
-        project: ownedProject(ownerUserId),
+        project: accessibleProject(userId),
         ...(projectId ? { projectId } : {}),
       },
       include: { analysisRun: true },

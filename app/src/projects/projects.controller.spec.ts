@@ -28,4 +28,12 @@ describe('ProjectsController', () => {
     await expect(controller.getById('project-1', 'user-1', '1001')).resolves.toBe('one');
     expect(projectsService.getById).toHaveBeenCalledWith('project-1', 'user-1', '1001');
   });
+
+  it('PATCH /projects/:id delegates the rename with the session identity', async () => {
+    const projectsService = { update: vi.fn().mockResolvedValue('renamed') };
+    const controller = new ProjectsController(projectsService as unknown as ProjectsService);
+
+    await expect(controller.update('project-1', { name: 'new' }, 'user-1', '1001')).resolves.toBe('renamed');
+    expect(projectsService.update).toHaveBeenCalledWith('project-1', { name: 'new' }, 'user-1', '1001');
+  });
 });

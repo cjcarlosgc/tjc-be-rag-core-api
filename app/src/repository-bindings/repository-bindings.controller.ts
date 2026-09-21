@@ -27,7 +27,8 @@ import {
   type ProjectRepositoryBindingResponse,
 } from './dto/repository-binding.response.js';
 import { CurrentGithubUserId } from '../common/auth/current-github-user-id.decorator.js';
-import { assertPersonalWorkspace } from '../workspaces/personal-workspace.util.js';
+import { OrganizationAccessResolver } from '../project-access/organization-access.resolver.js';
+import { githubVerificationUnavailable, workspaceNotFound } from '../project-access/project-access.errors.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -41,6 +42,7 @@ export class RepositoryBindingsController {
     private readonly repositoryBindingsService: RepositoryBindingsService,
     private readonly githubUserRepositoriesService: GithubUserRepositoriesService,
     private readonly githubRepositoryAccessService: GithubRepositoryAccessService,
+    private readonly organizations: OrganizationAccessResolver,
   ) {}
 
   @Get('integrations/github/repositories')
@@ -57,18 +59,27 @@ export class RepositoryBindingsController {
       );
     }
 
-    // HU64 (bundle A): el único workspace es el personal, cuyo id es el githubUserId
-    // de la sesión; el de una organización responde 404 hasta el corte 3.
-    assertPersonalWorkspace(query.workspaceId, githubUserId);
+    // HU64: con `workspaceId` solo los repositorios de ese workspace (la cuenta personal o
+    // una organización donde el usuario es miembro activo); sin él la lista no se filtra.
+    const workspace = await this.organizations.resolveWorkspace(query.workspaceId, githubUserId);
+
+    if (workspace.status === 'NOT_FOUND') {
+      throw workspaceNotFound(query.workspaceId as string);
+    }
+
+    if (workspace.status === 'UNVERIFIABLE') {
+      throw githubVerificationUnavailable();
+    }
 
     const page = parseCursor(query.cursor);
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
-    const result = await this.githubUserRepositoriesService.list(
-      providerToken,
-      page,
-      limit,
-      query.workspaceId === undefined ? undefined : { personalOwnerId: githubUserId },
-    );
+    const options =
+      query.workspaceId === undefined
+        ? undefined
+        : workspace.status === 'ORGANIZATION'
+          ? { organizationOwnerId: workspace.organization.organizationId }
+          : { personalOwnerId: githubUserId };
+    const result = await this.githubUserRepositoriesService.list(providerToken, page, limit, options);
 
     return {
       items: result.items,

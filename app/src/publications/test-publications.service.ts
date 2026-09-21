@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TestPublicationsRepository } from './test-publications.repository.js';
 import { GeneratedTestProposalsRepository } from '../validation/generated-test-proposals.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { TEST_PUBLICATION_JOB_TYPE } from './test-publication-job.handler.js';
@@ -26,6 +27,7 @@ export class TestPublicationsService {
     private readonly testPublicationsRepository: TestPublicationsRepository,
     private readonly generatedTestProposalsRepository: GeneratedTestProposalsRepository,
     private readonly analysisRunsRepository: AnalysisRunsRepository,
+    private readonly projectAccess: ProjectAccessService,
     private readonly jobsService: JobsService,
     private readonly configService: ConfigService,
   ) {}
@@ -44,6 +46,9 @@ export class TestPublicationsService {
         HttpStatus.NOT_FOUND,
       );
     }
+
+    // HU60: publicar exige Maintainer (Reader `403`); la publicación ya aceptada no se reevalúa.
+    await this.projectAccess.require(ownerUserId, run.projectId, 'MAINTAINER');
 
     if (run.status !== 'SUCCESS' || !run.current) {
       throw new AppException(

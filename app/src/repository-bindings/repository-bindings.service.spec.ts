@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RepositoryBindingsService } from './repository-bindings.service.js';
 import { RepositoryBindingsRepository } from './repository-bindings.repository.js';
 import { GithubRepositoryAccessService } from './github/github-repository-access.service.js';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { GITHUB_ACCESS_PORT } from '../github-app/github-access.port.js';
 import { GithubAppAuthService, GithubAppUnavailableError } from '../github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
@@ -21,7 +21,7 @@ describe('RepositoryBindingsService', () => {
     reactivate: ReturnType<typeof vi.fn>;
     findByRepositoryId: ReturnType<typeof vi.fn>;
   };
-  let projectsRepository: { findById: ReturnType<typeof vi.fn> };
+  let projectAccess: { require: ReturnType<typeof vi.fn> };
   let githubAppAuthService: {
     findInstallationForRepository: ReturnType<typeof vi.fn>;
     getInstallationToken: ReturnType<typeof vi.fn>;
@@ -33,6 +33,7 @@ describe('RepositoryBindingsService', () => {
   /** `githubUserId` del creador: propietario de `org/repo` salvo que un test diga otra cosa. */
   const CREATOR_GITHUB_ID = '1001';
   const OTHER_GITHUB_ID = '2002';
+  const OWNER_GITHUB_ID = '5005';
   const PROJECT_ID = 'project-1';
 
   const project: Project = {
@@ -75,7 +76,7 @@ describe('RepositoryBindingsService', () => {
       reactivate: vi.fn(),
       findByRepositoryId: vi.fn().mockResolvedValue(null),
     };
-    projectsRepository = { findById: vi.fn().mockResolvedValue(project) };
+    projectAccess = { require: vi.fn().mockResolvedValue({ project, role: 'ADMIN' }) };
     githubAppAuthService = {
       findInstallationForRepository: vi.fn().mockResolvedValue('install-1'),
       getInstallationToken: vi.fn().mockResolvedValue('token'),
@@ -92,7 +93,7 @@ describe('RepositoryBindingsService', () => {
         RepositoryBindingsService,
         GithubRepositoryAccessService,
         { provide: RepositoryBindingsRepository, useValue: repository },
-        { provide: ProjectsRepository, useValue: projectsRepository },
+        { provide: ProjectAccessService, useValue: projectAccess },
         { provide: GithubAppAuthService, useValue: githubAppAuthService },
         { provide: GithubRepositoryContentService, useValue: githubRepositoryContentService },
         { provide: GITHUB_ACCESS_PORT, useValue: github },
@@ -124,8 +125,8 @@ describe('RepositoryBindingsService', () => {
       expect(result).toEqual(binding);
     });
 
-    it('throws PROJECT_NOT_FOUND when the project does not belong to the owner', async () => {
-      projectsRepository.findById.mockResolvedValue(null);
+    it('throws PROJECT_NOT_FOUND when the project is not visible to the user', async () => {
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404));
 
       await expect(create()).rejects.toMatchObject<Partial<AppException>>({
         code: ErrorCode.PROJECT_NOT_FOUND,
@@ -367,7 +368,7 @@ describe('RepositoryBindingsService', () => {
     ];
 
     it.each(cases)('%s answers PROJECT_NOT_FOUND for a deleted, foreign or missing project', async (_name, call) => {
-      projectsRepository.findById.mockResolvedValue(null);
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404));
 
       await expect(call()).rejects.toMatchObject<Partial<AppException>>({
         code: ErrorCode.PROJECT_NOT_FOUND,
@@ -381,7 +382,7 @@ describe('RepositoryBindingsService', () => {
       await expect(call()).rejects.toMatchObject<Partial<AppException>>({
         code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
       });
-      expect(projectsRepository.findById).toHaveBeenCalledWith(PROJECT_ID, OWNER_USER_ID);
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, PROJECT_ID, expect.any(String));
     });
   });
 
@@ -543,6 +544,127 @@ describe('RepositoryBindingsService', () => {
 
       await expect(enable()).rejects.toMatchObject<Partial<AppException>>({
         code: ErrorCode.REPOSITORY_BINDING_NOT_FOUND,
+      });
+    });
+  });
+
+  describe('roles and organization projects (HU60, HU64 4b)', () => {
+    const ORG_ID = '42';
+    const orgProject: Project = { ...project, id: 'project-org', githubOrgId: ORG_ID, githubOrgLogin: 'acme' };
+    const input = { repositoryId: 'repo-1', repositoryName: 'org/repo', integrationBranch: 'main' };
+    const ownedByOrg = { repositoryId: 'repo-1', ownerId: ORG_ID, ownerLogin: 'acme', ownerType: 'Organization' as const };
+    const MAINTAINER_GITHUB_ID = '3003';
+
+    beforeEach(() => {
+      projectAccess.require.mockResolvedValue({ project: orgProject, role: 'MAINTAINER' });
+      repository.findByProjectForOwner.mockResolvedValue(null);
+      repository.create.mockResolvedValue(binding);
+      github.addRepository('org/repo', ownedByOrg).setPermission('org/repo', MAINTAINER_GITHUB_ID, 'write');
+    });
+
+    it('create requires the Maintainer role, before any validation against GitHub', async () => {
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
+
+      await expect(
+        service.create('project-org', input, OWNER_USER_ID, MAINTAINER_GITHUB_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-org', 'MAINTAINER');
+      expect(github.calls).toEqual([]);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('binds a repository owned by the ORGANIZATION of the project to a user with write permission', async () => {
+      await service.create('project-org', input, OWNER_USER_ID, MAINTAINER_GITHUB_ID);
+
+      expect(repository.create).toHaveBeenCalledWith('project-org', expect.objectContaining({ repositoryId: 'repo-1' }));
+    });
+
+    it('rejects a repository of ANOTHER organization or account with 400 REPOSITORY_OUTSIDE_WORKSPACE', async () => {
+      github.addRepository('org/repo', { ...ownedByOrg, ownerId: '777', ownerLogin: 'other-org' });
+
+      await expect(
+        service.create('project-org', input, OWNER_USER_ID, MAINTAINER_GITHUB_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_OUTSIDE_WORKSPACE, status: 400 });
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('the personal repository of the caller is outside an organization workspace', async () => {
+      github.addRepository('org/repo', { ...ownedByOrg, ownerId: MAINTAINER_GITHUB_ID, ownerType: 'User' });
+
+      await expect(
+        service.create('project-org', input, OWNER_USER_ID, MAINTAINER_GITHUB_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_OUTSIDE_WORKSPACE });
+    });
+
+    it('still rejects read/triage permission with 403 REPOSITORY_PERMISSION_INSUFFICIENT in an organization', async () => {
+      github.setPermission('org/repo', MAINTAINER_GITHUB_ID, 'triage');
+
+      await expect(
+        service.create('project-org', input, OWNER_USER_ID, MAINTAINER_GITHUB_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_PERMISSION_INSUFFICIENT });
+    });
+
+    it('get needs only Reader; disable and enable need Maintainer', async () => {
+      projectAccess.require.mockResolvedValue({ project: orgProject, role: 'READER' });
+      repository.findByProjectForOwner.mockResolvedValue(binding);
+
+      await service.get('project-org', OWNER_USER_ID);
+      expect(projectAccess.require).toHaveBeenLastCalledWith(OWNER_USER_ID, 'project-org', 'READER');
+
+      repository.updateStatus.mockResolvedValue({ ...binding, status: 'DISABLED' });
+      await service.disable('project-org', OWNER_USER_ID);
+      expect(projectAccess.require).toHaveBeenLastCalledWith(OWNER_USER_ID, 'project-org', 'MAINTAINER');
+
+      repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'DISABLED' });
+      repository.reactivate.mockResolvedValue(binding);
+      await service.enable('project-org', OWNER_USER_ID, MAINTAINER_GITHUB_ID);
+      expect(projectAccess.require).toHaveBeenLastCalledWith(OWNER_USER_ID, 'project-org', 'MAINTAINER');
+    });
+
+    it('a Reader answers 403 on disable and enable and nothing changes', async () => {
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
+
+      await expect(service.disable('project-org', OWNER_USER_ID)).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+      });
+      await expect(service.enable('project-org', OWNER_USER_ID, MAINTAINER_GITHUB_ID)).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+      });
+      expect(repository.updateStatus).not.toHaveBeenCalled();
+      expect(repository.reactivate).not.toHaveBeenCalled();
+    });
+
+    describe('enable on a REVOKED binding of an organization project (reactivated by an Admin)', () => {
+      const revoked: RepositoryBinding = { ...binding, status: 'REVOKED' };
+
+      beforeEach(() => {
+        projectAccess.require.mockResolvedValue({ project: orgProject, role: 'ADMIN' });
+        repository.findByProjectForOwner.mockResolvedValue(revoked);
+        repository.reactivate.mockResolvedValue({ ...binding, status: 'ENABLED' });
+      });
+
+      it('reactivates when the owner is the organization of the project and the repositoryId matches', async () => {
+        await service.enable('project-org', OWNER_USER_ID, OWNER_GITHUB_ID);
+
+        expect(repository.reactivate).toHaveBeenCalledWith('binding-1', 'install-1');
+      });
+
+      it('answers 400 REPOSITORY_OUTSIDE_WORKSPACE and stays REVOKED when the repository was transferred out of the organization', async () => {
+        github.addRepository('org/repo', { ...ownedByOrg, ownerId: '777', ownerLogin: 'elsewhere' });
+
+        await expect(service.enable('project-org', OWNER_USER_ID, OWNER_GITHUB_ID)).rejects.toMatchObject({
+          code: ErrorCode.REPOSITORY_OUTSIDE_WORKSPACE,
+        });
+        expect(repository.reactivate).not.toHaveBeenCalled();
+      });
+
+      it('answers 404 GITHUB_REPOSITORY_NOT_FOUND and stays REVOKED when the repository was recreated (other repositoryId)', async () => {
+        github.addRepository('org/repo', { ...ownedByOrg, repositoryId: 'repo-recreated' });
+
+        await expect(service.enable('project-org', OWNER_USER_ID, OWNER_GITHUB_ID)).rejects.toMatchObject({
+          code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND,
+        });
+        expect(repository.reactivate).not.toHaveBeenCalled();
       });
     });
   });

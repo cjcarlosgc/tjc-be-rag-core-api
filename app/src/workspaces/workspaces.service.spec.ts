@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OrganizationInstallation } from '../github-app/github-access.port.js';
 import { FakeGithubAccessPort } from '../../test/support/fake-github-access.port.js';
 import { WorkspacesService } from './workspaces.service.js';
-import { WORKSPACE_VERIFICATION_BUDGET, WORKSPACE_VERIFICATION_CONCURRENCY } from './workspaces.constants.js';
+import { OrganizationAccessResolver } from '../project-access/organization-access.resolver.js';
+import {
+  ACCESS_VERIFICATION_BUDGET as WORKSPACE_VERIFICATION_BUDGET,
+  ACCESS_VERIFICATION_CONCURRENCY as WORKSPACE_VERIFICATION_CONCURRENCY,
+} from '../project-access/project-access.constants.js';
 
 const USER_ID = 'sub-1';
 const GITHUB_USER_ID = '1001';
@@ -21,12 +25,14 @@ function installation(id: number, login: string, extra: Partial<OrganizationInst
 describe('WorkspacesService (HU58)', () => {
   let github: FakeGithubAccessPort;
   let identity: { findGithubLogin: ReturnType<typeof vi.fn> };
+  let accessRepository: { findRegisteredOrganizations: ReturnType<typeof vi.fn> };
   let service: WorkspacesService;
 
   beforeEach(() => {
     github = new FakeGithubAccessPort();
     identity = { findGithubLogin: vi.fn().mockResolvedValue('octocat') };
-    service = new WorkspacesService(github, identity as never);
+    accessRepository = { findRegisteredOrganizations: vi.fn().mockResolvedValue([]) };
+    service = new WorkspacesService(new OrganizationAccessResolver(github), accessRepository as never, identity as never);
   });
 
   it('lists only the personal workspace, first and as ADMIN, for a user without organizations', async () => {
@@ -122,6 +128,77 @@ describe('WorkspacesService (HU58)', () => {
 
     expect(items.map((item) => item.kind)).toEqual(['PERSONAL']);
     expect(github.calls.some((call) => call.method === 'getOrganizationMembership')).toBe(false);
+  });
+
+  describe('fallback with the organizations of registered access (corte 3)', () => {
+    const registered = (organizationId: string, login: string, hasAdmin: boolean) => ({ organizationId, login, hasAdmin });
+
+    it('with GitHub down offers the personal workspace plus the organizations where the user already has access, ordered by login', async () => {
+      github.installationsMode = 'UNVERIFIABLE';
+      accessRepository.findRegisteredOrganizations.mockResolvedValue([
+        registered('30', 'zeta', false),
+        registered('10', 'Acme', true),
+      ]);
+
+      const { items } = await service.list(USER_ID, GITHUB_USER_ID);
+
+      expect(items.map((item) => [item.kind, item.id, item.login, item.role])).toEqual([
+        ['PERSONAL', GITHUB_USER_ID, 'octocat', 'ADMIN'],
+        ['ORGANIZATION', '10', 'Acme', 'ADMIN'],
+        ['ORGANIZATION', '30', 'zeta', 'MEMBER'],
+      ]);
+      expect(items[1].avatarUrl).toBe('https://avatars.githubusercontent.com/u/10');
+      expect(accessRepository.findRegisteredOrganizations).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it('never offers a NEW organization when GitHub is down (nothing registered)', async () => {
+      github.installationsMode = 'UNVERIFIABLE';
+      github.addOrganization(installation(1, 'acme')).setMembership('acme', GITHUB_USER_ID, { role: 'admin', state: 'active' });
+
+      const { items } = await service.list(USER_ID, GITHUB_USER_ID);
+
+      expect(items.map((item) => item.kind)).toEqual(['PERSONAL']);
+    });
+
+    it('keeps a registered organization whose membership is unverifiable or whose installation is suspended, with the current login', async () => {
+      github
+        .addOrganization(installation(1, 'flaky-renamed'))
+        .addOrganization(installation(2, 'sleepy', { suspended: true }))
+        .setOrganizationMode('flaky-renamed', 'UNVERIFIABLE');
+      accessRepository.findRegisteredOrganizations.mockResolvedValue([
+        registered('1', 'flaky', false),
+        registered('2', 'sleepy', true),
+      ]);
+
+      const { items } = await service.list(USER_ID, GITHUB_USER_ID);
+
+      expect(items.slice(1).map((item) => [item.login, item.role])).toEqual([
+        ['flaky-renamed', 'MEMBER'],
+        ['sleepy', 'ADMIN'],
+      ]);
+    });
+
+    it('does not offer a registered organization whose App was uninstalled (absent from the installations) or where the user is no longer a member', async () => {
+      github
+        .addOrganization(installation(2, 'left-org'))
+        .setMembership('left-org', '9999', { role: 'member', state: 'active' });
+      accessRepository.findRegisteredOrganizations.mockResolvedValue([
+        registered('1', 'uninstalled-org', true),
+        registered('2', 'left-org', true),
+      ]);
+
+      const { items } = await service.list(USER_ID, GITHUB_USER_ID);
+
+      expect(items.map((item) => item.kind)).toEqual(['PERSONAL']);
+    });
+
+    it('does not query the registered access when every organization was verified', async () => {
+      github.addOrganization(installation(1, 'acme')).setMembership('acme', GITHUB_USER_ID, { role: 'member', state: 'active' });
+
+      await service.list(USER_ID, GITHUB_USER_ID);
+
+      expect(accessRepository.findRegisteredOrganizations).not.toHaveBeenCalled();
+    });
   });
 
   it('keeps the verifiable organizations when GitHub fails for one of them', async () => {

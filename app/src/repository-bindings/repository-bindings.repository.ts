@@ -5,7 +5,7 @@ import type {
   RepositoryBinding,
   RepositoryBindingStatus,
 } from '../generated/prisma/client.js';
-import { ownedProject } from '../common/persistence/owned-project.filter.js';
+import { accessibleProject } from '../common/persistence/accessible-project.filter.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 
@@ -56,10 +56,10 @@ export class RepositoryBindingsRepository {
 
   findByProjectForOwner(
     projectId: string,
-    ownerUserId: string,
+    userId: string,
   ): Promise<RepositoryBinding | null> {
     return this.prisma.repositoryBinding.findFirst({
-      where: { projectId, project: ownedProject(ownerUserId) },
+      where: { projectId, project: accessibleProject(userId) },
     });
   }
 

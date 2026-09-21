@@ -7,9 +7,10 @@ import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
 import { RepositoryBindingsModule } from '../repository-bindings/repository-bindings.module.js';
 import { ValidationModule } from '../validation/validation.module.js';
 import { GithubAppModule } from '../github-app/github-app.module.js';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
 
 @Module({
-  imports: [AnalysisRunsModule, RepositoryBindingsModule, ValidationModule, GithubAppModule],
+  imports: [AnalysisRunsModule, RepositoryBindingsModule, ValidationModule, GithubAppModule, ProjectAccessModule],
   controllers: [TestPublicationsController],
   providers: [TestPublicationsService, TestPublicationsRepository, TestPublicationJobHandler],
 })

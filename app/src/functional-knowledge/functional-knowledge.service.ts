@@ -7,7 +7,7 @@ import { FunctionalContextEvaluatorService } from './functional-context-evaluato
 import { FUNCTIONAL_CONTINUATION_JOB_TYPE } from './functional-continuation-job.handler.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -45,7 +45,7 @@ export class FunctionalKnowledgeService {
     private readonly functionalContextEvaluatorService: FunctionalContextEvaluatorService,
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly analysisRunsService: AnalysisRunsService,
-    private readonly projectsRepository: ProjectsRepository,
+    private readonly projectAccess: ProjectAccessService,
     private readonly jobsService: JobsService,
     private readonly configService: ConfigService,
   ) {}
@@ -56,6 +56,11 @@ export class FunctionalKnowledgeService {
     cursor: string | undefined,
     limit: number | undefined,
   ): Promise<Page<FunctionalQuestionResponse>> {
+    if (projectId) {
+      // Un Project no visible responde `404 PROJECT_NOT_FOUND` (antes, una página vacía).
+      await this.projectAccess.require(ownerUserId, projectId, 'READER');
+    }
+
     const take = limit ?? DEFAULT_PAGE_LIMIT;
     const rows = await this.functionalQuestionsRepository.findActionRequired(
       ownerUserId,
@@ -96,6 +101,7 @@ export class FunctionalKnowledgeService {
     ownerUserId: string,
   ): Promise<FunctionalAnswerAcceptedResponse> {
     const run = await this.findRunOrThrow(analysisRunId, ownerUserId);
+    await this.projectAccess.require(ownerUserId, run.projectId, 'MAINTAINER');
     const question = await this.functionalQuestionsRepository.findById(questionId);
 
     if (!question || question.analysisRunId !== run.id) {
@@ -144,7 +150,7 @@ export class FunctionalKnowledgeService {
     limit: number | undefined,
     ownerUserId: string,
   ): Promise<Page<FunctionalKnowledgeResponse>> {
-    await this.findProjectOrThrow(projectId, ownerUserId);
+    await this.projectAccess.require(ownerUserId, projectId, 'READER');
 
     const take = limit ?? DEFAULT_PAGE_LIMIT;
     const rows = await this.functionalKnowledgeRepository.findByProjectForOwner(
@@ -256,17 +262,5 @@ export class FunctionalKnowledgeService {
     }
 
     return run;
-  }
-
-  private async findProjectOrThrow(projectId: string, ownerUserId: string): Promise<void> {
-    const project = await this.projectsRepository.findById(projectId, ownerUserId);
-
-    if (!project) {
-      throw new AppException(
-        ErrorCode.PROJECT_NOT_FOUND,
-        `No existe un proyecto con id "${projectId}".`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
   }
 }

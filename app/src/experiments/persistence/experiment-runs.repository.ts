@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { ExperimentRepetition, ExperimentRun, Prisma } from '../../generated/prisma/client.js';
 import { ExperimentStatus } from '../../generated/prisma/enums.js';
 import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
-import { ownedProject } from '../../common/persistence/owned-project.filter.js';
+import { accessibleProject } from '../../common/persistence/accessible-project.filter.js';
 
 export interface CreateExperimentRunInput {
   projectId: string;
@@ -56,8 +56,8 @@ export class ExperimentRunsRepository {
    * Variante para rutas HTTP: filtra por propietario en la misma consulta
    * (HU29) en vez de cargar y comprobar después.
    */
-  findByIdForOwner(id: string, ownerUserId: string): Promise<ExperimentRun | null> {
-    return this.prisma.experimentRun.findFirst({ where: { id, project: ownedProject(ownerUserId) } });
+  findByIdForOwner(id: string, userId: string): Promise<ExperimentRun | null> {
+    return this.prisma.experimentRun.findFirst({ where: { id, project: accessibleProject(userId) } });
   }
 
   markStarted(id: string): Promise<ExperimentRun> {

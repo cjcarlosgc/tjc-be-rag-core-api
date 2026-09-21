@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ProjectsModule } from '../projects/projects.module.js';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
 import { ProjectVersionsModule } from '../project-versions/project-versions.module.js';
 import { RetrievalModule } from '../retrieval/retrieval.module.js';
 import { SandboxModule } from '../sandbox/sandbox.module.js';
@@ -11,7 +11,7 @@ import { ExperimentJobHandler } from './experiment-job.handler.js';
 import { GeneralistAgentService } from '../generation/agent/generalist-agent.service.js';
 
 @Module({
-  imports: [ProjectsModule, ProjectVersionsModule, RetrievalModule, SandboxModule, GenerationModule],
+  imports: [ProjectAccessModule, ProjectVersionsModule, RetrievalModule, SandboxModule, GenerationModule],
   controllers: [ExperimentsController],
   providers: [
     ExperimentsService,

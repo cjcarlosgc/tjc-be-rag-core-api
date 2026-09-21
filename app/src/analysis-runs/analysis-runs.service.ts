@@ -4,6 +4,7 @@ import {
   type CreateAnalysisRunInput,
 } from './analysis-runs.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type {
@@ -79,6 +80,7 @@ export class AnalysisRunsService {
   constructor(
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly projectsRepository: ProjectsRepository,
+    private readonly projectAccess: ProjectAccessService,
   ) {}
 
   /**
@@ -230,7 +232,7 @@ export class AnalysisRunsService {
     cursor: string | undefined,
     ownerUserId: string,
   ): Promise<Page<AnalysisRun>> {
-    await this.findProjectOrThrow(projectId, ownerUserId);
+    await this.projectAccess.require(ownerUserId, projectId, 'READER');
 
     const take = limit ?? DEFAULT_PAGE_LIMIT;
     const runs = await this.analysisRunsRepository.findByProjectForOwner(
@@ -240,6 +242,25 @@ export class AnalysisRunsService {
       status,
       cursor,
     );
+    const hasMore = runs.length > take;
+    const items = hasMore ? runs.slice(0, take) : runs;
+
+    return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
+  }
+
+  /**
+   * HU55: Runs de todos los Projects visibles para el usuario (cualquier rol): los
+   * personales que creó más los de organización con registro de acceso ya existente. No
+   * verifica contra GitHub ni da de alta nada (`INTEROP-2.4` §6.10).
+   */
+  async listVisible(
+    status: AnalysisRunStatus | undefined,
+    limit: number | undefined,
+    cursor: string | undefined,
+    userId: string,
+  ): Promise<Page<AnalysisRun>> {
+    const take = limit ?? DEFAULT_PAGE_LIMIT;
+    const runs = await this.analysisRunsRepository.findVisibleForUser(userId, take, status, cursor);
     const hasMore = runs.length > take;
     const items = hasMore ? runs.slice(0, take) : runs;
 
