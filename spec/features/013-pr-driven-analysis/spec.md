@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU30-HU36, HU39-HU42
-**Contrato:** SYSTEM-2.3 / INTEROP-2.3
+**Contrato:** SYSTEM-2.4 / INTEROP-2.4
 
 ## Objetivo
 
@@ -94,7 +94,7 @@ Verificar firma sobre body crudo, estado de instalación/binding y mínimo privi
 ## Fuera de alcance inicial
 
 - soporte completo de fork PR;
-- RBAC Owner/Maintainer/Reviewer;
+- RBAC propio: los roles Admin/Maintainer/Reader se derivan de GitHub y viven en `014-organizations-access` (HU58-HU64);
 - Mutation Score obligatorio;
 - proveedor remoto del Sandbox;
 - integración GitHub real o PHP completo dentro de T-001.

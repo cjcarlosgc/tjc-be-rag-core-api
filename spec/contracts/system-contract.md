@@ -1,6 +1,6 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.3
+**Versión del contrato:** SYSTEM-2.4
 **Fecha de corte:** 2026-09-20
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
@@ -51,9 +51,18 @@ Los permisos de la GitHub App aplican mínimo privilegio:
 
 Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console usa el token OAuth GitHub del usuario, transportado solo para ese descubrimiento, para listar repositorios visibles. Al seleccionar uno, Core se autentica como GitHub App y consulta directamente la instalación que tiene acceso al repositorio. La ausencia de acceso es `NOT_AUTHORIZED`, un resultado de producto que ofrece la URL de configuración centralizada de la App; no se enumeran instalaciones ni se infiere acceso desde OAuth.
 
-Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU31): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core revalida que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
+El repositorio debe pertenecer al workspace del Project y el usuario debe tener permiso `maintain`/`write`/`admin` sobre él (`DEC-ORG-001`, HU64; ver "Workspaces, roles y acceso"). Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU31): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core revalida que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
 
-Eliminar un `Project` es un borrado lógico irreversible desde la API (sin restauración): el Project y todo lo que cuelga de él dejan de ser visibles, se libera su binding para que el repositorio pueda vincularse a otro Project, y los Runs y jobs en curso se cancelan u obsoletan. Runs, versiones y Functional Knowledge se conservan como evidencia, sin exposición por la API. Un webhook de un repositorio sin binding se ignora.
+Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la API (sin restauración): el Project y todo lo que cuelga de él dejan de ser visibles, se libera su binding para que el repositorio pueda vincularse a otro Project, y los Runs y jobs en curso se cancelan u obsoletan. Runs, versiones y Functional Knowledge se conservan como evidencia, sin exposición por la API. Un webhook de un repositorio sin binding se ignora.
+
+## Workspaces, roles y acceso
+
+Consolida `DEC-ORG-001` (HU58-HU64); el detalle normativo de rutas, DTOs, errores y eventos vive en `INTEROP-2.4` §6.13 y §6.9.
+
+- Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y un registro de acceso `(projectId, userId, rol, verifiedAt)`.
+- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Reader: Reader solo consulta; Maintainer opera el día a día (binding, preguntas funcionales, publicaciones, experimentos); Admin, además, crea, renombra y elimina Projects. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.4` §6.13.
+- El acceso se crea al entrar, verificando en vivo con el installation token de la App; se revoca por los eventos de webhook de la App y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
+- Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente responde `403`.
 
 ## Trigger PR-driven y lifecycle
 
@@ -117,7 +126,7 @@ TARGET
 - Si una regla vigente contradice un cambio, Core solicita decisión humana o clasifica con evidencia; no concluye automáticamente que el código está mal.
 - La Console ofrece Focus Mode de página completa con Project/repo/PR/commit/target, pregunta, motivo, respuesta, ayuda visual técnica opcional y preguntas adaptativas; no muestra un total fijo.
 - La navegación incluye una bandeja `Action Required`; el Check enlaza al Run concreto. Tras login, `returnTo` conserva el deep link original.
-- Responde un usuario autorizado por el Project; el autor del PR no obtiene autoridad por ser autor.
+- Responde un usuario con rol Maintainer o Admin sobre el Project; el autor del PR no obtiene autoridad por ser autor.
 
 ## Baseline, generación y clasificación
 
@@ -171,7 +180,7 @@ OBSOLETE
 - Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
 - El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
 - La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
-- Mocks frontend deben implementar `INTEROP-2.3`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
+- Mocks frontend deben implementar `INTEROP-2.4`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
 
 ## Decisiones compartidas
 
@@ -273,6 +282,19 @@ OBSOLETE
 2. Se validan contra una organización real, con la App instalada, las lecturas aún no probadas: rol de owner (`memberships`), permiso heredado por Team o permiso base, y membresía `pending`.
 3. El proveedor de correo y contraseña de Supabase Auth se deshabilita cuando la Console solo ofrezca GitHub.
 
+### DEC-ORG-002 — Casos borde de acceso derivados de DEC-ORG-001
+
+**Estado:** PROPOSED
+
+**Blocks:** HU59, HU60 y HU64 (cortes 3 y 4 de `spec/features/014-organizations-access/`). No bloquea HU62, HU58, HU63 (cortes 1 y 2) ni cierra `DEC-ORG-001`, `DEC-VAL-001`.
+
+**Pregunta:** `DEC-ORG-001` no fija cuatro casos que el contrato `INTEROP-2.4` necesita cerrar. Cada uno lleva una recomendación, ya redactada en el contrato y marcada `[PROPOSED DEC-ORG-002.n]`; ninguna es vinculante hasta que el usuario responda.
+
+1. **Lectura implícita de repositorios públicos.** Un repositorio público da `read` a cualquier cuenta de GitHub, y "se ve un Project si se tiene al menos `read`" haría visible a cualquier usuario autenticado un Project con repositorio público si conoce su id. *Recomendación:* el `read` implícito de un repositorio público no cuenta; en una organización se exige además ser miembro activo, y en el workspace personal un colaborador directo del repositorio.
+2. **Projects personales compartidos.** Con `read` sobre un repositorio personal ajeno el usuario ve el Project, pero ese Project no pertenece a ningún workspace del usuario (`GET /workspaces` solo lista su cuenta personal y sus organizaciones). *Recomendación:* `GET /projects` sin `workspaceId` devuelve todos los Projects visibles, incluidos los personales de otros con acceso ya registrado, cada uno con su `workspace` (`kind: PERSONAL`); una persona no descubre un Project personal ajeno sin acceso previo: el registro de acceso se crea al abrir `GET /projects/{projectId}` con su id.
+3. **Visibilidad con binding `REVOKED`.** Sin acceso de la App al repositorio no se puede verificar un permiso de repositorio. *Recomendación:* con binding `REVOKED` solo los Admin ven el Project (para reactivar el binding o eliminarlo); los Maintainer y Reader dejan de verlo hasta que el binding se reactive. Si la organización desaparece, se desinstala la App o queda sin owners, tampoco se puede verificar a los Admin y el Project queda oculto para todos (`DEC-ORG-001`, "Ciclo de vida de la organización").
+4. **Superficie de repositorios a nivel de usuario.** `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` no reciben un Project y hoy responden a cualquier usuario autenticado sobre cualquier repositorio al que la App tenga acceso; con la App pública, eso expondría ramas e instalación de repositorios ajenos. *Recomendación:* exigir que el usuario tenga permiso `maintain`/`write`/`admin` sobre el repositorio consultado; con permiso menor `403 REPOSITORY_PERMISSION_INSUFFICIENT`, sin visibilidad el mismo resultado que un repositorio inexistente (`404 GITHUB_REPOSITORY_NOT_FOUND` en `branches`; `NOT_AUTHORIZED` en `verify-app-access`).
+
 ### DEC-EXP-FK-001 — Paridad experimental del contexto funcional
 
 **Estado:** PENDING
@@ -283,4 +305,4 @@ OBSOLETE
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.3` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto y el repository discovery user-centric con automatización GitHub-App-centric de `SYSTEM-2.2`, y agrega el ciclo de vida del binding (pausa/reactivación, un repositorio por Project) y el borrado lógico de Project (HU56/HU57). No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.3` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.4` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto y el repository discovery user-centric con automatización GitHub-App-centric de `SYSTEM-2.2`, y el ciclo de vida del binding (pausa/reactivación, un repositorio por Project) y el borrado lógico de Project (HU56/HU57) de `SYSTEM-2.3`; agrega workspaces personal y de organización, roles Admin/Maintainer/Reader derivados de GitHub, acceso revocable por webhook y el login solo con GitHub (`DEC-ORG-001`, HU58-HU64, definidos y pendientes de implementación). No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.4` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.

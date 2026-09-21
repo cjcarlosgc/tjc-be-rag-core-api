@@ -1,6 +1,6 @@
 # Product Backlog global
 
-**Estado:** línea base global vigente SDD 2.1 / SYSTEM-2.3 / INTEROP-2.3
+**Estado:** línea base global vigente SDD 2.1 / SYSTEM-2.4 / INTEROP-2.4
 
 Este backlog es compartido conceptualmente por los tres repositorios. Cada SDD local indica su participación concreta. La numeración expresa trazabilidad y orden lógico, no ejecución estrictamente secuencial.
 
@@ -125,7 +125,7 @@ completo por historia en `harness/reports/console-backlog-formalization.md`
 
 HU56-HU57 — registradas 2026-09-20 por Console (`CONTRACT_SYNC` CS-20260920-001) a partir de probar el binding contra Core real (`500` al vincular un repositorio ya usado por otro Project). Aprobadas por el usuario el 2026-09-20 junto con dos decisiones: un binding `REVOKED` se reactiva por `POST .../enable` si la App recuperó acceso, y el fix de `disable()` sobre `REVOKED` y la validación de binding en los job handlers entran en el mismo work item (`T-002-binding-lifecycle`). Contrato en INTEROP-2.3 §6.1/§6.8; implementado en Core (`T-002-binding-lifecycle`).
 
-HU58-HU64 — registradas y aprobadas para implementación el 2026-09-20 (`DEC-ORG-001` `APROBADO`). Salen de `DEC-ORG-001` (`spec/contracts/system-contract.md`): GitHub es la fuente de verdad de la autorización y el "equipo" es la organización; Core persiste solo el vínculo `userId -> githubUserId`, la organización del Project y un registro de acceso revocable por webhook. HU60 redefine el alcance de HU45 (los miembros y roles se gestionan en GitHub, no en Core) y HU63 hace que eliminar un Project (HU56) sea una acción solo de Admin. Las rutas y DTOs nuevos se definen en INTEROP antes de implementar; `HU62` ya está consolidada en `012-web-authentication` (login solo con GitHub) y su despliegue exige deshabilitar el correo en Supabase.
+HU58-HU64 — registradas y aprobadas para implementación el 2026-09-20 (`DEC-ORG-001` `APROBADO`). Salen de `DEC-ORG-001` (`spec/contracts/system-contract.md`): GitHub es la fuente de verdad de la autorización y el "equipo" es la organización; Core persiste solo el vínculo `userId -> githubUserId`, la organización del Project y un registro de acceso revocable por webhook. HU60 redefine el alcance de HU45 (los miembros y roles se gestionan en GitHub, no en Core) y HU63 hace que eliminar un Project (HU56) sea una acción solo de Admin. Las rutas, DTOs, errores y la matriz rol -> operación quedaron definidos en INTEROP-2.4 (§6.1, §6.8, §6.9, §6.13; pendientes de implementación) y el detalle de cortes en `spec/features/014-organizations-access/`; `HU62` ya está consolidada en `012-web-authentication` (login solo con GitHub) y su despliegue exige deshabilitar el correo en Supabase. Dependencias: HU62 -> HU58 y HU63 (identidad GitHub); HU63 y HU58 -> HU59 y HU60 (workspace y `role` de `ProjectResponse`); HU60 -> HU64 (permiso mínimo `maintain`/`write`) y HU61 (los registros de acceso que se revocan); HU59, HU60 y HU61 se publican juntas, porque conceder acceso sin poder revocarlo no es aceptable. `DEC-ORG-002` (`PROPOSED`) bloquea HU59, HU60 y HU64 hasta que el usuario responda sus casos borde.
 
 2026-09-15: los 4 contratos que Core debía definir para desbloquear a
 Console quedaron definidos y hoy están consolidados en **INTEROP-2.2** (`spec/contracts/interoperability-contract.md`
