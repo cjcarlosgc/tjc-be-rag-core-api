@@ -8,6 +8,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
 import { AuthModule } from './common/auth/auth.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { WorkspacesModule } from './workspaces/workspaces.module.js';
 import { ProjectVersionsModule } from './project-versions/project-versions.module.js';
 import { RetrievalModule } from './retrieval/retrieval.module.js';
 import { GenerationModule } from './generation/generation.module.js';
@@ -36,6 +37,7 @@ import { validateEnv } from './config/env.validation.js';
     JobsModule,
     RealtimeModule,
     IdempotencyModule,
+    WorkspacesModule,
     ProjectsModule,
     ProjectVersionsModule,
     RetrievalModule,

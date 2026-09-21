@@ -24,6 +24,8 @@ class FakePrismaService {
         ownerUserId: data.ownerUserId,
         currentVersionId: null,
         deletedAt: null,
+        githubOrgId: null,
+        githubOrgLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),

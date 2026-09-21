@@ -28,12 +28,13 @@ Todas sin iniciar. Requiere aprobación humana del work item (`AWAITING_APPROVAL
 
 ## Corte 2 — HU63 + HU58 (bundle B; paso de integración)
 
-- [ ] Migración `projects.githubOrgId`/`githubOrgLogin` con check de coherencia e índice.
-- [ ] `GithubAccessPort` del lado de organización (instalaciones, membresía, owners) con fake y adapter HTTP; acordar la interfaz completa con 4a.
-- [ ] `GET /workspaces` con degradación ante caída de GitHub a solo el personal (el respaldo de organizaciones con acceso registrado llega con el corte 3).
-- [ ] `POST /projects` y `GET /projects` con `workspaceId` solo personal (omitido o el propio id); el discovery no cambia en este corte; un `workspaceId` de organización responde `404 WORKSPACE_NOT_FOUND` en todas las rutas hasta el corte 3; `PATCH /projects/{projectId}`; `DELETE` como creador.
-- [ ] `ProjectResponse` con `workspace` y `role` (interino: `ADMIN`, predicado del creador).
-- [ ] Pruebas del corte y de contrato.
+- [x] Migración `projects.githubOrgId`/`githubOrgLogin` con check de coherencia e índice. Evidencia: `app/prisma/migrations/20260921140000_project_workspace_columns/migration.sql` (**escrita y NO aplicada a Supabase**; validada en un PostgreSQL local descartable: personal y organización aceptan, una sola columna se rechaza) y `app/src/prisma/project-workspace-migration.spec.ts`.
+- [x] `GithubAccessPort` del lado de organización (instalaciones, membresía, owners) con fake y adapter HTTP. Evidencia: `listOrganizationInstallations`, `getOrganizationMembership` y `listOrganizationOwners` en `app/src/github-app/github-access.port.ts` y `github-access-http.adapter.ts` (con `OrganizationRef { installationId, organizationLogin }`, misma convención `OK | NOT_FOUND | NOT_INSTALLED | UNVERIFIABLE`) y en `app/test/support/fake-github-access.port.ts`.
+- [x] `GET /workspaces` con degradación ante caída de GitHub a solo el personal (el respaldo de organizaciones con acceso registrado llega con el corte 3). Evidencia: `app/src/workspaces/` (`WorkspacesService`, `WorkspacesController`), `workspaces.service.spec.ts` y `test/workspaces.e2e-spec.ts`.
+- [x] `POST /projects` y `GET /projects` con `workspaceId` solo personal (omitido o el propio id); el discovery no cambia en este corte; un `workspaceId` de organización responde `404 WORKSPACE_NOT_FOUND` (`assertPersonalWorkspace`); `DELETE` como creador (comportamiento de HU56 sin cambios, cubierto por sus pruebas existentes). Evidencia: `app/src/projects/`, `app/src/workspaces/personal-workspace.util.ts`, `test/projects.e2e-spec.ts`.
+- [ ] `PATCH /projects/{projectId}` (renombrar; solo Admin) **diferido por instrucción del leader al implementar el corte 2** (queda pendiente dentro del bundle B; pruebas: nombre válido, vacío, campo extra, no visible).
+- [x] `ProjectResponse` con `workspace` y `role` (interino: `ADMIN`, predicado del creador). Evidencia: `app/src/projects/projects.service.ts` (`toResponse`) y `test/projects.e2e-spec.ts`.
+- [x] Pruebas del corte y de contrato. Evidencia: `workspaces.service.spec.ts`, `github-access-http.adapter.spec.ts`, `projects.service.spec.ts`, `projects.controller.spec.ts`, `personal-workspace.util.spec.ts`, `concurrency.util.spec.ts`, `test/workspaces.e2e-spec.ts` y `test/projects.e2e-spec.ts` (sin `PATCH`, diferido).
 
 ## Corte 3 — HU59 + HU60 + HU64 parte 4b (bundle B)
 

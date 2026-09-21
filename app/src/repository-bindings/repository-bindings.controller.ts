@@ -27,6 +27,7 @@ import {
   type ProjectRepositoryBindingResponse,
 } from './dto/repository-binding.response.js';
 import { CurrentGithubUserId } from '../common/auth/current-github-user-id.decorator.js';
+import { assertPersonalWorkspace } from '../workspaces/personal-workspace.util.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -58,13 +59,7 @@ export class RepositoryBindingsController {
 
     // HU64 (bundle A): el único workspace es el personal, cuyo id es el githubUserId
     // de la sesión; el de una organización responde 404 hasta el corte 3.
-    if (query.workspaceId !== undefined && query.workspaceId !== githubUserId) {
-      throw new AppException(
-        ErrorCode.WORKSPACE_NOT_FOUND,
-        `No existe un workspace con id "${query.workspaceId}".`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    assertPersonalWorkspace(query.workspaceId, githubUserId);
 
     const page = parseCursor(query.cursor);
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;

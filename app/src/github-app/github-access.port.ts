@@ -12,6 +12,45 @@ export interface RepositoryRef {
   repositoryName: string;
 }
 
+/**
+ * Organización a consultar con el installation token de su instalación. Las
+ * lecturas de organización se direccionan por `login` (`/orgs/{org}/...`); el
+ * token es de la instalación, así que un `login` que ya no pertenece a esa
+ * instalación (renombrado o reasignado) no devuelve datos de otra organización.
+ */
+export interface OrganizationRef {
+  installationId: string;
+  organizationLogin: string;
+}
+
+/** Instalación de la GitHub App en una organización (`GET /app/installations`, JWT de App). */
+export interface OrganizationInstallation {
+  installationId: string;
+  /** Id numérico de GitHub de la organización, como texto (el `workspaceId`). */
+  organizationId: string;
+  organizationLogin: string;
+  avatarUrl: string | null;
+  /** Instalación suspendida: no verificable, no se ofrece como workspace. */
+  suspended: boolean;
+}
+
+/**
+ * `GET /orgs/{org}/memberships/{login}` (permiso `Members: read`): una sola
+ * lectura da la membresía y el rol de owner. `admin` = owner; cualquier otro
+ * rol de membresía (`member`, `billing_manager`) se normaliza a `member`. Solo
+ * `state: 'active'` cuenta como miembro; `pending` no.
+ */
+export interface OrganizationMembership {
+  role: 'admin' | 'member';
+  state: 'active' | 'pending';
+}
+
+export interface OrganizationOwner {
+  /** Id numérico de GitHub del owner, como texto. */
+  githubUserId: string;
+  login: string;
+}
+
 export interface RepositoryOwner {
   /** Id real del repositorio según GitHub (el `repositoryId` del cliente no es autoridad). */
   repositoryId: string;
@@ -35,8 +74,9 @@ export type GithubLookup<T> =
   | { status: 'UNVERIFIABLE' };
 
 /**
- * Corte 4a: lecturas de propietario y permiso de un repositorio. El corte 2
- * agrega instalaciones, membresía y owners de organización al mismo puerto.
+ * Lecturas de GitHub con la identidad de la App. Corte 4a: propietario y permiso
+ * de un repositorio. Corte 2: instalaciones de la App, membresía y owners de una
+ * organización, con la misma convención de resultado (`GithubLookup`).
  */
 export interface GithubAccessPort {
   /** Propietario del repositorio; `NOT_FOUND` si no existe o la instalación no lo ve. */
@@ -51,4 +91,26 @@ export interface GithubAccessPort {
     repository: RepositoryRef,
     githubUserId: string,
   ): Promise<GithubLookup<RepositoryPermissionLevel>>;
+
+  /**
+   * Instalaciones de la App en organizaciones (las de cuentas personales se
+   * omiten), con el JWT de la App: no hay installation token que pueda fallar
+   * con `NOT_INSTALLED`. Incluye las suspendidas (`suspended`); una lista vacía
+   * es `OK`. `UNVERIFIABLE` = GitHub no responde o la App no está configurada.
+   */
+  listOrganizationInstallations(): Promise<GithubLookup<OrganizationInstallation[]>>;
+
+  /**
+   * Membresía de `githubUserId` en la organización, leída con el installation
+   * token por `login` resuelto desde el id (`GET /user/{id}`, sin caché).
+   * `NOT_FOUND` = no es miembro (ni pendiente). `UNVERIFIABLE` incluye `Members:
+   * read` sin aceptar o la instalación suspendida.
+   */
+  getOrganizationMembership(
+    organization: OrganizationRef,
+    githubUserId: string,
+  ): Promise<GithubLookup<OrganizationMembership>>;
+
+  /** Owners (`role=admin`) de la organización; una lista vacía es `OK` (organización sin owners). */
+  listOrganizationOwners(organization: OrganizationRef): Promise<GithubLookup<OrganizationOwner[]>>;
 }

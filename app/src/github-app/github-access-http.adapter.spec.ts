@@ -3,6 +3,7 @@ import { GithubAccessHttpAdapter, toPermissionLevel } from './github-access-http
 import { GithubAppUnavailableError } from './github-app-auth.service.js';
 
 const REPO = { installationId: '123', repositoryName: 'acme/widgets' };
+const ORG = { installationId: '123', organizationLogin: 'acme' };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -10,12 +11,15 @@ function json(body: unknown, status = 200): Response {
 
 describe('GithubAccessHttpAdapter (HU64)', () => {
   const fetchMock = vi.fn();
-  let auth: { getInstallationToken: ReturnType<typeof vi.fn> };
+  let auth: { getInstallationToken: ReturnType<typeof vi.fn>; signAppJwt: ReturnType<typeof vi.fn> };
   let adapter: GithubAccessHttpAdapter;
 
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock);
-    auth = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
+    auth = {
+      getInstallationToken: vi.fn().mockResolvedValue('installation-token'),
+      signAppJwt: vi.fn().mockResolvedValue('app-jwt'),
+    };
     adapter = new GithubAccessHttpAdapter(auth as never);
   });
 
@@ -167,6 +171,163 @@ describe('GithubAccessHttpAdapter (HU64)', () => {
       // ...y la persona que ahora se llama "octocat" (id 2002) no hereda el permiso de la cuenta 1001.
       await expect(adapter.getRepositoryPermission(REPO, '2002')).resolves.toEqual({ status: 'NOT_FOUND' });
       expect(urls().at(-1)).toContain('/collaborators/octocat-new-owner/permission');
+    });
+  });
+
+  describe('listOrganizationInstallations (HU58)', () => {
+    const installation = (id: number, account: unknown, suspendedAt: string | null = null) => ({
+      id,
+      account,
+      suspended_at: suspendedAt,
+    });
+
+    it('lists only organization installations with the App JWT, marking the suspended ones', async () => {
+      fetchMock.mockResolvedValue(
+        json([
+          installation(1, { id: 10, login: 'acme', type: 'Organization', avatar_url: 'https://avatars/acme' }),
+          installation(2, { id: 11, login: 'octocat', type: 'User', avatar_url: 'https://avatars/octocat' }),
+          installation(3, { id: 12, login: 'sleepy', type: 'Organization' }, '2026-09-01T00:00:00Z'),
+          installation(4, null),
+        ]),
+      );
+
+      await expect(adapter.listOrganizationInstallations()).resolves.toEqual({
+        status: 'OK',
+        value: [
+          { installationId: '1', organizationId: '10', organizationLogin: 'acme', avatarUrl: 'https://avatars/acme', suspended: false },
+          { installationId: '3', organizationId: '12', organizationLogin: 'sleepy', avatarUrl: null, suspended: true },
+        ],
+      });
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://api.github.com/app/installations?per_page=100&page=1');
+      expect(init.headers).toMatchObject({ Authorization: 'Bearer app-jwt' });
+      expect(auth.getInstallationToken).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty OK list when the App has no installations', async () => {
+      fetchMock.mockResolvedValue(json([]));
+
+      await expect(adapter.listOrganizationInstallations()).resolves.toEqual({ status: 'OK', value: [] });
+    });
+
+    it('follows pagination until a short page', async () => {
+      const fullPage = Array.from({ length: 100 }, (_, index) =>
+        installation(index + 1, { id: 1000 + index, login: `org-${index}`, type: 'Organization' }),
+      );
+      fetchMock
+        .mockResolvedValueOnce(json(fullPage))
+        .mockResolvedValueOnce(json([installation(500, { id: 5000, login: 'last', type: 'Organization' })]));
+
+      const result = await adapter.listOrganizationInstallations();
+
+      expect(result.status === 'OK' && result.value).toHaveLength(101);
+      expect(urls()[1]).toBe('https://api.github.com/app/installations?per_page=100&page=2');
+    });
+
+    it.each([401, 403, 404, 429, 500])('maps %s to UNVERIFIABLE (never an empty list)', async (status) => {
+      fetchMock.mockResolvedValue(json({ message: 'nope' }, status));
+
+      await expect(adapter.listOrganizationInstallations()).resolves.toEqual({ status: 'UNVERIFIABLE' });
+    });
+
+    it('maps a network error and an unusable App JWT to UNVERIFIABLE', async () => {
+      fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+      await expect(adapter.listOrganizationInstallations()).resolves.toEqual({ status: 'UNVERIFIABLE' });
+
+      auth.signAppJwt.mockRejectedValueOnce(new GithubAppUnavailableError('not configured'));
+      await expect(adapter.listOrganizationInstallations()).resolves.toEqual({ status: 'UNVERIFIABLE' });
+    });
+  });
+
+  describe('getOrganizationMembership (HU58)', () => {
+    it('resolves the login from the id and reads the membership with the installation token', async () => {
+      fetchMock
+        .mockResolvedValueOnce(json({ id: 1001, login: 'octocat' }))
+        .mockResolvedValueOnce(json({ state: 'active', role: 'admin' }));
+
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({
+        status: 'OK',
+        value: { role: 'admin', state: 'active' },
+      });
+      expect(urls()).toEqual([
+        'https://api.github.com/user/1001',
+        'https://api.github.com/orgs/acme/memberships/octocat',
+      ]);
+      expect(fetchMock.mock.calls[1][1]).toMatchObject({ headers: { Authorization: 'Bearer installation-token' } });
+    });
+
+    it('normalizes member, billing_manager and unknown roles to member, and pending state', async () => {
+      fetchMock.mockImplementation((url: string) =>
+        Promise.resolve(url.includes('/user/') ? json({ login: 'octocat' }) : json({ state: 'pending', role: 'billing_manager' })),
+      );
+
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({
+        status: 'OK',
+        value: { role: 'member', state: 'pending' },
+      });
+    });
+
+    it('maps 404 (not a member) to NOT_FOUND', async () => {
+      fetchMock.mockResolvedValueOnce(json({ login: 'octocat' })).mockResolvedValueOnce(json({}, 404));
+
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({ status: 'NOT_FOUND' });
+    });
+
+    it.each([403, 429, 500])('maps %s (Members: read missing, rate limit, outage) to UNVERIFIABLE', async (status) => {
+      fetchMock.mockResolvedValueOnce(json({ login: 'octocat' })).mockResolvedValueOnce(json({}, status));
+
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({ status: 'UNVERIFIABLE' });
+    });
+
+    it('maps an uninstalled App to NOT_INSTALLED and a suspended one to UNVERIFIABLE', async () => {
+      auth.getInstallationToken.mockRejectedValueOnce(new GithubAppUnavailableError('gone', 404));
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({ status: 'NOT_INSTALLED' });
+
+      auth.getInstallationToken.mockRejectedValueOnce(new GithubAppUnavailableError('suspended', 403));
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({ status: 'UNVERIFIABLE' });
+    });
+
+    it('maps an account that no longer exists to NOT_FOUND and a network error to UNVERIFIABLE', async () => {
+      fetchMock.mockResolvedValueOnce(json({}, 404));
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({ status: 'NOT_FOUND' });
+
+      fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+      await expect(adapter.getOrganizationMembership(ORG, '1001')).resolves.toEqual({ status: 'UNVERIFIABLE' });
+    });
+  });
+
+  describe('listOrganizationOwners (HU58)', () => {
+    it('lists the owners (role=admin) of the organization', async () => {
+      fetchMock.mockResolvedValue(json([{ id: 1, login: 'alice' }, { id: 2, login: 'bob' }]));
+
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({
+        status: 'OK',
+        value: [
+          { githubUserId: '1', login: 'alice' },
+          { githubUserId: '2', login: 'bob' },
+        ],
+      });
+      expect(urls()).toEqual(['https://api.github.com/orgs/acme/members?role=admin&per_page=100&page=1']);
+    });
+
+    it('returns an empty OK list for an organization without owners', async () => {
+      fetchMock.mockResolvedValue(json([]));
+
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'OK', value: [] });
+    });
+
+    it('maps 404 to NOT_FOUND, 403/5xx to UNVERIFIABLE and an uninstalled App to NOT_INSTALLED', async () => {
+      fetchMock.mockResolvedValueOnce(json({}, 404));
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'NOT_FOUND' });
+
+      fetchMock.mockResolvedValueOnce(json({}, 403));
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'UNVERIFIABLE' });
+
+      fetchMock.mockResolvedValueOnce(json({}, 502));
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'UNVERIFIABLE' });
+
+      auth.getInstallationToken.mockRejectedValueOnce(new GithubAppUnavailableError('gone', 404));
+      await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({ status: 'NOT_INSTALLED' });
     });
   });
 });

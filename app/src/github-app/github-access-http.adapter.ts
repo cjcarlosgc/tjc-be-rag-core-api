@@ -3,6 +3,10 @@ import { GithubAppAuthService, GithubAppUnavailableError } from './github-app-au
 import type {
   GithubAccessPort,
   GithubLookup,
+  OrganizationInstallation,
+  OrganizationMembership,
+  OrganizationOwner,
+  OrganizationRef,
   RepositoryOwner,
   RepositoryPermissionLevel,
   RepositoryRef,
@@ -10,12 +14,26 @@ import type {
 
 const GITHUB_API_VERSION = '2022-11-28';
 const REQUEST_TIMEOUT_MS = 10_000;
+const PAGE_SIZE = 100;
+/** Tope de páginas por listado: a escala de tesis basta; más allá se registra y se devuelve lo leído. */
+const MAX_PAGES = 10;
 const KNOWN_ROLES: readonly RepositoryPermissionLevel[] = ['admin', 'maintain', 'write', 'triage', 'read'];
 
 interface GithubApiRepository {
   id: number;
   full_name: string;
   owner: { id: number; login: string; type: string };
+}
+
+interface GithubApiInstallation {
+  id: number;
+  account?: { id: number; login: string; type: string; avatar_url?: string | null } | null;
+  suspended_at?: string | null;
+}
+
+interface GithubApiMembership {
+  state?: string;
+  role?: string;
 }
 
 interface GithubApiCollaboratorPermission {
@@ -26,8 +44,9 @@ interface GithubApiCollaboratorPermission {
 type HttpOutcome<T> = { kind: 'OK'; body: T } | { kind: 'NOT_FOUND' } | { kind: 'UNVERIFIABLE' };
 
 /**
- * Adapter productivo de `GithubAccessPort`: solo installation token de la App
- * (`Metadata: read`), nunca el token OAuth del usuario. El login se resuelve por
+ * Adapter productivo de `GithubAccessPort`: solo la identidad de la App (JWT de
+ * App para listar instalaciones, installation token para el resto; `Metadata:
+ * read` y `Members: read`), nunca el token OAuth del usuario. El login se resuelve por
  * `GET /user/{id}` en cada verificación, sin caché: un login renombrado o
  * reasignado a otra persona nunca hereda el permiso del usuario original.
  */
@@ -86,6 +105,96 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
     return level ? { status: 'OK', value: level } : { status: 'NOT_FOUND' };
   }
 
+  async listOrganizationInstallations(): Promise<GithubLookup<OrganizationInstallation[]>> {
+    let appJwt: string;
+    try {
+      appJwt = await this.githubAppAuthService.signAppJwt();
+    } catch {
+      this.logger.warn('No se pudo firmar el JWT de la App para listar sus instalaciones.');
+      return { status: 'UNVERIFIABLE' };
+    }
+
+    const outcome = await this.getAllPages<GithubApiInstallation>('/app/installations', appJwt);
+
+    if (outcome.kind !== 'OK') {
+      // 404 en este endpoint no significa "sin instalaciones": no es un resultado esperado.
+      return { status: 'UNVERIFIABLE' };
+    }
+
+    const installations: OrganizationInstallation[] = [];
+
+    for (const installation of outcome.body) {
+      const account = installation.account;
+
+      if (account?.type === 'Organization') {
+        installations.push({
+          installationId: String(installation.id),
+          organizationId: String(account.id),
+          organizationLogin: account.login,
+          avatarUrl: account.avatar_url ?? null,
+          suspended: Boolean(installation.suspended_at),
+        });
+      }
+    }
+
+    return { status: 'OK', value: installations };
+  }
+
+  async getOrganizationMembership(
+    organization: OrganizationRef,
+    githubUserId: string,
+  ): Promise<GithubLookup<OrganizationMembership>> {
+    const token = await this.installationToken(organization.installationId);
+    if (typeof token !== 'string') {
+      return token;
+    }
+
+    const login = await this.resolveLogin(githubUserId, token);
+
+    if (login === 'UNVERIFIABLE' || login === 'NOT_FOUND') {
+      return { status: login };
+    }
+
+    const outcome = await this.get<GithubApiMembership>(
+      `/orgs/${encodeURIComponent(organization.organizationLogin)}/memberships/${encodeURIComponent(login)}`,
+      token,
+    );
+
+    if (outcome.kind !== 'OK') {
+      return { status: outcome.kind };
+    }
+
+    // Un cuerpo sin `state` reconocible no es una membresía activa verificada.
+    return {
+      status: 'OK',
+      value: {
+        role: outcome.body.role === 'admin' ? 'admin' : 'member',
+        state: outcome.body.state === 'active' ? 'active' : 'pending',
+      },
+    };
+  }
+
+  async listOrganizationOwners(organization: OrganizationRef): Promise<GithubLookup<OrganizationOwner[]>> {
+    const token = await this.installationToken(organization.installationId);
+    if (typeof token !== 'string') {
+      return token;
+    }
+
+    const outcome = await this.getAllPages<{ id: number; login: string }>(
+      `/orgs/${encodeURIComponent(organization.organizationLogin)}/members?role=admin`,
+      token,
+    );
+
+    if (outcome.kind !== 'OK') {
+      return { status: outcome.kind };
+    }
+
+    return {
+      status: 'OK',
+      value: outcome.body.map((member) => ({ githubUserId: String(member.id), login: member.login })),
+    };
+  }
+
   private readPermission(
     repository: RepositoryRef,
     login: string,
@@ -125,6 +234,30 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
       this.logger.warn(`No se pudo autenticar la instalación "${installationId}" para verificar accesos.`);
       return { status: 'UNVERIFIABLE' };
     }
+  }
+
+  /** Lista paginada (`per_page`/`page`); el primer fallo de una página aborta todo el listado. */
+  private async getAllPages<T>(path: string, token: string): Promise<HttpOutcome<T[]>> {
+    const separator = path.includes('?') ? '&' : '?';
+    const items: T[] = [];
+
+    for (let page = 1; page <= MAX_PAGES; page += 1) {
+      const outcome = await this.get<T[]>(`${path}${separator}per_page=${PAGE_SIZE}&page=${page}`, token);
+
+      if (outcome.kind !== 'OK') {
+        return outcome;
+      }
+
+      const batch = Array.isArray(outcome.body) ? outcome.body : [];
+      items.push(...batch);
+
+      if (batch.length < PAGE_SIZE) {
+        return { kind: 'OK', body: items };
+      }
+    }
+
+    this.logger.warn(`Listado de "${path}" truncado tras ${MAX_PAGES} páginas.`);
+    return { kind: 'OK', body: items };
   }
 
   private async get<T>(path: string, token: string): Promise<HttpOutcome<T>> {

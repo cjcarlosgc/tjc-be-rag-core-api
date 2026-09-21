@@ -20,6 +20,8 @@ describe('ProjectVersionsService', () => {
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
     deletedAt: null,
+    githubOrgId: null,
+    githubOrgLogin: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

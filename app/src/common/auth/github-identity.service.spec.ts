@@ -119,4 +119,27 @@ describe('GithubIdentityService (HU62)', () => {
 
     await expect(service.resolve('local-dev-user')).rejects.toThrow(/production/);
   });
+
+  describe('findGithubLogin (presentation label only)', () => {
+    it('returns the persisted login, or null when unknown or not linked yet', async () => {
+      const { service, supabase } = makeService();
+      supabase.setIdentity('sub-1', { githubUserId: '4242', login: 'octocat' });
+      supabase.setIdentity('sub-2', { githubUserId: '4243' });
+
+      await expect(service.findGithubLogin('sub-1')).resolves.toBeNull(); // aún sin vínculo
+      await service.resolve('sub-1');
+      await service.resolve('sub-2');
+
+      await expect(service.findGithubLogin('sub-1')).resolves.toBe('octocat');
+      await expect(service.findGithubLogin('sub-2')).resolves.toBeNull();
+    });
+
+    it('returns null under AUTH_BYPASS without touching the database', async () => {
+      const { service, identities } = makeService({ bypass: true });
+      const spy = vi.spyOn(identities, 'findByUserId');
+
+      await expect(service.findGithubLogin('sub-1')).resolves.toBeNull();
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
 });

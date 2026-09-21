@@ -8,10 +8,16 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter.js';
 import { ObjectStorageService } from '../src/object-storage/object-storage.service.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
-import { authedRequest, overrideAuthTokenVerifier } from './support/auth-test-support.js';
+import {
+  authedRequest,
+  E2E_TEST_USER_ID,
+  e2eGithubUserId,
+  overrideAuthTokenVerifier,
+} from './support/auth-test-support.js';
 import type { Project } from '../src/generated/prisma/client.js';
 
 const OTHER_USER_ID = 'e2e-other-user';
+const OWN_GITHUB_ID = e2eGithubUserId(E2E_TEST_USER_ID);
 
 class FakePrismaService {
   private readonly projects = new Map<string, Project>();
@@ -27,6 +33,9 @@ class FakePrismaService {
         name: data.name,
         ownerUserId: data.ownerUserId,
         currentVersionId: null,
+        deletedAt: null,
+        githubOrgId: null,
+        githubOrgLogin: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -186,5 +195,54 @@ describe('Projects (e2e)', () => {
 
     expect(secondPage.body.items).toHaveLength(2);
     expect(secondPage.body.nextCursor).toBeNull();
+  });
+
+  it('exposes the personal workspace and the interim ADMIN role on every ProjectResponse (HU63)', async () => {
+    const created = await authedRequest(app).post('/projects').send({ name: 'with-workspace' }).expect(201);
+
+    expect(created.body).toMatchObject({
+      workspace: { kind: 'PERSONAL', id: OWN_GITHUB_ID, login: null },
+      role: 'ADMIN',
+    });
+
+    const fetched = await authedRequest(app).get(`/projects/${created.body.id}`).expect(200);
+    const listed = await authedRequest(app).get('/projects').query({ limit: 100 }).expect(200);
+
+    expect(fetched.body).toMatchObject({ workspace: created.body.workspace, role: 'ADMIN' });
+    expect(listed.body.items.find((item: { id: string }) => item.id === created.body.id)).toMatchObject({
+      workspace: created.body.workspace,
+      role: 'ADMIN',
+    });
+  });
+
+  it('creates and lists personal projects when workspaceId is the own numeric id (HU63)', async () => {
+    const created = await authedRequest(app)
+      .post('/projects')
+      .send({ name: 'explicit-personal', workspaceId: OWN_GITHUB_ID })
+      .expect(201);
+
+    expect(created.body.workspace).toMatchObject({ kind: 'PERSONAL', id: OWN_GITHUB_ID });
+
+    const listed = await authedRequest(app).get('/projects').query({ workspaceId: OWN_GITHUB_ID, limit: 100 }).expect(200);
+
+    expect(listed.body.items.some((item: { id: string }) => item.id === created.body.id)).toBe(true);
+  });
+
+  it.each([
+    ['the id of an organization', '424242'],
+    ['the personal workspace id of another user', e2eGithubUserId(OTHER_USER_ID)],
+    ['a value that is not a workspace', 'octocat'],
+  ])('answers 404 WORKSPACE_NOT_FOUND on POST and GET /projects for %s (until cut 3)', async (_label, workspaceId) => {
+    const created = await authedRequest(app).post('/projects').send({ name: 'nope', workspaceId }).expect(404);
+    const listed = await authedRequest(app).get('/projects').query({ workspaceId }).expect(404);
+
+    expect(created.body).toMatchObject({ statusCode: 404, code: 'WORKSPACE_NOT_FOUND' });
+    expect(listed.body).toMatchObject({ statusCode: 404, code: 'WORKSPACE_NOT_FOUND' });
+  });
+
+  it('rejects an empty workspaceId and undeclared fields with 400 INVALID_REQUEST', async () => {
+    await authedRequest(app).post('/projects').send({ name: 'x', workspaceId: '' }).expect(400);
+    await authedRequest(app).post('/projects').send({ name: 'x', githubOrgId: '42' }).expect(400);
+    await authedRequest(app).get('/projects').query({ workspaceId: '' }).expect(400);
   });
 });

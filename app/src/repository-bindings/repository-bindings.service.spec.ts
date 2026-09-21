@@ -41,6 +41,8 @@ describe('RepositoryBindingsService', () => {
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
     deletedAt: null,
+    githubOrgId: null,
+    githubOrgLogin: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };

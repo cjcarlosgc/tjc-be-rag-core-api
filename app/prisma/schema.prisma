@@ -189,6 +189,11 @@ model Project {
   ownerUserId         String?
   currentVersionId    String?               @unique
   deletedAt           DateTime?
+  /// 014 (HU63): workspace del Project, fijado al crearlo. Ambas nulas = cuenta
+  /// personal (su único usuario es el creador); ambas presentes = organización.
+  /// El check `projects_github_org_coherence_check` (migración) impide una sola.
+  githubOrgId         String?
+  githubOrgLogin      String?
   currentVersion      ProjectVersion?       @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
   versions            ProjectVersion[]      @relation("ProjectVersions")
   testGenerationRuns  TestGenerationRun[]
@@ -201,6 +206,7 @@ model Project {
   updatedAt           DateTime              @updatedAt
 
   @@index([ownerUserId])
+  @@index([githubOrgId])
   @@map("projects")
 }
 
