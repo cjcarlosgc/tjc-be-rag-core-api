@@ -24,14 +24,17 @@
       "HU64"
     ],
     "sprint": "T-003",
-    "status": "SELECTED",
+    "status": "SPEC_VERIFIED",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
       "spec/backlog.md",
       "spec/features/012-web-authentication/spec.md",
       "spec/features/013-pr-driven-analysis/spec.md",
-      "spec/features/001-project-management/spec.md"
+      "spec/features/001-project-management/spec.md",
+      "spec/features/014-organizations-access/spec.md",
+      "spec/features/014-organizations-access/plan.md",
+      "spec/features/014-organizations-access/tasks.md"
     ],
     "transversalPaths": [
       "spec/constitution/architecture.md",
@@ -42,35 +45,46 @@
     ],
     "approved": false,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-ORG-001",
+        "DEC-ORG-002",
+        "DEC-VAL-001"
+      ],
+      "checkedAt": "2026-09-21T09:00:00-05:00"
     },
     "createdAt": "2026-09-20T03:00:00-05:00",
-    "updatedAt": "2026-09-20T03:00:00-05:00",
+    "updatedAt": "2026-09-21T09:00:00-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
-      "analysisAgent": null,
+      "analysisAgent": "sdd-analyst",
       "implementationAgent": null,
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "from": "sdd-analyst",
+          "status": "APPROVED",
+          "summary": "SYSTEM-2.4/INTEROP-2.4 y feature 014 consolidados; DEC-ORG-002 aprobada por el usuario 2026-09-21 (repo público sin read implícito, Projects personales no compartidos, REVOKED solo Admin, verify-app-access/branches exigen maintain/write/admin). breaking:false a nivel de cable.",
+          "commit": "414d14c"
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "NOT_RUN",
+      "sddVerified": "PASSED",
       "implementationCompleted": "NOT_RUN",
       "independentReviewPassed": "NOT_RUN",
       "technicalChecksPassed": "NOT_RUN",
       "contractReviewed": "NOT_RUN",
-      "canonicalContractSynced": "NOT_RUN",
+      "canonicalContractSynced": "PASSED",
       "contractSyncPublished": "NOT_RUN",
       "interopSyncChecked": "PASSED",
-      "noBlockingDecisions": "NOT_RUN",
-      "retryLimitRespected": "NOT_RUN"
+      "noBlockingDecisions": "PASSED",
+      "retryLimitRespected": "PASSED"
     },
     "coordination": {
       "contractImpact": true,
@@ -87,5 +101,5 @@
     "evidence": [],
     "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md."
   },
-  "lastUpdatedAt": "2026-09-20T03:00:00-05:00"
+  "lastUpdatedAt": "2026-09-21T09:00:00-05:00"
 }
