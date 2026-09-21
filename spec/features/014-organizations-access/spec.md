@@ -1,6 +1,6 @@
 # 014 — Organizaciones, workspaces y acceso derivado de GitHub
 
-**Estado:** DEFINIDO, pendiente de verificación SDD y aprobación humana. Sin decisiones bloqueantes.
+**Estado:** SPEC_VERIFIED (2026-09-21); revisión contractual en curso (contract-reviewer) y pendiente de aprobación humana. Sin decisiones bloqueantes.
 **Story IDs:** HU58-HU64
 **Contrato:** SYSTEM-2.4 / INTEROP-2.4 (§6.1, §6.8, §6.9, §6.13)
 **Decisiones:** `DEC-ORG-001` APROBADO (2026-09-20); `DEC-ORG-002` APROBADO (2026-09-20; casos borde, enmienda de visibilidad personal, membresía activa siempre y corrección de seguridad primero).
@@ -15,9 +15,9 @@ Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin
 - Los Projects personales no se comparten: los ve únicamente su creador, siempre como Admin y sin registro de acceso; solo se comparte mediante organizaciones (`DEC-ORG-002`). `GET /projects` nunca devuelve Projects personales de otra persona.
 - Core no administra miembros ni invitaciones. No existen tablas `Organization` ni `Membership`; la persistencia mínima es el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y el registro `(projectId, userId, rol, verifiedAt)`, que existe solo para Projects de organización.
 - El `githubUserId` sale de `identities[].id` de la Admin API de Supabase consultada por `sub`, nunca de `user_metadata`.
-- En un Project de organización se exige SIEMPRE ser miembro activo de la organización además del permiso sobre el repositorio (privado, internal o público). Un colaborador externo (no miembro) no accede aunque tenga `write`; el `read` implícito de un repositorio público no cuenta. Un binding `REVOKED` deja el Project visible solo a los Admin (reactivarlo lo hace un Admin).
+- En un Project de organización se exige SIEMPRE ser miembro activo de la organización además del permiso sobre el repositorio (privado, internal o público). Un colaborador externo (no miembro) no accede aunque tenga `write`; el `read` implícito de un repositorio público no cuenta. Un binding `REVOKED` deja el Project visible solo a los Admin (reactivarlo lo hace un Admin), regla evaluada en cada petición y no solo por el borrado de registros al pasar a `REVOKED`.
 - Default-deny: toda ruta autenticada declara su rol mínimo o una excepción explícita; una ruta sin declaración falla el guard y una prueba que enumera el router.
-- Un alta de acceso nunca sobrescribe una revocación posterior al inicio de su verificación; las verificaciones contra GitHub tienen tope de concurrencia y presupuesto por petición, sin memoizar denegaciones (se acepta el riesgo residual de límite de tasa).
+- Un alta de acceso nunca sobrescribe una revocación posterior al inicio de su verificación (un único advisory lock por `(projectId, userId)`, que toman también reverificaciones y revocaciones); las verificaciones contra GitHub tienen tope de concurrencia y presupuesto por petición, sin memoizar denegaciones (se acepta el riesgo residual de límite de tasa).
 - Jerarquía Admin ⊃ Maintainer ⊃ Reader. Reader solo consulta; Maintainer opera binding, preguntas funcionales, publicaciones y experimentos; solo Admin crea, renombra y elimina Projects. La matriz de `INTEROP-2.4` §6.13 clasifica cada ruta.
 - Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente, `403 PROJECT_ROLE_INSUFFICIENT`. Un rol nunca se infiere del payload de un webhook: siempre sale de una verificación viva con el installation token.
 - El registro de acceso no tiene TTL ni caché: rige hasta que un evento o la reconciliación horaria lo cambia. Si GitHub no responde, Core conserva lo registrado y no concede nada nuevo (`503 GITHUB_VERIFICATION_UNAVAILABLE` en accesos directos; los listados omiten lo no verificado).
@@ -33,7 +33,7 @@ Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin
 - **HU63 — ciclo de vida del Project:** `POST /projects` con `workspaceId` (solo owner en una organización; omitido = personal; la creación en organización entra con el corte 3), `PATCH /projects/{projectId}` para renombrar y `DELETE` ajustado, todos solo Admin. Un Project nace sin repositorio y solo lo ven sus Admin.
 - **HU59 — acceso automático:** en un Project de organización el registro de acceso se crea al entrar, verificando en vivo el rol o permiso; nadie invita.
 - **HU60 — roles derivados de GitHub:** Admin = owner de la organización (en personal, el creador, siempre y sin verificación), Maintainer = miembro activo con `maintain`/`write`/`admin` sobre el repositorio vinculado, Reader = miembro activo con `triage`/`read`. `ProjectResponse` expone `workspace` y `role`; redefine el alcance de HU45 y solo aplica a organizaciones.
-- **HU64 — restricciones de binding:** `GET /integrations/github/repositories?workspaceId`, permiso mínimo en `verify-app-access` y `branches` (corrección de seguridad), `REPOSITORY_OUTSIDE_WORKSPACE`, `REPOSITORY_PERMISSION_INSUFFICIENT` y el orden de validación de `POST .../integrations/github`. Corte 4a (propietario y permiso, primero y solo para Projects personales) y corte 4b (rol Maintainer y rama de organización, dentro del corte 3).
+- **HU64 — restricciones de binding:** `GET /integrations/github/repositories?workspaceId`, permiso mínimo en `verify-app-access` y `branches` (corrección de seguridad), `REPOSITORY_OUTSIDE_WORKSPACE`, `REPOSITORY_PERMISSION_INSUFFICIENT` y el orden de validación de `POST .../integrations/github`; reactivar un binding `REVOKED` (`POST .../enable`) aplica la misma validación de propietario y de `repositoryId`. Corte 4a (propietario y permiso, primero y solo para Projects personales) y corte 4b (rol Maintainer y rama de organización, dentro del corte 3).
 - **HU61 — pérdida de acceso:** eventos `member`, `membership`, `organization`, `team` y `repository` en el ingress existente más una reconciliación horaria; sin cambios en el modelo de análisis PR-driven.
 
 ## Casos operativos obligatorios
@@ -55,8 +55,10 @@ Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin
 15. `verify-app-access` y `branches` con permiso menor a `maintain`: `403 REPOSITORY_PERMISSION_INSUFFICIENT`; sin visibilidad: `NOT_AUTHORIZED` y `404` respectivamente; permiso no verificable: `503 GITHUB_VERIFICATION_UNAVAILABLE`. Un Reader no debe llamar `verify-app-access` (usa `GET .../integrations/github`).
 16. Carreras: un alta de acceso en vuelo y un evento de revocación concurrente terminan sin registro; ningún alta recrea un acceso revocado. Un `ACCESS_REVERIFY` no verificable se reprograma; la reconciliación se reprograma aunque el proceso se caiga a mitad.
 17. WebSocket: el usuario pierde el acceso, el Project se borra o su binding pasa a `REVOKED` (no Admin): sus sockets salen de las salas del Project; una suscripción cuya verificación no está disponible se rechaza con motivo reintentable.
-18. Un binding, un Run o una pregunta de un Project no visible: `GET /action-required?projectId=X` responde `404 PROJECT_NOT_FOUND`.
-19. Matriz de autorización: cada ruta de `INTEROP-2.4` §6.13 responde `404` sin visibilidad, `403` con rol insuficiente y funciona con el rol mínimo.
+18. `POST .../enable` sobre un binding `REVOKED` de un repositorio eliminado y recreado con el mismo nombre (`repositoryId` distinto) responde `404 GITHUB_REPOSITORY_NOT_FOUND`; de un repositorio transferido fuera del workspace, `400 REPOSITORY_OUTSIDE_WORKSPACE`; el binding sigue `REVOKED`.
+19. App desinstalada de una organización: la organización deja de aparecer en `GET /workspaces` y sus Projects responden `404` (no un `503` permanente); una instalación suspendida sí es no verificable.
+20. Un binding, un Run o una pregunta de un Project no visible: `GET /action-required?projectId=X` responde `404 PROJECT_NOT_FOUND`.
+21. Matriz de autorización: cada ruta de `INTEROP-2.4` §6.13 responde `404` sin visibilidad, `403` con rol insuficiente y funciona con el rol mínimo.
 
 ## Seguridad y auditoría
 
@@ -64,12 +66,13 @@ Un token de usuario no llega a GitHub salvo el provider token en el discovery. V
 
 ## Precondiciones de despliegue (`DEC-ORG-001`/`DEC-ORG-002`; no bloquean implementar ni probar con fakes)
 
-1. La corrección de seguridad del bundle A (identidad + corte 4a) está desplegada ANTES de que la GitHub App sea instalable por terceros: hasta entonces la App no debe ser instalada por terceros (idealmente vuelve a ser privada).
+1. Orden de despliegue del bundle A: la Console solo GitHub se publica primero, porque `GITHUB_IDENTITY_REQUIRED` aplica a toda la sesión, y el bundle A (identidad + corte 4a) se despliega después; la App no debe ser instalada por terceros (idealmente privada) hasta desplegar el bundle A.
 2. Después, la GitHub App es pública ("Any account"), sin listing en Marketplace, con `Members: read` y los eventos `member`, `membership`, `organization`, `team` y `repository` suscritos; cada organización acepta el permiso.
 3. Se validan contra una organización real, con la App instalada, las lecturas aún no probadas: rol de owner (`memberships`), permiso heredado por Team o permiso base, membresía `pending` y colaborador externo (no miembro) con permiso sobre el repositorio.
-4. Orden de login: la Console con login solo GitHub se publica antes o a la vez que Core exige identidad GitHub; el proveedor de correo y contraseña de Supabase Auth se deshabilita cuando la Console ya no lo ofrece, nunca antes.
+4. Orden de login: la Console con login solo GitHub se publica antes o a la vez que Core exige identidad GitHub (el bundle A espera a esa publicación); el proveedor de correo y contraseña de Supabase Auth se deshabilita cuando la Console ya no lo ofrece, nunca antes.
 5. El manual linking de identidades de Supabase permanece deshabilitado.
 6. Los cortes 2, 3 y 5 se publican juntos (bundle B; 4b va dentro del corte 3): conceder acceso a otras personas (3) exige poder revocarlo por evento (5), y workspaces de organización sin roles no tienen uso.
+7. Tras el sync de implementación del bundle B, y no antes, la Console envía `workspaceId` a `POST /projects` y `GET /projects` y consume `workspace`/`role` de `ProjectResponse` (los servidores rechazan campos no declarados); el bundle A solo acepta `workspaceId` (personal) en el discovery.
 
 ## Fuera de alcance
 
