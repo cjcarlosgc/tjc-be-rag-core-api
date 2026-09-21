@@ -7,12 +7,16 @@ import { ListProjectsQueryDto } from './dto/list-projects-query.dto.js';
 import type { Page } from '../common/dto/page.response.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import { CurrentGithubUserId } from '../common/auth/current-github-user-id.decorator.js';
+import { NoProjectRole, ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
+  @NoProjectRole(
+    'Crea un Project: aún no existe ninguno sobre el que tener rol; ProjectsService.create verifica el workspace (personal: cualquiera; organización: Admin en vivo).',
+  )
   @HttpCode(HttpStatus.CREATED)
   create(
     @Body() dto: CreateProjectDto,
@@ -23,6 +27,7 @@ export class ProjectsController {
   }
 
   @Get()
+  @RequireProjectRole('READER', ProjectTargets.listing())
   list(
     @Query() query: ListProjectsQueryDto,
     @CurrentUserId() userId: string,
@@ -32,6 +37,7 @@ export class ProjectsController {
   }
 
   @Get(':id')
+  @RequireProjectRole('READER', ProjectTargets.project('id'))
   getById(
     @Param('id') id: string,
     @CurrentUserId() userId: string,
@@ -41,6 +47,7 @@ export class ProjectsController {
   }
 
   @Patch(':id')
+  @RequireProjectRole('ADMIN', ProjectTargets.project('id'))
   update(
     @Param('id') id: string,
     @Body() dto: UpdateProjectDto,
@@ -51,6 +58,7 @@ export class ProjectsController {
   }
 
   @Delete(':id')
+  @RequireProjectRole('ADMIN', ProjectTargets.project('id'))
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @CurrentUserId() userId: string): Promise<void> {
     await this.projectsService.delete(id, userId);

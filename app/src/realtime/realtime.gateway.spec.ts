@@ -4,22 +4,23 @@ import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { InvalidTokenError } from '../common/auth/token-verifier.port.js';
 
-function makeSocket(userId = 'user-1') {
+function makeSocket(userId = 'user-1', id = 'socket-1') {
   return {
+    id,
     join: vi.fn().mockResolvedValue(undefined),
     leave: vi.fn().mockResolvedValue(undefined),
     data: { userId },
   };
 }
 
-function makeGateway(options: { projectVersionOwned?: boolean } = {}) {
-  const { projectVersionOwned = true } = options;
+function makeGateway() {
   const sessionAuth = { authenticate: vi.fn() };
-  const projectVersionsRepository = {
-    findByIdForOwner: vi.fn().mockResolvedValue(projectVersionOwned ? { id: 'version-1' } : null),
+  const projectAccess = {
+    requireForResource: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'READER' }),
   };
-  const gateway = new RealtimeGateway(projectVersionsRepository as never, sessionAuth as never);
-  return { gateway, projectVersionsRepository, sessionAuth };
+  const subscriptions = { track: vi.fn(), untrack: vi.fn(), forget: vi.fn() };
+  const gateway = new RealtimeGateway(sessionAuth as never, projectAccess as never, subscriptions as never);
+  return { gateway, projectAccess, sessionAuth, subscriptions };
 }
 
 function attachServer(gateway: RealtimeGateway) {
@@ -31,32 +32,85 @@ function attachServer(gateway: RealtimeGateway) {
 }
 
 describe('RealtimeGateway', () => {
-  it('joins the project-version room when the caller owns it', async () => {
-    const { gateway } = makeGateway();
-    const client = makeSocket();
+  describe('subscribe:project-version (SubscribeAck, INTEROP-2.4 §6.6)', () => {
+    it('requires at least the Reader role on the Project of the version, joins the room and acks { subscribed: true }', async () => {
+      const { gateway, projectAccess, subscriptions } = makeGateway();
+      const client = makeSocket();
 
-    await gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
+      const ack = await gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
 
-    expect(client.join).toHaveBeenCalledWith('project-version:version-1');
+      expect(projectAccess.requireForResource).toHaveBeenCalledWith('user-1', 'projectVersion', 'version-1', 'READER');
+      expect(client.join).toHaveBeenCalledWith('project-version:version-1');
+      expect(subscriptions.track).toHaveBeenCalledWith(client, 'user-1', 'version-1', 'project-1');
+      expect(ack).toEqual({ subscribed: true, code: null, retryable: false });
+    });
+
+    it('acks { false, GITHUB_VERIFICATION_UNAVAILABLE, retryable: true } when GitHub cannot verify the access, without joining', async () => {
+      const { gateway, projectAccess, subscriptions } = makeGateway();
+      projectAccess.requireForResource.mockRejectedValue(
+        new AppException(ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE, 'sin GitHub', 503),
+      );
+      const client = makeSocket();
+
+      const ack = await gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
+
+      expect(ack).toEqual({ subscribed: false, code: 'GITHUB_VERIFICATION_UNAVAILABLE', retryable: true });
+      expect(client.join).not.toHaveBeenCalled();
+      expect(subscriptions.track).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a version the user cannot see (PROJECT_VERSION_NOT_FOUND)', ErrorCode.PROJECT_VERSION_NOT_FOUND],
+      ['a missing version', ErrorCode.PROJECT_VERSION_NOT_FOUND],
+    ])('acks { false, null, retryable: false } for %s, indistinguishable from each other', async (_label, code) => {
+      const { gateway, projectAccess } = makeGateway();
+      projectAccess.requireForResource.mockRejectedValue(new AppException(code, 'no existe', 404));
+      const client = makeSocket();
+
+      const ack = await gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
+
+      expect(ack).toEqual({ subscribed: false, code: null, retryable: false });
+      expect(client.join).not.toHaveBeenCalled();
+    });
+
+    it.each([[undefined], [{}], [{ projectVersionId: 7 }], [{ projectVersionId: '' }]])(
+      'acks not visible without touching the access service for a malformed body (%j)',
+      async (body) => {
+        const { gateway, projectAccess } = makeGateway();
+
+        const ack = await gateway.subscribeProjectVersion(makeSocket() as never, body as never);
+
+        expect(ack).toEqual({ subscribed: false, code: null, retryable: false });
+        expect(projectAccess.requireForResource).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not swallow an unexpected error as an ack', async () => {
+      const { gateway, projectAccess } = makeGateway();
+      projectAccess.requireForResource.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        gateway.subscribeProjectVersion(makeSocket() as never, { projectVersionId: 'version-1' }),
+      ).rejects.toThrow('boom');
+    });
   });
 
-  it('does not join the project-version room when the caller does not own it', async () => {
-    const { gateway, projectVersionsRepository } = makeGateway({ projectVersionOwned: false });
-    const client = makeSocket();
-
-    await gateway.subscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
-
-    expect(projectVersionsRepository.findByIdForOwner).toHaveBeenCalledWith('version-1', 'user-1');
-    expect(client.join).not.toHaveBeenCalled();
-  });
-
-  it('leaves the project-version room named after the given id', () => {
-    const { gateway } = makeGateway();
+  it('leaves the project-version room named after the given id and drops the subscription', () => {
+    const { gateway, subscriptions } = makeGateway();
     const client = makeSocket();
 
     gateway.unsubscribeProjectVersion(client as never, { projectVersionId: 'version-1' });
 
     expect(client.leave).toHaveBeenCalledWith('project-version:version-1');
+    expect(subscriptions.untrack).toHaveBeenCalledWith('socket-1', 'version-1');
+  });
+
+  it('forgets every subscription of a socket on disconnect', () => {
+    const { gateway, subscriptions } = makeGateway();
+
+    gateway.handleDisconnect(makeSocket() as never);
+
+    expect(subscriptions.forget).toHaveBeenCalledWith('socket-1');
   });
 
   it('emits project-version:update only to that project version room', () => {

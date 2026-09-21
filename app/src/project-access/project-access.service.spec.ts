@@ -503,6 +503,168 @@ describe('ProjectAccessService (HU59, HU60)', () => {
   });
 });
 
+describe('ProjectAccessService: predicate correction and deep links (corte 3, etapa 2b)', () => {
+  let db: InMemoryPrisma;
+  let github: FakeGithubAccessPort;
+  let service: ProjectAccessService;
+  const identities = new Map<string, string>([
+    ['u-owner', '1001'],
+    ['u-writer', '1002'],
+    ['u-reader', '1003'],
+    ['u-external', '1004'],
+    ['u-stranger', '1005'],
+  ]);
+
+  const seedProject = (id: string, fields: Record<string, unknown> = {}) =>
+    db.insert('project', { id, name: id, ownerUserId: 'u-owner', githubOrgId: ORG_ID, githubOrgLogin: ORG_LOGIN, ...fields });
+  const seedBinding = (projectId: string, status = 'ENABLED') =>
+    db.insert('repositoryBinding', { projectId, status, repositoryName: REPO, installationId: 'inst-42' });
+  const grant = (projectId: string, userId: string, role: string) =>
+    db.insert('projectAccess', { projectId, userId, role, verifiedAt: new Date() });
+
+  beforeEach(() => {
+    db = new InMemoryPrisma();
+    github = new FakeGithubAccessPort();
+    github.addOrganization({ installationId: 'inst-42', organizationId: ORG_ID, organizationLogin: ORG_LOGIN, avatarUrl: null, suspended: false });
+    github
+      .setMembership(ORG_LOGIN, '1001', { role: 'admin', state: 'active' })
+      .setMembership(ORG_LOGIN, '1002', { role: 'member', state: 'active' })
+      .setMembership(ORG_LOGIN, '1003', { role: 'member', state: 'active' })
+      .addRepository(REPO, { repositoryId: '100', ownerId: ORG_ID, ownerLogin: ORG_LOGIN, ownerType: 'Organization' })
+      .setPermission(REPO, '1002', 'write')
+      .setPermission(REPO, '1003', 'read')
+      .setPermission(REPO, '1004', 'write');
+    service = new ProjectAccessService(
+      new ProjectAccessRepository(db as unknown as PrismaService),
+      new OrganizationAccessResolver(github),
+      { resolve: (userId: string) => Promise.resolve(identities.get(userId) as string) } as never,
+      github,
+    );
+  });
+
+  describe('a project without repository or with a REVOKED binding is visible only to an Admin', () => {
+    it.each([
+      ['without a repository binding', undefined],
+      ['with a REVOKED binding', 'REVOKED'],
+    ])('a stale Maintainer/Reader record does not give access to a project %s (404), while the Admin enters', async (_label, status) => {
+      seedProject('p');
+      if (status) {
+        seedBinding('p', status);
+      }
+      grant('p', 'u-writer', 'MAINTAINER');
+      grant('p', 'u-reader', 'READER');
+      grant('p', 'u-owner', 'ADMIN');
+
+      await expect(service.require('u-writer', 'p')).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND, status: 404 });
+      await expect(service.require('u-reader', 'p')).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND, status: 404 });
+      await expect(service.require('u-owner', 'p', 'ADMIN')).resolves.toMatchObject({ role: 'ADMIN' });
+    });
+
+    it('the live verification also denies a Maintainer/Reader without a repository, so no record is (re)created for them', async () => {
+      seedProject('p');
+
+      const verdict = await service.grantOnEntry('p', 'u-writer', '1002');
+
+      expect(verdict).toEqual({ status: 'DENIED' });
+      expect(db.tables.projectAccess).toHaveLength(0);
+    });
+
+    it('the existing-record shortcut of the alta does not grant a non-Admin on a project without binding', async () => {
+      seedProject('p');
+      grant('p', 'u-writer', 'MAINTAINER');
+
+      await expect(service.grantOnEntry('p', 'u-writer', '1002')).resolves.toEqual({ status: 'DENIED' });
+    });
+  });
+
+  describe('requireForResource: entry by deep link to a descendant resource', () => {
+    beforeEach(() => {
+      seedProject('p');
+      seedBinding('p');
+      db.insert('analysisRun', { id: 'run-1', projectId: 'p' });
+      db.insert('projectVersion', { id: 'version-1', projectId: 'p' });
+      db.insert('functionalQuestion', { id: 'question-1', projectId: 'p', analysisRunId: 'run-1' });
+      db.insert('testPublication', { id: 'publication-1', analysisRunId: 'run-1' });
+      db.insert('experimentRun', { id: 'experiment-1', projectId: 'p' });
+      db.insert('testTarget', { id: 'target-1', projectVersionId: 'version-1' });
+    });
+
+    it.each([
+      ['analysisRun', 'run-1'],
+      ['projectVersion', 'version-1'],
+      ['functionalQuestion', 'question-1'],
+      ['testPublication', 'publication-1'],
+      ['experiment', 'experiment-1'],
+      ['testTarget', 'target-1'],
+    ] as const)('a member with access to the repository enters by %s id: alta with the same derived role', async (kind, id) => {
+      const writer = await service.requireForResource('u-writer', kind, id, 'MAINTAINER');
+      const reader = await service.requireForResource('u-reader', kind, id, 'READER');
+
+      expect(writer).toMatchObject({ role: 'MAINTAINER' });
+      expect(reader).toMatchObject({ role: 'READER' });
+      expect(db.tables.projectAccess.map((row) => [row.userId, row.role]).sort()).toEqual([
+        ['u-reader', 'READER'],
+        ['u-writer', 'MAINTAINER'],
+      ]);
+    });
+
+    it('answers 403 PROJECT_ROLE_INSUFFICIENT with details to a visible Reader on a Maintainer operation', async () => {
+      await expect(service.requireForResource('u-reader', 'analysisRun', 'run-1', 'MAINTAINER')).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+        status: 403,
+        details: { requiredRole: 'MAINTAINER', currentRole: 'READER' },
+      });
+    });
+
+    it.each([
+      ['analysisRun', 'run-1', ErrorCode.ANALYSIS_RUN_NOT_FOUND],
+      ['projectVersion', 'version-1', ErrorCode.PROJECT_VERSION_NOT_FOUND],
+      ['functionalQuestion', 'question-1', ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND],
+      ['testPublication', 'publication-1', ErrorCode.TEST_PUBLICATION_NOT_FOUND],
+      ['experiment', 'experiment-1', ErrorCode.EXPERIMENT_NOT_FOUND],
+      ['testTarget', 'target-1', ErrorCode.UNRESOLVABLE_TARGET],
+    ] as const)('a not visible %s answers the resource-own 404, identical to a missing id (no leak), never PROJECT_NOT_FOUND', async (kind, id, code) => {
+      const external = await service.requireForResource('u-external', kind, id).catch((error: unknown) => error);
+      const missing = await service.requireForResource('u-external', kind, 'does-not-exist').catch((error: unknown) => error);
+
+      expect(external).toMatchObject({ code, status: 404 });
+      expect(missing).toMatchObject({ code, status: 404 });
+      expect((external as { message: string }).message.replace(id, 'X')).toBe((missing as { message: string }).message.replace('does-not-exist', 'X'));
+      expect(db.tables.projectAccess.some((row) => row.userId === 'u-external')).toBe(false);
+    });
+
+    it('a personal project resource of another person is 404 without verifying anything against GitHub', async () => {
+      seedProject('mine', { githubOrgId: null, githubOrgLogin: null, ownerUserId: 'u-stranger' });
+      db.insert('analysisRun', { id: 'run-mine', projectId: 'mine' });
+      github.calls.length = 0;
+
+      await expect(service.requireForResource('u-writer', 'analysisRun', 'run-mine')).rejects.toMatchObject({ code: ErrorCode.ANALYSIS_RUN_NOT_FOUND });
+      await expect(service.requireForResource('u-stranger', 'analysisRun', 'run-mine', 'ADMIN')).resolves.toMatchObject({ role: 'ADMIN' });
+      expect(github.calls).toEqual([]);
+    });
+
+    it('a resource of a deleted project is 404 for everyone, the Admin included', async () => {
+      (db.tables.project.find((row) => row.id === 'p') as Record<string, unknown>).deletedAt = new Date();
+
+      await expect(service.requireForResource('u-owner', 'analysisRun', 'run-1')).rejects.toMatchObject({ code: ErrorCode.ANALYSIS_RUN_NOT_FOUND });
+    });
+
+    it('answers 503 (not 404) when GitHub cannot verify a new access to the descendant resource', async () => {
+      github.installationsMode = 'UNVERIFIABLE';
+      github.permissionMode = 'UNVERIFIABLE';
+
+      await expect(service.requireForResource('u-writer', 'analysisRun', 'run-1')).rejects.toMatchObject({
+        code: ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE,
+        status: 503,
+      });
+    });
+
+    it('a project id delegates to require (the project-own 404)', async () => {
+      await expect(service.requireForResource('u-external', 'project', 'p')).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
+    });
+  });
+});
+
 describe('roleForPermission', () => {
   it.each([
     ['admin', 'MAINTAINER'],

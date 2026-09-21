@@ -7,6 +7,7 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
 import { AuthModule } from './common/auth/auth.module.js';
+import { ProjectAccessModule } from './project-access/project-access.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { WorkspacesModule } from './workspaces/workspaces.module.js';
 import { ProjectVersionsModule } from './project-versions/project-versions.module.js';
@@ -31,6 +32,8 @@ import { validateEnv } from './config/env.validation.js';
       validate: validateEnv,
     }),
     AuthModule,
+    // Guard default-deny de roles de Project: después de AuthModule (su AuthGuard corre antes).
+    ProjectAccessModule,
     PrismaModule,
     ObjectStorageModule,
     ProvidersModule,

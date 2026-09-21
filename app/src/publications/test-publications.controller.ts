@@ -6,12 +6,14 @@ import type {
   TestPublicationResponse,
 } from './dto/test-publication.response.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
+import { ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 @Controller()
 export class TestPublicationsController {
   constructor(private readonly testPublicationsService: TestPublicationsService) {}
 
   @Post('analysis-runs/:analysisRunId/test-publications')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.param('analysisRun', 'analysisRunId'))
   @HttpCode(HttpStatus.ACCEPTED)
   create(
     @Param('analysisRunId') analysisRunId: string,
@@ -22,6 +24,7 @@ export class TestPublicationsController {
   }
 
   @Get('test-publications/:publicationId')
+  @RequireProjectRole('READER', ProjectTargets.param('testPublication', 'publicationId'))
   getById(
     @Param('publicationId') publicationId: string,
     @CurrentUserId() userId: string,

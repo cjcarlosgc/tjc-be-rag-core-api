@@ -27,6 +27,9 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     analysisRun: { model: 'analysisRun', many: false, local: 'analysisRunId', foreign: 'id' },
   },
   projectVersion: { project: { model: 'project', many: false, local: 'projectId', foreign: 'id' } },
+  experimentRun: { project: { model: 'project', many: false, local: 'projectId', foreign: 'id' } },
+  testPublication: { analysisRun: { model: 'analysisRun', many: false, local: 'analysisRunId', foreign: 'id' } },
+  testTarget: { projectVersion: { model: 'projectVersion', many: false, local: 'projectVersionId', foreign: 'id' } },
 };
 
 const MODELS = [
@@ -38,6 +41,10 @@ const MODELS = [
   'functionalKnowledge',
   'projectVersion',
   'testPublication',
+  'experimentRun',
+  'testTarget',
+  'generatedTestProposal',
+  'analysisSymbol',
   'userGithubIdentity',
 ] as const;
 

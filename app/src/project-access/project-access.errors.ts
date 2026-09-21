@@ -46,3 +46,53 @@ export function workspaceAdminRequired(): AppException {
     HttpStatus.FORBIDDEN,
   );
 }
+
+/**
+ * Recursos descendientes de un Project que se alcanzan por id o deep link. Cada uno conserva
+ * el `404` de su recurso cuando el Project no es visible para el usuario (`INTEROP-2.4`
+ * §6.13: "un recurso no visible conserva el 404 de su recurso"), idéntico al de un id
+ * inexistente.
+ */
+export type ProjectResourceKind =
+  | 'project'
+  | 'analysisRun'
+  | 'projectVersion'
+  | 'experiment'
+  | 'testPublication'
+  | 'functionalQuestion'
+  | 'testTarget';
+
+export function resourceNotFound(resource: ProjectResourceKind, id: string): AppException {
+  switch (resource) {
+    case 'project':
+      return projectNotFound(id);
+    case 'analysisRun':
+      return new AppException(
+        ErrorCode.ANALYSIS_RUN_NOT_FOUND,
+        `No existe un AnalysisRun con id "${id}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    case 'projectVersion':
+      return new AppException(
+        ErrorCode.PROJECT_VERSION_NOT_FOUND,
+        `No existe una versión de proyecto con id "${id}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    case 'experiment':
+      return new AppException(ErrorCode.EXPERIMENT_NOT_FOUND, `No existe el experimento ${id}.`, HttpStatus.NOT_FOUND);
+    case 'testPublication':
+      return new AppException(
+        ErrorCode.TEST_PUBLICATION_NOT_FOUND,
+        `No existe una publicación con id "${id}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    case 'functionalQuestion':
+      return new AppException(
+        ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND,
+        `No existe una pregunta con id "${id}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    case 'testTarget':
+      return new AppException(ErrorCode.UNRESOLVABLE_TARGET, `No existe el target ${id}.`, HttpStatus.NOT_FOUND);
+  }
+}

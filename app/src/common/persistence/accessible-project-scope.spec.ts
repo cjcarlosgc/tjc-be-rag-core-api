@@ -16,7 +16,7 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
  * que un Project borrado lógicamente o no visible se comporta como inexistente. Cada caso
  * ejecuta una lectura real del repositorio contra un Prisma espía y exige, en el filtro
  * del Project, `deletedAt: null` y las tres ramas del predicado (personal por creador,
- * Admin de organización, registro suficiente con binding no `REVOKED`).
+ * Admin de organización, registro suficiente con un binding existente y no `REVOKED`).
  */
 describe('user-scoped reads use the accessibleProject predicate (HU56, HU59)', () => {
   it('accessibleProject has the personal, organization-Admin and organization-record branches', () => {
@@ -28,7 +28,7 @@ describe('user-scoped reads use the accessibleProject predicate (HU56, HU59)', (
         {
           githubOrgId: { not: null },
           access: { some: { userId: 'u1', role: { in: ['READER', 'MAINTAINER', 'ADMIN'] } } },
-          NOT: { repositoryBinding: { is: { status: 'REVOKED' } } },
+          repositoryBinding: { is: { status: { not: 'REVOKED' } } },
         },
       ],
     });

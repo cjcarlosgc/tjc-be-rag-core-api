@@ -7,6 +7,7 @@ import type { Project, ProjectRole } from '../generated/prisma/client.js';
 import type { Page } from '../common/dto/page.response.js';
 import type { WorkspaceRefResponse } from '../workspaces/dto/workspace.response.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
+import { ProjectSubscriptionsService } from '../realtime/project-subscriptions.service.js';
 import { OrganizationAccessResolver, VerificationContext } from '../project-access/organization-access.resolver.js';
 import { ProjectAccessRepository } from '../project-access/project-access.repository.js';
 import { ProjectAccessService } from '../project-access/project-access.service.js';
@@ -27,6 +28,7 @@ export class ProjectsService {
     private readonly projectAccess: ProjectAccessService,
     private readonly projectAccessRepository: ProjectAccessRepository,
     private readonly organizations: OrganizationAccessResolver,
+    private readonly subscriptions: ProjectSubscriptionsService,
   ) {}
 
   /**
@@ -88,6 +90,9 @@ export class ProjectsService {
     if (!(await this.projectsRepository.softDelete(id, userId))) {
       throw projectNotFound(id);
     }
+
+    // Un Project borrado deja de ser visible para todos: se sacan los sockets suscritos a sus versiones.
+    await this.subscriptions.revalidateProject(id);
   }
 
   /**

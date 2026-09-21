@@ -33,6 +33,7 @@ import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { Page } from '../common/dto/page.response.js';
+import { NoProjectRole, ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 const DEFAULT_PAGE_SIZE = 30;
 
@@ -46,6 +47,7 @@ export class RepositoryBindingsController {
   ) {}
 
   @Get('integrations/github/repositories')
+  @NoProjectRole('Discovery: con workspaceId exige pertenencia al workspace (no un rol de Project).')
   async listRepositories(
     @Query() query: ListGithubRepositoriesQueryDto,
     @Headers('x-github-provider-token') providerToken: string | undefined,
@@ -93,6 +95,7 @@ export class RepositoryBindingsController {
    * (no revela la instalación); permiso menor: `403`; no verificable: `503`.
    */
   @Post('integrations/github/repositories/verify-app-access')
+  @NoProjectRole('Exige permiso maintain/write/admin del usuario sobre el repositorio (GitHub), no un rol de Project.')
   @HttpCode(HttpStatus.OK)
   async verifyAppAccess(
     @Body() body: VerifyGitHubAppAccessRequestDto,
@@ -133,6 +136,7 @@ export class RepositoryBindingsController {
    * REPOSITORY_PERMISSION_INSUFFICIENT`, no verificable `503`.
    */
   @Get('integrations/github/repositories/:owner/:repo/branches')
+  @NoProjectRole('Exige permiso maintain/write/admin del usuario sobre el repositorio (GitHub), no un rol de Project.')
   async listBranches(
     @Param('owner') owner: string,
     @Param('repo') repo: string,
@@ -156,6 +160,7 @@ export class RepositoryBindingsController {
   }
 
   @Post('projects/:projectId/integrations/github')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Param('projectId') projectId: string,
@@ -168,6 +173,7 @@ export class RepositoryBindingsController {
   }
 
   @Get('projects/:projectId/integrations/github')
+  @RequireProjectRole('READER', ProjectTargets.project('projectId'))
   async get(
     @Param('projectId') projectId: string,
     @CurrentUserId() userId: string,
@@ -177,6 +183,7 @@ export class RepositoryBindingsController {
   }
 
   @Post('projects/:projectId/integrations/github/enable')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.OK)
   async enable(
     @Param('projectId') projectId: string,
@@ -188,6 +195,7 @@ export class RepositoryBindingsController {
   }
 
   @Delete('projects/:projectId/integrations/github')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('projectId') projectId: string, @CurrentUserId() userId: string): Promise<void> {
     await this.repositoryBindingsService.disable(projectId, userId);

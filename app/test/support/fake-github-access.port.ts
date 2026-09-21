@@ -33,7 +33,10 @@ export interface FakeGithubCall {
  * Lado de organización (corte 2): `addOrganization` registra una instalación de
  * la App, `setMembership` fija por (organización, usuario) el rol y estado
  * (`active`/`pending`; sin fijar = no es miembro, `NOT_FOUND`) y `setOwners` los
- * owners. `installationsMode` fuerza `UNVERIFIABLE` a la lista de instalaciones y
+ * owners. Como GitHub, un owner activo de la organización tiene permiso efectivo `admin`
+ * sobre los repositorios de la organización aunque no sea colaborador explícito
+ * (`ownersHaveEffectiveAdmin`, activo por defecto; un permiso fijado con `setPermission`
+ * prevalece). `installationsMode` fuerza `UNVERIFIABLE` a la lista de instalaciones y
  * `setOrganizationMode` a una sola organización (p. ej. `Members: read` sin
  * aceptar = `UNVERIFIABLE`, App desinstalada = `NOT_INSTALLED`).
  */
@@ -42,6 +45,7 @@ export class FakeGithubAccessPort implements GithubAccessPort {
   ownerMode: FakeGithubMode = 'NORMAL';
   permissionMode: FakeGithubMode = 'NORMAL';
   installationsMode: FakeGithubMode = 'NORMAL';
+  ownersHaveEffectiveAdmin = true;
   private readonly organizations = new Map<string, OrganizationInstallation>();
   private readonly organizationModes = new Map<string, FakeGithubMode>();
   private readonly memberships = new Map<string, OrganizationMembership>();
@@ -55,6 +59,7 @@ export class FakeGithubAccessPort implements GithubAccessPort {
     this.ownerMode = 'NORMAL';
     this.permissionMode = 'NORMAL';
     this.installationsMode = 'NORMAL';
+    this.ownersHaveEffectiveAdmin = true;
     this.organizations.clear();
     this.organizationModes.clear();
     this.memberships.clear();
@@ -126,8 +131,18 @@ export class FakeGithubAccessPort implements GithubAccessPort {
       return Promise.resolve({ status: this.permissionMode });
     }
 
-    const level = this.permissions.get(`${repository.repositoryName}|${githubUserId}`);
+    const level = this.permissions.get(`${repository.repositoryName}|${githubUserId}`) ?? this.effectiveOwnerPermission(repository.repositoryName, githubUserId);
     return Promise.resolve(level ? { status: 'OK', value: level } : { status: 'NOT_FOUND' });
+  }
+
+  /** GitHub: un owner activo de la organización es `admin` de todos sus repositorios. */
+  private effectiveOwnerPermission(repositoryName: string, githubUserId: string): RepositoryPermissionLevel | undefined {
+    const owner = this.repositories.get(repositoryName);
+    const membership = owner ? this.memberships.get(`${owner.ownerLogin}|${githubUserId}`) : undefined;
+
+    return this.ownersHaveEffectiveAdmin && owner?.ownerType === 'Organization' && membership?.role === 'admin' && membership.state === 'active'
+      ? 'admin'
+      : undefined;
   }
 
   listOrganizationInstallations(): Promise<GithubLookup<OrganizationInstallation[]>> {

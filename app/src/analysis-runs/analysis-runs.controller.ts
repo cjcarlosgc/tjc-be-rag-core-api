@@ -10,6 +10,7 @@ import {
 } from './dto/analysis-run.response.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import type { Page } from '../common/dto/page.response.js';
+import { ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 @Controller()
 export class AnalysisRunsController {
@@ -19,6 +20,7 @@ export class AnalysisRunsController {
   ) {}
 
   @Get('projects/:projectId/analysis-runs')
+  @RequireProjectRole('READER', ProjectTargets.project('projectId'))
   async list(
     @Param('projectId') projectId: string,
     @Query() query: ListAnalysisRunsQueryDto,
@@ -40,6 +42,7 @@ export class AnalysisRunsController {
 
   /** HU55: cross-proyecto (Projects visibles del usuario); declarada antes de `analysis-runs/:id`. */
   @Get('analysis-runs')
+  @RequireProjectRole('READER', ProjectTargets.listing())
   async listVisible(
     @Query() query: ListAnalysisRunsQueryDto,
     @CurrentUserId() userId: string,
@@ -53,6 +56,7 @@ export class AnalysisRunsController {
   }
 
   @Get('analysis-runs/:id')
+  @RequireProjectRole('READER', ProjectTargets.param('analysisRun', 'id'))
   async getById(
     @Param('id') id: string,
     @CurrentUserId() userId: string,

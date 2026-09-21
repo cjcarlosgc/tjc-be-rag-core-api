@@ -39,6 +39,7 @@ describe('ProjectsService', () => {
   let workspaces: { personalRef: ReturnType<typeof vi.fn> };
   let projectAccess: { require: ReturnType<typeof vi.fn>; syncOrganizationProjects: ReturnType<typeof vi.fn> };
   let accessRepository: { findRegisteredOrganizations: ReturnType<typeof vi.fn> };
+  let subscriptions: { revalidateProject: ReturnType<typeof vi.fn> };
   let organizations: {
     resolveWorkspace: ReturnType<typeof vi.fn>;
     listMemberOrganizations: ReturnType<typeof vi.fn>;
@@ -58,6 +59,7 @@ describe('ProjectsService', () => {
       syncOrganizationProjects: vi.fn().mockResolvedValue(undefined),
     };
     accessRepository = { findRegisteredOrganizations: vi.fn().mockResolvedValue([]) };
+    subscriptions = { revalidateProject: vi.fn().mockResolvedValue(0) };
     organizations = {
       resolveWorkspace: vi.fn().mockResolvedValue({ status: 'PERSONAL' } satisfies WorkspaceResolution),
       listMemberOrganizations: vi.fn().mockResolvedValue({ status: 'OK', member: [], unverifiable: [] }),
@@ -69,6 +71,7 @@ describe('ProjectsService', () => {
       projectAccess as never,
       accessRepository as never,
       organizations as never,
+      subscriptions as never,
     );
   });
 
@@ -331,6 +334,19 @@ describe('ProjectsService', () => {
       await expect(service.delete('project-1', OWNER_USER_ID)).resolves.toBeUndefined();
       expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'ADMIN');
       expect(repository.softDelete).toHaveBeenCalledWith('project-1', OWNER_USER_ID);
+    });
+
+    it('evicts the WebSocket subscribers of the project once it is deleted, and only then', async () => {
+      repository.softDelete.mockResolvedValue(true);
+
+      await service.delete('project-1', OWNER_USER_ID);
+
+      expect(subscriptions.revalidateProject).toHaveBeenCalledWith('project-1');
+
+      subscriptions.revalidateProject.mockClear();
+      repository.softDelete.mockResolvedValue(false);
+      await expect(service.delete('project-1', OWNER_USER_ID)).rejects.toBeDefined();
+      expect(subscriptions.revalidateProject).not.toHaveBeenCalled();
     });
 
     it('answers 403 to a visible non-Admin without deleting', async () => {

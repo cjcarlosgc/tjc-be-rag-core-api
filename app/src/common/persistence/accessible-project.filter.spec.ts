@@ -58,11 +58,13 @@ describe('accessibleProject (predicate evaluated over data)', () => {
     bind('org-enabled', 'ENABLED');
     bind('org-disabled', 'DISABLED');
     bind('org-revoked', 'REVOKED');
-    // Un Admin (owner) en todos; un Maintainer y un Reader con registro en los que tienen repositorio.
+    // Un Admin (owner) en todos; un Maintainer y un Reader con registro en los vivos.
     for (const id of ['org-no-repo', 'org-enabled', 'org-disabled', 'org-revoked', 'org-deleted']) {
       grant(id, 'owner', 'ADMIN');
     }
-    for (const id of ['org-enabled', 'org-disabled', 'org-revoked']) {
+    // Registros Maintainer/Reader también en el Project SIN repositorio (p. ej. quedaron de un
+    // binding anterior): el predicado exige que EXISTA un binding no REVOKED, no solo "no REVOKED".
+    for (const id of ['org-no-repo', 'org-enabled', 'org-disabled', 'org-revoked']) {
       grant(id, 'maintainer', 'MAINTAINER');
       grant(id, 'reader', 'READER');
     }
@@ -101,8 +103,8 @@ describe('accessibleProject (predicate evaluated over data)', () => {
     expect(await visibleTo('reader')).toContain('org-enabled');
   });
 
-  it('a project without repository only shows to its Admins (a Maintainer record does not make it visible for lacking binding-independent proof)', async () => {
-    // El alta nunca crea Maintainer/Reader sin repositorio; el registro Admin sí ve el Project.
+  it('a project WITHOUT a repository binding is visible only to Admins, even if a Maintainer/Reader record exists', async () => {
+    expect(db.tables.projectAccess.some((row) => row.projectId === 'org-no-repo' && row.userId === 'maintainer')).toBe(true);
     expect(await visibleTo('owner')).toContain('org-no-repo');
     expect(await visibleTo('maintainer')).not.toContain('org-no-repo');
     expect(await visibleTo('reader')).not.toContain('org-no-repo');

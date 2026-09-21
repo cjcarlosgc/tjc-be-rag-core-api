@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { accessibleProject } from '../common/persistence/accessible-project.filter.js';
 import type { Project, ProjectAccess, ProjectRole, RepositoryBinding } from '../generated/prisma/client.js';
 import { ACCESS_LOCK_MAX_WAIT_MS, ACCESS_LOCK_TIMEOUT_MS } from './project-access.constants.js';
+import type { ProjectResourceKind } from './project-access.errors.js';
 
 export type ProjectWithBinding = Project & { repositoryBinding: RepositoryBinding | null };
 
@@ -44,6 +45,35 @@ export class ProjectAccessRepository {
   /** Project vivo (no borrado) sin filtro de usuario: solo para decidir si aplica una verificación viva. */
   findLive(projectId: string): Promise<Project | null> {
     return this.prisma.project.findFirst({ where: { id: projectId, deletedAt: null } });
+  }
+
+  /**
+   * `projectId` del Project dueño de un recurso descendiente, SIN filtro de visibilidad: el
+   * alta por deep link necesita el Project para verificar el acceso del usuario en vivo
+   * antes de que las consultas con `accessibleProject` puedan encontrar el recurso. Solo
+   * devuelve el id; nunca el recurso. `null` si el recurso no existe.
+   */
+  async findProjectIdOf(resource: Exclude<ProjectResourceKind, 'project'>, id: string): Promise<string | null> {
+    switch (resource) {
+      case 'analysisRun':
+        return (await this.prisma.analysisRun.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+      case 'projectVersion':
+        return (await this.prisma.projectVersion.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+      case 'experiment':
+        return (await this.prisma.experimentRun.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+      case 'functionalQuestion':
+        return (await this.prisma.functionalQuestion.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+      case 'testPublication':
+        return (
+          (await this.prisma.testPublication.findUnique({ where: { id }, select: { analysisRun: { select: { projectId: true } } } }))
+            ?.analysisRun.projectId ?? null
+        );
+      case 'testTarget':
+        return (
+          (await this.prisma.testTarget.findUnique({ where: { id }, select: { projectVersion: { select: { projectId: true } } } }))
+            ?.projectVersion.projectId ?? null
+        );
+    }
   }
 
   /**

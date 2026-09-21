@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { mapWithConcurrency } from '../common/concurrency.util.js';
+import { AppException } from '../common/errors/app.exception.js';
+import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { GithubIdentityService } from '../common/auth/github-identity.service.js';
 import { isRoleAtLeast } from '../common/persistence/accessible-project.filter.js';
 import {
@@ -14,6 +16,8 @@ import {
   githubVerificationUnavailable,
   projectNotFound,
   projectRoleInsufficient,
+  resourceNotFound,
+  type ProjectResourceKind,
 } from './project-access.errors.js';
 import { ProjectAccessRepository, type ProjectWithBinding } from './project-access.repository.js';
 
@@ -95,6 +99,40 @@ export class ProjectAccessService {
   }
 
   /**
+   * Alta por deep link (`INTEROP-2.4` §6.13): resuelve el `projectId` del recurso
+   * descendiente (Run, versión, pregunta, publicación, experimento, target) y aplica
+   * `require` sobre ese Project, de modo que un miembro con acceso al repositorio entra
+   * por id o enlace con el mismo predicado que por el Project. No visible (recurso
+   * inexistente, Project ajeno, borrado o sin acceso) responde el `404` PROPIO del recurso,
+   * sin distinguir un id inexistente; rol menor `403`; acceso nuevo no verificable `503`.
+   */
+  async requireForResource(
+    userId: string,
+    resource: ProjectResourceKind,
+    resourceId: string,
+    minRole: ProjectRole = 'READER',
+  ): Promise<AccessGrant> {
+    if (resource === 'project') {
+      return this.require(userId, resourceId, minRole);
+    }
+
+    const projectId = await this.repository.findProjectIdOf(resource, resourceId);
+
+    if (projectId === null) {
+      throw resourceNotFound(resource, resourceId);
+    }
+
+    try {
+      return await this.require(userId, projectId, minRole);
+    } catch (error) {
+      if (error instanceof AppException && error.code === ErrorCode.PROJECT_NOT_FOUND) {
+        throw resourceNotFound(resource, resourceId);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Alta al entrar: verificación viva bajo el advisory lock de `(projectId, userId)` y upsert
    * del registro en la misma transacción. Un alta nunca sobrescribe ni recrea una
    * revocación posterior al inicio de su verificación: revocaciones y reverificaciones
@@ -118,7 +156,10 @@ export class ProjectAccessService {
 
         const existing = await scope.findRecord();
 
-        if (existing && (existing.role === 'ADMIN' || project.repositoryBinding?.status !== 'REVOKED')) {
+        // Maintainer/Reader solo con un binding existente y no `REVOKED` (mismo criterio que el predicado).
+        const bindingAllowsAccess = project.repositoryBinding !== null && project.repositoryBinding.status !== 'REVOKED';
+
+        if (existing && (existing.role === 'ADMIN' || bindingAllowsAccess)) {
           return { status: 'GRANTED', role: existing.role };
         }
 
