@@ -55,7 +55,7 @@
       "checkedAt": "2026-09-21T09:00:00-05:00"
     },
     "createdAt": "2026-09-20T03:00:00-05:00",
-    "updatedAt": "2026-09-21T09:00:00-05:00",
+    "updatedAt": "2026-09-21T10:00:00-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -67,11 +67,23 @@
         {
           "from": "sdd-analyst",
           "status": "APPROVED",
-          "summary": "SYSTEM-2.4/INTEROP-2.4 y feature 014 consolidados; DEC-ORG-002 aprobada por el usuario 2026-09-21 (repo público sin read implícito, Projects personales no compartidos, REVOKED solo Admin, verify-app-access/branches exigen maintain/write/admin). breaking:false a nivel de cable.",
+          "summary": "SYSTEM-2.4/INTEROP-2.4 y feature 014 consolidados; DEC-ORG-002 aprobada por el usuario 2026-09-20 (repo público sin read implícito, Projects personales no compartidos, REVOKED solo Admin, verify-app-access/branches exigen maintain/write/admin). breaking:false a nivel de cable.",
           "commit": "414d14c"
+        },
+        {
+          "from": "contract-reviewer",
+          "status": "CHANGES_REQUESTED",
+          "summary": "17 hallazgos (F1-F17) sobre INTEROP-2.4/feature 014: seguridad de binding antes de la App pública, listado cross-proyecto, orden de validación, carrera alta/revocación, robustez de jobs, default-deny, WebSocket y breaking cualificado. Sin blockers de modelo.",
+          "commit": "414d14c"
+        },
+        {
+          "from": "sdd-analyst",
+          "status": "APPROVED",
+          "summary": "Ciclo de corrección 1: F1-F17 aplicados; decisiones del usuario: membresía activa siempre (F5) y 4a de seguridad primero (F1).",
+          "commit": "HEAD del commit de ciclo 1"
         }
       ],
-      "reviewCycles": 0,
+      "reviewCycles": 1,
       "maxReviewCycles": 2
     },
     "gates": {
@@ -101,5 +113,5 @@
     "evidence": [],
     "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md."
   },
-  "lastUpdatedAt": "2026-09-21T09:00:00-05:00"
+  "lastUpdatedAt": "2026-09-21T10:00:00-05:00"
 }
