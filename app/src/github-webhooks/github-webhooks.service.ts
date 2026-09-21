@@ -7,7 +7,10 @@ import type {
   GithubInstallationRepositoriesWebhookPayload,
   GithubInstallationWebhookPayload,
 } from './dto/installation-webhook.payload.js';
+import type { GithubRepositoryWebhookPayload } from './dto/repository-webhook.payload.js';
 import type { GitHubWebhookAcceptedResponse } from './dto/webhook-accepted.response.js';
+import { RepositoryEventsService } from './repository-events.service.js';
+import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import type { CreateAnalysisRunInput } from '../analysis-runs/analysis-runs.repository.js';
@@ -43,6 +46,8 @@ export class GithubWebhooksService {
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly analysisRunsService: AnalysisRunsService,
     private readonly jobsService: JobsService,
+    private readonly repositoryEvents: RepositoryEventsService,
+    private readonly bindingLifecycle: BindingLifecycleService,
   ) {}
 
   async handle(request: IncomingWebhookRequest): Promise<GitHubWebhookAcceptedResponse> {
@@ -95,6 +100,13 @@ export class GithubWebhooksService {
       return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
     }
 
+    if (request.eventName === 'repository') {
+      await this.repositoryEvents.handle(request.payload as GithubRepositoryWebhookPayload);
+      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
+    }
+
+    // `member`, `membership`, `organization`, `team` y cualquier otro evento no listado se
+    // aceptan (`202`) sin efecto: los eventos de acceso de organización son de la etapa 3b.
     if (request.eventName !== 'pull_request') {
       return {
         deliveryId: request.deliveryId,
@@ -225,16 +237,20 @@ export class GithubWebhooksService {
   }
 
   /**
-   * HU31 (revocación): `deleted` = App desinstalada, `suspend`/`unsuspend` =
-   * pausa reversible de la instalación completa. Sin dedup por delivery id
-   * -actualizar el status es naturalmente idempotente, reprocesar el mismo
-   * evento no cambia el resultado-.
+   * HU31/HU61 (revocación): `deleted` = App desinstalada (bindings `REVOKED` y borrado de los
+   * registros Maintainer/Reader con expulsión de sockets), `suspend`/`unsuspend` = pausa
+   * reversible de la instalación completa (`suspend` NO borra registros: una instalación
+   * suspendida se trata como GitHub no disponible). Sin dedup por delivery id -el efecto
+   * es naturalmente idempotente, reprocesar el mismo evento no cambia el resultado-. Se
+   * procesa aunque el binding no esté `ENABLED`.
    */
   private async handleInstallationEvent(payload: GithubInstallationWebhookPayload): Promise<void> {
     const installationId = String(payload.installation.id);
 
     if (payload.action === 'deleted') {
-      await this.repositoryBindingsRepository.revokeByInstallation(installationId);
+      for (const binding of await this.repositoryBindingsRepository.findByInstallation(installationId)) {
+        await this.bindingLifecycle.revokeBinding(binding);
+      }
     } else if (payload.action === 'suspend') {
       await this.repositoryBindingsRepository.suspendByInstallation(installationId);
     } else if (payload.action === 'unsuspend') {
@@ -246,7 +262,7 @@ export class GithubWebhooksService {
    * HU31 (revocación): la instalación sigue viva, pero GitHub retiró acceso
    * a un repositorio puntual (el usuario lo destildó en la configuración de
    * la App). Solo afecta el binding de ese repo, no el resto de la
-   * instalación.
+   * instalación: `REVOKED` y borrado de sus registros Maintainer/Reader.
    */
   private async handleInstallationRepositoriesEvent(
     payload: GithubInstallationRepositoriesWebhookPayload,
@@ -259,7 +275,7 @@ export class GithubWebhooksService {
       const binding = await this.repositoryBindingsRepository.findByRepositoryId(String(repo.id));
 
       if (binding && binding.installationId === String(payload.installation.id)) {
-        await this.repositoryBindingsRepository.updateStatus(binding.id, 'REVOKED');
+        await this.bindingLifecycle.revokeBinding(binding);
       }
     }
   }

@@ -46,6 +46,7 @@ const MODELS = [
   'generatedTestProposal',
   'analysisSymbol',
   'userGithubIdentity',
+  'webhookDelivery',
 ] as const;
 
 /** Claves compuestas (`@@id`) que Prisma expone como `<a>_<b>`. */
@@ -120,12 +121,25 @@ export class InMemoryPrisma {
     return Promise.resolve(0);
   }
 
-  /** `SELECT "id" FROM "projects" WHERE "id" = ... FOR SHARE` del alta de binding. */
-  $queryRaw(strings: TemplateStringsArray, ...values: unknown[]): Promise<Array<{ id: string }>> {
-    if (strings.join('?').includes('FROM "projects"')) {
+  /**
+   * `SELECT "id" FROM "projects" WHERE "id" = ... FOR SHARE` del alta de binding y
+   * `SELECT "status" FROM "repository_bindings" WHERE "projectId" = ... FOR SHARE` del alta de
+   * acceso (estado actual del binding). Cualquier otra consulta cruda (la cola `jobs`) no
+   * devuelve filas.
+   */
+  $queryRaw(strings: TemplateStringsArray, ...values: unknown[]): Promise<Array<Record<string, unknown>>> {
+    const sql = strings.join('?');
+
+    if (sql.includes('FROM "projects"')) {
       const alive = this.tables.project.find((row) => row.id === values[0] && row.deletedAt == null);
       return Promise.resolve(alive ? [{ id: alive.id as string }] : []);
     }
+
+    if (sql.includes('FROM "repository_bindings"')) {
+      const binding = this.tables.repositoryBinding.find((row) => row.projectId === values[0]);
+      return Promise.resolve(binding ? [{ status: binding.status }] : []);
+    }
+
     return Promise.resolve([]);
   }
 
@@ -164,9 +178,17 @@ export class InMemoryPrisma {
         return found ? this.hydrate(model, found, args) : null;
       },
       findMany: async (
-        args: { where?: Where; include?: Where; select?: Where; take?: number; cursor?: { id: string }; skip?: number } = {},
+        args: {
+          where?: Where;
+          include?: Where;
+          select?: Where;
+          take?: number;
+          cursor?: { id: string };
+          skip?: number;
+          orderBy?: { id?: 'asc' | 'desc' };
+        } = {},
       ) => {
-        const sorted = [...matching(args.where)].sort(byNewest);
+        const sorted = [...matching(args.where)].sort(args.orderBy?.id === 'asc' ? byIdAscending : byNewest);
         let start = 0;
 
         if (args.cursor) {
@@ -308,6 +330,10 @@ function defaultsFor(model: string): Row {
   if (model === 'project') {
     return { deletedAt: null, currentVersionId: null, githubOrgId: null, githubOrgLogin: null };
   }
+  if (model === 'repositoryBinding') {
+    // Defaults de la base (`status` ENABLED) que `create` de Prisma no fija en el cliente.
+    return { deletedAt: null, status: 'ENABLED', disabledReason: null };
+  }
   return model === 'projectAccess' || model === 'userGithubIdentity' ? {} : { deletedAt: null };
 }
 
@@ -317,6 +343,10 @@ function rowsOf(rows: Row[], keys: string[], data: Row): boolean {
 
 function asList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [value];
+}
+
+function byIdAscending(a: Row, b: Row): number {
+  return String(a.id).localeCompare(String(b.id));
 }
 
 function byNewest(a: Row, b: Row): number {
@@ -340,6 +370,8 @@ function matchesField(value: unknown, condition: unknown): boolean {
           return !(expected as unknown[]).includes(value);
         case 'equals':
           return value === expected;
+        case 'gt':
+          return typeof value === 'string' && typeof expected === 'string' && value > expected;
         default:
           throw new Error(`Operador de campo no soportado: ${operator}`);
       }

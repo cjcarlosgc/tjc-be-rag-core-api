@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { accessibleProject } from '../common/persistence/accessible-project.filter.js';
-import type { Project, ProjectAccess, ProjectRole, RepositoryBinding } from '../generated/prisma/client.js';
+import type {
+  Project,
+  ProjectAccess,
+  ProjectRole,
+  RepositoryBinding,
+  RepositoryBindingStatus,
+} from '../generated/prisma/client.js';
 import { ACCESS_LOCK_MAX_WAIT_MS, ACCESS_LOCK_TIMEOUT_MS } from './project-access.constants.js';
 import type { ProjectResourceKind } from './project-access.errors.js';
 
@@ -20,6 +26,12 @@ export interface AccessLockScope {
   findRecord(): Promise<ProjectAccess | null>;
   upsertRecord(role: ProjectRole): Promise<ProjectAccess>;
   deleteRecord(): Promise<void>;
+  /**
+   * Estado actual del binding del Project leído con `FOR SHARE`: una transición concurrente a
+   * `REVOKED` (evento `repository`/`installation`, reconciliación) espera a que esta
+   * transacción termine, y una ya confirmada se ve aquí. `null` = sin binding.
+   */
+  lockBindingStatus(): Promise<RepositoryBindingStatus | null>;
 }
 
 export interface RegisteredOrganization {
@@ -40,6 +52,16 @@ export class ProjectAccessRepository {
       where: { id: projectId, ...accessibleProject(userId) },
       include: { access: { where: { userId } } },
     });
+  }
+
+  /** Usuarios con registro Maintainer o Reader (no Admin) sobre el Project: los que borra un binding `REVOKED`. */
+  async findNonAdminUserIds(projectId: string): Promise<string[]> {
+    const records = await this.prisma.projectAccess.findMany({
+      where: { projectId, role: { not: 'ADMIN' } },
+      select: { userId: true },
+    });
+
+    return records.map((record) => record.userId);
   }
 
   /** Project vivo (no borrado) sin filtro de usuario: solo para decidir si aplica una verificación viva. */
@@ -106,6 +128,12 @@ export class ProjectAccessRepository {
           },
           deleteRecord: async () => {
             await tx.projectAccess.deleteMany({ where: { projectId, userId } });
+          },
+          lockBindingStatus: async () => {
+            const rows = await tx.$queryRaw<Array<{ status: RepositoryBindingStatus }>>`
+              SELECT "status" FROM "repository_bindings" WHERE "projectId" = ${projectId} FOR SHARE
+            `;
+            return rows[0]?.status ?? null;
           },
         });
       },

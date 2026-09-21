@@ -166,6 +166,18 @@ export class ProjectAccessService {
         const verdict = await this.deriveRole(project, githubUserId, context);
 
         if (verdict.status === 'GRANTED') {
+          // Maintainer/Reader dependen del binding: se confirma justo antes del upsert con
+          // `FOR SHARE`, de modo que un binding que pasó a `REVOKED` (evento o reconciliación,
+          // que borran los registros DESPUÉS de cambiar el estado) no recibe un registro creado
+          // con el estado anterior; una transición en vuelo espera a este commit y luego lo borra.
+          if (verdict.role !== 'ADMIN') {
+            const bindingStatus = await scope.lockBindingStatus();
+
+            if (bindingStatus === null || bindingStatus === 'REVOKED') {
+              return { status: 'DENIED' };
+            }
+          }
+
           await scope.upsertRecord(verdict.role);
         }
 

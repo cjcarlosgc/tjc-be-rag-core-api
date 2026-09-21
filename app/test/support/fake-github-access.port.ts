@@ -5,6 +5,7 @@ import type {
   OrganizationMembership,
   OrganizationOwner,
   OrganizationRef,
+  RepositoryDetails,
   RepositoryOwner,
   RepositoryPermissionLevel,
   RepositoryRef,
@@ -15,11 +16,13 @@ export type FakeGithubMode = 'NORMAL' | 'UNVERIFIABLE' | 'NOT_INSTALLED';
 export interface FakeGithubCall {
   method:
     | 'getRepositoryOwner'
+    | 'getRepositoryById'
     | 'getRepositoryPermission'
     | 'listOrganizationInstallations'
     | 'getOrganizationMembership'
     | 'listOrganizationOwners';
   repositoryName?: string;
+  repositoryId?: string;
   organizationLogin?: string;
   githubUserId?: string;
 }
@@ -101,6 +104,23 @@ export class FakeGithubAccessPort implements GithubAccessPort {
     this.repositories.delete(repositoryName);
   }
 
+  /** Renombra un repositorio (mismo id y propietario): la lectura por id devuelve el nombre nuevo. */
+  renameRepository(oldName: string, newName: string): void {
+    const owner = this.repositories.get(oldName);
+    if (owner) {
+      this.repositories.delete(oldName);
+      this.repositories.set(newName, owner);
+    }
+  }
+
+  /** Cambia el propietario de un repositorio (transferencia); conserva su id y su nombre. */
+  transferRepository(repositoryName: string, newOwner: Pick<RepositoryOwner, 'ownerId' | 'ownerLogin' | 'ownerType'>): void {
+    const owner = this.repositories.get(repositoryName);
+    if (owner) {
+      this.repositories.set(repositoryName, { ...owner, ...newOwner });
+    }
+  }
+
   setPermission(repositoryName: string, githubUserId: string, level: RepositoryPermissionLevel): this {
     this.permissions.set(`${repositoryName}|${githubUserId}`, level);
     return this;
@@ -115,6 +135,22 @@ export class FakeGithubAccessPort implements GithubAccessPort {
 
     const owner = this.repositories.get(repository.repositoryName);
     return Promise.resolve(owner ? { status: 'OK', value: owner } : { status: 'NOT_FOUND' });
+  }
+
+  getRepositoryById(installationId: string, repositoryId: string): Promise<GithubLookup<RepositoryDetails>> {
+    this.calls.push({ method: 'getRepositoryById', repositoryId });
+
+    if (this.ownerMode !== 'NORMAL') {
+      return Promise.resolve({ status: this.ownerMode });
+    }
+
+    for (const [repositoryName, owner] of this.repositories) {
+      if (owner.repositoryId === repositoryId) {
+        return Promise.resolve({ status: 'OK', value: { ...owner, repositoryName } });
+      }
+    }
+
+    return Promise.resolve({ status: 'NOT_FOUND' });
   }
 
   getRepositoryPermission(

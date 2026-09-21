@@ -60,6 +60,11 @@ export interface RepositoryOwner {
   ownerType: 'User' | 'Organization';
 }
 
+/** Repositorio leído por su id inmutable: incluye el nombre vigente (`owner/repo`), que cambia al renombrarlo. */
+export interface RepositoryDetails extends RepositoryOwner {
+  repositoryName: string;
+}
+
 /**
  * Resultado explícito de una consulta a GitHub (`plan.md`, "Puertos con fakes").
  * `UNVERIFIABLE` (red, `5xx`, límite de tasa, instalación suspendida, permiso
@@ -81,6 +86,14 @@ export type GithubLookup<T> =
 export interface GithubAccessPort {
   /** Propietario del repositorio; `NOT_FOUND` si no existe o la instalación no lo ve. */
   getRepositoryOwner(repository: RepositoryRef): Promise<GithubLookup<RepositoryOwner>>;
+
+  /**
+   * Repositorio por su id inmutable (`GET /repositories/{id}` con el installation token):
+   * devuelve el nombre y el propietario VIGENTES aunque se haya renombrado o transferido, que
+   * es lo que revalida la reconciliación (HU61, parte (c)). `NOT_FOUND` = eliminado o la
+   * instalación ya no lo ve; `NOT_INSTALLED` = la App ya no está instalada.
+   */
+  getRepositoryById(installationId: string, repositoryId: string): Promise<GithubLookup<RepositoryDetails>>;
 
   /**
    * Permiso efectivo de `githubUserId` sobre el repositorio, leído con el

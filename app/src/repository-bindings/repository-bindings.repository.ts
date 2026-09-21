@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   BindingDisabledReason,
+  Project,
   RepositoryBinding,
   RepositoryBindingStatus,
 } from '../generated/prisma/client.js';
@@ -15,6 +16,13 @@ export interface CreateRepositoryBindingInput {
   repositoryName: string;
   integrationBranch: string;
 }
+
+/** Binding con el workspace de su Project (lo que la reconciliación compara con el propietario del repositorio). */
+export type BindingWithWorkspace = RepositoryBinding & {
+  project: Pick<Project, 'id' | 'ownerUserId' | 'githubOrgId'>;
+};
+
+const WORKSPACE_SELECT = { id: true, ownerUserId: true, githubOrgId: true } as const;
 
 @Injectable()
 export class RepositoryBindingsRepository {
@@ -107,19 +115,6 @@ export class RepositoryBindingsRepository {
     });
   }
 
-  /**
-   * HU31 (revocación): una instalación cubre potencialmente varios bindings
-   * (uno por repositorio). `REVOKED` es más fuerte que cualquier otro estado:
-   * `suspend`/`unsuspend` nunca lo tocan; solo el usuario lo reactiva
-   * explícitamente (HU57) tras revalidar el acceso de la App.
-   */
-  async revokeByInstallation(installationId: string): Promise<void> {
-    await this.prisma.repositoryBinding.updateMany({
-      where: { installationId },
-      data: { status: 'REVOKED', disabledReason: null },
-    });
-  }
-
   /** `installation.suspend`: solo pausa los `ENABLED`; no pisa `REVOKED` ni una pausa del usuario. */
   async suspendByInstallation(installationId: string): Promise<void> {
     await this.prisma.repositoryBinding.updateMany({
@@ -133,6 +128,57 @@ export class RepositoryBindingsRepository {
     await this.prisma.repositoryBinding.updateMany({
       where: { installationId, status: 'DISABLED', disabledReason: 'INSTALLATION_SUSPENDED' },
       data: { status: 'ENABLED', disabledReason: null },
+    });
+  }
+
+  /** Bindings de una instalación (los eventos `installation` afectan a todos los de ella). */
+  findByInstallation(installationId: string): Promise<RepositoryBinding[]> {
+    return this.prisma.repositoryBinding.findMany({ where: { installationId } });
+  }
+
+  /** Binding de un repositorio con el workspace de su Project (eventos `repository`). */
+  findByRepositoryIdWithWorkspace(repositoryId: string): Promise<BindingWithWorkspace | null> {
+    return this.prisma.repositoryBinding.findFirst({
+      where: { repositoryId, project: { deletedAt: null } },
+      include: { project: { select: WORKSPACE_SELECT } },
+    });
+  }
+
+  /** HU61: el renombre de un repositorio solo actualiza `repositoryName`; el estado no cambia. */
+  updateRepositoryName(id: string, repositoryName: string): Promise<RepositoryBinding> {
+    return this.prisma.repositoryBinding.update({ where: { id }, data: { repositoryName } });
+  }
+
+  /**
+   * Página (por id ascendente, tras `afterId`) de los bindings que la reconciliación
+   * revalida: Projects vivos con binding no `REVOKED` (uno `REVOKED` ya perdió el acceso de
+   * la App y solo un Admin lo reactiva con `enable`, que revalida).
+   */
+  findLiveForReconciliation(afterId: string | null, take: number): Promise<BindingWithWorkspace[]> {
+    return this.prisma.repositoryBinding.findMany({
+      where: {
+        status: { not: 'REVOKED' },
+        project: { deletedAt: null },
+        ...(afterId === null ? {} : { id: { gt: afterId } }),
+      },
+      orderBy: { id: 'asc' },
+      take,
+      include: { project: { select: WORKSPACE_SELECT } },
+    });
+  }
+
+  /**
+   * Bindings `REVOKED` de Projects vivos que aún conservan registros Maintainer/Reader
+   * (una revocación interrumpida a mitad): la reconciliación termina el borrado. El
+   * predicado de acceso ya los deniega mientras tanto.
+   */
+  findRevokedWithLeftoverRecords(take: number): Promise<RepositoryBinding[]> {
+    return this.prisma.repositoryBinding.findMany({
+      where: {
+        status: 'REVOKED',
+        project: { deletedAt: null, access: { some: { role: { not: 'ADMIN' } } } },
+      },
+      take,
     });
   }
 }

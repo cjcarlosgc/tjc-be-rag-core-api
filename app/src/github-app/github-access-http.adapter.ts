@@ -7,6 +7,7 @@ import type {
   OrganizationMembership,
   OrganizationOwner,
   OrganizationRef,
+  RepositoryDetails,
   RepositoryOwner,
   RepositoryPermissionLevel,
   RepositoryRef,
@@ -73,6 +74,37 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
       status: 'OK',
       value: {
         repositoryId: String(id),
+        ownerId: String(owner.id),
+        ownerLogin: owner.login,
+        ownerType: owner.type === 'Organization' ? 'Organization' : 'User',
+      },
+    };
+  }
+
+  async getRepositoryById(installationId: string, repositoryId: string): Promise<GithubLookup<RepositoryDetails>> {
+    const token = await this.installationToken(installationId);
+    if (typeof token !== 'string') {
+      return token;
+    }
+
+    const outcome = await this.get<GithubApiRepository>(`/repositories/${encodeURIComponent(repositoryId)}`, token);
+
+    if (outcome.kind !== 'OK') {
+      return { status: outcome.kind };
+    }
+
+    const { id, full_name: fullName, owner } = outcome.body;
+
+    // Un cuerpo sin los campos que se comparan no es una verificación: nunca revoca por él.
+    if (typeof id !== 'number' || typeof fullName !== 'string' || !owner || typeof owner.id !== 'number') {
+      return { status: 'UNVERIFIABLE' };
+    }
+
+    return {
+      status: 'OK',
+      value: {
+        repositoryId: String(id),
+        repositoryName: fullName,
         ownerId: String(owner.id),
         ownerLogin: owner.login,
         ownerType: owner.type === 'Organization' ? 'Organization' : 'User',

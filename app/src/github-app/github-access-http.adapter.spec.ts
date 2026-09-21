@@ -75,6 +75,41 @@ describe('GithubAccessHttpAdapter (HU64)', () => {
     });
   });
 
+  describe('getRepositoryById (HU61, reconciliation part (c))', () => {
+    it('reads the current name and owner by the immutable id with the installation token', async () => {
+      fetchMock.mockResolvedValue(
+        json({ id: 9, full_name: 'acme/renamed', owner: { id: 1001, login: 'acme', type: 'Organization' } }),
+      );
+
+      await expect(adapter.getRepositoryById('123', '9')).resolves.toEqual({
+        status: 'OK',
+        value: { repositoryId: '9', repositoryName: 'acme/renamed', ownerId: '1001', ownerLogin: 'acme', ownerType: 'Organization' },
+      });
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://api.github.com/repositories/9');
+      expect(init.headers).toMatchObject({ Authorization: 'Bearer installation-token' });
+    });
+
+    it('maps 404 to NOT_FOUND, a 404 on the installation token to NOT_INSTALLED', async () => {
+      fetchMock.mockResolvedValue(json({ message: 'Not Found' }, 404));
+      await expect(adapter.getRepositoryById('123', '9')).resolves.toEqual({ status: 'NOT_FOUND' });
+
+      auth.getInstallationToken.mockRejectedValue(new GithubAppUnavailableError('gone', 404));
+      await expect(adapter.getRepositoryById('123', '9')).resolves.toEqual({ status: 'NOT_INSTALLED' });
+    });
+
+    it.each([403, 429, 500])('maps %s, a network error and a malformed body to UNVERIFIABLE, never NOT_FOUND', async (status) => {
+      fetchMock.mockResolvedValue(json({ message: 'nope' }, status));
+      await expect(adapter.getRepositoryById('123', '9')).resolves.toEqual({ status: 'UNVERIFIABLE' });
+
+      fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+      await expect(adapter.getRepositoryById('123', '9')).resolves.toEqual({ status: 'UNVERIFIABLE' });
+
+      fetchMock.mockResolvedValue(json({ id: 9 }));
+      await expect(adapter.getRepositoryById('123', '9')).resolves.toEqual({ status: 'UNVERIFIABLE' });
+    });
+  });
+
   describe('getRepositoryPermission', () => {
     it('resolves the login from the numeric id (GET /user/{id}) and reads role_name for that login', async () => {
       fetchMock

@@ -98,4 +98,35 @@ describe('ProjectAccessRepository', () => {
       AND: [accessibleProject('u1'), { githubOrgId: { not: null } }],
     });
   });
+
+  it('findNonAdminUserIds returns only the Maintainer and Reader users of the project', async () => {
+    const findMany = vi.fn().mockResolvedValue([{ userId: 'writer' }, { userId: 'reader' }]);
+    const repository = new ProjectAccessRepository({ projectAccess: { findMany } } as unknown as PrismaService);
+
+    expect(await repository.findNonAdminUserIds('p1')).toEqual(['writer', 'reader']);
+    expect(findMany).toHaveBeenCalledWith({ where: { projectId: 'p1', role: { not: 'ADMIN' } }, select: { userId: true } });
+  });
+
+  it('withAccessLock exposes the binding status read with FOR SHARE inside the same transaction (null without a binding)', async () => {
+    const queries: string[] = [];
+    const rows = [[{ status: 'REVOKED' }], []];
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      $queryRaw: vi.fn((strings: TemplateStringsArray) => {
+        queries.push(strings.join('?'));
+        return Promise.resolve(rows.shift());
+      }),
+    };
+    const prisma = { $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)) };
+    const repository = new ProjectAccessRepository(prisma as unknown as PrismaService);
+
+    const statuses = await repository.withAccessLock('p1', 'u1', async (scope) => [
+      await scope.lockBindingStatus(),
+      await scope.lockBindingStatus(),
+    ]);
+
+    expect(statuses).toEqual(['REVOKED', null]);
+    expect(queries[0]).toContain('FOR SHARE');
+    expect(queries[0]).toContain('"repository_bindings"');
+  });
 });
