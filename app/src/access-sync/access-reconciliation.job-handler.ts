@@ -4,18 +4,40 @@ import { mapWithConcurrency } from '../common/concurrency.util.js';
 import { GITHUB_ACCESS_PORT, type GithubAccessPort } from '../github-app/github-access.port.js';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { VerificationContext } from '../project-access/organization-access.resolver.js';
+import { ProjectAccessRepository } from '../project-access/project-access.repository.js';
 import { RepositoryBindingsRepository, type BindingWithWorkspace } from '../repository-bindings/repository-bindings.repository.js';
 import {
   ACCESS_RECONCILIATION_DEDUPE_KEY,
   ACCESS_RECONCILIATION_JOB_TYPE,
   LEFTOVER_SWEEP_LIMIT,
   RECONCILIATION_BATCH_SIZE,
+  RECONCILIATION_PROJECT_BATCH_SIZE,
 } from './access-sync.constants.js';
+import { AccessReverifyService, emptyReverifySummary, type ReverifySummary } from './access-reverify.service.js';
 import { BindingLifecycleService } from './binding-lifecycle.service.js';
+import { OrganizationLifecycleService, type OrganizationReconciliation } from './organization-lifecycle.service.js';
 
 export interface AccessReconciliationPayload {
-  /** Cursor de la ejecución anterior que agotó su presupuesto: continúa tras este binding. */
+  /** (c) Cursor de la ejecución anterior que agotó su presupuesto: continúa tras este binding. */
   afterBindingId?: string;
+  /** (b) Cursor de la ejecución anterior que agotó su presupuesto: continúa tras este Project. */
+  afterProjectId?: string;
+}
+
+/** Parte (a): organizaciones con registros de acceso. */
+export interface OrganizationsSummary {
+  checked: number;
+  hidden: number;
+  renamed: number;
+  unverifiable: number;
+  failed: number;
+}
+
+/** Parte (b): registros de acceso de los Projects de organización. */
+export interface RecordsSummary extends ReverifySummary {
+  /** El presupuesto se agotó antes de recorrer todos los Projects con registros: la siguiente ocurrencia continúa. */
+  truncated: boolean;
 }
 
 export type BindingReconciliation = 'UNCHANGED' | 'RENAMED' | 'REVOKED' | 'UNVERIFIABLE' | 'FAILED';
@@ -30,13 +52,31 @@ export interface ReconciliationSummary {
   /** El presupuesto se agotó antes de recorrer todos los bindings: la siguiente ocurrencia continúa. */
   truncated: boolean;
   leftoverProjectsCleaned: number;
+  organizations: OrganizationsSummary;
+  records: RecordsSummary;
 }
 
 /**
- * Reconciliación horaria de acceso (`INTEROP-2.4` §6.9), parte (c) (etapa 3a): revalida el
- * propietario y el nombre del repositorio de todo Project vivo con binding, personales
- * incluidos, para que un evento `repository` perdido también se corrija. Las partes (a) y
- * (b) (registros de acceso de organización) son de la etapa 3b.
+ * Reconciliación horaria de acceso (`INTEROP-2.4` §6.9), partes (a), (b) y (c) (se ejecutan en el
+ * orden (a), (c), (b): el nombre del repositorio se corrige antes de recalcular los registros):
+ *
+ * - **(a) organizaciones** con registros de acceso: la organización debe ser resoluble, la App
+ *   seguir instalada y tener al menos un owner activo; si no, sus Projects quedan ocultos
+ *   (bindings `REVOKED` y registros borrados, Admin incluido) y se conservan. Reaparecen al
+ *   volver la organización o reinstalarse la App (el acceso se recrea al entrar), con el binding
+ *   `REVOKED` hasta que un Admin lo reactive. Una organización cuya instalación ya no existe
+ *   (`NOT_INSTALLED`) es confirmación de GitHub, no una caída. Una sola lectura de la lista de
+ *   instalaciones por ejecución; una lectura por organización para sus owners.
+ * - **(b) registros** de los Projects de organización con registros: los recalcula con las mismas
+ *   reglas que el alta (`ProjectAccessService.reverify`, mismo advisory lock), borra los que
+ *   GitHub confirma perdidos y conserva los no verificables.
+ * - **(c) binding** (etapa 3a): revalida el propietario y el nombre del repositorio de todo
+ *   Project vivo con binding, personales incluidos, para que un evento `repository` perdido
+ *   también se corrija.
+ *
+ * Nada revoca por una caída de GitHub (red, `5xx`, límite de tasa, instalación suspendida,
+ * `Members: read` ausente) ni concede algo nuevo, y el siguiente ciclo se programa igualmente.
+ * Un error en una parte se registra y no impide las demás.
  *
  * - **Cadena:** la siguiente ocurrencia (`now + 1 h`) se encola AL INICIO de la ejecución
  *   (el índice único parcial solo cubre `PENDING`: no choca con la fila `RUNNING` de esta
@@ -49,9 +89,11 @@ export interface ReconciliationSummary {
  *   renombrado -> actualiza `repositoryName`; GitHub no verificable (red, `5xx`, límite
  *   de tasa, instalación suspendida) -> conserva y reintenta en la siguiente ocurrencia:
  *   nunca revoca por un error de red.
- * - **Presupuesto y concurrencia:** a lo sumo `ACCESS_RECONCILIATION_BUDGET` lecturas de
- *   GitHub por ejecución y `ACCESS_RECONCILIATION_CONCURRENCY` simultáneas; si se agota, el
- *   cursor pasa al payload de la siguiente ocurrencia para no reverificar siempre los mismos.
+ * - **Presupuesto y concurrencia:** a lo sumo `ACCESS_RECONCILIATION_BUDGET` bindings (c) y
+ *   `ACCESS_RECONCILIATION_BUDGET` registros (b) por ejecución y `ACCESS_RECONCILIATION_CONCURRENCY`
+ *   lecturas simultáneas; si se agota, el cursor pasa al payload de la siguiente ocurrencia para
+ *   no reverificar siempre los mismos. La parte (a) no lleva cursor (una lectura por organización
+ *   con registros, acotada por la concurrencia).
  */
 @Injectable()
 export class AccessReconciliationJobHandler
@@ -66,6 +108,9 @@ export class AccessReconciliationJobHandler
     private readonly bindings: RepositoryBindingsRepository,
     private readonly lifecycle: BindingLifecycleService,
     @Inject(GITHUB_ACCESS_PORT) private readonly github: GithubAccessPort,
+    private readonly organizations: OrganizationLifecycleService,
+    private readonly reverify: AccessReverifyService,
+    private readonly accessRepository: ProjectAccessRepository,
   ) {}
 
   onModuleInit(): void {
@@ -119,13 +164,45 @@ export class AccessReconciliationJobHandler
       delayMs: this.intervalMs,
     });
 
-    const summary = await this.reconcileBindings(typeof payload?.afterBindingId === 'string' ? payload.afterBindingId : null);
+    const context = new VerificationContext(); // memoiza solo la lista de instalaciones de ESTA ejecución
+    const organizations = await this.guarded('(a) organizaciones', () => this.reconcileOrganizations(context), emptyOrganizations());
 
-    if (summary.truncated && summary.cursor !== null) {
-      await this.jobs.updatePendingPayload(ACCESS_RECONCILIATION_DEDUPE_KEY, { afterBindingId: summary.cursor });
+    // (c) antes que (b): un nombre de repositorio obsoleto no debe hacer que (b) lea el permiso de un
+    // repositorio que ya no existe con ese nombre, y un binding ya `REVOKED` se ve antes de recalcular.
+    let bindingsFailure: unknown;
+    let summary!: Awaited<ReturnType<AccessReconciliationJobHandler['reconcileBindings']>>;
+
+    try {
+      summary = await this.reconcileBindings(typeof payload?.afterBindingId === 'string' ? payload.afterBindingId : null);
+    } catch (error) {
+      bindingsFailure = error;
+    }
+
+    const records = await this.guarded(
+      '(b) registros',
+      () => this.reconcileRecords(typeof payload?.afterProjectId === 'string' ? payload.afterProjectId : null, context),
+      { ...emptyReverifySummary(), truncated: false, cursor: null },
+    );
+
+    if (bindingsFailure !== undefined) {
+      // Como antes: la ejecución falla (la siguiente ocurrencia ya está encolada) tras haber intentado (a) y (b).
+      throw bindingsFailure;
+    }
+
+    // Los cursores de (b) y (c) viajan juntos en el payload de la siguiente ocurrencia.
+    const nextPayload = {
+      ...(summary.truncated && summary.cursor !== null ? { afterBindingId: summary.cursor } : {}),
+      ...(records.truncated && records.cursor !== null ? { afterProjectId: records.cursor } : {}),
+    };
+
+    if (Object.keys(nextPayload).length > 0) {
+      await this.jobs.updatePendingPayload(ACCESS_RECONCILIATION_DEDUPE_KEY, nextPayload);
     }
 
     summary.leftoverProjectsCleaned = await this.sweepLeftoverRecords();
+    summary.organizations = organizations;
+    const { cursor: _recordsCursor, ...recordsResult } = records;
+    summary.records = recordsResult;
     const { cursor: _cursor, ...result } = summary;
     this.logger.log(`Reconciliación de acceso: ${JSON.stringify(result)}`);
     return result;
@@ -172,6 +249,88 @@ export class AccessReconciliationJobHandler
     }
   }
 
+  /** Ejecuta una parte de la reconciliación; un error se registra y devuelve `fallback` para no impedir las demás. */
+  private async guarded<T>(part: string, work: () => Promise<T>, fallback: T): Promise<T> {
+    try {
+      return await work();
+    } catch (error) {
+      this.logger.error(`La parte ${part} de la reconciliación falló: ${describe(error)}`);
+      return fallback;
+    }
+  }
+
+  /**
+   * Parte (a). Con la lista de instalaciones no verificable (caída de GitHub, límite de tasa) no
+   * se toca nada: ninguna organización se oculta sin confirmación.
+   */
+  async reconcileOrganizations(context: VerificationContext): Promise<OrganizationsSummary> {
+    const summary = emptyOrganizations();
+    const organizations = await this.accessRepository.findOrganizationsWithRecords();
+
+    if (organizations.length === 0) {
+      return summary;
+    }
+
+    const installations = await context.loadInstallations(this.github);
+    summary.checked = organizations.length;
+
+    if (installations.status !== 'OK') {
+      summary.unverifiable = organizations.length;
+      return summary;
+    }
+
+    const concurrency = this.config.get<number>('ACCESS_RECONCILIATION_CONCURRENCY', 5);
+    const outcomes = await mapWithConcurrency(organizations, concurrency, (organization) =>
+      this.organizations.reconcile(organization, installations.value),
+    );
+
+    for (const outcome of outcomes) {
+      if (outcome !== 'OK') {
+        summary[ORGANIZATION_COUNTER[outcome]] += 1;
+      }
+    }
+
+    return summary;
+  }
+
+  /**
+   * Parte (b): recalcula los registros de los Projects de organización con registros, un Project
+   * completo por vez, hasta agotar el presupuesto; el cursor (id del último Project) pasa a la
+   * siguiente ocurrencia si quedan más.
+   */
+  async reconcileRecords(afterProjectId: string | null, context: VerificationContext): Promise<RecordsSummary & { cursor: string | null }> {
+    const budget = this.config.get<number>('ACCESS_RECONCILIATION_BUDGET', 500);
+    const summary: RecordsSummary & { cursor: string | null } = { ...emptyReverifySummary(), truncated: false, cursor: null };
+    let cursor = afterProjectId;
+
+    for (;;) {
+      const projectIds = await this.accessRepository.findProjectIdsWithRecords(cursor, RECONCILIATION_PROJECT_BATCH_SIZE);
+
+      if (projectIds.length === 0) {
+        return summary;
+      }
+
+      for (const projectId of projectIds) {
+        const { targets, skipped } = await this.reverify.withIdentities(await this.accessRepository.findRecords({ projectId }));
+        const projectSummary = await this.reverify.reverifyTargets(targets, context);
+        projectSummary.skipped = skipped;
+        addSummaries(summary, projectSummary);
+        cursor = projectId;
+
+        if (summary.checked >= budget) {
+          // Presupuesto agotado: si quedan más Projects con registros, la siguiente ocurrencia continúa desde aquí.
+          summary.truncated = (await this.accessRepository.findProjectIdsWithRecords(cursor, 1)).length > 0;
+          summary.cursor = summary.truncated ? cursor : null;
+          return summary;
+        }
+      }
+
+      if (projectIds.length < RECONCILIATION_PROJECT_BATCH_SIZE) {
+        return summary;
+      }
+    }
+  }
+
   private async reconcileBindings(afterBindingId: string | null): Promise<ReconciliationSummary & { cursor: string | null }> {
     const budget = this.config.get<number>('ACCESS_RECONCILIATION_BUDGET', 500);
     const concurrency = this.config.get<number>('ACCESS_RECONCILIATION_CONCURRENCY', 5);
@@ -184,6 +343,8 @@ export class AccessReconciliationJobHandler
       failed: 0,
       truncated: false,
       leftoverProjectsCleaned: 0,
+      organizations: emptyOrganizations(),
+      records: { ...emptyReverifySummary(), truncated: false },
       cursor: null,
     };
     let cursor = afterBindingId;
@@ -240,6 +401,21 @@ export class AccessReconciliationJobHandler
     }
 
     return cleaned;
+  }
+}
+
+const ORGANIZATION_COUNTER = {
+  HIDDEN: 'hidden',
+  RENAMED: 'renamed',
+  UNVERIFIABLE: 'unverifiable',
+  FAILED: 'failed',
+} as const satisfies Record<Exclude<OrganizationReconciliation, 'OK'>, keyof OrganizationsSummary>;
+
+const emptyOrganizations = (): OrganizationsSummary => ({ checked: 0, hidden: 0, renamed: 0, unverifiable: 0, failed: 0 });
+
+function addSummaries(total: ReverifySummary, part: ReverifySummary): void {
+  for (const key of Object.keys(part) as Array<keyof ReverifySummary>) {
+    total[key] += part[key];
   }
 }
 

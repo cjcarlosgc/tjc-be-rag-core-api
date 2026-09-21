@@ -15,3 +15,6 @@ export const REVOKE_CONCURRENCY = 5;
 
 /** Bindings `REVOKED` con registros sobrantes que se limpian por ejecución. */
 export const LEFTOVER_SWEEP_LIMIT = 100;
+
+/** Projects de organización con registros leídos por página en la parte (b) de la reconciliación. */
+export const RECONCILIATION_PROJECT_BATCH_SIZE = 20;

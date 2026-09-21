@@ -66,6 +66,14 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     return { created: jobId !== null, jobId };
   }
 
+  /**
+   * Un evento que se absorbió en un `PENDING` reprogramado con backoff lo adelanta a "ahora":
+   * la verificación pendiente debe intentarse con el evento nuevo, no esperar hasta una hora.
+   */
+  expediteDeduped(dedupeKey: string): Promise<number> {
+    return this.jobsRepository.expedite(dedupeKey);
+  }
+
   /** Reemplaza el payload del `PENDING` con esa clave (cursor de la siguiente ocurrencia). */
   updatePendingPayload(dedupeKey: string, payload: Prisma.InputJsonValue): Promise<void> {
     return this.jobsRepository.updatePendingPayload(dedupeKey, payload);

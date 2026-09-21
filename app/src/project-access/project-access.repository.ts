@@ -34,12 +34,46 @@ export interface AccessLockScope {
   lockBindingStatus(): Promise<RepositoryBindingStatus | null>;
 }
 
+/** Par `(Project, usuario)` de un registro de acceso que una reverificación recalcula. */
+export interface AccessRecordKey {
+  projectId: string;
+  userId: string;
+}
+
+/**
+ * Selección de registros a reverificar (`INTEROP-2.4` §6.9): siempre Projects de organización
+ * vivos. `userId` acota a un usuario; `repositoryId`, a los Projects vinculados a ese repositorio;
+ * `organizationId`, a los de esa organización (`withRepositoryOnly`: solo los que tienen
+ * repositorio vinculado, porque el rol de un Project sin repositorio solo es Admin y no depende
+ * de Teams ni de permisos de repositorio); `projectId`, a uno solo.
+ */
+export interface AccessRecordFilter {
+  userId?: string;
+  repositoryId?: string;
+  organizationId?: string;
+  withRepositoryOnly?: boolean;
+  projectId?: string;
+}
+
 export interface RegisteredOrganization {
   organizationId: string;
   /** `githubOrgLogin` guardado: solo presentación. */
   login: string;
   /** `true` si el usuario tiene algún registro `ADMIN` en la organización. */
   hasAdmin: boolean;
+}
+
+/** `where` de los Projects de organización vivos que señala un filtro (sin los campos `userId`/`projectId`, propios del registro). */
+function liveOrganizationProjects(filter: AccessRecordFilter) {
+  return {
+    deletedAt: null,
+    githubOrgId: filter.organizationId ?? { not: null },
+    ...(filter.repositoryId !== undefined
+      ? { repositoryBinding: { is: { repositoryId: filter.repositoryId } } }
+      : filter.withRepositoryOnly
+        ? { repositoryBinding: { isNot: null } }
+        : {}),
+  };
 }
 
 @Injectable()
@@ -62,6 +96,97 @@ export class ProjectAccessRepository {
     });
 
     return records.map((record) => record.userId);
+  }
+
+  /** Todos los usuarios con registro (Admin incluido) sobre el Project: los que borra ocultar la organización. */
+  async findAllUserIds(projectId: string): Promise<string[]> {
+    const records = await this.prisma.projectAccess.findMany({ where: { projectId }, select: { userId: true } });
+
+    return records.map((record) => record.userId);
+  }
+
+  /** Registros de acceso a reverificar según `filter` (siempre Projects de organización vivos). */
+  async findRecords(filter: AccessRecordFilter): Promise<AccessRecordKey[]> {
+    const rows = await this.prisma.projectAccess.findMany({
+      where: {
+        ...(filter.userId === undefined ? {} : { userId: filter.userId }),
+        ...(filter.projectId === undefined ? {} : { projectId: filter.projectId }),
+        project: liveOrganizationProjects(filter),
+      },
+      select: { projectId: true, userId: true },
+    });
+
+    return rows.map((row) => ({ projectId: row.projectId, userId: row.userId }));
+  }
+
+  /**
+   * Projects de organización vivos que `filter` señala, con o sin registros. Los eventos de UN
+   * usuario reverifican por `(Project, usuario)` sobre estos Projects, no solo sobre sus registros
+   * existentes: así una reverificación se serializa (advisory lock) DESPUÉS de un alta en vuelo
+   * de ese usuario, que aún no ha creado su registro, y la verifica en vivo.
+   */
+  async findCandidateProjectIds(filter: AccessRecordFilter): Promise<string[]> {
+    const rows = await this.prisma.project.findMany({ where: liveOrganizationProjects(filter), select: { id: true } });
+
+    return rows.map((row) => row.id);
+  }
+
+  /** ¿Hay Projects de organización vivos vinculados a este repositorio? (los eventos de otros repositorios no encolan nada). */
+  async hasLiveOrganizationProjectForRepository(repositoryId: string): Promise<boolean> {
+    const count = await this.prisma.project.count({
+      where: { deletedAt: null, githubOrgId: { not: null }, repositoryBinding: { is: { repositoryId } } },
+    });
+
+    return count > 0;
+  }
+
+  /** Ids de los Projects vivos de la organización (con o sin repositorio). */
+  async findLiveProjectIdsOfOrganization(organizationId: string): Promise<string[]> {
+    const rows = await this.prisma.project.findMany({
+      where: { deletedAt: null, githubOrgId: organizationId },
+      select: { id: true },
+    });
+
+    return rows.map((row) => row.id);
+  }
+
+  /** `organization.renamed`: el `login` guardado es solo presentación (los accesos se verifican por id). */
+  async updateOrganizationLogin(organizationId: string, login: string): Promise<void> {
+    await this.prisma.project.updateMany({ where: { githubOrgId: organizationId }, data: { githubOrgLogin: login } });
+  }
+
+  /** Organizaciones (id y login guardado) con al menos un Project vivo que tiene registros de acceso: la parte (a) de la reconciliación. */
+  async findOrganizationsWithRecords(): Promise<Array<{ organizationId: string; login: string | null }>> {
+    const rows = await this.prisma.project.findMany({
+      where: { deletedAt: null, githubOrgId: { not: null }, access: { some: {} } },
+      select: { githubOrgId: true, githubOrgLogin: true },
+    });
+    const organizations = new Map<string, string | null>();
+
+    for (const row of rows) {
+      if (row.githubOrgId !== null) {
+        organizations.set(row.githubOrgId, row.githubOrgLogin);
+      }
+    }
+
+    return [...organizations].map(([organizationId, login]) => ({ organizationId, login }));
+  }
+
+  /** Página (por id ascendente, tras `afterProjectId`) de Projects de organización vivos con registros: la parte (b) de la reconciliación. */
+  async findProjectIdsWithRecords(afterProjectId: string | null, take: number): Promise<string[]> {
+    const rows = await this.prisma.project.findMany({
+      where: {
+        deletedAt: null,
+        githubOrgId: { not: null },
+        access: { some: {} },
+        ...(afterProjectId === null ? {} : { id: { gt: afterProjectId } }),
+      },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true },
+    });
+
+    return rows.map((row) => row.id);
   }
 
   /** Project vivo (no borrado) sin filtro de usuario: solo para decidir si aplica una verificación viva. */

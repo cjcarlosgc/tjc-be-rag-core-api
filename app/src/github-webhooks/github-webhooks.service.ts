@@ -10,7 +10,9 @@ import type {
 import type { GithubRepositoryWebhookPayload } from './dto/repository-webhook.payload.js';
 import type { GitHubWebhookAcceptedResponse } from './dto/webhook-accepted.response.js';
 import { RepositoryEventsService } from './repository-events.service.js';
+import { ACCESS_EVENT_NAMES, AccessEventsService, type AccessEventName } from './access-events.service.js';
 import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
+import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import type { CreateAnalysisRunInput } from '../analysis-runs/analysis-runs.repository.js';
@@ -48,6 +50,8 @@ export class GithubWebhooksService {
     private readonly jobsService: JobsService,
     private readonly repositoryEvents: RepositoryEventsService,
     private readonly bindingLifecycle: BindingLifecycleService,
+    private readonly organizationLifecycle: OrganizationLifecycleService,
+    private readonly accessEvents: AccessEventsService,
   ) {}
 
   async handle(request: IncomingWebhookRequest): Promise<GitHubWebhookAcceptedResponse> {
@@ -105,8 +109,14 @@ export class GithubWebhooksService {
       return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
     }
 
-    // `member`, `membership`, `organization`, `team` y cualquier otro evento no listado se
-    // aceptan (`202`) sin efecto: los eventos de acceso de organización son de la etapa 3b.
+    // Eventos de acceso de organización: solo encolan una reverificación viva (o ocultan/renombran la
+    // organización) y responden `202`; sin `WebhookDelivery` porque todo es idempotente.
+    if (request.eventName !== undefined && ACCESS_EVENT_NAMES.has(request.eventName)) {
+      await this.accessEvents.handle(request.eventName as AccessEventName, request.payload);
+      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
+    }
+
+    // Cualquier otro evento no listado se acepta (`202`) sin efecto.
     if (request.eventName !== 'pull_request') {
       return {
         deliveryId: request.deliveryId,
@@ -238,7 +248,8 @@ export class GithubWebhooksService {
 
   /**
    * HU31/HU61 (revocación): `deleted` = App desinstalada (bindings `REVOKED` y borrado de los
-   * registros Maintainer/Reader con expulsión de sockets), `suspend`/`unsuspend` = pausa
+   * registros Maintainer/Reader con expulsión de sockets; si es de una organización, también
+   * los Admin), `suspend`/`unsuspend` = pausa
    * reversible de la instalación completa (`suspend` NO borra registros: una instalación
    * suspendida se trata como GitHub no disponible). Sin dedup por delivery id -el efecto
    * es naturalmente idempotente, reprocesar el mismo evento no cambia el resultado-. Se
@@ -250,6 +261,16 @@ export class GithubWebhooksService {
     if (payload.action === 'deleted') {
       for (const binding of await this.repositoryBindingsRepository.findByInstallation(installationId)) {
         await this.bindingLifecycle.revokeBinding(binding);
+      }
+
+      // Desinstalada de una ORGANIZACIÓN: además sus Projects quedan ocultos y conservados, y se
+      // borran también los registros Admin (la organización ya no puede verificarse; los Projects
+      // sin repositorio también). Reaparecen al reinstalar la App.
+      const account = payload.installation.account;
+      const organizationId = account?.type === 'Organization' && typeof account.id === 'number' ? String(account.id) : null;
+
+      if (organizationId !== null) {
+        await this.organizationLifecycle.hide(organizationId);
       }
     } else if (payload.action === 'suspend') {
       await this.repositoryBindingsRepository.suspendByInstallation(installationId);

@@ -208,6 +208,18 @@ describe.skipIf(!url)('JobsRepository against a local PostgreSQL (dedupeKey, HU6
     });
   });
 
+  it('expedite brings a backoff-delayed PENDING forward to now, only for that key, and reports how many', async () => {
+    await insert(KEY, { delayMs: 3_600_000 });
+    await insert('ACCESS_REVERIFY:project-1:user-2', { delayMs: 3_600_000 });
+    expect(await repository.claimNext('w')).toBeNull();
+
+    expect(await repository.expedite(KEY)).toBe(1);
+    expect(await repository.expedite(KEY)).toBe(0); // ya disponible: nada que adelantar
+
+    expect(await repository.claimNext('w')).toMatchObject({ dedupeKey: KEY });
+    expect(await repository.claimNext('w')).toBeNull(); // la otra clave sigue en el futuro
+  });
+
   it('updatePendingPayload only changes the PENDING with that key', async () => {
     await insert();
     const running = (await repository.claimNext('w'))!;

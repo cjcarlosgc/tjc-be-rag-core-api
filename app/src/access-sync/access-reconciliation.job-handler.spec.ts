@@ -20,7 +20,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
   const build = () => {
     const configService = { get: (key: string, fallback?: unknown) => config[key] ?? fallback } as unknown as ConfigService;
     jobs = new JobsService(queue as unknown as JobsRepository, configService);
-    handler = new AccessReconciliationJobHandler(jobs, configService, h.bindings, h.lifecycle, h.github);
+    handler = new AccessReconciliationJobHandler(jobs, configService, h.bindings, h.lifecycle, h.github, h.organizations, h.reverify, h.accessRepository);
     handler.onModuleInit();
   };
 
@@ -30,6 +30,9 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
 
   beforeEach(() => {
     h = buildAccessSyncHarness();
+    // La organización `42` sigue instalada y con un owner (las partes (a) y (b) no la ocultan);
+    // `admin` es su owner y `writer`/`reader` sus miembros.
+    h.seedOrganization({ admin: 'owner', writer: 'member', reader: 'member' });
     queue = new InMemoryJobsRepository();
     config = {};
     build();
@@ -238,6 +241,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       h.seedPersonalProject('mine', 'creator', '7001', { repositoryId: '200' });
       h.grant('p1', 'reader', 'READER');
       h.github.ownerMode = 'UNVERIFIABLE';
+      h.github.permissionMode = 'UNVERIFIABLE'; // la parte (b) tampoco puede verificar el registro: lo conserva
       await handler.seed();
 
       await jobs.runOnce();
@@ -277,12 +281,13 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       h.seedOrgProject('p1', { status: 'REVOKED', repositoryId: '100' });
       h.grant('p1', 'admin', 'ADMIN');
       h.grant('p1', 'reader', 'READER');
+      h.github.installationsMode = 'UNVERIFIABLE'; // con GitHub caído solo el barrido (sin GitHub) puede terminar el borrado
 
       const summary = await run();
 
       expect(summary).toMatchObject({ leftoverProjectsCleaned: 1, checked: 0 });
       expect(h.recordsOf('p1')).toEqual(['admin:ADMIN']);
-      expect(h.github.calls).toEqual([]);
+      expect(h.github.calls.filter((call) => call.method === 'getRepositoryById')).toEqual([]);
     });
 
     it('one binding that throws is counted and does not stop the others', async () => {
@@ -303,6 +308,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
     it('a failure while revoking (records cannot be deleted) is FAILED, not silently REVOKED-and-forgotten', async () => {
       h.seedOrgProject('p1', { repositoryId: '100' });
       h.grant('p1', 'reader', 'READER');
+      h.github.permissionMode = 'UNVERIFIABLE'; // la parte (b) conserva el registro; lo borra la revocación de (c)
       vi.spyOn(h.access, 'revoke').mockRejectedValue(new Error('lock timeout'));
 
       const summary = await run();
@@ -369,6 +375,299 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       await handler.run({});
 
       expect(peak).toBe(2);
+    });
+  });
+
+  describe('part (a): organizations with access records', () => {
+    const W = 'acme/widgets';
+    const setUp = () => {
+      h.seedOrgProject('p1', { repositoryId: '100', repositoryName: W });
+      h.seedOrgProject('p2', null); // sin repositorio: solo Admin
+      repo(W, '100');
+      h.github.setPermission(W, 'gh-writer', 'write').setPermission(W, 'gh-reader', 'read');
+      h.grant('p1', 'admin', 'ADMIN');
+      h.grant('p1', 'writer', 'MAINTAINER');
+      h.grant('p1', 'reader', 'READER');
+      h.grant('p2', 'admin', 'ADMIN');
+    };
+    const run = () => handler.run({});
+
+    it('an organization that is resolvable, with the App installed and an owner, is left as is', async () => {
+      setUp();
+
+      const summary = await run();
+
+      expect(summary?.organizations).toEqual({ checked: 1, hidden: 0, renamed: 0, unverifiable: 0, failed: 0 });
+      expect(h.recordsOf('p1')).toHaveLength(3);
+      expect(h.bindingOf('p1').status).toBe('ENABLED');
+    });
+
+    it('App uninstalled from the organization: its projects are hidden and kept (bindings REVOKED, ALL records deleted, sockets evicted)', async () => {
+      setUp();
+      h.github.removeOrganization('acme');
+      const writer = socketOf('writer-socket');
+      h.subscriptions.track(writer, 'writer', 'v1', 'p1');
+
+      const summary = await run();
+
+      expect(summary?.organizations).toMatchObject({ checked: 1, hidden: 1 });
+      expect(h.bindingOf('p1').status).toBe('REVOKED');
+      expect(h.recordsOf('p1')).toEqual([]);
+      expect(h.recordsOf('p2')).toEqual([]);
+      expect(h.db.tables.project).toHaveLength(2); // Projects y evidencia conservados
+      expect(writer.leave).toHaveBeenCalled();
+    });
+
+    it('organization without owners or that GitHub no longer finds: hidden', async () => {
+      setUp();
+      h.github.setOwners('acme', []);
+
+      expect((await run())?.organizations).toMatchObject({ hidden: 1 });
+      expect(h.recordsOf('p2')).toEqual([]);
+    });
+
+    it('organization deleted while its installation record lingers (owners read NOT_INSTALLED): hidden', async () => {
+      setUp();
+      h.github.setOrganizationMode('acme', 'NOT_INSTALLED');
+
+      expect((await run())?.organizations).toMatchObject({ hidden: 1 });
+      expect(h.bindingOf('p1').status).toBe('REVOKED');
+    });
+
+    it('GitHub down (installation list, Members: read missing, suspended installation): revokes NOTHING and still chains the next occurrence', async () => {
+      setUp();
+      await handler.seed();
+
+      h.github.installationsMode = 'UNVERIFIABLE';
+      let summary = await jobs.runOnce().then(() => queue.jobs.length);
+      expect(summary).toBe(2);
+      expect(h.recordsOf('p1')).toHaveLength(3);
+
+      h.github.installationsMode = 'NORMAL';
+      h.github.setOrganizationMode('acme', 'UNVERIFIABLE'); // Members: read sin aceptar
+      const outcome = await handler.run({});
+      expect(outcome?.organizations).toMatchObject({ unverifiable: 1, hidden: 0 });
+      expect(h.recordsOf('p1')).toHaveLength(3);
+      expect(h.bindingOf('p1').status).toBe('ENABLED');
+
+      h.github.setOrganizationMode('acme', 'NORMAL');
+      h.github.removeOrganization('acme');
+      h.github.addOrganization({ installationId: 'inst-42', organizationId: ORG_ID, organizationLogin: 'acme', avatarUrl: null, suspended: true });
+      expect((await handler.run({}))?.organizations).toMatchObject({ unverifiable: 1, hidden: 0 });
+      expect(h.recordsOf('p1')).toHaveLength(3);
+      expect(queue.pending(ACCESS_RECONCILIATION_DEDUPE_KEY)).toHaveLength(1);
+    });
+
+    it('reads the installation list ONCE per run even though parts (a) and (b) both need it', async () => {
+      setUp();
+
+      await run();
+
+      expect(h.github.calls.filter((call) => call.method === 'listOrganizationInstallations')).toHaveLength(1);
+      expect(h.github.calls.filter((call) => call.method === 'listOrganizationOwners')).toHaveLength(1);
+    });
+
+    it('corrects a stale stored login with the current one of the installation', async () => {
+      setUp();
+      h.db.tables.project.forEach((row) => (row.githubOrgLogin = 'old-name'));
+
+      expect((await run())?.organizations).toMatchObject({ renamed: 1 });
+      expect(h.db.tables.project.every((row) => row.githubOrgLogin === 'acme')).toBe(true);
+    });
+
+    it('an organization whose projects have no records is not visited (only organizations with records)', async () => {
+      h.seedOrgProject('p1', { repositoryId: '100', repositoryName: W });
+      repo(W, '100');
+      h.github.removeOrganization('acme');
+
+      const summary = await run();
+
+      expect(summary?.organizations.checked).toBe(0);
+      expect(h.bindingOf('p1').status).toBe('ENABLED');
+    });
+
+    it('the organization comes back: the Admin re-enters, the binding stays REVOKED until an Admin reactivates it', async () => {
+      setUp();
+      h.github.removeOrganization('acme');
+      await run();
+      h.github.addOrganization({ installationId: 'inst-42', organizationId: ORG_ID, organizationLogin: 'acme', avatarUrl: null, suspended: false });
+
+      expect(await h.access.grantOnEntry('p1', 'admin', 'gh-admin')).toEqual({ status: 'GRANTED', role: 'ADMIN' });
+      expect(h.bindingOf('p1').status).toBe('REVOKED');
+      expect(await h.access.grantOnEntry('p1', 'writer', 'gh-writer')).toEqual({ status: 'DENIED' });
+    });
+
+    it('an error in part (a) is logged and does not stop parts (b) and (c)', async () => {
+      setUp();
+      h.bindingOf('p1').repositoryName = 'acme/old';
+      h.github.renameRepository(W, 'acme/new'); // (c) corrige el nombre y (b) ya lee con el nombre nuevo
+      h.github.setPermission('acme/new', 'gh-writer', 'read').setPermission('acme/new', 'gh-reader', 'read');
+      vi.spyOn(h.accessRepository, 'findOrganizationsWithRecords').mockRejectedValue(new Error('db hiccup'));
+
+      const summary = await run();
+
+      expect(summary?.organizations.checked).toBe(0);
+      expect(h.recordsOf('p1')).toContain('writer:READER'); // (b)
+      expect(h.bindingOf('p1').repositoryName).toBe('acme/new'); // (c)
+    });
+  });
+
+  describe('part (b): access records recomputed with the rules of the signup', () => {
+    const W = 'acme/widgets';
+    const setUp = () => {
+      h.seedOrgProject('p1', { repositoryId: '100', repositoryName: W });
+      repo(W, '100');
+      h.github.setPermission(W, 'gh-writer', 'write').setPermission(W, 'gh-reader', 'read');
+      h.grant('p1', 'admin', 'ADMIN');
+      h.grant('p1', 'writer', 'MAINTAINER');
+      h.grant('p1', 'reader', 'READER');
+    };
+    const run = () => handler.run({});
+
+    it('confirms unchanged records (verifiedAt is refreshed) and changes nothing else', async () => {
+      setUp();
+
+      const summary = await run();
+
+      expect(summary?.records).toMatchObject({ checked: 3, unchanged: 3, updated: 0, revoked: 0, truncated: false });
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:READER', 'writer:MAINTAINER']);
+    });
+
+    it('a role changed WITHOUT an event (permission base of the organization, inherited access) is corrected', async () => {
+      setUp();
+      h.github.setPermission(W, 'gh-writer', 'read');
+      h.github.setPermission(W, 'gh-reader', 'maintain');
+
+      const summary = await run();
+
+      expect(summary?.records).toMatchObject({ updated: 2 });
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:MAINTAINER', 'writer:READER']);
+    });
+
+    it('a role demoted from owner: the Admin record is recalculated too', async () => {
+      setUp();
+      h.github.setMembership('acme', 'gh-admin', { role: 'member', state: 'active' });
+      h.github.setPermission(W, 'gh-admin', 'read');
+
+      await run();
+
+      expect(h.recordsOf('p1')).toContain('admin:READER');
+    });
+
+    it('confirmed loss: a member removed, a pending invitation and an external collaborator with write are deleted', async () => {
+      setUp();
+      h.github.removeMembership('acme', 'gh-writer');
+      h.github.setMembership('acme', 'gh-reader', { role: 'member', state: 'pending' });
+
+      const summary = await run();
+
+      expect(summary?.records).toMatchObject({ revoked: 2 });
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN']);
+    });
+
+    it('GitHub not verifiable (permission read): the records are kept, counted, and the next occurrence is chained', async () => {
+      setUp();
+      h.github.permissionMode = 'UNVERIFIABLE';
+      h.github.removePermission(W, 'gh-writer');
+      await handler.seed();
+
+      await jobs.runOnce();
+
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:READER', 'writer:MAINTAINER']);
+      expect(queue.pending(ACCESS_RECONCILIATION_DEDUPE_KEY)).toHaveLength(1);
+    });
+
+    it('a network error never revokes: Members: read missing keeps every record', async () => {
+      setUp();
+      h.github.setOrganizationMode('acme', 'UNVERIFIABLE');
+      h.github.removeMembership('acme', 'gh-writer');
+
+      const summary = await run();
+
+      expect(summary?.records).toMatchObject({ unverifiable: 3, revoked: 0 });
+      expect(h.recordsOf('p1')).toHaveLength(3);
+    });
+
+    it('Maintainer/Reader records of a REVOKED binding are deleted; the Admin keeps the project', async () => {
+      setUp();
+      h.bindingOf('p1').status = 'REVOKED';
+
+      await run();
+
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN']);
+    });
+
+    it('does not touch personal projects (they have no records) or soft-deleted projects', async () => {
+      setUp();
+      h.seedPersonalProject('mine', 'creator', '7001', { repositoryId: '200', repositoryName: 'creator/repo' });
+      repo('creator/repo', '200', '7001');
+      h.db.insert('project', { id: 'gone', name: 'gone', ownerUserId: 'x', githubOrgId: ORG_ID, githubOrgLogin: 'acme', deletedAt: new Date() });
+      h.grant('gone', 'writer', 'MAINTAINER');
+
+      await run();
+
+      expect(h.recordsOf('gone')).toEqual(['writer:MAINTAINER']);
+      expect(h.github.calls.filter((call) => call.githubUserId !== undefined && call.repositoryName === 'creator/repo')).toEqual([]);
+    });
+
+    it('a record whose user has no persisted GitHub identity is skipped and counted (it cannot be verified), never revoked', async () => {
+      setUp();
+      h.grant('p1', 'ghost', 'READER');
+
+      const summary = await run();
+
+      expect(summary?.records).toMatchObject({ skipped: 1, revoked: 0 });
+      expect(h.recordsOf('p1')).toContain('ghost:READER');
+    });
+
+    it('stops at the budget, hands the project cursor to the next occurrence together with the binding cursor, and continues there', async () => {
+      for (const id of ['pa', 'pb', 'pc']) {
+        h.seedOrgProject(id, { repositoryId: `r-${id}`, repositoryName: `acme/${id}` });
+        repo(`acme/${id}`, `r-${id}`);
+        h.github.setPermission(`acme/${id}`, 'gh-writer', 'read'); // cada registro cambia de Maintainer a Reader
+        h.grant(id, 'writer', 'MAINTAINER');
+        h.grant(id, 'reader', 'READER');
+      }
+      h.github.setPermission('acme/pa', 'gh-reader', 'read').setPermission('acme/pb', 'gh-reader', 'read').setPermission('acme/pc', 'gh-reader', 'read');
+      config.ACCESS_RECONCILIATION_BUDGET = 3; // dos registros por Project: se agota tras el segundo Project
+      await handler.seed();
+
+      await jobs.runOnce();
+
+      const [next] = queue.pending(ACCESS_RECONCILIATION_DEDUPE_KEY);
+      expect(next.payload).toMatchObject({ afterProjectId: expect.any(String) });
+      expect(['pa:writer:READER', 'pb:writer:READER'].every((entry) => h.recordsOf(entry.split(':')[0]).includes(entry.slice(3)))).toBe(true);
+      expect(h.recordsOf('pc')).toContain('writer:MAINTAINER'); // aún sin recorrer
+
+      queue.advance(HOUR);
+      await jobs.runOnce();
+
+      expect(h.recordsOf('pc')).toContain('writer:READER');
+      expect(queue.pending(ACCESS_RECONCILIATION_DEDUPE_KEY)[0].payload).toEqual({});
+    });
+
+    it('never has more than five verifications in flight (the verification concurrency)', async () => {
+      setUp();
+      for (let index = 0; index < 8; index += 1) {
+        h.grant('p1', `extra-${index}`, 'READER');
+        void h.identities.create(`extra-${index}`, `gh-extra-${index}`, null);
+        h.github.setMembership('acme', `gh-extra-${index}`, { role: 'member', state: 'active' }).setPermission(W, `gh-extra-${index}`, 'read');
+      }
+      let inFlight = 0;
+      let peak = 0;
+      const original = h.github.getRepositoryPermission.bind(h.github);
+      vi.spyOn(h.github, 'getRepositoryPermission').mockImplementation(async (repository, githubUserId) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight -= 1;
+        return original(repository, githubUserId);
+      });
+
+      await run();
+
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(5);
     });
   });
 });

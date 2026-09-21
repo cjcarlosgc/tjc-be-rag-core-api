@@ -174,6 +174,18 @@ export class JobsRepository {
     return stale.length;
   }
 
+  /**
+   * Adelanta a "ahora" el `PENDING` con esa clave si estaba reprogramado al futuro (backoff de un
+   * `ACCESS_REVERIFY` no verificable): un evento nuevo que se absorbe en él no debe esperar el
+   * backoff. Con el reloj de la base, como el resto de la cola. Devuelve cuántas filas adelantó.
+   */
+  async expedite(dedupeKey: string): Promise<number> {
+    return this.prisma.$executeRaw`
+      UPDATE "jobs" SET "availableAt" = now(), "updatedAt" = now()
+      WHERE "status" = 'PENDING' AND "dedupeKey" = ${dedupeKey} AND "availableAt" > now()
+    `;
+  }
+
   /** Actualiza el payload del `PENDING` con esa clave (p. ej. el cursor de la siguiente ocurrencia). */
   async updatePendingPayload(dedupeKey: string, payload: Prisma.InputJsonValue): Promise<void> {
     await this.prisma.job.updateMany({

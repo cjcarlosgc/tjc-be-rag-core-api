@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AccessReverifyService } from '../access-sync/access-reverify.service.js';
 import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
 import { RepositoryBindingsRepository, type BindingWithWorkspace } from '../repository-bindings/repository-bindings.repository.js';
 import type { GithubRepositoryWebhookPayload } from './dto/repository-webhook.payload.js';
@@ -11,9 +12,9 @@ import type { GithubRepositoryWebhookPayload } from './dto/repository-webhook.pa
  * - `transferred`: si el nuevo propietario no es la cuenta/organización del Project, binding
  *   `REVOKED` y borrado de los registros Maintainer/Reader; si lo es, solo actualiza el nombre;
  * - `deleted`: binding `REVOKED` y borrado de los registros Maintainer/Reader;
- * - `privatized`: reverifica todos los registros de los Projects vinculados; eso es la
- *   reverificación de la etapa 3b (`ACCESS_REVERIFY`), así que hasta entonces no hace nada
- *   (los registros los corrige la reconciliación cuando exista).
+ * - `privatized`: reverifica todos los registros de los Projects de organización vinculados (el
+ *   `read` implícito de un repositorio público deja de existir): encola un `ACCESS_REVERIFY` del
+ *   repositorio, sin efecto directo (un Project personal no tiene registros).
  *
  * El binding se selecciona SOLO por `repository.id`. Todo es idempotente (un evento duplicado
  * o tardío repite el mismo efecto; una revocación nunca se deshace por un evento). Un renombre
@@ -27,6 +28,7 @@ export class RepositoryEventsService {
   constructor(
     private readonly bindings: RepositoryBindingsRepository,
     private readonly lifecycle: BindingLifecycleService,
+    private readonly reverify: AccessReverifyService,
   ) {}
 
   async handle(payload: GithubRepositoryWebhookPayload): Promise<void> {
@@ -54,8 +56,10 @@ export class RepositoryEventsService {
         return;
 
       default:
-        // `privatized`: la reverificación de registros es de la etapa 3b.
-        this.logger.debug(`repository.${payload.action} sobre el binding "${binding.id}": sin efecto hasta la etapa 3b.`);
+        // `privatized`: solo los Projects de organización tienen registros que reverificar.
+        if (binding.project.githubOrgId !== null) {
+          await this.reverify.enqueue({ scope: 'REPOSITORY', repositoryId: binding.repositoryId });
+        }
     }
   }
 

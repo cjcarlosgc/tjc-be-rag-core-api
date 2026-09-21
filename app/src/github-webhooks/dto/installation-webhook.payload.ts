@@ -1,7 +1,11 @@
 /** Subconjunto tipado del payload real de GitHub para `installation`; solo los campos que Core lee. */
 export interface GithubInstallationWebhookPayload {
   action: 'created' | 'deleted' | 'suspend' | 'unsuspend' | 'new_permissions_accepted' | string;
-  installation: { id: number };
+  installation: {
+    id: number;
+    /** Cuenta donde está instalada la App: `type: 'Organization'` con su id numérico (HU61, ciclo de vida de la organización). */
+    account?: { id?: number; type?: string };
+  };
 }
 
 /** Subconjunto tipado del payload real de GitHub para `installation_repositories`. */

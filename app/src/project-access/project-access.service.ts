@@ -35,6 +35,13 @@ export type AccessVerdict =
   /** GitHub no permite verificar: conservar lo registrado, no conceder lo nuevo (`503` / omitido). */
   | { status: 'UNVERIFIABLE' };
 
+/**
+ * Resultado de reverificar un registro existente: `UPDATED` cambió el rol, `REVOKED` lo borró
+ * porque GitHub confirma que el acceso se perdió, `UNVERIFIABLE` lo conservó porque GitHub no
+ * pudo verificarse, `NO_RECORD` no había nada que reverificar (el alta lo crea al entrar).
+ */
+export type ReverifyOutcome = 'UNCHANGED' | 'UPDATED' | 'REVOKED' | 'UNVERIFIABLE' | 'NO_RECORD';
+
 export interface OrganizationSyncTarget {
   organizationId: string;
   role: 'ADMIN' | 'MEMBER';
@@ -199,6 +206,72 @@ export class ProjectAccessService {
    */
   async revoke(projectId: string, userId: string): Promise<void> {
     await this.repository.withAccessLock(projectId, userId, (scope) => scope.deleteRecord());
+  }
+
+  /**
+   * Reverificación de un registro EXISTENTE (`ACCESS_REVERIFY` y reconciliación (b)): las
+   * mismas reglas que el alta (`deriveRole`, lectura viva del installation token; el payload de
+   * un evento nunca aporta el rol) bajo el MISMO advisory lock por `(projectId, userId)`, de
+   * modo que nunca se intercala con un alta ni con una revocación. Confirma y actualiza
+   * `role`/`verifiedAt`; borra el registro si GitHub confirma que se perdió el acceso (no
+   * miembro activo, App desinstalada de la organización, permiso ausente, Project borrado o
+   * binding `REVOKED` para un Maintainer/Reader); lo conserva si no puede verificar (nunca
+   * revoca por un error de red). Un registro inexistente se deja tal cual: solo el alta al
+   * entrar concede accesos nuevos.
+   */
+  async reverify(
+    projectId: string,
+    userId: string,
+    githubUserId: string,
+    context: VerificationContext = new VerificationContext(),
+  ): Promise<ReverifyOutcome> {
+    try {
+      return await this.repository.withAccessLock(projectId, userId, async (scope): Promise<ReverifyOutcome> => {
+        const existing = await scope.findRecord();
+
+        if (!existing) {
+          return 'NO_RECORD';
+        }
+
+        const project = await scope.findProject();
+
+        // Project borrado (o no de organización): el registro ya no tiene sentido.
+        if (!project || project.githubOrgId === null) {
+          await scope.deleteRecord();
+          return 'REVOKED';
+        }
+
+        const verdict = await this.deriveRole(project, githubUserId, context);
+
+        if (verdict.status === 'UNVERIFIABLE') {
+          return 'UNVERIFIABLE';
+        }
+
+        if (verdict.status === 'GRANTED' && verdict.role !== 'ADMIN') {
+          // Como en el alta, Maintainer/Reader dependen del binding: se confirma con `FOR SHARE`.
+          const bindingStatus = await scope.lockBindingStatus();
+
+          if (bindingStatus === null || bindingStatus === 'REVOKED') {
+            await scope.deleteRecord();
+            return 'REVOKED';
+          }
+        }
+
+        if (verdict.status === 'DENIED') {
+          await scope.deleteRecord();
+          return 'REVOKED';
+        }
+
+        await scope.upsertRecord(verdict.role);
+        return existing.role === verdict.role ? 'UNCHANGED' : 'UPDATED';
+      });
+    } catch (error) {
+      if (isTransactionTimeout(error)) {
+        this.logger.warn(`La reverificación de "${projectId}" excedió el tiempo de la transacción; no verificable.`);
+        return 'UNVERIFIABLE';
+      }
+      throw error;
+    }
   }
 
   /**

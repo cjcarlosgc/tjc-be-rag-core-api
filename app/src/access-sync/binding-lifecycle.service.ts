@@ -50,8 +50,31 @@ export class BindingLifecycleService {
    * quien lo invoca lo registre (la reconciliación termina lo que quede: los bindings
    * `REVOKED` con registros sobrantes, y el predicado de acceso ya los deniega).
    */
-  async dropNonAdminAccess(projectId: string): Promise<void> {
-    const userIds = await this.accessRepository.findNonAdminUserIds(projectId);
+  dropNonAdminAccess(projectId: string): Promise<void> {
+    return this.dropAccess(projectId, false);
+  }
+
+  /**
+   * Oculta el Project (ciclo de vida de la organización: desaparece, se desinstala la App o
+   * queda sin owners): binding `REVOKED` si lo tiene (sin borrar evidencia) y borrado de TODOS
+   * los registros, Admin incluido, porque la organización ya no puede verificarse. El Project y su
+   * evidencia se conservan. Reaparece, con el binding `REVOKED` hasta que un Admin lo reactive
+   * (`POST .../enable`), cuando el alta vuelve a crear el acceso al entrar. Idempotente.
+   */
+  async hideProject(projectId: string): Promise<void> {
+    const binding = await this.bindings.findByProjectId(projectId);
+
+    if (binding && binding.status !== 'REVOKED') {
+      await this.bindings.updateStatus(binding.id, 'REVOKED');
+    }
+
+    await this.dropAccess(projectId, true);
+  }
+
+  private async dropAccess(projectId: string, includeAdmin: boolean): Promise<void> {
+    const userIds = includeAdmin
+      ? await this.accessRepository.findAllUserIds(projectId)
+      : await this.accessRepository.findNonAdminUserIds(projectId);
     const failed: string[] = [];
 
     await mapWithConcurrency(userIds, REVOKE_CONCURRENCY, async (userId) => {

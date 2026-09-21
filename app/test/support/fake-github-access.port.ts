@@ -90,6 +90,11 @@ export class FakeGithubAccessPort implements GithubAccessPort {
     return this;
   }
 
+  /** El usuario deja de ser miembro de la organización (o su invitación se cancela). */
+  removeMembership(organizationLogin: string, githubUserId: string): void {
+    this.memberships.delete(`${organizationLogin}|${githubUserId}`);
+  }
+
   setOwners(organizationLogin: string, owners: OrganizationOwner[]): this {
     this.owners.set(organizationLogin, owners);
     return this;
@@ -124,6 +129,11 @@ export class FakeGithubAccessPort implements GithubAccessPort {
   setPermission(repositoryName: string, githubUserId: string, level: RepositoryPermissionLevel): this {
     this.permissions.set(`${repositoryName}|${githubUserId}`, level);
     return this;
+  }
+
+  /** El usuario deja de tener permiso sobre el repositorio. */
+  removePermission(repositoryName: string, githubUserId: string): void {
+    this.permissions.delete(`${repositoryName}|${githubUserId}`);
   }
 
   getRepositoryOwner(repository: RepositoryRef): Promise<GithubLookup<RepositoryOwner>> {

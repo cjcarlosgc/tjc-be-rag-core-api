@@ -144,6 +144,11 @@ export class RepositoryBindingsRepository {
     });
   }
 
+  /** Binding del Project, sin filtro de usuario (ciclo de vida de la organización, HU61). */
+  findByProjectId(projectId: string): Promise<RepositoryBinding | null> {
+    return this.prisma.repositoryBinding.findFirst({ where: { projectId } });
+  }
+
   /** HU61: el renombre de un repositorio solo actualiza `repositoryName`; el estado no cambia. */
   updateRepositoryName(id: string, repositoryName: string): Promise<RepositoryBinding> {
     return this.prisma.repositoryBinding.update({ where: { id }, data: { repositoryName } });

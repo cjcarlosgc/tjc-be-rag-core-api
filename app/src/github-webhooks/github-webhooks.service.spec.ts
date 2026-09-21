@@ -10,6 +10,8 @@ import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { RepositoryEventsService } from './repository-events.service.js';
 import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
+import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
+import { AccessEventsService } from './access-events.service.js';
 import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -56,6 +58,8 @@ describe('GithubWebhooksService', () => {
   let jobsService: { enqueue: ReturnType<typeof vi.fn> };
   let repositoryEvents: { handle: ReturnType<typeof vi.fn> };
   let bindingLifecycle: { revokeBinding: ReturnType<typeof vi.fn> };
+  let organizationLifecycle: { hide: ReturnType<typeof vi.fn> };
+  let accessEvents: { handle: ReturnType<typeof vi.fn> };
 
   const binding: RepositoryBinding = {
     id: 'binding-1',
@@ -143,6 +147,8 @@ describe('GithubWebhooksService', () => {
     jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
     repositoryEvents = { handle: vi.fn().mockResolvedValue(undefined) };
     bindingLifecycle = { revokeBinding: vi.fn().mockResolvedValue(undefined) };
+    organizationLifecycle = { hide: vi.fn().mockResolvedValue(1) };
+    accessEvents = { handle: vi.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -155,6 +161,8 @@ describe('GithubWebhooksService', () => {
         { provide: JobsService, useValue: jobsService },
         { provide: RepositoryEventsService, useValue: repositoryEvents },
         { provide: BindingLifecycleService, useValue: bindingLifecycle },
+        { provide: OrganizationLifecycleService, useValue: organizationLifecycle },
+        { provide: AccessEventsService, useValue: accessEvents },
       ],
     }).compile();
 
@@ -518,10 +526,13 @@ describe('GithubWebhooksService', () => {
     });
 
     it.each(['member', 'membership', 'organization', 'team'])(
-      'accepts `%s` with 202 semantics and ignores it until stage 3b (no binding lookup, no job, no record)',
+      'routes `%s` to the access handler with the payload and answers 202 (no binding lookup, no delivery record, no analysis job)',
       async (eventName) => {
-        const result = await service.handle(buildRequest({ action: 'added', member: { id: 1 }, repository: { id: 123 } }, { eventName }));
+        const payload = { action: 'added', member: { id: 1 }, repository: { id: 123 } };
 
+        const result = await service.handle(buildRequest(payload, { eventName }));
+
+        expect(accessEvents.handle).toHaveBeenCalledWith(eventName, payload);
         expect(result).toEqual({ deliveryId: 'delivery-1', accepted: true, duplicate: false, analysisRunId: null });
         expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
         expect(repositoryEvents.handle).not.toHaveBeenCalled();
@@ -530,5 +541,60 @@ describe('GithubWebhooksService', () => {
         expect(webhookDeliveriesRepository.create).not.toHaveBeenCalled();
       },
     );
+
+    it.each(['member', 'membership', 'organization', 'team'])('rejects a tampered `%s` signature before handling it', async (eventName) => {
+      const request = buildRequest({ action: 'removed', member: { id: 1 } }, { eventName, signatureHeader: 'sha256=deadbeef' });
+
+      await expect(service.handle(request)).rejects.toMatchObject({ code: ErrorCode.INVALID_WEBHOOK_SIGNATURE });
+      expect(accessEvents.handle).not.toHaveBeenCalled();
+    });
+
+    it.each(['ping', 'star', 'push', 'workflow_run'])('still accepts the unlisted event `%s` with 202 and no effect', async (eventName) => {
+      const result = await service.handle(buildRequest({ action: 'created' }, { eventName }));
+
+      expect(result).toEqual({ deliveryId: 'delivery-1', accepted: true, duplicate: false, analysisRunId: null });
+      expect(accessEvents.handle).not.toHaveBeenCalled();
+      expect(repositoryEvents.handle).not.toHaveBeenCalled();
+    });
+
+    it('a redelivered access event (same delivery id already recorded) is answered duplicate and not reprocessed', async () => {
+      webhookDeliveriesRepository.findByDeliveryId.mockResolvedValue({ deliveryId: 'delivery-1', analysisRunId: null });
+
+      const result = await service.handle(buildRequest({ action: 'removed', member: { id: 1 }, repository: { id: 123 } }, { eventName: 'member' }));
+
+      expect(result.duplicate).toBe(true);
+      expect(accessEvents.handle).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('installation.deleted of an ORGANIZATION (HU61, ciclo de vida de la organización)', () => {
+    it('also hides the organization projects (Admin records included) after revoking the bindings of the installation', async () => {
+      await service.handle(
+        buildRequest({ action: 'deleted', installation: { id: 999, account: { id: 42, type: 'Organization' } } }, { eventName: 'installation' }),
+      );
+
+      expect(bindingLifecycle.revokeBinding).toHaveBeenCalledWith(binding);
+      expect(organizationLifecycle.hide).toHaveBeenCalledWith('42');
+    });
+
+    it('a PERSONAL account installation only revokes bindings (no organization to hide)', async () => {
+      await service.handle(
+        buildRequest({ action: 'deleted', installation: { id: 999, account: { id: 7, type: 'User' } } }, { eventName: 'installation' }),
+      );
+
+      expect(bindingLifecycle.revokeBinding).toHaveBeenCalledWith(binding);
+      expect(organizationLifecycle.hide).not.toHaveBeenCalled();
+    });
+
+    it('suspend, unsuspend and installation_repositories never hide the organization', async () => {
+      const account = { id: 42, type: 'Organization' };
+      await service.handle(buildRequest({ action: 'suspend', installation: { id: 999, account } }, { eventName: 'installation' }));
+      await service.handle(buildRequest({ action: 'unsuspend', installation: { id: 999, account } }, { eventName: 'installation' }));
+      await service.handle(
+        buildRequest({ action: 'removed', installation: { id: 999, account }, repositories_removed: [{ id: 123, full_name: 'org/repo' }] }, { eventName: 'installation_repositories' }),
+      );
+
+      expect(organizationLifecycle.hide).not.toHaveBeenCalled();
+    });
   });
 });

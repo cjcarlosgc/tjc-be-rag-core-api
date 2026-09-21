@@ -123,6 +123,14 @@ export class InMemoryJobsRepository {
     return Promise.resolve(stale.length);
   }
 
+  expedite(dedupeKey: string): Promise<number> {
+    const targets = this.pending(dedupeKey).filter((job) => job.availableAt.getTime() > this.nowMs);
+    targets.forEach((job) => {
+      job.availableAt = this.now();
+    });
+    return Promise.resolve(targets.length);
+  }
+
   updatePendingPayload(dedupeKey: string, payload: Prisma.InputJsonValue): Promise<void> {
     this.pending(dedupeKey).forEach((job) => {
       job.payload = payload;

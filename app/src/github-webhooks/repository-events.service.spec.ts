@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildAccessSyncHarness, ORG_ID, socketOf } from '../../test/support/access-sync-harness.js';
 import { RepositoryEventsService } from './repository-events.service.js';
+import { reverifyDedupeKey } from '../access-sync/access-reverify.scope.js';
 
 const event = (action: string, repository: Record<string, unknown> = {}) => ({
   action,
@@ -14,7 +15,7 @@ describe('RepositoryEventsService (HU61, tabla de eventos de §6.9)', () => {
 
   beforeEach(() => {
     h = buildAccessSyncHarness();
-    service = new RepositoryEventsService(h.bindings, h.lifecycle);
+    service = new RepositoryEventsService(h.bindings, h.lifecycle, h.reverify);
     h.seedOrgProject('p1', { repositoryId: '100', repositoryName: 'acme/widgets' });
     h.grant('p1', 'admin', 'ADMIN');
     h.grant('p1', 'writer', 'MAINTAINER');
@@ -144,11 +145,35 @@ describe('RepositoryEventsService (HU61, tabla de eventos de §6.9)', () => {
     });
   });
 
-  it('privatized has no effect on the binding in this stage (the reverification of records is stage 3b)', async () => {
-    await service.handle(event('privatized'));
+  describe('privatized', () => {
+    it('does not touch the binding or the records itself: it enqueues a reverification of the repository (the read of a public repository disappears)', async () => {
+      await service.handle(event('privatized'));
 
-    expect(h.bindingOf('p1')).toMatchObject({ status: 'ENABLED', repositoryName: 'acme/widgets' });
-    expect(h.recordsOf('p1')).toHaveLength(3);
+      expect(h.bindingOf('p1')).toMatchObject({ status: 'ENABLED', repositoryName: 'acme/widgets' });
+      expect(h.recordsOf('p1')).toHaveLength(3);
+      const [job] = h.queue.pending();
+      expect(job).toMatchObject({ type: 'access-reverify', dedupeKey: reverifyDedupeKey({ scope: 'REPOSITORY', repositoryId: '100' }) });
+      expect(job.payload).toEqual({ scope: 'REPOSITORY', repositoryId: '100' });
+    });
+
+    it('a duplicate is absorbed by the PENDING job (dedupe only over PENDING)', async () => {
+      await service.handle(event('privatized'));
+      await service.handle(event('privatized'));
+
+      expect(h.queue.pending()).toHaveLength(1);
+    });
+
+    it('is enqueued although the binding is not ENABLED, and never for a PERSONAL project or a repository without a binding', async () => {
+      h.bindingOf('p1').status = 'DISABLED';
+      h.seedPersonalProject('mine', 'creator', '7001', { repositoryId: '200' });
+
+      await service.handle(event('privatized'));
+      await service.handle(event('privatized', { id: 200 }));
+      await service.handle(event('privatized', { id: 555 }));
+
+      expect(h.queue.pending()).toHaveLength(1);
+      expect(h.queue.pending()[0].payload).toEqual({ scope: 'REPOSITORY', repositoryId: '100' });
+    });
   });
 
   it.each(['archived', 'unarchived', 'publicized', 'edited', 'created', 'anything'])('ignores the unlisted action %s', async (action) => {
