@@ -60,7 +60,7 @@ Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la A
 Consolida `DEC-ORG-001` (HU58-HU64); el detalle normativo de rutas, DTOs, errores y eventos vive en `INTEROP-2.4` §6.13 y §6.9.
 
 - Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. Un Project personal solo lo ve su creador, que es siempre su Admin y no tiene registro de acceso; solo se comparte mediante organizaciones. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y, para Projects de organización, un registro de acceso `(projectId, userId, rol, verifiedAt)`.
-- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Reader: Reader solo consulta; Maintainer opera el día a día (binding, preguntas funcionales, publicaciones, experimentos); Admin, además, crea, renombra y elimina Projects. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.4` §6.13.
+- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Reader (en una organización, Maintainer y Reader exigen además ser miembro activo de ella): Reader solo consulta; Maintainer opera el día a día (binding, preguntas funcionales, publicaciones, experimentos); Admin, además, crea, renombra y elimina Projects. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.4` §6.13.
 - El acceso se crea al entrar, verificando en vivo con el installation token de la App; se revoca por los eventos de webhook de la App y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
 - Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente responde `403`.
 
@@ -286,28 +286,36 @@ OBSOLETE
 
 **Estado:** APROBADO (2026-09-20, por el usuario)
 
-**Blocks:** NONE. No cierra `DEC-VAL-001`. El punto 2 enmienda `DEC-ORG-001` (visibilidad en el workspace personal).
+**Blocks:** NONE. No cierra `DEC-VAL-001`. El punto 1 precisa la definición de Maintainer y Reader de `DEC-ORG-001` y el punto 2 enmienda su visibilidad en el workspace personal.
 
 **Resolución:**
 
-1. **Repositorios públicos:** el `read` implícito de un repositorio público no cuenta como acceso. En una organización se exige ser miembro activo de ella y además `read` (o más) sobre el repositorio vinculado. En el workspace personal no aplica (punto 2).
+1. **Membresía activa siempre en una organización** (precisado por el usuario, 2026-09-21): en un Project de organización se exige SIEMPRE ser miembro activo de la organización además del permiso sobre el repositorio vinculado (`read`/`triage` para Reader; `maintain`/`write`/`admin` para Maintainer), sea el repositorio privado, internal o público. Un colaborador externo (no miembro) no accede al Project aunque tenga `write`. El `read` implícito de un repositorio público no cuenta como acceso. En el workspace personal no aplica (punto 2).
 2. **Projects personales:** no se comparten con colaboradores; solo se comparte mediante organizaciones. Un Project personal lo ve únicamente su creador, que es siempre su Admin. No existe "compartido conmigo", ni acceso de colaboradores por enlace, ni registro de acceso para Projects personales: `project_access` existe solo para Projects de organización. `GET /projects` nunca devuelve Projects personales de otra persona. Corrige la viñeta "Visibilidad" de `DEC-ORG-001`.
 3. **Binding `REVOKED`:** sin acceso de la App al repositorio no hay permiso verificable, por lo que solo los Admin ven el Project (para reactivar el binding con `POST .../enable` o eliminarlo); Maintainer y Reader lo recuperan cuando el binding se reactiva. Si la organización desaparece, se desinstala la App o queda sin owners, el Project queda oculto para todos y se conserva (`DEC-ORG-001`, "Ciclo de vida de la organización").
 4. **Superficie de repositorios a nivel de usuario:** `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` exigen permiso `maintain`, `write` o `admin` sobre el repositorio consultado. Con permiso menor: `403 REPOSITORY_PERMISSION_INSUFFICIENT`; sin visibilidad: `404 GITHUB_REPOSITORY_NOT_FOUND` en `branches` y `NOT_AUTHORIZED` en `verify-app-access`. Es una corrección de seguridad del contrato anterior, que respondía sobre cualquier repositorio al que la App tuviera acceso.
+5. **La corrección de seguridad va primero** (precisado por el usuario, 2026-09-21): el punto 4 y la validación de propietario y permiso del binding se implementan y publican justo después de la identidad GitHub, antes de workspaces, roles y webhooks (`spec/features/014-organizations-access/`, corte 4a). Precondición de despliegue añadida: la GitHub App no debe ser instalada por terceros (idealmente vuelve a ser privada) hasta que esa corrección esté desplegada.
 
-**Decisiones derivadas** (tomadas por el analista al consolidar `INTEROP-2.4`; no vienen de `DEC-ORG-001` y el usuario puede vetarlas):
+**Decisiones derivadas** (tomadas por el analista al consolidar `INTEROP-2.4` y por el leader al corregir la revisión de contrato; no vienen de `DEC-ORG-001` y el usuario puede vetarlas):
 
 - (a) Nombres públicos: `GET /workspaces`, `PATCH /projects/{projectId}` y el parámetro `workspaceId` (el id numérico de GitHub de la cuenta u organización, como texto; omitido = personal).
 - (b) Rol de workspace `ADMIN`|`MEMBER` (`ADMIN` = cuenta personal u owner activo de la organización).
 - (c) HTTP de los códigos nuevos: `GITHUB_IDENTITY_REQUIRED` 401, `IDENTITY_UNAVAILABLE` 503, `WORKSPACE_NOT_FOUND` 404, `WORKSPACE_ADMIN_REQUIRED` 403, `PROJECT_ROLE_INSUFFICIENT` 403 (`details: { requiredRole, currentRole }`), `REPOSITORY_OUTSIDE_WORKSPACE` 400, `REPOSITORY_PERMISSION_INSUFFICIENT` 403 y `GITHUB_VERIFICATION_UNAVAILABLE` 503.
-- (d) Sin ningún permiso sobre el repositorio, `POST .../integrations/github` responde `404 GITHUB_REPOSITORY_NOT_FOUND`.
+- (d) En `POST .../integrations/github`, "sin ningún permiso del usuario sobre el repositorio" colapsa en el paso `404 GITHUB_REPOSITORY_NOT_FOUND` y va antes de `REPOSITORY_OUTSIDE_WORKSPACE`; `branches` sin visibilidad responde el mismo `404`. Se acepta la diferencia residual entre `403 GITHUB_APP_ACCESS_REQUIRED` (App no instalada) y `404` (instalada, sin permiso del usuario).
 - (e) Las validaciones de propietario y de permiso van antes de `REPOSITORY_ALREADY_BOUND`, para que nadie sondee qué repositorios ajenos están vinculados.
 - (f) Con GitHub caído: `GET /workspaces` devuelve el workspace personal más las organizaciones con acceso ya registrado; los listados omiten lo no verificable; un acceso directo a un Project de organización no verificable responde `503` (revela solo la existencia de un UUID). Los Projects personales no dependen de GitHub para verse.
 - (g) `installation.suspend` no borra registros de acceso: una instalación suspendida se trata como GitHub no disponible.
 - (h) Los eventos de acceso se procesan aunque el binding no esté `ENABLED`.
 - (i) El payload de un webhook solo selecciona qué reverificar; el rol siempre sale de una verificación viva con el installation token.
-- (j) Al perder el acceso a un Project, el WebSocket saca los sockets del usuario de sus salas.
-- (k) No existe ruta que dispare una validación manual, así que "validación" del rol Maintainer queda como nota de la matriz de `INTEROP-2.4` §6.13.
+- (j) No existe ruta que dispare una validación manual, así que "validación" del rol Maintainer queda como nota de la matriz de `INTEROP-2.4` §6.13.
+- (k) Un permiso o una pertenencia no verificable en `verify-app-access`, `branches` y `GET /integrations/github/repositories?workspaceId` responde `503 GITHUB_VERIFICATION_UNAVAILABLE`, nunca `NOT_AUTHORIZED` ni `404`.
+- (l) `GET /analysis-runs` y `GET /action-required` sin `projectId` cubren los Projects personales del usuario más los de organización con registro de acceso ya existente. `GET /action-required?projectId=X` con un Project no visible responde `404 PROJECT_NOT_FOUND` (cambio observable: antes una página vacía).
+- (m) Un alta de acceso no puede sobrescribir una revocación posterior al inicio de su verificación; las verificaciones contra GitHub tienen tope de concurrencia y presupuesto por petición y no memoizan denegaciones (sin caché, a petición del usuario). Se acepta por escrito el riesgo residual: un límite de tasa de GitHub degrada las altas nuevas a `503` u omitidas, nunca revoca lo existente.
+- (n) La reconciliación horaria también revalida propietario y nombre del repositorio vinculado (transferido o eliminado: binding `REVOKED`; renombrado: actualiza el nombre).
+- (o) Default-deny obligatorio: una ruta autenticada sin rol mínimo ni excepción explícita falla el guard y una prueba que enumera el router.
+- (p) WebSocket: mapa socket -> Project; se expulsa también por borrado lógico y por pérdida de visibilidad (binding `REVOKED` para no Admin); una suscripción cuya verificación no está disponible se rechaza con un motivo reintentable (`INTEROP-2.4` §6.6).
+- (q) El manual linking de identidades de Supabase permanece deshabilitado; `AUTH_BYPASS` de desarrollo aporta una identidad GitHub sintética y nunca se activa en producción.
+- (r) Un Reader no debe llamar `verify-app-access` (`403`); consulta el estado del binding con `GET .../integrations/github`.
 
 ### DEC-EXP-FK-001 — Paridad experimental del contexto funcional
 
