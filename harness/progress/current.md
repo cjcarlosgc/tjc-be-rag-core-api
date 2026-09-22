@@ -1,5 +1,7 @@
 # Progreso actual
 
+> **Trabajo en curso (2026-09-21): `T-003-org-workspaces` (uso organizacional).** Para continuar, lee `harness/reports/T-003-continuidad.md`; el resto de este archivo es historial anterior.
+
 SDD 1.14 / SYSTEM-1.4 / INTEROP-1.5 consolida únicamente especificación: `DEC-AUTH-001` aprueba Bearer con secreto opaco precompartido `SANDBOX_SERVICE_TOKEN`; `DEC-IDEMP-001` fija deduplicación durable en los POST de generación/experimento/retry e identidades hijas UUID v5 para cada subejecución Sandbox. Se incorpora la restricción V1 de pnpm + `pnpm-lock.yaml` proveniente de `DEC-SBX-002`. El Sandbox real ya aplica Bearer/deduplicación, pero Core aún debe implementar el header, configuración, persistencia de keys/huellas y derivación estable antes de una prueba end-to-end. No se tocó código ni infraestructura.
 
 Sprint 1 completo (HU01-HU07) en `app/`: gestión de proyectos, indexación asíncrona completa (ZIP → snapshot en Object Storage → extracción segura → parsing ts-morph → chunking → embeddings OpenAI → pgvector) e inventario de pruebas (targets CLASS/METHOD/FUNCTION, detección de framework, resolución heurística de cobertura existente). Cola de jobs DB-backed. Lint/test/build en verde. Evidencia en `harness/reports/`.

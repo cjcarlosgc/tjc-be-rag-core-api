@@ -82,3 +82,6 @@ Cortes 3 (etapas 2a y 2b) y 5 (5a y 5b): completos; el bundle B (cortes 2, 3 y 5
 - `repository.transferred` y la reconciliación (c) para Projects de organización comparan con `projects.githubOrgId` (columna del corte 2): esa rama se implementa en el corte 5b. Hasta el corte 3 solo existen Projects personales.
 - WebSocket (corte 1): añadir la tarea de rechazo en el handshake con `io.use()` y `err.data` (`GITHUB_IDENTITY_REQUIRED`, `IDENTITY_UNAVAILABLE`, `INVALID_ACCESS_TOKEN`). Hoy la autenticación es un guard por mensaje. Un rechazo de middleware desactiva la reconexión automática del cliente, así que `retryable: true` exige `connect()` manual; la Console actual no usa `auth` y cae al polling.
 
+## Retomar en una sesión nueva
+
+Estado y siguientes pasos en orden: `harness/reports/T-003-continuidad.md`. El `CONTRACT_SYNC` del bundle B está redactado en `harness/reports/T-003-sync-bundle-b-borrador.yaml` y se publica solo tras la re-comprobación final del bundle B y los gates técnicos. Las precondiciones de despliegue (Console solo GitHub primero, validación contra una organización real) están en `DEC-ORG-001` y en `spec.md`.
