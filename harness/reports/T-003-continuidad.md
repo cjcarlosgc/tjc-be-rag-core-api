@@ -4,11 +4,11 @@ Documento operativo para que otro agente (p. ej. Codex) continúe sin el context
 
 ## 1. Estado en una frase
 
-El contrato SYSTEM-2.4 / INTEROP-2.4 (uso organizacional) está **aprobado y publicado a Console como definición** (`CS-20260921-001`), el **bundle A está implementado, revisado y publicado** (`CS-20260921-002`), y el **bundle B está implementado y con el ciclo de corrección 1 aplicado**; la re-comprobación final y los gates técnicos están en verde; falta confirmar las decisiones derivadas (aa)-(ac), publicar el **`CONTRACT_SYNC` del bundle B** y cerrar el work item. Nada de T-003 está pusheado.
+El contrato SYSTEM-2.4 / INTEROP-2.4 (uso organizacional) está **aprobado y publicado a Console como definición** (`CS-20260921-001`), el **bundle A está implementado, revisado y publicado** (`CS-20260921-002`), y el **bundle B está implementado y con el ciclo de corrección 1 aplicado**; la re-comprobación final y los gates técnicos están en verde; falta confirmar las decisiones derivadas (aa)-(ac), publicar el **`CONTRACT_SYNC` del bundle B** y cerrar el work item. `feature/T-003` está pusheada hasta `4ebcfba` (2026-09-21, por el usuario); sin PR ni merge.
 
 ## 2. Git
 
-- Rama de trabajo: `feature/T-003` (creada desde `feature/T-002`; `develop` aún no contiene el harness V2). **Todo T-003 es local: no hay push, PR ni merge.** No los hagas sin solicitud explícita del usuario.
+- Rama de trabajo: `feature/T-003` (creada desde `feature/T-002`; `develop` aún no contiene el harness V2). `feature/T-003` fue **publicada por el usuario el 2026-09-21** (`origin/feature/T-003`, hasta `4ebcfba`); los commits posteriores (esta actualización incluida) son locales. **No hay PR ni merge**; hazlos, y cualquier push posterior, solo con solicitud explícita del usuario. PR de T-003: `https://github.com/cjcarlosgc/tjc-be-rag-core-api/pull/new/feature/T-003`.
 - `feature/T-002` está pusheada (`origin/feature/T-002`, hasta `a9a9307`). Su PR hacia `develop` **sigue sin abrirse**: la máquina no tiene `gh` ni token; el usuario puede abrirlo en `https://github.com/cjcarlosgc/tjc-be-rag-core-api/compare/develop...feature/T-002?expand=1`. No hay conflictos con `develop` según simulación local.
 - Commits clave de T-003 (orden): contrato `caa4336`.. (T-002) y para T-003 `c3a5328`…`6464970` (contrato aprobado), bundle A `6236255`, `8ad4fa5`, `955b65d`, `ecf141f` (RLS), `f1eed4d`; bundle B: corte 2 `c0844af`; corte 3 `81419ae`, `2c81f39`; corte 5 `8f6e6b8`, `5e537f3`, `f33a78d`, `39d6414`; corrección 1 `1118326`, `d5fa6d4`, `ce2fc04`. `git log --oneline` tiene el detalle. Cada commit lleva `Refs: HU...` y `Co-Authored-By`.
 
