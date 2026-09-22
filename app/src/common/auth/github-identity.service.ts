@@ -59,6 +59,18 @@ export class GithubIdentityService {
     return this.persist(userId, identity.githubUserId, identity.login ?? null);
   }
 
+  /**
+   * `githubLogin` guardado: solo presentación (etiqueta del workspace personal),
+   * nunca autoriza. `null` si aún no se conoce o bajo `AUTH_BYPASS` (sin base de datos).
+   */
+  async findGithubLogin(userId: string): Promise<string | null> {
+    if (this.config.get<boolean>('AUTH_BYPASS_ENABLED', false)) {
+      return null;
+    }
+
+    return (await this.identities.findByUserId(userId))?.githubLogin ?? null;
+  }
+
   private async persist(userId: string, githubUserId: string, login: string | null): Promise<string> {
     try {
       const created = await this.identities.create(userId, githubUserId, login);

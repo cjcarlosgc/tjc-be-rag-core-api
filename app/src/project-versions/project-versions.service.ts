@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { ProjectVersionsRepository } from './project-versions.repository.js';
 import { TestTargetsRepository } from './persistence/test-targets.repository.js';
 import { AppException } from '../common/errors/app.exception.js';
@@ -21,7 +21,7 @@ const DEFAULT_PAGE_LIMIT = 20;
 @Injectable()
 export class ProjectVersionsService {
   constructor(
-    private readonly projectsRepository: ProjectsRepository,
+    private readonly projectAccess: ProjectAccessService,
     private readonly projectVersionsRepository: ProjectVersionsRepository,
     private readonly testTargetsRepository: TestTargetsRepository,
   ) {}
@@ -97,17 +97,9 @@ export class ProjectVersionsService {
     projectId: string,
     limit: number | undefined,
     cursor: string | undefined,
-    ownerUserId: string,
+    userId: string,
   ): Promise<Page<ProjectVersionSummaryResponse>> {
-    const project = await this.projectsRepository.findById(projectId, ownerUserId);
-
-    if (!project) {
-      throw new AppException(
-        ErrorCode.PROJECT_NOT_FOUND,
-        `No existe un proyecto con id "${projectId}".`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    const { project } = await this.projectAccess.require(userId, projectId, 'READER');
 
     const take = limit ?? DEFAULT_PAGE_LIMIT;
     const versions = await this.projectVersionsRepository.findByProject(projectId, take, cursor);

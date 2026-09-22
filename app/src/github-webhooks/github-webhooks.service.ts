@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { isValidWebhookSignature } from './webhook-signature.util.js';
 import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js';
@@ -7,7 +7,12 @@ import type {
   GithubInstallationRepositoriesWebhookPayload,
   GithubInstallationWebhookPayload,
 } from './dto/installation-webhook.payload.js';
+import type { GithubRepositoryWebhookPayload } from './dto/repository-webhook.payload.js';
 import type { GitHubWebhookAcceptedResponse } from './dto/webhook-accepted.response.js';
+import { RepositoryEventsService } from './repository-events.service.js';
+import { ACCESS_EVENT_NAMES, AccessEventsService, type AccessEventName } from './access-events.service.js';
+import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
+import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import type { CreateAnalysisRunInput } from '../analysis-runs/analysis-runs.repository.js';
@@ -36,6 +41,8 @@ export interface IncomingWebhookRequest {
  */
 @Injectable()
 export class GithubWebhooksService {
+  private readonly logger = new Logger(GithubWebhooksService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly webhookDeliveriesRepository: WebhookDeliveriesRepository,
@@ -43,6 +50,10 @@ export class GithubWebhooksService {
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly analysisRunsService: AnalysisRunsService,
     private readonly jobsService: JobsService,
+    private readonly repositoryEvents: RepositoryEventsService,
+    private readonly bindingLifecycle: BindingLifecycleService,
+    private readonly organizationLifecycle: OrganizationLifecycleService,
+    private readonly accessEvents: AccessEventsService,
   ) {}
 
   async handle(request: IncomingWebhookRequest): Promise<GitHubWebhookAcceptedResponse> {
@@ -95,6 +106,19 @@ export class GithubWebhooksService {
       return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
     }
 
+    if (request.eventName === 'repository') {
+      await this.repositoryEvents.handle(request.payload as GithubRepositoryWebhookPayload);
+      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
+    }
+
+    // Eventos de acceso de organización: solo encolan una reverificación viva (o ocultan/renombran la
+    // organización) y responden `202`; sin `WebhookDelivery` porque todo es idempotente.
+    if (request.eventName !== undefined && ACCESS_EVENT_NAMES.has(request.eventName)) {
+      await this.accessEvents.handle(request.eventName as AccessEventName, request.payload);
+      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
+    }
+
+    // Cualquier otro evento no listado se acepta (`202`) sin efecto.
     if (request.eventName !== 'pull_request') {
       return {
         deliveryId: request.deliveryId,
@@ -225,16 +249,39 @@ export class GithubWebhooksService {
   }
 
   /**
-   * HU31 (revocación): `deleted` = App desinstalada, `suspend`/`unsuspend` =
-   * pausa reversible de la instalación completa. Sin dedup por delivery id
-   * -actualizar el status es naturalmente idempotente, reprocesar el mismo
-   * evento no cambia el resultado-.
+   * HU31/HU61 (revocación): `deleted` = App desinstalada (bindings `REVOKED` y borrado de los
+   * registros Maintainer/Reader con expulsión de sockets; si es de una organización, también
+   * los Admin), `suspend`/`unsuspend` = pausa
+   * reversible de la instalación completa (`suspend` NO borra registros: una instalación
+   * suspendida se trata como GitHub no disponible). Sin dedup por delivery id -el efecto
+   * es naturalmente idempotente, reprocesar el mismo evento no cambia el resultado-. Se
+   * procesa aunque el binding no esté `ENABLED`.
    */
   private async handleInstallationEvent(payload: GithubInstallationWebhookPayload): Promise<void> {
     const installationId = String(payload.installation.id);
 
     if (payload.action === 'deleted') {
-      await this.repositoryBindingsRepository.revokeByInstallation(installationId);
+      // El fallo de UN binding no impide revocar los demás ni ocultar la organización: se recogen,
+      // se registran y se responde `202` (la reconciliación (c) y (a) termina lo que falte).
+      const failures: string[] = [];
+      const bindings = await this.repositoryBindingsRepository.findByInstallation(installationId);
+      await this.revokeIsolated(bindings, failures);
+
+      // Desinstalada de una ORGANIZACIÓN: además sus Projects quedan ocultos y conservados, y se
+      // borran también los registros Admin (la organización ya no puede verificarse; los Projects
+      // sin repositorio también). Reaparecen al reinstalar la App.
+      const account = payload.installation.account;
+      const organizationId = account?.type === 'Organization' && typeof account.id === 'number' ? String(account.id) : null;
+
+      if (organizationId !== null) {
+        try {
+          await this.organizationLifecycle.hide(organizationId);
+        } catch (error) {
+          failures.push(`organización ${organizationId}: ${describe(error)}`);
+        }
+      }
+
+      this.reportPartialFailures(`installation.deleted (${installationId})`, failures);
     } else if (payload.action === 'suspend') {
       await this.repositoryBindingsRepository.suspendByInstallation(installationId);
     } else if (payload.action === 'unsuspend') {
@@ -246,7 +293,7 @@ export class GithubWebhooksService {
    * HU31 (revocación): la instalación sigue viva, pero GitHub retiró acceso
    * a un repositorio puntual (el usuario lo destildó en la configuración de
    * la App). Solo afecta el binding de ese repo, no el resto de la
-   * instalación.
+   * instalación: `REVOKED` y borrado de sus registros Maintainer/Reader.
    */
   private async handleInstallationRepositoriesEvent(
     payload: GithubInstallationRepositoriesWebhookPayload,
@@ -255,12 +302,45 @@ export class GithubWebhooksService {
       return;
     }
 
-    for (const repo of payload.repositories_removed ?? []) {
-      const binding = await this.repositoryBindingsRepository.findByRepositoryId(String(repo.id));
+    const failures: string[] = [];
 
-      if (binding && binding.installationId === String(payload.installation.id)) {
-        await this.repositoryBindingsRepository.updateStatus(binding.id, 'REVOKED');
+    for (const repo of payload.repositories_removed ?? []) {
+      try {
+        const binding = await this.repositoryBindingsRepository.findByRepositoryId(String(repo.id));
+
+        if (binding && binding.installationId === String(payload.installation.id)) {
+          await this.bindingLifecycle.revokeBinding(binding);
+        }
+      } catch (error) {
+        failures.push(`repositorio ${repo.id}: ${describe(error)}`);
+      }
+    }
+
+    this.reportPartialFailures(`installation_repositories.removed (${payload.installation.id})`, failures);
+  }
+
+  /** Revoca cada binding por separado: un fallo se recoge y no detiene a los demás. */
+  private async revokeIsolated(bindings: RepositoryBinding[], failures: string[]): Promise<void> {
+    for (const binding of bindings) {
+      try {
+        await this.bindingLifecycle.revokeBinding(binding);
+      } catch (error) {
+        failures.push(`binding ${binding.id}: ${describe(error)}`);
       }
     }
   }
+
+  /**
+   * Los fallos parciales se registran y el ingress responde igual `202`: el estado ya es `REVOKED`
+   * para lo tratado (el predicado de acceso deniega) y la reconciliación termina el borrado.
+   */
+  private reportPartialFailures(event: string, failures: string[]): void {
+    if (failures.length > 0) {
+      this.logger.error(`${event}: ${failures.length} fallo(s) parcial(es); la reconciliación lo termina: ${failures.join(' | ')}`);
+    }
+  }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

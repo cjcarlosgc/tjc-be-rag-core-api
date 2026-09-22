@@ -1,11 +1,12 @@
 import { Global, Module } from '@nestjs/common';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
+import { ProjectSubscriptionsService } from './project-subscriptions.service.js';
 import { RealtimeGateway } from './realtime.gateway.js';
-import { ProjectVersionsModule } from '../project-versions/project-versions.module.js';
 
 @Global()
 @Module({
-  imports: [ProjectVersionsModule],
-  providers: [RealtimeGateway],
-  exports: [RealtimeGateway],
+  imports: [ProjectAccessModule],
+  providers: [RealtimeGateway, ProjectSubscriptionsService],
+  exports: [RealtimeGateway, ProjectSubscriptionsService],
 })
 export class RealtimeModule {}

@@ -23,6 +23,13 @@ export interface ListGithubUserRepositoriesOptions {
    * por id de propietario: el filtrado no depende de un login.
    */
   personalOwnerId?: string;
+  /**
+   * HU64: con el workspace de una organización, solo repositorios cuyo propietario es esa
+   * organización. Se pide `affiliation=organization_member` y se vuelve a filtrar por id de
+   * propietario (no por login). La pertenencia del usuario a la organización la verifica
+   * antes el llamador con el installation token.
+   */
+  organizationOwnerId?: string;
 }
 
 export interface ListGithubUserRepositoriesResult {
@@ -44,7 +51,11 @@ export class GithubUserRepositoriesService {
     perPage: number,
     options: ListGithubUserRepositoriesOptions = {},
   ): Promise<ListGithubUserRepositoriesResult> {
-    const affiliation = options.personalOwnerId ? '&affiliation=owner' : '';
+    const affiliation = options.personalOwnerId
+      ? '&affiliation=owner'
+      : options.organizationOwnerId
+        ? '&affiliation=organization_member'
+        : '';
     const response = await fetch(
       `https://api.github.com/user/repos?per_page=${perPage}&page=${page}&sort=updated${affiliation}`,
       {
@@ -74,9 +85,8 @@ export class GithubUserRepositoriesService {
 
     const data = (await response.json()) as GithubApiUserRepository[];
 
-    const visible = options.personalOwnerId
-      ? data.filter((repo) => String(repo.owner.id) === options.personalOwnerId)
-      : data;
+    const ownerId = options.personalOwnerId ?? options.organizationOwnerId;
+    const visible = ownerId ? data.filter((repo) => String(repo.owner.id) === ownerId) : data;
 
     return {
       items: visible.map(toGitHubUserRepositoryResponse),

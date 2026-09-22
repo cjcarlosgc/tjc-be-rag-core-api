@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ProjectVersion } from '../generated/prisma/client.js';
 import { ProjectVersionStatus, type TestFramework } from '../generated/prisma/enums.js';
-import { ownedProject } from '../common/persistence/owned-project.filter.js';
+import { accessibleProject } from '../common/persistence/accessible-project.filter.js';
 
 export interface CreatePendingVersionInput {
   projectId: string;
@@ -36,8 +36,8 @@ export class ProjectVersionsRepository {
    * Variante para rutas HTTP: filtra por propietario en la misma consulta
    * (HU29) en vez de cargar y comprobar después.
    */
-  findByIdForOwner(id: string, ownerUserId: string): Promise<ProjectVersion | null> {
-    return this.prisma.projectVersion.findFirst({ where: { id, project: ownedProject(ownerUserId) } });
+  findByIdForOwner(id: string, userId: string): Promise<ProjectVersion | null> {
+    return this.prisma.projectVersion.findFirst({ where: { id, project: accessibleProject(userId) } });
   }
 
   /**

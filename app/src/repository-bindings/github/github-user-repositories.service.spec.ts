@@ -109,4 +109,29 @@ describe('GithubUserRepositoriesService', () => {
       expect(result.items).toHaveLength(2);
     });
   });
+
+  describe('organization workspace filter (HU64, 4b)', () => {
+    const mine = { ...apiRepo, id: 1, full_name: 'octocat/mine', owner: { id: 1001, login: 'octocat', type: 'User', avatar_url: null } };
+    const acme = { ...apiRepo, id: 2, full_name: 'acme/widgets', owner: { id: 42, login: 'acme', type: 'Organization', avatar_url: null } };
+    const other = { ...apiRepo, id: 3, full_name: 'other/lib', owner: { id: 77, login: 'other', type: 'Organization', avatar_url: null } };
+
+    it('asks for the repositories of the organizations the user belongs to and keeps only the ones owned by that organization id', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse([mine, acme, other]));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await service.list(PROVIDER_TOKEN, 1, 30, { organizationOwnerId: '42' });
+
+      expect(fetchMock.mock.calls[0][0]).toContain('affiliation=organization_member');
+      expect(result.items.map((item) => item.repositoryName)).toEqual(['acme/widgets']);
+    });
+
+    it('keeps paginating from the raw page size, not from the filtered count', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse([mine, acme])));
+
+      const result = await service.list(PROVIDER_TOKEN, 1, 2, { organizationOwnerId: '42' });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.hasNextPage).toBe(true);
+    });
+  });
 });

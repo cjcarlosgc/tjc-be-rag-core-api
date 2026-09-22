@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -8,65 +7,16 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter.js';
 import { ObjectStorageService } from '../src/object-storage/object-storage.service.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
-import { authedRequest, overrideAuthTokenVerifier } from './support/auth-test-support.js';
-import type { Project } from '../src/generated/prisma/client.js';
+import {
+  authedRequest,
+  E2E_TEST_USER_ID,
+  e2eGithubUserId,
+  overrideAuthTokenVerifier,
+} from './support/auth-test-support.js';
+import { InMemoryPrisma } from './support/in-memory-prisma.js';
 
 const OTHER_USER_ID = 'e2e-other-user';
-
-class FakePrismaService {
-  private readonly projects = new Map<string, Project>();
-  private readonly insertionOrder = new Map<string, number>();
-  private sequence = 0;
-
-  project = {
-    create: async ({ data }: { data: { name: string; ownerUserId: string } }): Promise<Project> => {
-      this.sequence += 1;
-      const now = new Date();
-      const project: Project = {
-        id: randomUUID(),
-        name: data.name,
-        ownerUserId: data.ownerUserId,
-        currentVersionId: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      this.projects.set(project.id, project);
-      this.insertionOrder.set(project.id, this.sequence);
-      return project;
-    },
-    findFirst: async ({
-      where,
-    }: {
-      where: { id: string; ownerUserId: string };
-    }): Promise<Project | null> => {
-      const project = this.projects.get(where.id);
-      return project && project.ownerUserId === where.ownerUserId ? project : null;
-    },
-    findMany: async ({
-      where,
-      take,
-      cursor,
-      skip,
-    }: {
-      where?: { ownerUserId?: string };
-      take?: number;
-      cursor?: { id: string };
-      skip?: number;
-    }): Promise<Project[]> => {
-      const sorted = [...this.projects.values()]
-        .filter((project) => !where?.ownerUserId || project.ownerUserId === where.ownerUserId)
-        .sort((a, b) => (this.insertionOrder.get(b.id) ?? 0) - (this.insertionOrder.get(a.id) ?? 0));
-      let startIndex = 0;
-
-      if (cursor) {
-        const cursorIndex = sorted.findIndex((project) => project.id === cursor.id);
-        startIndex = cursorIndex === -1 ? sorted.length : cursorIndex + (skip ?? 0);
-      }
-
-      return take !== undefined ? sorted.slice(startIndex, startIndex + take) : sorted.slice(startIndex);
-    },
-  };
-}
+const OWN_GITHUB_ID = e2eGithubUserId(E2E_TEST_USER_ID);
 
 describe('Projects (e2e)', () => {
   let app: INestApplication;
@@ -77,7 +27,7 @@ describe('Projects (e2e)', () => {
         imports: [AppModule],
       })
         .overrideProvider(PrismaService)
-        .useClass(FakePrismaService)
+        .useValue(new InMemoryPrisma())
         .overrideProvider(ObjectStorageService)
         .useClass(FakeObjectStorageService),
     ).compile();
@@ -108,6 +58,14 @@ describe('Projects (e2e)', () => {
 
     expect(response.body).toMatchObject({ name: 'demo', currentVersionId: null });
     expect(response.body.id).toBeDefined();
+  });
+
+  it('trims the name and rejects a name made only of whitespace with 400 (same as PATCH)', async () => {
+    const created = await authedRequest(app, 'trim-user').post('/projects').send({ name: '  padded  ' }).expect(201);
+    expect(created.body.name).toBe('padded');
+
+    const response = await authedRequest(app, 'trim-user').post('/projects').send({ name: '   ' }).expect(400);
+    expect(response.body).toMatchObject({ statusCode: 400, code: 'INVALID_REQUEST' });
   });
 
   it('rejects an empty name with the standard error envelope', async () => {
@@ -186,5 +144,54 @@ describe('Projects (e2e)', () => {
 
     expect(secondPage.body.items).toHaveLength(2);
     expect(secondPage.body.nextCursor).toBeNull();
+  });
+
+  it('exposes the personal workspace and the interim ADMIN role on every ProjectResponse (HU63)', async () => {
+    const created = await authedRequest(app).post('/projects').send({ name: 'with-workspace' }).expect(201);
+
+    expect(created.body).toMatchObject({
+      workspace: { kind: 'PERSONAL', id: OWN_GITHUB_ID, login: null },
+      role: 'ADMIN',
+    });
+
+    const fetched = await authedRequest(app).get(`/projects/${created.body.id}`).expect(200);
+    const listed = await authedRequest(app).get('/projects').query({ limit: 100 }).expect(200);
+
+    expect(fetched.body).toMatchObject({ workspace: created.body.workspace, role: 'ADMIN' });
+    expect(listed.body.items.find((item: { id: string }) => item.id === created.body.id)).toMatchObject({
+      workspace: created.body.workspace,
+      role: 'ADMIN',
+    });
+  });
+
+  it('creates and lists personal projects when workspaceId is the own numeric id (HU63)', async () => {
+    const created = await authedRequest(app)
+      .post('/projects')
+      .send({ name: 'explicit-personal', workspaceId: OWN_GITHUB_ID })
+      .expect(201);
+
+    expect(created.body.workspace).toMatchObject({ kind: 'PERSONAL', id: OWN_GITHUB_ID });
+
+    const listed = await authedRequest(app).get('/projects').query({ workspaceId: OWN_GITHUB_ID, limit: 100 }).expect(200);
+
+    expect(listed.body.items.some((item: { id: string }) => item.id === created.body.id)).toBe(true);
+  });
+
+  it.each([
+    ['the id of an organization', '424242'],
+    ['the personal workspace id of another user', e2eGithubUserId(OTHER_USER_ID)],
+    ['a value that is not a workspace', 'octocat'],
+  ])('answers 404 WORKSPACE_NOT_FOUND on POST and GET /projects for %s (until cut 3)', async (_label, workspaceId) => {
+    const created = await authedRequest(app).post('/projects').send({ name: 'nope', workspaceId }).expect(404);
+    const listed = await authedRequest(app).get('/projects').query({ workspaceId }).expect(404);
+
+    expect(created.body).toMatchObject({ statusCode: 404, code: 'WORKSPACE_NOT_FOUND' });
+    expect(listed.body).toMatchObject({ statusCode: 404, code: 'WORKSPACE_NOT_FOUND' });
+  });
+
+  it('rejects an empty workspaceId and undeclared fields with 400 INVALID_REQUEST', async () => {
+    await authedRequest(app).post('/projects').send({ name: 'x', workspaceId: '' }).expect(400);
+    await authedRequest(app).post('/projects').send({ name: 'x', githubOrgId: '42' }).expect(400);
+    await authedRequest(app).get('/projects').query({ workspaceId: '' }).expect(400);
   });
 });

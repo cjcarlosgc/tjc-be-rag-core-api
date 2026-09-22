@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AnalysisRun, AnalysisRunStatus, Prisma } from '../generated/prisma/client.js';
-import { ownedProject } from '../common/persistence/owned-project.filter.js';
+import { accessibleProject } from '../common/persistence/accessible-project.filter.js';
 
 export interface CreateAnalysisRunInput {
   projectId: string;
@@ -51,8 +51,8 @@ export class AnalysisRunsRepository {
     });
   }
 
-  findByIdForOwner(id: string, ownerUserId: string): Promise<AnalysisRun | null> {
-    return this.prisma.analysisRun.findFirst({ where: { id, project: ownedProject(ownerUserId) } });
+  findByIdForOwner(id: string, userId: string): Promise<AnalysisRun | null> {
+    return this.prisma.analysisRun.findFirst({ where: { id, project: accessibleProject(userId) } });
   }
 
   /**
@@ -67,15 +67,30 @@ export class AnalysisRunsRepository {
     return this.prisma.analysisRun.update({ where: { id }, data });
   }
 
-  findByProjectForOwner(
-    projectId: string,
-    ownerUserId: string,
+  /** HU55: Runs de todos los Projects visibles para el usuario, más recientes primero. */
+  findVisibleForUser(
+    userId: string,
     take: number,
     status: AnalysisRunStatus | undefined,
     cursor: string | undefined,
   ): Promise<AnalysisRun[]> {
     return this.prisma.analysisRun.findMany({
-      where: { projectId, project: ownedProject(ownerUserId), ...(status ? { status } : {}) },
+      where: { project: accessibleProject(userId), ...(status ? { status } : {}) },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+  }
+
+  findByProjectForOwner(
+    projectId: string,
+    userId: string,
+    take: number,
+    status: AnalysisRunStatus | undefined,
+    cursor: string | undefined,
+  ): Promise<AnalysisRun[]> {
+    return this.prisma.analysisRun.findMany({
+      where: { projectId, project: accessibleProject(userId), ...(status ? { status } : {}) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

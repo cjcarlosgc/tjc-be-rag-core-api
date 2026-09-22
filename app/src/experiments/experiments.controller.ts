@@ -7,12 +7,14 @@ import type {
   ExperimentStatusResponse,
 } from './dto/experiment.response.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
+import { ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 @Controller('experiments')
 export class ExperimentsController {
   constructor(private readonly experimentsService: ExperimentsService) {}
 
   @Post()
+  @RequireProjectRole('MAINTAINER', ProjectTargets.body('project', 'projectId'))
   @HttpCode(HttpStatus.ACCEPTED)
   create(
     @Body() dto: CreateExperimentDto,
@@ -23,6 +25,7 @@ export class ExperimentsController {
   }
 
   @Get(':id')
+  @RequireProjectRole('READER', ProjectTargets.param('experiment', 'id'))
   getStatus(
     @Param('id') id: string,
     @CurrentUserId() userId: string,
@@ -31,6 +34,7 @@ export class ExperimentsController {
   }
 
   @Get(':id/results')
+  @RequireProjectRole('READER', ProjectTargets.param('experiment', 'id'))
   getResults(
     @Param('id') id: string,
     @CurrentUserId() userId: string,

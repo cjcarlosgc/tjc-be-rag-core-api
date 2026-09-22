@@ -6,7 +6,7 @@ import { FunctionalContextEvaluatorService } from './functional-context-evaluato
 import { FUNCTIONAL_CONTINUATION_JOB_TYPE } from './functional-continuation-job.handler.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -84,7 +84,7 @@ describe('FunctionalKnowledgeService', () => {
   let functionalContextEvaluatorService: { evaluate: ReturnType<typeof vi.fn> };
   let analysisRunsRepository: { findByIdForOwner: ReturnType<typeof vi.fn> };
   let analysisRunsService: { requestContinuation: ReturnType<typeof vi.fn> };
-  let projectsRepository: { findById: ReturnType<typeof vi.fn> };
+  let projectAccess: { require: ReturnType<typeof vi.fn> };
   let jobsService: { enqueue: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -106,7 +106,7 @@ describe('FunctionalKnowledgeService', () => {
     analysisRunsService = {
       requestContinuation: vi.fn().mockResolvedValue(buildRun({ status: 'PROCESSING' })),
     };
-    projectsRepository = { findById: vi.fn() };
+    projectAccess = { require: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'MAINTAINER' }) };
     jobsService = { enqueue: vi.fn() };
 
     service = new FunctionalKnowledgeService(
@@ -115,7 +115,7 @@ describe('FunctionalKnowledgeService', () => {
       functionalContextEvaluatorService as unknown as FunctionalContextEvaluatorService,
       analysisRunsRepository as unknown as AnalysisRunsRepository,
       analysisRunsService as unknown as AnalysisRunsService,
-      projectsRepository as unknown as ProjectsRepository,
+      projectAccess as unknown as ProjectAccessService,
       jobsService as unknown as JobsService,
       { get: vi.fn().mockReturnValue(1500) } as never,
     );
@@ -162,6 +162,17 @@ describe('FunctionalKnowledgeService', () => {
   });
 
   describe('submitAnswer', () => {
+    it('answers 403 PROJECT_ROLE_INSUFFICIENT to a Reader before touching the question (HU60)', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'YES' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'MAINTAINER');
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+    });
+
     it('throws FUNCTIONAL_QUESTION_NOT_FOUND when the question does not belong to the run', async () => {
       analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
       functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion({ analysisRunId: 'other-run' }));
@@ -355,12 +366,37 @@ describe('FunctionalKnowledgeService', () => {
 
       expect(result.items[0].repositoryName).toBe('org/repo');
       expect(result.items[0].pullRequestNumber).toBe(42);
+      expect(projectAccess.require).not.toHaveBeenCalled();
+    });
+
+    it('requires Reader access to the requested project and answers 404 PROJECT_NOT_FOUND when it is not visible', async () => {
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404));
+
+      await expect(
+        service.listActionRequired(OWNER_USER_ID, 'project-x', undefined, undefined),
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-x', 'READER');
+      expect(functionalQuestionsRepository.findActionRequired).not.toHaveBeenCalled();
+    });
+
+    it('lists the questions of a visible project', async () => {
+      functionalQuestionsRepository.findActionRequired.mockResolvedValue([]);
+
+      await service.listActionRequired(OWNER_USER_ID, 'project-1', undefined, undefined);
+
+      expect(functionalQuestionsRepository.findActionRequired).toHaveBeenCalledWith(
+        OWNER_USER_ID,
+        'project-1',
+        'PENDING',
+        20,
+        undefined,
+      );
     });
   });
 
   describe('listKnowledge', () => {
-    it('throws PROJECT_NOT_FOUND when the project does not belong to the owner', async () => {
-      projectsRepository.findById.mockResolvedValue(null);
+    it('throws PROJECT_NOT_FOUND when the project is not visible to the user', async () => {
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404));
 
       await expect(
         service.listKnowledge('project-1', undefined, undefined, undefined, OWNER_USER_ID),
@@ -368,7 +404,6 @@ describe('FunctionalKnowledgeService', () => {
     });
 
     it('lists knowledge scoped to the project', async () => {
-      projectsRepository.findById.mockResolvedValue({ id: 'project-1' });
       functionalKnowledgeRepository.findByProjectForOwner.mockResolvedValue([buildKnowledge()]);
 
       const result = await service.listKnowledge('project-1', 'ACTIVE', undefined, undefined, OWNER_USER_ID);

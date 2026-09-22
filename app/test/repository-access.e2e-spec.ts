@@ -10,8 +10,8 @@ import { GithubAppAuthService } from '../src/github-app/github-app-auth.service.
 import { GithubRepositoryContentService } from '../src/github-app/github-repository-content.service.js';
 import { GithubUserRepositoriesService } from '../src/repository-bindings/github/github-user-repositories.service.js';
 import { RepositoryBindingsRepository } from '../src/repository-bindings/repository-bindings.repository.js';
-import { ProjectsRepository } from '../src/projects/projects.repository.js';
 import type { RepositoryBinding } from '../src/generated/prisma/client.js';
+import { InMemoryPrisma } from './support/in-memory-prisma.js';
 import { FakeGithubAccessPort } from './support/fake-github-access.port.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
 import { authedRequest, e2eGithubUserId, overrideAuthTokenVerifier } from './support/auth-test-support.js';
@@ -23,7 +23,7 @@ const STRANGER_GH = e2eGithubUserId(STRANGER);
 const PROJECT_ID = 'project-1';
 const OTHER_PROJECT_ID = 'project-2';
 
-class FakePrismaService {}
+const prisma = new InMemoryPrisma();
 
 describe('Repository access and binding validation (HU64, corte 4a, e2e)', () => {
   let app: INestApplication;
@@ -32,15 +32,6 @@ describe('Repository access and binding validation (HU64, corte 4a, e2e)', () =>
   let bindings: Map<string, RepositoryBinding>;
   const listUserRepositories = vi.fn();
   const listBranches = vi.fn();
-
-  const projectsRepository = {
-    findById: (id: string, ownerUserId: string) =>
-      Promise.resolve(
-        [PROJECT_ID, OTHER_PROJECT_ID].includes(id) && ownerUserId === CREATOR
-          ? { id, name: id, ownerUserId, currentVersionId: null, deletedAt: null }
-          : null,
-      ),
-  };
 
   const bindingsRepository = {
     findByProjectForOwner: (projectId: string, ownerUserId: string) =>
@@ -76,11 +67,9 @@ describe('Repository access and binding validation (HU64, corte 4a, e2e)', () =>
     const moduleFixture = await overrideAuthTokenVerifier(
       Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(PrismaService)
-        .useClass(FakePrismaService)
+        .useValue(prisma)
         .overrideProvider(ObjectStorageService)
         .useClass(FakeObjectStorageService)
-        .overrideProvider(ProjectsRepository)
-        .useValue(projectsRepository)
         .overrideProvider(RepositoryBindingsRepository)
         .useValue(bindingsRepository)
         .overrideProvider(GITHUB_ACCESS_PORT)
@@ -109,6 +98,11 @@ describe('Repository access and binding validation (HU64, corte 4a, e2e)', () =>
   });
 
   beforeEach(() => {
+    prisma.reset();
+    // Projects personales del creador (el predicado los ve por `ownerUserId`, sin GitHub).
+    for (const id of [PROJECT_ID, OTHER_PROJECT_ID]) {
+      prisma.insert('project', { id, name: id, ownerUserId: CREATOR, githubOrgId: null, githubOrgLogin: null });
+    }
     bindings.clear();
     installations.clear();
     installations.set('creator/repo', 'install-1');

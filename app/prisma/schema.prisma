@@ -189,6 +189,11 @@ model Project {
   ownerUserId         String?
   currentVersionId    String?               @unique
   deletedAt           DateTime?
+  /// 014 (HU63): workspace del Project, fijado al crearlo. Ambas nulas = cuenta
+  /// personal (su único usuario es el creador); ambas presentes = organización.
+  /// El check `projects_github_org_coherence_check` (migración) impide una sola.
+  githubOrgId         String?
+  githubOrgLogin      String?
   currentVersion      ProjectVersion?       @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
   versions            ProjectVersion[]      @relation("ProjectVersions")
   testGenerationRuns  TestGenerationRun[]
@@ -197,11 +202,41 @@ model Project {
   analysisRuns        AnalysisRun[]
   functionalQuestions FunctionalQuestion[]
   functionalKnowledge FunctionalKnowledge[]
+  /// 014 (HU59): registros de acceso; solo existen para Projects de organización.
+  access              ProjectAccess[]
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
   @@index([ownerUserId])
+  @@index([githubOrgId])
   @@map("projects")
+}
+
+/// 014 (HU60): rol derivado de GitHub sobre un Project de organización. Jerarquía
+/// `ADMIN` ⊃ `MAINTAINER` ⊃ `READER`.
+enum ProjectRole {
+  ADMIN
+  MAINTAINER
+  READER
+}
+
+/// 014 (HU59/HU60): registro de acceso `(projectId, userId, role, verifiedAt)`.
+/// Solo para Projects de organización: un Project personal solo lo ve su creador
+/// (siempre Admin) y no tiene registros. Se crea al entrar, verificando en vivo con
+/// el installation token; `verifiedAt` es la última confirmación, no una caducidad
+/// (sin TTL ni caché). `userId` es el `sub` de Supabase (mismo tipo que
+/// `Project.ownerUserId`); la clave `(projectId, userId)` respalda la búsqueda por
+/// Project (prefijo de la clave) y `@@index([userId])` los listados del usuario.
+model ProjectAccess {
+  projectId  String
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String
+  role       ProjectRole
+  verifiedAt DateTime    @db.Timestamptz(3)
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_access")
 }
 
 /// HU30 (dominio): binding Project<->Repository detrás de la GitHub App.
@@ -625,6 +660,11 @@ model Job {
   availableAt DateTime  @default(now())
   lockedAt    DateTime?
   lockedBy    String?
+  /// 014 (HU61): clave de deduplicación de los jobs de acceso (`ACCESS_RECONCILIATION`,
+  /// `ACCESS_REVERIFY`); nula en los demás tipos. La unicidad NO la declara Prisma: la
+  /// migración crea un índice único PARCIAL (`WHERE status = 'PENDING' AND "dedupeKey" IS
+  /// NOT NULL`), es decir, solo sobre filas PENDING, nunca sobre RUNNING.
+  dedupeKey   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

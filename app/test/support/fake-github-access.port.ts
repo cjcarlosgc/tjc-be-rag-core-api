@@ -1,16 +1,29 @@
 import type {
   GithubAccessPort,
   GithubLookup,
+  OrganizationInstallation,
+  OrganizationMembership,
+  OrganizationOwner,
+  OrganizationRef,
+  RepositoryDetails,
   RepositoryOwner,
   RepositoryPermissionLevel,
   RepositoryRef,
 } from '../../src/github-app/github-access.port.js';
 
-export type FakeGithubMode = 'NORMAL' | 'UNVERIFIABLE' | 'NOT_INSTALLED';
+export type FakeGithubMode = 'NORMAL' | 'UNVERIFIABLE' | 'NOT_INSTALLED' | 'NOT_FOUND';
 
 export interface FakeGithubCall {
-  method: 'getRepositoryOwner' | 'getRepositoryPermission';
-  repositoryName: string;
+  method:
+    | 'getRepositoryOwner'
+    | 'getRepositoryById'
+    | 'getRepositoryPermission'
+    | 'listOrganizationInstallations'
+    | 'getOrganizationMembership'
+    | 'listOrganizationOwners';
+  repositoryName?: string;
+  repositoryId?: string;
+  organizationLogin?: string;
   githubUserId?: string;
 }
 
@@ -19,11 +32,27 @@ export interface FakeGithubCall {
  * repositorio su propietario y por (repositorio, usuario) el permiso (`role_name`
  * ya normalizado); un usuario sin permiso fijado no tiene ninguno (`NOT_FOUND`).
  * `ownerMode`/`permissionMode` fuerzan `UNVERIFIABLE` o `NOT_INSTALLED`.
+ *
+ * Lado de organización (corte 2): `addOrganization` registra una instalación de
+ * la App, `setMembership` fija por (organización, usuario) el rol y estado
+ * (`active`/`pending`; sin fijar = no es miembro, `NOT_FOUND`) y `setOwners` los
+ * owners. Como GitHub, un owner activo de la organización tiene permiso efectivo `admin`
+ * sobre los repositorios de la organización aunque no sea colaborador explícito
+ * (`ownersHaveEffectiveAdmin`, activo por defecto; un permiso fijado con `setPermission`
+ * prevalece). `installationsMode` fuerza `UNVERIFIABLE` a la lista de instalaciones y
+ * `setOrganizationMode` a una sola organización (p. ej. `Members: read` sin
+ * aceptar = `UNVERIFIABLE`, App desinstalada = `NOT_INSTALLED`).
  */
 export class FakeGithubAccessPort implements GithubAccessPort {
   readonly calls: FakeGithubCall[] = [];
   ownerMode: FakeGithubMode = 'NORMAL';
   permissionMode: FakeGithubMode = 'NORMAL';
+  installationsMode: FakeGithubMode = 'NORMAL';
+  ownersHaveEffectiveAdmin = true;
+  private readonly organizations = new Map<string, OrganizationInstallation>();
+  private readonly organizationModes = new Map<string, FakeGithubMode>();
+  private readonly memberships = new Map<string, OrganizationMembership>();
+  private readonly owners = new Map<string, OrganizationOwner[]>();
   private readonly repositories = new Map<string, RepositoryOwner>();
   private readonly permissions = new Map<string, RepositoryPermissionLevel>();
 
@@ -32,8 +61,43 @@ export class FakeGithubAccessPort implements GithubAccessPort {
     this.calls.length = 0;
     this.ownerMode = 'NORMAL';
     this.permissionMode = 'NORMAL';
+    this.installationsMode = 'NORMAL';
+    this.ownersHaveEffectiveAdmin = true;
+    this.organizations.clear();
+    this.organizationModes.clear();
+    this.memberships.clear();
+    this.owners.clear();
     this.repositories.clear();
     this.permissions.clear();
+  }
+
+  addOrganization(installation: OrganizationInstallation): this {
+    this.organizations.set(installation.organizationLogin, installation);
+    return this;
+  }
+
+  removeOrganization(organizationLogin: string): void {
+    this.organizations.delete(organizationLogin);
+  }
+
+  setOrganizationMode(organizationLogin: string, mode: FakeGithubMode): this {
+    this.organizationModes.set(organizationLogin, mode);
+    return this;
+  }
+
+  setMembership(organizationLogin: string, githubUserId: string, membership: OrganizationMembership): this {
+    this.memberships.set(`${organizationLogin}|${githubUserId}`, membership);
+    return this;
+  }
+
+  /** El usuario deja de ser miembro de la organización (o su invitación se cancela). */
+  removeMembership(organizationLogin: string, githubUserId: string): void {
+    this.memberships.delete(`${organizationLogin}|${githubUserId}`);
+  }
+
+  setOwners(organizationLogin: string, owners: OrganizationOwner[]): this {
+    this.owners.set(organizationLogin, owners);
+    return this;
   }
 
   addRepository(repositoryName: string, owner: RepositoryOwner): this {
@@ -45,9 +109,31 @@ export class FakeGithubAccessPort implements GithubAccessPort {
     this.repositories.delete(repositoryName);
   }
 
+  /** Renombra un repositorio (mismo id y propietario): la lectura por id devuelve el nombre nuevo. */
+  renameRepository(oldName: string, newName: string): void {
+    const owner = this.repositories.get(oldName);
+    if (owner) {
+      this.repositories.delete(oldName);
+      this.repositories.set(newName, owner);
+    }
+  }
+
+  /** Cambia el propietario de un repositorio (transferencia); conserva su id y su nombre. */
+  transferRepository(repositoryName: string, newOwner: Pick<RepositoryOwner, 'ownerId' | 'ownerLogin' | 'ownerType'>): void {
+    const owner = this.repositories.get(repositoryName);
+    if (owner) {
+      this.repositories.set(repositoryName, { ...owner, ...newOwner });
+    }
+  }
+
   setPermission(repositoryName: string, githubUserId: string, level: RepositoryPermissionLevel): this {
     this.permissions.set(`${repositoryName}|${githubUserId}`, level);
     return this;
+  }
+
+  /** El usuario deja de tener permiso sobre el repositorio. */
+  removePermission(repositoryName: string, githubUserId: string): void {
+    this.permissions.delete(`${repositoryName}|${githubUserId}`);
   }
 
   getRepositoryOwner(repository: RepositoryRef): Promise<GithubLookup<RepositoryOwner>> {
@@ -59,6 +145,22 @@ export class FakeGithubAccessPort implements GithubAccessPort {
 
     const owner = this.repositories.get(repository.repositoryName);
     return Promise.resolve(owner ? { status: 'OK', value: owner } : { status: 'NOT_FOUND' });
+  }
+
+  getRepositoryById(installationId: string, repositoryId: string): Promise<GithubLookup<RepositoryDetails>> {
+    this.calls.push({ method: 'getRepositoryById', repositoryId });
+
+    if (this.ownerMode !== 'NORMAL') {
+      return Promise.resolve({ status: this.ownerMode });
+    }
+
+    for (const [repositoryName, owner] of this.repositories) {
+      if (owner.repositoryId === repositoryId) {
+        return Promise.resolve({ status: 'OK', value: { ...owner, repositoryName } });
+      }
+    }
+
+    return Promise.resolve({ status: 'NOT_FOUND' });
   }
 
   getRepositoryPermission(
@@ -75,7 +177,59 @@ export class FakeGithubAccessPort implements GithubAccessPort {
       return Promise.resolve({ status: this.permissionMode });
     }
 
-    const level = this.permissions.get(`${repository.repositoryName}|${githubUserId}`);
+    const level = this.permissions.get(`${repository.repositoryName}|${githubUserId}`) ?? this.effectiveOwnerPermission(repository.repositoryName, githubUserId);
     return Promise.resolve(level ? { status: 'OK', value: level } : { status: 'NOT_FOUND' });
+  }
+
+  /** GitHub: un owner activo de la organización es `admin` de todos sus repositorios. */
+  private effectiveOwnerPermission(repositoryName: string, githubUserId: string): RepositoryPermissionLevel | undefined {
+    const owner = this.repositories.get(repositoryName);
+    const membership = owner ? this.memberships.get(`${owner.ownerLogin}|${githubUserId}`) : undefined;
+
+    return this.ownersHaveEffectiveAdmin && owner?.ownerType === 'Organization' && membership?.role === 'admin' && membership.state === 'active'
+      ? 'admin'
+      : undefined;
+  }
+
+  listOrganizationInstallations(): Promise<GithubLookup<OrganizationInstallation[]>> {
+    this.calls.push({ method: 'listOrganizationInstallations' });
+
+    if (this.installationsMode !== 'NORMAL') {
+      return Promise.resolve({ status: 'UNVERIFIABLE' });
+    }
+
+    return Promise.resolve({ status: 'OK', value: [...this.organizations.values()] });
+  }
+
+  getOrganizationMembership(
+    organization: OrganizationRef,
+    githubUserId: string,
+  ): Promise<GithubLookup<OrganizationMembership>> {
+    this.calls.push({
+      method: 'getOrganizationMembership',
+      organizationLogin: organization.organizationLogin,
+      githubUserId,
+    });
+
+    const mode = this.organizationModes.get(organization.organizationLogin) ?? 'NORMAL';
+
+    if (mode !== 'NORMAL') {
+      return Promise.resolve({ status: mode });
+    }
+
+    const membership = this.memberships.get(`${organization.organizationLogin}|${githubUserId}`);
+    return Promise.resolve(membership ? { status: 'OK', value: membership } : { status: 'NOT_FOUND' });
+  }
+
+  listOrganizationOwners(organization: OrganizationRef): Promise<GithubLookup<OrganizationOwner[]>> {
+    this.calls.push({ method: 'listOrganizationOwners', organizationLogin: organization.organizationLogin });
+
+    const mode = this.organizationModes.get(organization.organizationLogin) ?? 'NORMAL';
+
+    if (mode !== 'NORMAL') {
+      return Promise.resolve({ status: mode });
+    }
+
+    return Promise.resolve({ status: 'OK', value: this.owners.get(organization.organizationLogin) ?? [] });
   }
 }

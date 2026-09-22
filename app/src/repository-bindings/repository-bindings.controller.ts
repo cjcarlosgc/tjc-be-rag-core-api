@@ -27,10 +27,13 @@ import {
   type ProjectRepositoryBindingResponse,
 } from './dto/repository-binding.response.js';
 import { CurrentGithubUserId } from '../common/auth/current-github-user-id.decorator.js';
+import { OrganizationAccessResolver } from '../project-access/organization-access.resolver.js';
+import { githubVerificationUnavailable, workspaceNotFound } from '../project-access/project-access.errors.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { Page } from '../common/dto/page.response.js';
+import { NoProjectRole, ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 const DEFAULT_PAGE_SIZE = 30;
 
@@ -40,9 +43,11 @@ export class RepositoryBindingsController {
     private readonly repositoryBindingsService: RepositoryBindingsService,
     private readonly githubUserRepositoriesService: GithubUserRepositoriesService,
     private readonly githubRepositoryAccessService: GithubRepositoryAccessService,
+    private readonly organizations: OrganizationAccessResolver,
   ) {}
 
   @Get('integrations/github/repositories')
+  @NoProjectRole('Discovery: con workspaceId exige pertenencia al workspace (no un rol de Project).')
   async listRepositories(
     @Query() query: ListGithubRepositoriesQueryDto,
     @Headers('x-github-provider-token') providerToken: string | undefined,
@@ -56,24 +61,27 @@ export class RepositoryBindingsController {
       );
     }
 
-    // HU64 (bundle A): el único workspace es el personal, cuyo id es el githubUserId
-    // de la sesión; el de una organización responde 404 hasta el corte 3.
-    if (query.workspaceId !== undefined && query.workspaceId !== githubUserId) {
-      throw new AppException(
-        ErrorCode.WORKSPACE_NOT_FOUND,
-        `No existe un workspace con id "${query.workspaceId}".`,
-        HttpStatus.NOT_FOUND,
-      );
+    // HU64: con `workspaceId` solo los repositorios de ese workspace (la cuenta personal o
+    // una organización donde el usuario es miembro activo); sin él la lista no se filtra.
+    const workspace = await this.organizations.resolveWorkspace(query.workspaceId, githubUserId);
+
+    if (workspace.status === 'NOT_FOUND') {
+      throw workspaceNotFound(query.workspaceId as string);
+    }
+
+    if (workspace.status === 'UNVERIFIABLE') {
+      throw githubVerificationUnavailable();
     }
 
     const page = parseCursor(query.cursor);
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
-    const result = await this.githubUserRepositoriesService.list(
-      providerToken,
-      page,
-      limit,
-      query.workspaceId === undefined ? undefined : { personalOwnerId: githubUserId },
-    );
+    const options =
+      query.workspaceId === undefined
+        ? undefined
+        : workspace.status === 'ORGANIZATION'
+          ? { organizationOwnerId: workspace.organization.organizationId }
+          : { personalOwnerId: githubUserId };
+    const result = await this.githubUserRepositoriesService.list(providerToken, page, limit, options);
 
     return {
       items: result.items,
@@ -87,6 +95,7 @@ export class RepositoryBindingsController {
    * (no revela la instalación); permiso menor: `403`; no verificable: `503`.
    */
   @Post('integrations/github/repositories/verify-app-access')
+  @NoProjectRole('Exige permiso maintain/write/admin del usuario sobre el repositorio (GitHub), no un rol de Project.')
   @HttpCode(HttpStatus.OK)
   async verifyAppAccess(
     @Body() body: VerifyGitHubAppAccessRequestDto,
@@ -127,6 +136,7 @@ export class RepositoryBindingsController {
    * REPOSITORY_PERMISSION_INSUFFICIENT`, no verificable `503`.
    */
   @Get('integrations/github/repositories/:owner/:repo/branches')
+  @NoProjectRole('Exige permiso maintain/write/admin del usuario sobre el repositorio (GitHub), no un rol de Project.')
   async listBranches(
     @Param('owner') owner: string,
     @Param('repo') repo: string,
@@ -150,6 +160,7 @@ export class RepositoryBindingsController {
   }
 
   @Post('projects/:projectId/integrations/github')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Param('projectId') projectId: string,
@@ -162,6 +173,7 @@ export class RepositoryBindingsController {
   }
 
   @Get('projects/:projectId/integrations/github')
+  @RequireProjectRole('READER', ProjectTargets.project('projectId'))
   async get(
     @Param('projectId') projectId: string,
     @CurrentUserId() userId: string,
@@ -171,6 +183,7 @@ export class RepositoryBindingsController {
   }
 
   @Post('projects/:projectId/integrations/github/enable')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.OK)
   async enable(
     @Param('projectId') projectId: string,
@@ -182,6 +195,7 @@ export class RepositoryBindingsController {
   }
 
   @Delete('projects/:projectId/integrations/github')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('projectId') projectId: string, @CurrentUserId() userId: string): Promise<void> {
     await this.repositoryBindingsService.disable(projectId, userId);

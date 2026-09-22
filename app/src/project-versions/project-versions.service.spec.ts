@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectVersionsService } from './project-versions.service.js';
+import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { Project, ProjectVersion } from '../generated/prisma/client.js';
 
@@ -7,7 +8,7 @@ const OWNER_USER_ID = 'user-1';
 
 describe('ProjectVersionsService', () => {
   let service: ProjectVersionsService;
-  let projectsRepository: { findById: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+  let projectAccess: { require: ReturnType<typeof vi.fn> };
   let projectVersionsRepository: {
     findByIdForOwner: ReturnType<typeof vi.fn>;
     findByProject: ReturnType<typeof vi.fn>;
@@ -20,6 +21,8 @@ describe('ProjectVersionsService', () => {
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
     deletedAt: null,
+    githubOrgId: null,
+    githubOrgLogin: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -44,7 +47,7 @@ describe('ProjectVersionsService', () => {
   };
 
   beforeEach(() => {
-    projectsRepository = { findById: vi.fn(), create: vi.fn() };
+    projectAccess = { require: vi.fn() };
     projectVersionsRepository = {
       findByIdForOwner: vi.fn(),
       findByProject: vi.fn(),
@@ -52,7 +55,7 @@ describe('ProjectVersionsService', () => {
     testTargetsRepository = { findByProjectVersion: vi.fn().mockResolvedValue([]) };
 
     service = new ProjectVersionsService(
-      projectsRepository as never,
+      projectAccess as never,
       projectVersionsRepository as never,
       testTargetsRepository as never,
     );
@@ -164,19 +167,19 @@ describe('ProjectVersionsService', () => {
   });
 
   describe('listVersions (HU25)', () => {
-    it('throws PROJECT_NOT_FOUND when the project does not exist or belongs to another owner', async () => {
-      projectsRepository.findById.mockResolvedValue(null);
+    it('propagates PROJECT_NOT_FOUND when the project is not visible, requiring Reader access', async () => {
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404));
 
       await expect(
         service.listVersions('missing', undefined, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({
         code: ErrorCode.PROJECT_NOT_FOUND,
       });
-      expect(projectsRepository.findById).toHaveBeenCalledWith('missing', OWNER_USER_ID);
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'missing', 'READER');
     });
 
     it('requests one extra row to detect a next page and strips it from the returned items', async () => {
-      projectsRepository.findById.mockResolvedValue({ ...project, currentVersionId: 'version-3' });
+      projectAccess.require.mockResolvedValue({ project: { ...project, currentVersionId: 'version-3' }, role: 'READER' });
       projectVersionsRepository.findByProject.mockResolvedValue([
         { ...version, id: 'version-3' },
         { ...version, id: 'version-2' },
@@ -192,7 +195,7 @@ describe('ProjectVersionsService', () => {
     });
 
     it('marks only the project.currentVersionId as current', async () => {
-      projectsRepository.findById.mockResolvedValue({ ...project, currentVersionId: 'version-2' });
+      projectAccess.require.mockResolvedValue({ project: { ...project, currentVersionId: 'version-2' }, role: 'READER' });
       projectVersionsRepository.findByProject.mockResolvedValue([
         { ...version, id: 'version-2' },
         { ...version, id: 'version-1' },
@@ -205,7 +208,7 @@ describe('ProjectVersionsService', () => {
     });
 
     it('computes targetsMissingTest and returns null when totals are not yet known', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
+      projectAccess.require.mockResolvedValue({ project: project, role: 'READER' });
       projectVersionsRepository.findByProject.mockResolvedValue([
         { ...version, id: 'version-2', targetsTotal: 5, targetsWithTest: 2 },
         { ...version, id: 'version-1', targetsTotal: null, targetsWithTest: null },
@@ -218,7 +221,7 @@ describe('ProjectVersionsService', () => {
     });
 
     it('returns nextCursor null when there is no further page', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
+      projectAccess.require.mockResolvedValue({ project: project, role: 'READER' });
       projectVersionsRepository.findByProject.mockResolvedValue([version]);
 
       const page = await service.listVersions(project.id, 20, undefined, OWNER_USER_ID);

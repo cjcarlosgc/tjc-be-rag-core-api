@@ -83,6 +83,23 @@ describe('validateEnv', () => {
     expect(result.AUTH_BYPASS_ENABLED).toBe(false);
   });
 
+  it('configures the access jobs (HU61): reconciliation on by default, hourly, with budget, concurrency and stale-lock threshold', () => {
+    const result = validateEnv(baseConfig());
+
+    expect(result).toMatchObject({
+      ACCESS_RECONCILIATION_ENABLED: true,
+      ACCESS_RECONCILIATION_INTERVAL_MS: 3_600_000,
+      ACCESS_RECONCILIATION_BUDGET: 500,
+      ACCESS_RECONCILIATION_CONCURRENCY: 5,
+      JOBS_STALE_LOCK_MS: 600_000,
+    });
+  });
+
+  it('turns the reconciliation off only with an explicit "false"', () => {
+    expect(validateEnv(baseConfig({ ACCESS_RECONCILIATION_ENABLED: 'false' })).ACCESS_RECONCILIATION_ENABLED).toBe(false);
+    expect(validateEnv(baseConfig({ ACCESS_RECONCILIATION_ENABLED: 'true' })).ACCESS_RECONCILIATION_ENABLED).toBe(true);
+  });
+
   it('treats the literal string "true" as AUTH_BYPASS_ENABLED=true', () => {
     const result = validateEnv(baseConfig({ AUTH_BYPASS_ENABLED: 'true', NODE_ENV: 'development' }));
 

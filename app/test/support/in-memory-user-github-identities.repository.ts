@@ -8,6 +8,14 @@ export class InMemoryUserGithubIdentitiesRepository {
     return Promise.resolve(this.rows.get(userId) ?? null);
   }
 
+  findByGithubUserId(githubUserId: string): Promise<UserGithubIdentity | null> {
+    return Promise.resolve([...this.rows.values()].find((row) => row.githubUserId === githubUserId) ?? null);
+  }
+
+  findByUserIds(userIds: string[]): Promise<UserGithubIdentity[]> {
+    return Promise.resolve(userIds.flatMap((userId) => this.rows.get(userId) ?? []));
+  }
+
   create(userId: string, githubUserId: string, githubLogin: string | null): Promise<UserGithubIdentity> {
     const githubIdTaken = [...this.rows.values()].some((row) => row.githubUserId === githubUserId);
     if (this.rows.has(userId) || githubIdTaken) {

@@ -14,6 +14,7 @@ const OWNER_USER_ID = 'user-1';
 function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
   return {
     id: 'run-1',
+    projectId: 'project-1',
     headSha: 'head-sha',
     status: 'SUCCESS',
     current: true,
@@ -30,6 +31,7 @@ describe('TestPublicationsService', () => {
   let testPublicationsRepository: { create: ReturnType<typeof vi.fn>; findByIdForOwner: ReturnType<typeof vi.fn> };
   let generatedTestProposalsRepository: { findByIdsForRun: ReturnType<typeof vi.fn> };
   let analysisRunsRepository: { findByIdForOwner: ReturnType<typeof vi.fn> };
+  let projectAccess: { require: ReturnType<typeof vi.fn> };
   let jobsService: { enqueue: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -39,12 +41,14 @@ describe('TestPublicationsService', () => {
     };
     generatedTestProposalsRepository = { findByIdsForRun: vi.fn().mockResolvedValue([buildProposal()]) };
     analysisRunsRepository = { findByIdForOwner: vi.fn().mockResolvedValue(buildRun()) };
+    projectAccess = { require: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'MAINTAINER' }) };
     jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
 
     service = new TestPublicationsService(
       testPublicationsRepository as unknown as TestPublicationsRepository,
       generatedTestProposalsRepository as unknown as GeneratedTestProposalsRepository,
       analysisRunsRepository as unknown as AnalysisRunsRepository,
+      projectAccess as never,
       jobsService as unknown as JobsService,
       { get: vi.fn().mockReturnValue(1500) } as never,
     );
@@ -66,6 +70,17 @@ describe('TestPublicationsService', () => {
         publicationId: 'publication-1',
         analysisRunId: 'run-1',
       });
+    });
+
+    it('answers 403 PROJECT_ROLE_INSUFFICIENT to a Reader and publishes nothing (HU60)', async () => {
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
+
+      await expect(service.create('run-1', ['proposal-1'], OWNER_USER_ID)).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+      });
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'MAINTAINER');
+      expect(testPublicationsRepository.create).not.toHaveBeenCalled();
+      expect(jobsService.enqueue).not.toHaveBeenCalled();
     });
 
     it('throws ANALYSIS_RUN_NOT_FOUND when the run does not belong to the owner', async () => {

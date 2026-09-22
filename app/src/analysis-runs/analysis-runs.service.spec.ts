@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunsService } from './analysis-runs.service.js';
 import { AnalysisRunsRepository } from './analysis-runs.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisRun, Project } from '../generated/prisma/client.js';
@@ -15,7 +16,9 @@ describe('AnalysisRunsService', () => {
     findByIdForOwner: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     findByProjectForOwner: ReturnType<typeof vi.fn>;
+    findVisibleForUser: ReturnType<typeof vi.fn>;
   };
+  let projectAccess: { require: ReturnType<typeof vi.fn> };
   let projectsRepository: { findById: ReturnType<typeof vi.fn> };
 
   const OWNER_USER_ID = 'user-1';
@@ -27,6 +30,8 @@ describe('AnalysisRunsService', () => {
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
     deletedAt: null,
+    githubOrgId: null,
+    githubOrgLogin: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -71,14 +76,17 @@ describe('AnalysisRunsService', () => {
       findByIdForOwner: vi.fn(),
       update: vi.fn(),
       findByProjectForOwner: vi.fn(),
+      findVisibleForUser: vi.fn(),
     };
     projectsRepository = { findById: vi.fn() };
+    projectAccess = { require: vi.fn().mockResolvedValue({ project, role: 'READER' }) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AnalysisRunsService,
         { provide: AnalysisRunsRepository, useValue: repository },
         { provide: ProjectsRepository, useValue: projectsRepository },
+        { provide: ProjectAccessService, useValue: projectAccess },
       ],
     }).compile();
 
@@ -429,7 +437,6 @@ describe('AnalysisRunsService', () => {
 
   describe('listByProject', () => {
     it('requests one extra row to detect a next page and strips it from the returned items', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue([
         buildRun({ id: 'run-3' }),
         buildRun({ id: 'run-2' }),
@@ -438,6 +445,7 @@ describe('AnalysisRunsService', () => {
 
       const page = await service.listByProject(PROJECT_ID, undefined, 2, undefined, OWNER_USER_ID);
 
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, PROJECT_ID, 'READER');
       expect(repository.findByProjectForOwner).toHaveBeenCalledWith(
         PROJECT_ID,
         OWNER_USER_ID,
@@ -449,12 +457,41 @@ describe('AnalysisRunsService', () => {
       expect(page.nextCursor).toBe('run-2');
     });
 
-    it('throws PROJECT_NOT_FOUND when the project does not belong to the owner', async () => {
-      projectsRepository.findById.mockResolvedValue(null);
+    it('propagates the access failure (404 not visible, 503 unverifiable) without reading runs', async () => {
+      projectAccess.require.mockRejectedValue(
+        new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404),
+      );
 
       await expect(
         service.listByProject(PROJECT_ID, undefined, undefined, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.PROJECT_NOT_FOUND });
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
+      expect(repository.findByProjectForOwner).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listVisible (HU55)', () => {
+    it('lists the runs of every visible project, paginating with one extra row', async () => {
+      repository.findVisibleForUser.mockResolvedValue([
+        buildRun({ id: 'run-3' }),
+        buildRun({ id: 'run-2' }),
+        buildRun({ id: 'run-1' }),
+      ]);
+
+      const page = await service.listVisible('SUCCESS', 2, undefined, OWNER_USER_ID);
+
+      expect(repository.findVisibleForUser).toHaveBeenCalledWith(OWNER_USER_ID, 2, 'SUCCESS', undefined);
+      expect(page.items.map((run) => run.id)).toEqual(['run-3', 'run-2']);
+      expect(page.nextCursor).toBe('run-2');
+      expect(projectAccess.require).not.toHaveBeenCalled();
+    });
+
+    it('applies the default limit and returns a null cursor on the last page', async () => {
+      repository.findVisibleForUser.mockResolvedValue([buildRun({ id: 'run-1' })]);
+
+      const page = await service.listVisible(undefined, undefined, undefined, OWNER_USER_ID);
+
+      expect(repository.findVisibleForUser).toHaveBeenCalledWith(OWNER_USER_ID, 20, undefined, undefined);
+      expect(page.nextCursor).toBeNull();
     });
   });
 });

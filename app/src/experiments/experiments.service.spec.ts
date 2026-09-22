@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentsService } from './experiments.service.js';
+import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 
 const OWNER_USER_ID = 'user-1';
 
 function makeDeps(overrides: Record<string, unknown> = {}) {
   return {
-    projectsRepository: {
-      findById: vi.fn().mockResolvedValue({ id: 'project-1', currentVersionId: 'version-1' }),
+    projectAccess: {
+      require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: 'version-1' }, role: 'MAINTAINER' }),
     },
     projectVersionsRepository: {
       hasActiveVersion: vi.fn().mockResolvedValue(false),
@@ -38,7 +39,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
 
 function makeService(deps: ReturnType<typeof makeDeps>): ExperimentsService {
   return new ExperimentsService(
-    deps.projectsRepository as never,
+    deps.projectAccess as never,
     deps.projectVersionsRepository as never,
     deps.testTargetsRepository as never,
     deps.experimentRunsRepository as never,
@@ -50,14 +51,34 @@ function makeService(deps: ReturnType<typeof makeDeps>): ExperimentsService {
 
 describe('ExperimentsService', () => {
   describe('createRun', () => {
-    it('throws PROJECT_NOT_FOUND when the project does not exist or belongs to another owner', async () => {
-      const deps = makeDeps({ projectsRepository: { findById: vi.fn().mockResolvedValue(null) } });
+    it('propagates PROJECT_NOT_FOUND when the project is not visible, requiring the Maintainer role (HU60)', async () => {
+      const deps = makeDeps({
+        projectAccess: {
+          require: vi.fn().mockRejectedValue(new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404)),
+        },
+      });
       const service = makeService(deps);
 
       await expect(
         service.createRun({ projectId: 'missing', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
-      expect(deps.projectsRepository.findById).toHaveBeenCalledWith('missing', OWNER_USER_ID);
+      expect(deps.projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'missing', 'MAINTAINER');
+    });
+
+    it('propagates 403 PROJECT_ROLE_INSUFFICIENT for a Reader before any other validation', async () => {
+      const deps = makeDeps({
+        projectAccess: {
+          require: vi
+            .fn()
+            .mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403)),
+        },
+      });
+      const service = makeService(deps);
+
+      await expect(
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
+      expect(deps.projectVersionsRepository.hasActiveVersion).not.toHaveBeenCalled();
     });
 
     it('throws PROJECT_INDEXING_IN_PROGRESS when the project has an active version', async () => {
@@ -76,7 +97,9 @@ describe('ExperimentsService', () => {
 
     it('throws PROJECT_NOT_READY when there is no current version', async () => {
       const deps = makeDeps({
-        projectsRepository: { findById: vi.fn().mockResolvedValue({ id: 'project-1', currentVersionId: null }) },
+        projectAccess: {
+          require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: null }, role: 'MAINTAINER' }),
+        },
       });
       const service = makeService(deps);
 
@@ -108,6 +131,20 @@ describe('ExperimentsService', () => {
       await expect(
         service.createRun({ projectId: 'project-1', targetId: 'missing' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
+    });
+
+    it('looks the target up scoped to the requested project, so a target of another project is UNRESOLVABLE_TARGET', async () => {
+      const deps = makeDeps({
+        testTargetsRepository: { findByIdForOwner: vi.fn().mockResolvedValue(null) },
+      });
+      const service = makeService(deps);
+
+      await expect(
+        service.createRun({ projectId: 'project-1', targetId: 'target-of-project-2' }, undefined, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
+      expect(deps.testTargetsRepository.findByIdForOwner).toHaveBeenCalledWith('target-of-project-2', OWNER_USER_ID, 'project-1');
+      expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
+      expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
     });
 
     it('throws INVALID_GENERATION_TARGET when the target is a CLASS', async () => {

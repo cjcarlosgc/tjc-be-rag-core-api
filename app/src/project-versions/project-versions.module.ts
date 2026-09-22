@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ProjectsModule } from '../projects/projects.module.js';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
 import { ProjectVersionsController } from './project-versions.controller.js';
 import { ProjectVersionsService } from './project-versions.service.js';
 import { ProjectVersionsRepository } from './project-versions.repository.js';
@@ -12,7 +12,7 @@ import { CodeChunksRepository } from './persistence/code-chunks.repository.js';
 import { TestTargetsRepository } from './persistence/test-targets.repository.js';
 
 @Module({
-  imports: [ProjectsModule],
+  imports: [ProjectAccessModule],
   controllers: [ProjectVersionsController],
   providers: [
     ProjectVersionsService,

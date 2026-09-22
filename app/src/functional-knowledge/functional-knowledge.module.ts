@@ -6,11 +6,11 @@ import { FunctionalKnowledgeRepository } from './functional-knowledge.repository
 import { FunctionalContextEvaluatorService } from './functional-context-evaluator.service.js';
 import { FunctionalContinuationJobHandler } from './functional-continuation-job.handler.js';
 import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
-import { ProjectsModule } from '../projects/projects.module.js';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
 import { ChecksModule } from '../checks/checks.module.js';
 
 @Module({
-  imports: [AnalysisRunsModule, ProjectsModule, ChecksModule],
+  imports: [AnalysisRunsModule, ProjectAccessModule, ChecksModule],
   controllers: [FunctionalKnowledgeController],
   providers: [
     FunctionalKnowledgeService,

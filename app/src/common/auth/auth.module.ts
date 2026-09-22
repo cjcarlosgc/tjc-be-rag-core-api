@@ -19,6 +19,12 @@ import { UserGithubIdentitiesRepository } from './user-github-identities.reposit
     SessionAuthService,
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [AUTH_TOKEN_VERIFIER, SUPABASE_IDENTITY_PORT, GithubIdentityService, SessionAuthService],
+  exports: [
+    AUTH_TOKEN_VERIFIER,
+    SUPABASE_IDENTITY_PORT,
+    UserGithubIdentitiesRepository,
+    GithubIdentityService,
+    SessionAuthService,
+  ],
 })
 export class AuthModule {}

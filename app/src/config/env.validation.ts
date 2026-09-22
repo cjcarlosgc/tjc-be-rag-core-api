@@ -45,6 +45,30 @@ class EnvironmentVariables {
   @Min(1)
   JOBS_MAX_ATTEMPTS: number = 3;
 
+  /** Umbral (ms) de un lock `RUNNING` obsoleto de un job con `dedupeKey` (jobs de acceso, HU61). */
+  @IsInt()
+  @Min(1000)
+  JOBS_STALE_LOCK_MS: number = 600_000;
+
+  /** Siembra y ejecuta la reconciliación horaria de acceso (HU61); `false` la desactiva (local/tests). */
+  @IsBoolean()
+  ACCESS_RECONCILIATION_ENABLED: boolean = true;
+
+  /** Intervalo entre ocurrencias de `ACCESS_RECONCILIATION` (por defecto una hora). */
+  @IsInt()
+  @Min(1000)
+  ACCESS_RECONCILIATION_INTERVAL_MS: number = 3_600_000;
+
+  /** Presupuesto de verificaciones contra GitHub por ejecución de la reconciliación. */
+  @IsInt()
+  @Min(1)
+  ACCESS_RECONCILIATION_BUDGET: number = 500;
+
+  /** Tope de verificaciones simultáneas contra GitHub en la reconciliación. */
+  @IsInt()
+  @Min(1)
+  ACCESS_RECONCILIATION_CONCURRENCY: number = 5;
+
   @IsInt()
   @Min(1)
   INDEXING_MAX_ZIP_SIZE_BYTES: number = 52_428_800;
@@ -182,6 +206,11 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   const normalized = {
     ...config,
     AUTH_BYPASS_ENABLED: config.AUTH_BYPASS_ENABLED === 'true' || config.AUTH_BYPASS_ENABLED === true,
+    // Por defecto activo: solo un `false` explícito la desactiva.
+    ACCESS_RECONCILIATION_ENABLED:
+      config.ACCESS_RECONCILIATION_ENABLED === undefined ||
+      config.ACCESS_RECONCILIATION_ENABLED === 'true' ||
+      config.ACCESS_RECONCILIATION_ENABLED === true,
   };
   const validated = plainToInstance(EnvironmentVariables, normalized, {
     enableImplicitConversion: true,

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RepositoryBindingsRepository } from './repository-bindings.repository.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import { InMemoryPrisma } from '../../test/support/in-memory-prisma.js';
 
 describe('RepositoryBindingsRepository — HU57 status transitions', () => {
   let prisma: { repositoryBinding: { update: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn> } };
@@ -52,13 +53,65 @@ describe('RepositoryBindingsRepository — HU57 status transitions', () => {
     });
   });
 
-  it('revoke applies to every binding of the installation', async () => {
-    await repository.revokeByInstallation('i1');
+  it('updateRepositoryName only changes the name (a rename never changes the state)', async () => {
+    await repository.updateRepositoryName('b1', 'org/renamed');
 
-    expect(prisma.repositoryBinding.updateMany).toHaveBeenCalledWith({
-      where: { installationId: 'i1' },
-      data: { status: 'REVOKED', disabledReason: null },
+    expect(prisma.repositoryBinding.update).toHaveBeenCalledWith({
+      where: { id: 'b1' },
+      data: { repositoryName: 'org/renamed' },
     });
+  });
+});
+
+describe('RepositoryBindingsRepository queries of the access sync (HU61)', () => {
+  const prisma = new InMemoryPrisma();
+  const repository = new RepositoryBindingsRepository(prisma as unknown as PrismaService);
+
+  const seed = (id: string, status: string, extra: Record<string, unknown> = {}, project: Record<string, unknown> = {}) => {
+    prisma.insert('project', { id: `project-${id}`, ownerUserId: 'creator', githubOrgId: null, githubOrgLogin: null, ...project });
+    prisma.insert('repositoryBinding', { id, projectId: `project-${id}`, status, installationId: 'i1', repositoryId: `r-${id}`, ...extra });
+  };
+
+  beforeEach(() => {
+    prisma.reset();
+    seed('b1', 'ENABLED');
+    seed('b2', 'DISABLED');
+    seed('b3', 'REVOKED');
+    seed('b4', 'ENABLED', { installationId: 'i2' }, { deletedAt: new Date() });
+    seed('b5', 'ENABLED', {}, { githubOrgId: '42', githubOrgLogin: 'acme' });
+  });
+
+  it('findByInstallation returns every binding of the installation whatever its status', async () => {
+    expect((await repository.findByInstallation('i1')).map((row) => row.id).sort()).toEqual(['b1', 'b2', 'b3', 'b5']);
+  });
+
+  it('findByRepositoryIdWithWorkspace returns the binding with the workspace of its project, and hides deleted projects', async () => {
+    expect(await repository.findByRepositoryIdWithWorkspace('r-b5')).toMatchObject({
+      id: 'b5',
+      project: { githubOrgId: '42', ownerUserId: 'creator' },
+    });
+    expect(await repository.findByRepositoryIdWithWorkspace('r-b4')).toBeNull();
+    expect(await repository.findByRepositoryIdWithWorkspace('missing')).toBeNull();
+  });
+
+  it('findLiveForReconciliation pages by id, skipping REVOKED bindings and deleted projects', async () => {
+    const firstPage = await repository.findLiveForReconciliation(null, 2);
+    expect(firstPage.map((row) => row.id)).toEqual(['b1', 'b2']);
+
+    const secondPage = await repository.findLiveForReconciliation(firstPage[1].id, 2);
+    expect(secondPage.map((row) => row.id)).toEqual(['b5']);
+    expect(secondPage[0].project).toMatchObject({ githubOrgId: '42' });
+    expect(await repository.findLiveForReconciliation('b5', 2)).toEqual([]);
+  });
+
+  it('findRevokedWithLeftoverRecords finds only REVOKED bindings that still have a Maintainer/Reader record', async () => {
+    prisma.insert('projectAccess', { projectId: 'project-b3', userId: 'admin', role: 'ADMIN' });
+    expect(await repository.findRevokedWithLeftoverRecords(10)).toEqual([]);
+
+    prisma.insert('projectAccess', { projectId: 'project-b3', userId: 'reader', role: 'READER' });
+    prisma.insert('projectAccess', { projectId: 'project-b1', userId: 'reader', role: 'READER' });
+
+    expect((await repository.findRevokedWithLeftoverRecords(10)).map((row) => row.id)).toEqual(['b3']);
   });
 });
 
