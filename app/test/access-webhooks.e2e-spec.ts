@@ -180,7 +180,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       expect(prisma.tables.webhookDelivery).toHaveLength(0);
     });
 
-    // `retry`: un 401 temprano con cuerpo pendiente puede cortar el socket del cliente ("socket hang up") de forma esporádica.
+    // `retry`: flake de arnés no diagnosticado (supertest levanta un servidor efímero por petición y vitest corre los archivos en paralelo): en muy pocas ejecuciones falló con "socket hang up". El 401 se lanza después de leer el cuerpo completo, así que no es un defecto del producto. Si reaparece, captura el error completo antes de tocar nada.
     it.each(['member', 'membership', 'organization', 'team'])('rejects a tampered `%s` signature with 401 and enqueues/applies nothing', { retry: 2 }, async (eventName) => {
       await setUpOrgProject();
       const body = JSON.stringify({ action: 'removed', member: { id: 1 }, membership: { user: { id: 1 } }, organization: { id: 42 }, repository: { id: 100 } });

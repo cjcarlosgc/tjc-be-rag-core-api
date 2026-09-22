@@ -4,7 +4,7 @@ Documento operativo para que otro agente (p. ej. Codex) continúe sin el context
 
 ## 1. Estado en una frase
 
-El contrato SYSTEM-2.4 / INTEROP-2.4 (uso organizacional) está **aprobado y publicado a Console como definición** (`CS-20260921-001`), el **bundle A está implementado, revisado y publicado** (`CS-20260921-002`), y el **bundle B está implementado y con el ciclo de corrección 1 aplicado**; falta la **re-comprobación acotada final**, los **gates técnicos** y publicar el **`CONTRACT_SYNC` del bundle B**. Nada de T-003 está pusheado.
+El contrato SYSTEM-2.4 / INTEROP-2.4 (uso organizacional) está **aprobado y publicado a Console como definición** (`CS-20260921-001`), el **bundle A está implementado, revisado y publicado** (`CS-20260921-002`), y el **bundle B está implementado y con el ciclo de corrección 1 aplicado**; la re-comprobación final y los gates técnicos están en verde; falta confirmar las decisiones derivadas (aa)-(ac), publicar el **`CONTRACT_SYNC` del bundle B** y cerrar el work item. Nada de T-003 está pusheado.
 
 ## 2. Git
 
@@ -18,7 +18,7 @@ El contrato SYSTEM-2.4 / INTEROP-2.4 (uso organizacional) está **aprobado y pub
 |---|---|
 | Contrato SYSTEM-2.4 / INTEROP-2.4 | APROBADO por el usuario; 2 ciclos de revisión contractual; `DEC-ORG-001` y `DEC-ORG-002` APROBADAS (decisiones derivadas (a)-(ac) vetables). |
 | Bundle A (corte 1 identidad GitHub + corte 4a seguridad del binding) | Implementado; revisión independiente + contract-reviewer APROBADAS; sync `CS-20260921-002` publicado 2026-09-21 08:56:50 (-05). |
-| Bundle B (cortes 2, 3 y 5: workspaces, roles/acceso, webhooks y reconciliación) | Implementado y con ciclo de corrección 1 aplicado (`1118326`). Revisiones previas: modelo de acceso APPROVED, contract-reviewer APPROVED, jobs/webhooks CHANGES_REQUESTED (resuelto). |
+| Bundle B (cortes 2, 3 y 5: workspaces, roles/acceso, webhooks y reconciliación) | Implementado, con ciclo de corrección 1 (`1118326`) y todas las revisiones APPROVED (modelo de acceso, contract-reviewer, jobs/webhooks tras corrección). |
 | HU55 (`GET /analysis-runs` global) | Aprobada por el usuario dentro de T-003 e implementada. |
 | Migraciones | **Todas aplicadas a Supabase** (última `20260921160000_jobs_dedupe_key`). No queda ninguna pendiente. |
 | Seguridad de datos | RLS habilitado en las 22 tablas de `public`; Data API de Supabase **desactivada por el usuario**; guardia de prueba `app/src/prisma/rls-guard.spec.ts` falla si una tabla nueva no habilita RLS. |
@@ -26,10 +26,13 @@ El contrato SYSTEM-2.4 / INTEROP-2.4 (uso organizacional) está **aprobado y pub
 
 ## 4. Qué falta (en este orden)
 
-1. **Re-comprobación acotada final** del bundle B (ciclo de corrección 1 de 1 disponible): un `reviewer` independiente revisa `git diff 503cd66..HEAD`. Se lanzó al revisor de jobs/webhooks; **su resultado puede no estar registrado**. Si `harness/state.json` no muestra su handoff posterior a `1118326`, relánzalo (sin modificar archivos). Si pide cambios otra vez, los ciclos se agotaron: `status` -> `DECISION_REQUIRED` y decide el usuario.
-2. **Gates técnicos del leader** sobre el árbol final (desde `app/`): `npm run lint && npm test && npm run build && npm run test:e2e`. Luego en `state.json`: `independentReviewPassed`, `technicalChecksPassed` = `PASSED` (solo con evidencia). El e2e tiene un flake esporádico sin causa raíz (2 de ~11 ejecuciones; `socket hang up` en la prueba de firma alterada de `member`, mitigado con `retry: 2`): si reaparece, investígalo antes de ignorarlo.
-3. **Publicar `CS-20260921-003` (implementación del bundle B) a Console**: texto en `harness/reports/T-003-sync-bundle-b-borrador.yaml`. Comando: `node harness/contract-sync.mjs publish --id CS-20260921-003 --targets console --breaking false --changed "<changed>" --required-action "<requiredAction>" --source-revision <commit final>` (el CLI admite un solo valor por lista: une los ítems; pasa los textos por archivo con `"$(cat archivo)"` para evitar problemas de comillas). Registra el ID en `coordination.publishedSyncIds`, apunta la hora del archivo (`stat`) y pasa `contractSyncPublished` a `PASSED`. Los marcadores de INTEROP ya dicen "Implementado".
-4. Cerrar el work item: `check` de CONTRACT_SYNC en `before-done`, `status` -> `DONE` solo con todos los gates en verde; archivar el estado en `harness/reports/T-003-org-workspaces.md` antes de abrir otro work item (`state.json` admite un solo `activeWorkItem`).
+Hecho el 2026-09-21: re-comprobación acotada final del bundle B **APPROVED** (revisor independiente), gates técnicos del leader en verde (lint; `npm test` 1096 OK + 36 omitidos de la suite pg opt-in; `npm run build`; `npm run test:e2e` 211 OK) y `independentReviewPassed`/`technicalChecksPassed` = `PASSED` en `state.json`. El e2e esporádico (2 de ~11 ejecuciones) se atribuye al arnés de pruebas (supertest + vitest en paralelo bajo carga), sin causa demostrada: si reaparece, captura el error completo antes de ignorarlo.
+
+Pendiente:
+1. **Confirmar con el usuario las decisiones derivadas (aa)-(ac) de `DEC-ORG-002`** (`spec/contracts/system-contract.md`): (aa) una lista de owners vacía es no verificable y no oculta la organización; (ab) un listado truncado usado para negar es no verificable; (ac) un fallo determinista al reverificar sigue el camino normal de reintentos. Las tomó el leader al corregir la revisión del bundle B; el usuario no las ha vetado, pero `AGENTS.md` pide consolidar solo lo aprobado: registra su confirmación (o ajústalas) antes de publicar.
+2. **Publicar `CS-20260921-003` (implementación del bundle B) a Console**: texto en `harness/reports/T-003-sync-bundle-b-borrador.yaml`. Comando: `node harness/contract-sync.mjs publish --id CS-20260921-003 --targets console --breaking false --changed "$(cat changed.txt)" --required-action "$(cat action.txt)" --source-revision <commit final>` (el CLI admite un solo valor por lista: une los ítems y pásalos por archivo para evitar problemas de comillas). Registra el ID en `coordination.publishedSyncIds`, anota la hora del archivo (`stat`) y pasa `contractSyncPublished` a `PASSED`.
+3. **Cerrar el work item**: `node harness/contract-sync.mjs check --checkpoint before-done --work-item T-003-org-workspaces`; `status` -> `DONE` solo con todos los gates en verde; archiva el estado en `harness/reports/T-003-org-workspaces.md` antes de abrir otro work item (`state.json` admite un solo `activeWorkItem`).
+4. Cuando el usuario lo pida: push de `feature/T-003`, PR y merge (ver sección 2), y el despliegue con las precondiciones de la sección 5.
 
 ## 5. Precondiciones de despliegue (NO bloquean implementar; sí desplegar)
 
