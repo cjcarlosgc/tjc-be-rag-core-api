@@ -25,7 +25,7 @@
       "HU55"
     ],
     "sprint": "T-003",
-    "status": "IN_PROGRESS",
+    "status": "DONE",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
@@ -56,7 +56,7 @@
       "checkedAt": "2026-09-21T09:00:00-05:00"
     },
     "createdAt": "2026-09-20T03:00:00-05:00",
-    "updatedAt": "2026-09-21T22:30:00-05:00",
+    "updatedAt": "2026-09-21T19:34:06-05:00",
     "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
@@ -190,7 +190,7 @@
       "technicalChecksPassed": "PASSED",
       "contractReviewed": "PASSED",
       "canonicalContractSynced": "PASSED",
-      "contractSyncPublished": "NOT_RUN",
+      "contractSyncPublished": "PASSED",
       "interopSyncChecked": "PASSED",
       "noBlockingDecisions": "PASSED",
       "retryLimitRespected": "PASSED"
@@ -252,11 +252,17 @@
           "checkpoint": "implementation-delivery",
           "checkedAt": "2026-09-21T23:57:44.680Z",
           "relevantPendingSyncIds": []
+        },
+        {
+          "checkpoint": "before-done",
+          "checkedAt": "2026-09-22T00:34:47.995Z",
+          "relevantPendingSyncIds": []
         }
       ],
       "publishedSyncIds": [
         "CS-20260921-001",
-        "CS-20260921-002"
+        "CS-20260921-002",
+        "CS-20260921-003"
       ],
       "pendingRelevantSyncIds": []
     },
@@ -272,9 +278,10 @@
       "Corte 5, etapa 3a (HU61; bundle B, no se publica solo), commits 8f6e6b8 (jobs), 5e537f3 (eventos repository/installation y reconciliación (c)) y f33a78d (POST /experiments), desde app/: npm run lint (oxlint, exit 0), npm test (85 archivos, 958 tests en verde y 16 omitidos: jobs.repository.pg.spec.ts, opt-in con JOBS_TEST_DATABASE_URL; 852 previos intactos + 106 nuevos), npm run build (exit 0), npm run test:e2e (7 archivos, 188 tests en verde; 168 previos intactos + 20 nuevos en test/access-webhooks.e2e-spec.ts: firma alterada, duplicados, fuera de orden, cada evento repository/installation y action, binding DISABLED, Project personal, member/membership/organization/team ignorados con 202, reconciliación (c)). jobs.repository.pg.spec.ts (16 tests) ejecutado contra un PostgreSQL 14 local descartable con las migraciones de jobs aplicadas: dedupe solo sobre PENDING, claimNext con exclusión del RUNNING no obsoleto, siembra, lock obsoleto, nota N1 y reprogramación. Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Migración 20260921160000_jobs_dedupe_key escrita y NO aplicada a Supabase. Extra: POST /experiments exige que el target pertenezca al projectId del body (hallazgo de la revisión de la etapa 2b). Pendiente etapa 3b (member, membership, organization, team, privatized, ACCESS_REVERIFY, reconciliación (a) y (b), ciclo de vida de la organización). node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T19:42:08.993Z). independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
       "Corte 5, etapa 3b y cierre del bundle B (HU61, HU59, HU60; bundle B completo: cortes 2, 3 y 5; no se publica solo), commit 39d6414, desde app/: npm run lint (oxlint, exit 0), npm test (87 archivos, 1078 tests en verde y 17 omitidos: jobs.repository.pg.spec.ts, opt-in con JOBS_TEST_DATABASE_URL; 958 previos intactos + 120 nuevos: access-events, access-reverify (alcances, rol vivo, backoff, cadena, carrera alta vs evento), organization-lifecycle, reconciliación (a) y (b), consultas de selección), npm run build (exit 0), npm run test:e2e (7 archivos, 209 tests en verde; 188 previos intactos + 21 nuevos en test/access-webhooks.e2e-spec.ts: ingress real con firma y 202, member/membership/organization/team/privatized por action, duplicados y fuera de orden, GitHub caído con backoff, organization.renamed/deleted, installation.deleted de una organización con reaparición, reconciliación (a) y (b)). jobs.repository.pg.spec.ts (17 tests, incluido expedite) ejecutado contra un PostgreSQL 14 local descartable con las migraciones de jobs aplicadas. Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Sin migraciones nuevas; las del bundle B (20260921140000, 20260921150000 y 20260921160000) siguen escritas y NO aplicadas a Supabase. node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T20:08:02.759Z). implementationCompleted PASSED: el bundle B (cortes 2, 3 y 5) está implementado; independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
       "Bundle B, ciclo de corrección 1 de 2 (HU61, HU59, HU60, HU63), commit 1118326, desde app/: npm run lint (oxlint, exit 0), npm test (88 archivos, 1096 tests en verde y 36 omitidos: jobs.repository.pg.spec.ts, ahora con 18 casos en cada una de las zonas UTC y America/Bogota; 1078 previos intactos + 18 nuevos), npm run build (exit 0), npm run test:e2e (7 archivos, 211 tests en verde; 209 previos + 2 nuevos). jobs.repository.pg.spec.ts (36 casos) ejecutado en verde contra un PostgreSQL 14 local descartable con la sesión en UTC y en America/Bogota (con now() sin UTC fallan 7 casos en Bogota); el cluster se detuvo y se borró. Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Sin migraciones nuevas. node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T23:57:44.680Z). independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
-      "Bundle B cerrado (cortes 2, 3 y 5 + ciclo de corrección 1): lint OK; npm test 88 archivos / 1096 tests (+36 omitidos, suite pg opt-in); npm run build exit 0; npm run test:e2e 7 archivos / 211 tests; suite de la cola contra PostgreSQL local descartable 36/36 en UTC y en America/Bogota (revisor). Revisiones independientes: modelo de acceso APPROVED, contract-reviewer APPROVED, jobs/webhooks CHANGES_REQUESTED -> corregido -> APPROVED."
+      "Bundle B cerrado (cortes 2, 3 y 5 + ciclo de corrección 1): lint OK; npm test 88 archivos / 1096 tests (+36 omitidos, suite pg opt-in); npm run build exit 0; npm run test:e2e 7 archivos / 211 tests; suite de la cola contra PostgreSQL local descartable 36/36 en UTC y en America/Bogota (revisor). Revisiones independientes: modelo de acceso APPROVED, contract-reviewer APPROVED, jobs/webhooks CHANGES_REQUESTED -> corregido -> APPROVED.",
+      "2026-09-21: el usuario confirmó tal cual las decisiones derivadas (aa)-(ac) de DEC-ORG-002: lista de owners vacía = no verificable; listado truncado usado para negar = no verificable; fallo determinista de ACCESS_REVERIFY sigue los reintentos normales. CONTRACT_SYNC de implementación del bundle B publicado: CS-20260921-003, target console, sourceRevision 56301b5; outbox creado el 2026-09-21T19:34:06-05:00."
     ],
-    "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md. 2026-09-21: usuario aprobó el contrato SYSTEM-2.4/INTEROP-2.4 y el work item (commit 6464970). Publicado CS-20260921-001 (definición). Bundle A primero: corte 1 (HU62 + identidad) + 4a (corrección de seguridad del binding); el bundle A espera a que la Console solo-GitHub esté publicada. Bundle B (2+3+5) después. contractSyncPublished sigue NOT_RUN hasta los syncs de implementación de A y B. 2026-09-21: el usuario aprobó mantener HU55 (GET /analysis-runs sin projectId) dentro de T-003; backlog actualizado. CONTINUIDAD (2026-09-21): ver harness/reports/T-003-continuidad.md (estado, pendientes en orden, precondiciones de despliegue, reglas) y harness/reports/T-003-sync-bundle-b-borrador.yaml (CONTRACT_SYNC del bundle B listo para publicar tras la re-comprobación final y los gates). feature/T-003 fue pusheada por el usuario hasta 4ebcfba (2026-09-21); sin PR ni merge. 2026-09-21: revisiones y gates técnicos del bundle B en verde (independentReviewPassed y technicalChecksPassed = PASSED). PENDIENTE: (1) el usuario confirma las decisiones derivadas (aa)-(ac) de DEC-ORG-002 (las presentó el leader; sin veto hasta ahora); (2) publicar CS-20260921-003 (borrador en harness/reports/T-003-sync-bundle-b-borrador.yaml) con sourceRevision = commit final; (3) cerrar el work item. No hay push."
+    "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md. 2026-09-21: usuario aprobó el contrato SYSTEM-2.4/INTEROP-2.4 y el work item (commit 6464970). Publicado CS-20260921-001 (definición). Bundle A primero: corte 1 (HU62 + identidad) + 4a (corrección de seguridad del binding); el bundle A espera a que la Console solo-GitHub esté publicada. Bundle B (2+3+5) después. 2026-09-21: el usuario aprobó mantener HU55 (GET /analysis-runs sin projectId) dentro de T-003; backlog actualizado. feature/T-003 fue pusheada por el usuario hasta 4ebcfba (2026-09-21); sin PR ni merge. 2026-09-21: revisiones y gates técnicos del bundle B en verde (independentReviewPassed y technicalChecksPassed = PASSED). El usuario confirmó tal cual las decisiones derivadas (aa)-(ac) de DEC-ORG-002; se publicó CS-20260921-003 (bundle B, sourceRevision 56301b5) a Console el 2026-09-21T19:34:06-05:00. Pendiente: check before-done y archivo del work item. No hay push."
   },
-  "lastUpdatedAt": "2026-09-21T22:30:00-05:00"
+  "lastUpdatedAt": "2026-09-21T19:34:06-05:00"
 }
