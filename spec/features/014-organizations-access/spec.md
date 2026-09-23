@@ -1,6 +1,6 @@
 # 014 — Organizaciones, workspaces y acceso derivado de GitHub
 
-**Estado:** SPEC_VERIFIED (2026-09-21); revisión contractual en curso (contract-reviewer) y pendiente de aprobación humana. Sin decisiones bloqueantes.
+**Estado:** IMPLEMENTADO Y DESPLEGADO — work item T-003 cerrado; validación post-despliegue contra organización real registrada el 2026-09-23.
 **Story IDs:** HU58-HU64
 **Contrato:** SYSTEM-2.4 / INTEROP-2.4 (§6.1, §6.8, §6.9, §6.13)
 **Decisiones:** `DEC-ORG-001` APROBADO (2026-09-20); `DEC-ORG-002` APROBADO (2026-09-20; casos borde, enmienda de visibilidad personal, membresía activa siempre y corrección de seguridad primero).

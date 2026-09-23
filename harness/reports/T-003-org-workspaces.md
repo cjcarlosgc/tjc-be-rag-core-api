@@ -12,6 +12,12 @@ Verificación final: `node harness/validate-harness.mjs` aprobado; `npm run lint
 
 No se hizo push, PR, merge, despliegue ni migración desde este cierre.
 
+## Validación post-despliegue (2026-09-23)
+
+El usuario confirmó que el PR del bundle B fue fusionado y desplegado. Verificación de solo lectura contra la base compartida: las migraciones `20260921140000_project_workspace_columns`, `20260921150000_project_access` y `20260921160000_jobs_dedupe_key` constan aplicadas el 2026-09-21 a las `19:40:23Z`, `19:40:31Z` y `19:43:55Z`, respectivamente. Las tablas `projects`, `project_access` y `jobs` tienen RLS habilitado.
+
+Con una identidad GitHub real vinculada y la GitHub App instalada en `rag-tesis-org` con permiso `Members: read`, una ejecución temporal de la API construida realizó `GET /workspaces` autenticado y obtuvo `200`: devolvió el workspace personal `72415400` y el workspace de organización `rag-tesis-org` (`330283583`), ambos con rol `ADMIN`. No se modificaron datos ni se reabrió la implementación de Core.
+
 Estado al archivar:
 
 ```json
