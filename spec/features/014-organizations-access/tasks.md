@@ -84,4 +84,6 @@ Cortes 3 (etapas 2a y 2b) y 5 (5a y 5b): completos; el bundle B (cortes 2, 3 y 5
 
 ## Estado posterior al cierre
 
-`CS-20260921-003` fue publicado a Console. La Console debe importarlo, acusar recibo e implementar el selector de organizaciones antes de enviar `workspaceId` o consumir `workspace`/`role`. La evidencia post-despliegue de Core está en `harness/reports/T-003-org-workspaces.md`.
+`CS-20260921-003` fue importado por Console y quedó `ACKNOWLEDGED`; el selector de organizaciones y el uso de `workspaceId`, `workspace` y `role` se implementaron y revisaron en `T-004-console-workspaces`. Evidencia en `tjc-fe-rag-developer-console/harness/contract-sync/inbox/CS-20260921-003.yaml` y `harness/reports/sprint-4-review.md`. La evidencia post-despliegue de Core está en `harness/reports/T-003-org-workspaces.md`.
+
+- [ ] **Pendiente operativa, no bloquea el runtime ni reabre HU58–HU64:** la GitHub App de Core fue creada bajo una cuenta personal y está instalada/concedida a la organización. Migrar su propiedad/configuración a la organización por uniformidad. Antes de alterar o retirar la App actual, confirmar el mecanismo de transferencia o recreación admitido por GitHub; revisar y, si corresponde, actualizar App ID/slug, credenciales y clave privada, webhook URL/secret, URLs de callback/setup, permisos y eventos; mantener la instalación actual hasta validar la nueva configuración con Core y comprobar el acceso real a la organización.
