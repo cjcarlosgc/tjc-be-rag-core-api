@@ -1,6 +1,5 @@
 {
   "schemaVersion": 3,
-  "sddVersion": "2.1",
   "allowedStatuses": [
     "SELECTED",
     "SPEC_VERIFIED",
@@ -12,277 +11,70 @@
     "DONE"
   ],
   "activeWorkItem": {
-    "id": "T-003-org-workspaces",
+    "id": "T-004-context-traces",
     "workItemType": "PRODUCT",
-    "storyIds": [
-      "HU58",
-      "HU59",
-      "HU60",
-      "HU61",
-      "HU62",
-      "HU63",
-      "HU64",
-      "HU55"
-    ],
-    "sprint": "T-003",
-    "status": "DONE",
+    "storyIds": ["HU27", "HU28"],
+    "sprint": "T-004",
+    "status": "IN_PROGRESS",
     "specPaths": [
-      "spec/contracts/system-contract.md",
-      "spec/contracts/interoperability-contract.md",
-      "spec/backlog.md",
-      "spec/features/012-web-authentication/spec.md",
-      "spec/features/013-pr-driven-analysis/spec.md",
-      "spec/features/001-project-management/spec.md",
-      "spec/features/014-organizations-access/spec.md",
-      "spec/features/014-organizations-access/plan.md",
-      "spec/features/014-organizations-access/tasks.md"
+      "spec/features/011-context-traces/spec.md",
+      "spec/features/011-context-traces/plan.md",
+      "spec/features/011-context-traces/tasks.md",
+      "spec/features/004-rag-retrieval-context/spec.md",
+      "spec/features/008-experimental-comparison/spec.md"
     ],
     "transversalPaths": [
-      "spec/constitution/architecture.md",
-      "spec/constitution/conventions.md",
-      "spec/constitution/delivery-workflow.md",
-      "spec/transversal/errors/spec.md",
-      "spec/transversal/persistence/spec.md"
+      "spec/contracts/interoperability-contract.md",
+      "spec/contracts/system-contract.md",
+      "spec/constitution/delivery-workflow.md"
     ],
     "approved": true,
     "decisionGate": {
       "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-ORG-001",
-        "DEC-ORG-002",
-        "DEC-VAL-001"
-      ],
-      "checkedAt": "2026-09-21T09:00:00-05:00"
+      "nonBlockingDecisionIds": ["DEC-RAG-001"],
+      "checkedAt": "2026-09-23T07:04:24.982Z"
     },
-    "createdAt": "2026-09-20T03:00:00-05:00",
-    "updatedAt": "2026-09-21T19:34:06-05:00",
-    "blockedReason": null,
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer",
-      "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": "reviewer",
-      "handoffs": [
-        {
-          "from": "sdd-analyst",
-          "status": "APPROVED",
-          "summary": "SYSTEM-2.4/INTEROP-2.4 y feature 014 consolidados; DEC-ORG-002 aprobada por el usuario 2026-09-20 (repo público sin read implícito, Projects personales no compartidos, REVOKED solo Admin, verify-app-access/branches exigen maintain/write/admin). breaking:false a nivel de cable.",
-          "commit": "414d14c"
-        },
-        {
-          "from": "contract-reviewer",
-          "status": "CHANGES_REQUESTED",
-          "summary": "17 hallazgos (F1-F17) sobre INTEROP-2.4/feature 014: seguridad de binding antes de la App pública, listado cross-proyecto, orden de validación, carrera alta/revocación, robustez de jobs, default-deny, WebSocket y breaking cualificado. Sin blockers de modelo.",
-          "commit": "414d14c"
-        },
-        {
-          "from": "sdd-analyst",
-          "status": "APPROVED",
-          "summary": "Ciclo de corrección 1: F1-F17 aplicados; decisiones del usuario: membresía activa siempre (F5) y 4a de seguridad primero (F1).",
-          "commit": "bd2cfa1"
-        },
-        {
-          "from": "contract-reviewer",
-          "status": "CHANGES_REQUESTED",
-          "summary": "Re-revisión ciclo 1: F1-F17 resueltos; 10 hallazgos nuevos (R1 mayor: dedupe de jobs sobre RUNNING rompe autoprogramación y revocación; R2-R5 dependencias de 5a, predicado con REVOKED, enable de REVOKED, alcance de reconciliación; R6-R10 texto). Sin decisiones de usuario.",
-          "commit": "63c0f8e"
-        },
-        {
-          "from": "sdd-analyst",
-          "status": "APPROVED",
-          "summary": "Ciclo de corrección 2: R1-R10 aplicados (dedupe de jobs solo PENDING con dedupeKey, 5a sin project_access, predicado con REVOKED en petición, enable de REVOKED con validación, lock único, SubscribeAck/connect_error aditivos, gating de workspaceId, NOT_INSTALLED).",
-          "commit": "ff618c3"
-        },
-        {
-          "from": "contract-reviewer",
-          "status": "APPROVED",
-          "summary": "Comprobación ligera tras el ciclo 2: sin blockers. Cuatro notas menores de implementación (N1-N4) registradas en 014/tasks.md.",
-          "commit": "ff618c3"
-        },
-        {
-          "from": "implementer",
-          "status": "APPROVED",
-          "summary": "Bundle A implementado (corte 1 HU62 identidad GitHub + corte 4a HU64 corrección de seguridad del binding), un commit por corte; sin cambios de contrato. Migración user_github_identities escrita y NO aplicada a Supabase. Falta revisión independiente, contract-reviewer sobre la implementación y el CONTRACT_SYNC de implementación del bundle A.",
-          "commit": "8ad4fa5"
-        },
-        {
-          "from": "reviewer",
-          "status": "CHANGES_REQUESTED",
-          "summary": "Bundle A: HIGH tabla user_github_identities sin RLS/REVOKE (Data API de Supabase); MEDIUM caché de login sin TTL en el adapter de GitHub; verify-app-access responde 201 (contrato 200); código muerto getRepositoryId.",
-          "commit": "8ad4fa5"
-        },
-        {
-          "from": "contract-reviewer",
-          "status": "CHANGES_REQUESTED",
-          "summary": "Bundle A: F1 (MEDIUM) el mismatch de repositoryId debe responder el mismo 404 que 'no existe' y 'sin permiso'; ajustes de plan.md/CHANGELOG/INTEROP (los edita el leader).",
-          "commit": "8ad4fa5"
-        },
-        {
-          "from": "implementer",
-          "status": "APPROVED",
-          "summary": "Ciclo de corrección 1 aplicado: migración con RLS y REVOKE condicional (sin aplicar), caché de login eliminada con test de login reasignado, verify-app-access 200, getRepositoryId borrado, mismatch de repositoryId con el mismo repositoryNotFound y test de los tres cuerpos, plan.md con las firmas reales del puerto, CHANGELOG y procedimiento del vínculo huérfano en 012/tasks.md.",
-          "commit": "HEAD del commit de corrección 1 (ver git log)"
-        },
-        {
-          "from": "reviewer",
-          "status": "APPROVED",
-          "summary": "Bundle A (cortes 1 y 4a): revisión inicial CHANGES_REQUESTED (RLS de user_github_identities, caché de login sin TTL, 200 en verify-app-access) y re-revisión acotada del ciclo 2 APPROVED; SQL validado en Postgres local descartable.",
-          "commit": "8ece160"
-        },
-        {
-          "from": "contract-reviewer",
-          "status": "APPROVED",
-          "summary": "Bundle A: CHANGES_REQUESTED (mismo 404 en el mismatch de repositoryId, 200 de verify-app-access, textos de identidad y handshake) corregido; re-comprobación APPROVED con el texto del sync de implementación.",
-          "commit": "8ece160"
-        },
-        {
-          "from": "reviewer",
-          "status": "APPROVED",
-          "summary": "Migración de RLS en todas las tablas (ecf141f): 20 tablas cubiertas, Core sin bloqueo (propietario postgres con BYPASSRLS), Storage y pgvector sin efecto; validada en Postgres local descartable.",
-          "commit": "ecf141f"
-        },
-        {
-          "from": "implementer",
-          "status": "APPROVED",
-          "summary": "Bundle B, corte 5 etapa 3b (HU61): eventos member/membership/organization/team/privatized, ACCESS_REVERIFY, ciclo de vida de la organización y reconciliación (a) y (b); implementación completa de los cortes 2, 3 y 5.",
-          "commit": "39d6414"
-        },
-        {
-          "from": "reviewer",
-          "status": "APPROVED",
-          "summary": "Bundle B, revisión del modelo de acceso: APPROVED.",
-          "commit": "503cd66"
-        },
-        {
-          "from": "contract-reviewer",
-          "status": "APPROVED",
-          "summary": "Bundle B, revisión de contrato: APPROVED.",
-          "commit": "503cd66"
-        },
-        {
-          "from": "reviewer",
-          "status": "CHANGES_REQUESTED",
-          "summary": "Bundle B, revisión de jobs/webhooks: sin bloqueantes; 1 MEDIO (owners vacíos con 200 ocultaban la organización) y 7 BAJOS (zona horaria de la cola, aislamiento por binding en installation.*, reintento de ACCESS_REVERIFY solo por no verificable, tope de páginas, trim de CreateProjectDto, coherencia role/row del fixture, carrera de subscribe) más límites conocidos por documentar.",
-          "commit": "503cd66"
-        },
-        {
-          "from": "implementer",
-          "status": "APPROVED",
-          "summary": "Bundle B, ciclo de corrección 1 aplicado (los 9 puntos): owners vacíos UNVERIFIABLE, cola en UTC probada en UTC y America/Bogota, aislamiento por binding, reprogramación solo por no verificable, tope de páginas UNVERIFIABLE, trim en CreateProjectDto, coherencia del fixture, subscribe con track antes de join y revalidación, límites conocidos en plan.md. Sin migraciones nuevas.",
-          "commit": "1118326"
-        },
-        {
-          "from": "reviewer",
-          "status": "APPROVED",
-          "summary": "Re-comprobación acotada final del bundle B tras el ciclo de corrección 1 (jobs, webhooks y reconciliación): owners vacíos, UTC de la cola en dos zonas, aislamiento por binding, reverify, páginas truncadas, trim, WebSocket y matriz; sin regresiones. El e2e esporádico se atribuye al arnés, sin causa demostrada.",
-          "commit": "ce2fc04"
-        }
-      ],
-      "reviewCycles": 1,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "PASSED",
-      "implementationCompleted": "PASSED",
-      "independentReviewPassed": "PASSED",
-      "technicalChecksPassed": "PASSED",
-      "contractReviewed": "PASSED",
-      "canonicalContractSynced": "PASSED",
-      "contractSyncPublished": "PASSED",
+      "implementationCompleted": "NOT_RUN",
+      "independentReviewPassed": "NOT_RUN",
+      "technicalChecksPassed": "NOT_RUN",
+      "contractReviewed": "NOT_APPLICABLE",
+      "canonicalContractSynced": "NOT_APPLICABLE",
+      "contractSyncPublished": "NOT_APPLICABLE",
       "interopSyncChecked": "PASSED",
       "noBlockingDecisions": "PASSED",
-      "retryLimitRespected": "PASSED"
+      "retryLimitRespected": "NOT_RUN"
     },
     "coordination": {
-      "contractImpact": true,
+      "contractImpact": false,
       "pullCheckpoints": [
         {
           "checkpoint": "start",
-          "checkedAt": "2026-09-21T03:17:48.874Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "contract-approval",
-          "checkedAt": "2026-09-21T12:10:00-05:00",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T07:13:51.077Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T08:13:07.792Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "bundle-a-delivery",
-          "checkedAt": "2026-09-21T13:56:50.337Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T15:09:59.276Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T18:48:36.834Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T19:11:02.068Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T19:42:08.993Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T20:08:02.759Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "checkedAt": "2026-09-21T23:57:44.680Z",
-          "relevantPendingSyncIds": []
-        },
-        {
-          "checkpoint": "before-done",
-          "checkedAt": "2026-09-22T00:34:47.995Z",
+          "checkedAt": "2026-09-23T07:04:24.982Z",
           "relevantPendingSyncIds": []
         }
       ],
-      "publishedSyncIds": [
-        "CS-20260921-001",
-        "CS-20260921-002",
-        "CS-20260921-003"
-      ],
+      "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "Revisión contractual de INTEROP-2.4 (3 pasadas independientes; 2 ciclos de corrección de 2 permitidos): APPROVED sobre ff618c3. PULL before-review sin syncs pendientes en las tres. validate-harness OK.",
-      "Bundle A (corte 1 = 6236255, corte 4a = 8ad4fa5), desde app/: npm run lint (oxlint, exit 0), npm test (65 archivos, 608 tests en verde; línea base previa 61 archivos y 479 tests), npm run build (nest build, exit 0), npm run test:e2e (3 archivos, 41 tests en verde; línea base previa 1 archivo y 8 tests). Ningún test llama a Supabase ni a GitHub reales (fakes de SupabaseIdentityPort y GithubAccessPort). PULL implementation-delivery sin syncs pendientes: node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces. Migración prisma/migrations/20260921120000_user_github_identities escrita (prisma migrate diff) y NO aplicada a Supabase. independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan aquí.",
-      "Ciclo de corrección 1 (bundle A), desde app/: npm run lint (oxlint, exit 0), npm test (65 archivos, 609 tests en verde), npm run build (exit 0), npm run test:e2e (3 archivos, 41 tests en verde); fakes, sin llamadas reales a Supabase ni GitHub. PULL implementation-delivery sin syncs pendientes: node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces. La migración sigue sin aplicarse. independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
-      "Bundle A cerrado (cortes 1 y 4a + RLS): lint OK, npm test 66 archivos / 630 tests, npm run build exit 0, npm run test:e2e 3 archivos / 41 tests (fakes) sobre f1eed4d. Comprobado en solo lectura que Core se conecta como postgres (no superusuario, BYPASSRLS=true) y es propietario de las 20 tablas de public: activar RLS no lo bloquea. Data API verificada como expuesta con la clave anon (projects, repository_bindings, functional_knowledge y jobs respondieron 200) antes de aplicar la migración.",
-      "CONTRACT_SYNC de implementación del bundle A publicado: CS-20260921-002 (targets console, sourceRevision f1eed4d). El bundle A NO se despliega hasta que la Console solo-GitHub esté publicada. Migraciones 20260921120000_user_github_identities y 20260921130000_enable_rls_all_tables escritas y NO aplicadas a Supabase (pendiente de solicitud explícita del usuario); desactivar la Data API en el panel es acción del usuario. Riesgo aceptado por el usuario: la GitHub App sigue pública hasta desplegar el bundle A.",
-      "Corte 2 (HU63 + HU58, bundle B; no se publica solo), desde app/: npm run lint (oxlint, exit 0), npm test (71 archivos, 683 tests en verde; 630 previos intactos + 53 nuevos), npm run build (exit 0), npm run test:e2e (4 archivos, 53 tests en verde; 41 previos intactos + 12 nuevos: workspaces con y sin organizaciones, GitHub caído -> solo personal, workspaceId personal/ajeno/organización, ProjectResponse con workspace/role); fakes de GithubAccessPort y SupabaseIdentityPort, sin llamadas a GitHub ni a Supabase reales. Migración 20260921140000_project_workspace_columns escrita y NO aplicada a Supabase; el check de coherencia se validó en un PostgreSQL 14 local descartable (personal y organización aceptan; una sola columna se rechaza), y prisma migrate diff coincide con las columnas e índice. PATCH /projects/{id} diferido por instrucción del leader (sigue sin implementar). node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T15:09:59.276Z).",
-      "Corte 3, etapa 2a (HU59 + HU60 + HU63 + HU64 4b; bundle B, no se publica solo), desde app/: npm run lint (oxlint, exit 0), npm test (74 archivos, 799 tests en verde; 683 previos intactos + 116 nuevos, incluida la carrera alta vs revocación con el advisory lock por (projectId, userId)), npm run build (exit 0), npm run test:e2e (5 archivos, 81 tests en verde; 53 previos intactos + 28 nuevos en test/org-access.e2e-spec.ts). Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Migración 20260921150000_project_access escrita y NO aplicada a Supabase; validada en un PostgreSQL 14 local descartable (RLS activo, PK (projectId, userId) rechaza duplicados, cascada, pg_advisory_xact_lock(hashtextextended(...)) operativo). Pendiente etapa 2b: guard default-deny, alta por deep link a recursos descendientes, matriz e2e y RealtimeGateway. node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T18:48:36.834Z). independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
-      "Corte 3, etapa 2b (HU59 + HU60 + HU64; bundle B, no se publica solo), commit 2c81f39, desde app/: npm run lint (oxlint, exit 0), npm test (77 archivos, 852 tests en verde; 799 previos intactos + 53 nuevos: guard, default-deny, requireForResource, predicado sin binding, ProjectSubscriptionsService, gateway con SubscribeAck), npm run build (exit 0), npm run test:e2e (6 archivos, 168 tests en verde; 81 previos intactos + 87 nuevos en test/access-matrix.e2e-spec.ts: enumeración del router HTTP y WebSocket, matriz implementada vs INTEROP §6.13 ruta por ruta, matriz ruta x rol, deep link, listados, Project personal, carrera alta vs revocación y WebSocket). Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Migraciones del bundle B (20260921140000_project_workspace_columns y 20260921150000_project_access) escritas y NO aplicadas a Supabase. Sin corte 5 (webhooks, jobs, reconciliación). node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T19:11:02.068Z). independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
-      "Corte 5, etapa 3a (HU61; bundle B, no se publica solo), commits 8f6e6b8 (jobs), 5e537f3 (eventos repository/installation y reconciliación (c)) y f33a78d (POST /experiments), desde app/: npm run lint (oxlint, exit 0), npm test (85 archivos, 958 tests en verde y 16 omitidos: jobs.repository.pg.spec.ts, opt-in con JOBS_TEST_DATABASE_URL; 852 previos intactos + 106 nuevos), npm run build (exit 0), npm run test:e2e (7 archivos, 188 tests en verde; 168 previos intactos + 20 nuevos en test/access-webhooks.e2e-spec.ts: firma alterada, duplicados, fuera de orden, cada evento repository/installation y action, binding DISABLED, Project personal, member/membership/organization/team ignorados con 202, reconciliación (c)). jobs.repository.pg.spec.ts (16 tests) ejecutado contra un PostgreSQL 14 local descartable con las migraciones de jobs aplicadas: dedupe solo sobre PENDING, claimNext con exclusión del RUNNING no obsoleto, siembra, lock obsoleto, nota N1 y reprogramación. Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Migración 20260921160000_jobs_dedupe_key escrita y NO aplicada a Supabase. Extra: POST /experiments exige que el target pertenezca al projectId del body (hallazgo de la revisión de la etapa 2b). Pendiente etapa 3b (member, membership, organization, team, privatized, ACCESS_REVERIFY, reconciliación (a) y (b), ciclo de vida de la organización). node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T19:42:08.993Z). independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
-      "Corte 5, etapa 3b y cierre del bundle B (HU61, HU59, HU60; bundle B completo: cortes 2, 3 y 5; no se publica solo), commit 39d6414, desde app/: npm run lint (oxlint, exit 0), npm test (87 archivos, 1078 tests en verde y 17 omitidos: jobs.repository.pg.spec.ts, opt-in con JOBS_TEST_DATABASE_URL; 958 previos intactos + 120 nuevos: access-events, access-reverify (alcances, rol vivo, backoff, cadena, carrera alta vs evento), organization-lifecycle, reconciliación (a) y (b), consultas de selección), npm run build (exit 0), npm run test:e2e (7 archivos, 209 tests en verde; 188 previos intactos + 21 nuevos en test/access-webhooks.e2e-spec.ts: ingress real con firma y 202, member/membership/organization/team/privatized por action, duplicados y fuera de orden, GitHub caído con backoff, organization.renamed/deleted, installation.deleted de una organización con reaparición, reconciliación (a) y (b)). jobs.repository.pg.spec.ts (17 tests, incluido expedite) ejecutado contra un PostgreSQL 14 local descartable con las migraciones de jobs aplicadas. Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Sin migraciones nuevas; las del bundle B (20260921140000, 20260921150000 y 20260921160000) siguen escritas y NO aplicadas a Supabase. node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T20:08:02.759Z). implementationCompleted PASSED: el bundle B (cortes 2, 3 y 5) está implementado; independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
-      "Bundle B, ciclo de corrección 1 de 2 (HU61, HU59, HU60, HU63), commit 1118326, desde app/: npm run lint (oxlint, exit 0), npm test (88 archivos, 1096 tests en verde y 36 omitidos: jobs.repository.pg.spec.ts, ahora con 18 casos en cada una de las zonas UTC y America/Bogota; 1078 previos intactos + 18 nuevos), npm run build (exit 0), npm run test:e2e (7 archivos, 211 tests en verde; 209 previos + 2 nuevos). jobs.repository.pg.spec.ts (36 casos) ejecutado en verde contra un PostgreSQL 14 local descartable con la sesión en UTC y en America/Bogota (con now() sin UTC fallan 7 casos en Bogota); el cluster se detuvo y se borró. Fakes de GithubAccessPort y SupabaseIdentityPort; ningún test llama a GitHub ni a Supabase reales. Sin migraciones nuevas. node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item T-003-org-workspaces -> relevantPendingSyncIds: [] (checkedAt 2026-09-21T23:57:44.680Z). independentReviewPassed, technicalChecksPassed, contractReviewed y contractSyncPublished no se marcan.",
-      "Bundle B cerrado (cortes 2, 3 y 5 + ciclo de corrección 1): lint OK; npm test 88 archivos / 1096 tests (+36 omitidos, suite pg opt-in); npm run build exit 0; npm run test:e2e 7 archivos / 211 tests; suite de la cola contra PostgreSQL local descartable 36/36 en UTC y en America/Bogota (revisor). Revisiones independientes: modelo de acceso APPROVED, contract-reviewer APPROVED, jobs/webhooks CHANGES_REQUESTED -> corregido -> APPROVED.",
-      "2026-09-21: el usuario confirmó tal cual las decisiones derivadas (aa)-(ac) de DEC-ORG-002: lista de owners vacía = no verificable; listado truncado usado para negar = no verificable; fallo determinista de ACCESS_REVERIFY sigue los reintentos normales. CONTRACT_SYNC de implementación del bundle B publicado: CS-20260921-003, target console, sourceRevision 56301b5; outbox creado el 2026-09-21T19:34:06-05:00.",
-      "2026-09-23, validación post-despliegue de solo lectura: Supabase registra aplicadas 20260921140000_project_workspace_columns (19:40:23Z), 20260921150000_project_access (19:40:31Z) y 20260921160000_jobs_dedupe_key (19:43:55Z); projects, project_access y jobs tienen RLS habilitado. Con la identidad GitHub real 72415400 y la App instalada en rag-tesis-org con Members: read, GET /workspaces autenticado devolvió 200 con los workspaces personal 72415400 y organización rag-tesis-org (330283583), ambos ADMIN. El usuario confirmó el merge y despliegue del bundle B; no se reabrió implementación de Core."
+      "El usuario aprobó iniciar HU27-HU28 el 2026-09-23. Las rutas y DTOs de trazas de contexto ya están definidos en INTEROP-2.4 §6.7; no se modifica el contrato en este corte.",
+      "PULL start: node harness/contract-sync.mjs check --checkpoint start --work-item T-004-context-traces devolvió relevantPendingSyncIds: [] el 2026-09-23T07:04:24.982Z.",
+      "DEC-RAG-001 es no bloqueante: prohíbe añadir una señal test-aware sin investigación aprobada, pero no bloquea la captura auditable de decisiones ya producidas por ContextBuilder."
     ],
-    "notes": "Origen: DEC-ORG-001 APROBADO 2026-09-20 (uso organizacional). Rama feature/T-003 creada desde feature/T-002 (develop aún no tiene el harness V2). Cortes propuestos: (1) HU62 login solo GitHub y vínculo userId->githubUserId; (2) HU63+HU58 organización en Project, crear/renombrar/eliminar solo Admin y lista de workspaces; (3) HU59+HU60 registro de acceso, roles y cambio de ownedProject(); (4) HU64 restricciones de binding; (5) HU61 webhooks y reconciliación horaria. Precondiciones de despliegue (no bloquean implementar): App pública sin Marketplace, Members: read y eventos aceptados por cada organización, validación en una organización real y deshabilitar el correo en Supabase. Work item anterior archivado en harness/reports/T-002-binding-lifecycle.md. 2026-09-21: usuario aprobó el contrato SYSTEM-2.4/INTEROP-2.4 y el work item (commit 6464970). Publicado CS-20260921-001 (definición). Bundle A primero: corte 1 (HU62 + identidad) + 4a (corrección de seguridad del binding); el bundle A espera a que la Console solo-GitHub esté publicada. Bundle B (2+3+5) después. 2026-09-21: el usuario aprobó mantener HU55 (GET /analysis-runs sin projectId) dentro de T-003; backlog actualizado. feature/T-003 fue pusheada por el usuario hasta 4ebcfba (2026-09-21); sin PR ni merge. 2026-09-21: revisiones y gates técnicos del bundle B en verde (independentReviewPassed y technicalChecksPassed = PASSED). El usuario confirmó tal cual las decisiones derivadas (aa)-(ac) de DEC-ORG-002; se publicó CS-20260921-003 (bundle B, sourceRevision 56301b5) a Console el 2026-09-21T19:34:06-05:00. Pendiente: check before-done y archivo del work item. No hay push."
+    "blockedReason": null
   },
-  "lastUpdatedAt": "2026-09-23T00:00:00-05:00"
+  "lastUpdatedAt": "2026-09-23T07:04:24.982Z"
 }
