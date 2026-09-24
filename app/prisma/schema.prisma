@@ -91,6 +91,23 @@ enum ExperimentStrategy {
   GENERALIST_AGENT
 }
 
+enum ExperimentRepetitionState {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ContextTraceKind {
+  RAG
+  AGENT
+}
+
+enum ContextTraceState {
+  CAPTURING
+  COMPLETE
+  FAILED
+}
+
 enum RepositoryBindingStatus {
   ENABLED
   DISABLED
@@ -482,9 +499,11 @@ model ProjectVersion {
   chunks            CodeChunk[]
   testTargets       TestTarget[]
   analysisRuns      AnalysisRun[]
+  contextTraces     ContextTrace[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
+  @@unique([id, projectId])
   @@index([projectId])
   @@map("project_versions")
 }
@@ -525,8 +544,10 @@ model TestTarget {
   testFilePaths    String[]          @default([])
   targetRunResults TargetRunResult[]
   experimentRuns   ExperimentRun[]
+  contextTraces    ContextTrace[]
   createdAt        DateTime          @default(now())
 
+  @@unique([id, projectVersionId])
   @@index([projectVersionId])
   @@map("test_targets")
 }
@@ -611,19 +632,23 @@ model ExperimentRun {
   startedAt            DateTime?
   completedAt          DateTime?
   repetitions          ExperimentRepetition[]
+  contextTraces        ContextTrace[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
+  @@unique([id, projectId, projectVersionId, targetId])
   @@index([projectId])
   @@map("experiment_runs")
 }
 
 model ExperimentRepetition {
-  id                   String             @id @default(uuid())
+  id                   String                    @id @default(uuid())
   experimentId         String
-  experiment           ExperimentRun      @relation(fields: [experimentId], references: [id])
+  experiment           ExperimentRun             @relation(fields: [experimentId], references: [id])
   repetition           Int
   strategy             ExperimentStrategy
+  attempt              Int                       @default(1)
+  state                ExperimentRepetitionState @default(RUNNING)
   compiled             Boolean?
   executed             Boolean?
   passed               Boolean?
@@ -643,10 +668,60 @@ model ExperimentRepetition {
   toolCalls            Int?
   filesInspected       Int?
   trajectory           Json?
-  createdAt            DateTime           @default(now())
+  contextTraces        ContextTrace[]
+  createdAt            DateTime                  @default(now())
 
+  @@unique([experimentId, strategy, repetition, attempt])
+  @@unique([id, experimentId, strategy, repetition, attempt])
   @@index([experimentId])
   @@map("experiment_repetitions")
+}
+
+/// HU27/HU28: cabecera de evidencia observable de una repetición experimental. `detail` es
+/// JSONB tipado por `kind`; los paths descubiertos se normalizan en filas para paginarlos.
+model ContextTrace {
+  id                     String               @id @default(uuid())
+  projectId              String
+  projectVersionId       String
+  projectVersion         ProjectVersion       @relation(fields: [projectVersionId, projectId], references: [id, projectId], onDelete: Cascade)
+  targetId               String
+  target                 TestTarget           @relation(fields: [targetId, projectVersionId], references: [id, projectVersionId], onDelete: Cascade)
+  experimentId           String
+  experiment             ExperimentRun        @relation(fields: [experimentId, projectId, projectVersionId, targetId], references: [id, projectId, projectVersionId, targetId], onDelete: Cascade)
+  experimentRepetitionId String
+  experimentRepetition   ExperimentRepetition @relation(fields: [experimentRepetitionId, experimentId, strategy, repetition, attempt], references: [id, experimentId, strategy, repetition, attempt], onDelete: Cascade)
+  kind                   ContextTraceKind
+  strategy               ExperimentStrategy
+  repetition             Int
+  attempt                Int
+  current                Boolean              @default(true)
+  state                  ContextTraceState    @default(CAPTURING)
+  detail                 Json?
+  toolCalls              Int                  @default(0)
+  filesInspected         Int                  @default(0)
+  discoveredFiles        DiscoveredFile[]
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@unique([experimentRepetitionId, attempt])
+  @@unique([experimentId, strategy, repetition, attempt])
+  @@index([experimentId, current, strategy, repetition])
+  @@index([projectVersionId])
+  @@index([targetId])
+  @@map("context_traces")
+}
+
+model DiscoveredFile {
+  id             String       @id @default(uuid())
+  contextTraceId String
+  contextTrace   ContextTrace @relation(fields: [contextTraceId], references: [id], onDelete: Cascade)
+  step           Int
+  filePath       String
+  createdAt      DateTime     @default(now())
+
+  @@unique([contextTraceId, step, filePath])
+  @@index([contextTraceId, step, id])
+  @@map("discovered_files")
 }
 
 model Job {

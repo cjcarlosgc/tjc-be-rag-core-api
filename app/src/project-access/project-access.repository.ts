@@ -8,10 +8,15 @@ import type {
   RepositoryBinding,
   RepositoryBindingStatus,
 } from '../generated/prisma/client.js';
-import { ACCESS_LOCK_MAX_WAIT_MS, ACCESS_LOCK_TIMEOUT_MS } from './project-access.constants.js';
+import {
+  ACCESS_LOCK_MAX_WAIT_MS,
+  ACCESS_LOCK_TIMEOUT_MS,
+} from './project-access.constants.js';
 import type { ProjectResourceKind } from './project-access.errors.js';
 
-export type ProjectWithBinding = Project & { repositoryBinding: RepositoryBinding | null };
+export type ProjectWithBinding = Project & {
+  repositoryBinding: RepositoryBinding | null;
+};
 
 /** Project visible para el usuario, con su registro de acceso (0..1 fila; un Project personal no tiene). */
 export type ProjectWithAccess = Project & { access: ProjectAccess[] };
@@ -81,7 +86,10 @@ export class ProjectAccessRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Project visible para `userId` (predicado `accessibleProject`) con su registro de acceso. */
-  findVisible(projectId: string, userId: string): Promise<ProjectWithAccess | null> {
+  findVisible(
+    projectId: string,
+    userId: string,
+  ): Promise<ProjectWithAccess | null> {
     return this.prisma.project.findFirst({
       where: { id: projectId, ...accessibleProject(userId) },
       include: { access: { where: { userId } } },
@@ -100,7 +108,10 @@ export class ProjectAccessRepository {
 
   /** Todos los usuarios con registro (Admin incluido) sobre el Project: los que borra ocultar la organización. */
   async findAllUserIds(projectId: string): Promise<string[]> {
-    const records = await this.prisma.projectAccess.findMany({ where: { projectId }, select: { userId: true } });
+    const records = await this.prisma.projectAccess.findMany({
+      where: { projectId },
+      select: { userId: true },
+    });
 
     return records.map((record) => record.userId);
   }
@@ -110,13 +121,18 @@ export class ProjectAccessRepository {
     const rows = await this.prisma.projectAccess.findMany({
       where: {
         ...(filter.userId === undefined ? {} : { userId: filter.userId }),
-        ...(filter.projectId === undefined ? {} : { projectId: filter.projectId }),
+        ...(filter.projectId === undefined
+          ? {}
+          : { projectId: filter.projectId }),
         project: liveOrganizationProjects(filter),
       },
       select: { projectId: true, userId: true },
     });
 
-    return rows.map((row) => ({ projectId: row.projectId, userId: row.userId }));
+    return rows.map((row) => ({
+      projectId: row.projectId,
+      userId: row.userId,
+    }));
   }
 
   /**
@@ -126,22 +142,33 @@ export class ProjectAccessRepository {
    * de ese usuario, que aún no ha creado su registro, y la verifica en vivo.
    */
   async findCandidateProjectIds(filter: AccessRecordFilter): Promise<string[]> {
-    const rows = await this.prisma.project.findMany({ where: liveOrganizationProjects(filter), select: { id: true } });
+    const rows = await this.prisma.project.findMany({
+      where: liveOrganizationProjects(filter),
+      select: { id: true },
+    });
 
     return rows.map((row) => row.id);
   }
 
   /** ¿Hay Projects de organización vivos vinculados a este repositorio? (los eventos de otros repositorios no encolan nada). */
-  async hasLiveOrganizationProjectForRepository(repositoryId: string): Promise<boolean> {
+  async hasLiveOrganizationProjectForRepository(
+    repositoryId: string,
+  ): Promise<boolean> {
     const count = await this.prisma.project.count({
-      where: { deletedAt: null, githubOrgId: { not: null }, repositoryBinding: { is: { repositoryId } } },
+      where: {
+        deletedAt: null,
+        githubOrgId: { not: null },
+        repositoryBinding: { is: { repositoryId } },
+      },
     });
 
     return count > 0;
   }
 
   /** Ids de los Projects vivos de la organización (con o sin repositorio). */
-  async findLiveProjectIdsOfOrganization(organizationId: string): Promise<string[]> {
+  async findLiveProjectIdsOfOrganization(
+    organizationId: string,
+  ): Promise<string[]> {
     const rows = await this.prisma.project.findMany({
       where: { deletedAt: null, githubOrgId: organizationId },
       select: { id: true },
@@ -151,14 +178,26 @@ export class ProjectAccessRepository {
   }
 
   /** `organization.renamed`: el `login` guardado es solo presentación (los accesos se verifican por id). */
-  async updateOrganizationLogin(organizationId: string, login: string): Promise<void> {
-    await this.prisma.project.updateMany({ where: { githubOrgId: organizationId }, data: { githubOrgLogin: login } });
+  async updateOrganizationLogin(
+    organizationId: string,
+    login: string,
+  ): Promise<void> {
+    await this.prisma.project.updateMany({
+      where: { githubOrgId: organizationId },
+      data: { githubOrgLogin: login },
+    });
   }
 
   /** Organizaciones (id y login guardado) con al menos un Project vivo que tiene registros de acceso: la parte (a) de la reconciliación. */
-  async findOrganizationsWithRecords(): Promise<Array<{ organizationId: string; login: string | null }>> {
+  async findOrganizationsWithRecords(): Promise<
+    Array<{ organizationId: string; login: string | null }>
+  > {
     const rows = await this.prisma.project.findMany({
-      where: { deletedAt: null, githubOrgId: { not: null }, access: { some: {} } },
+      where: {
+        deletedAt: null,
+        githubOrgId: { not: null },
+        access: { some: {} },
+      },
       select: { githubOrgId: true, githubOrgLogin: true },
     });
     const organizations = new Map<string, string | null>();
@@ -169,11 +208,17 @@ export class ProjectAccessRepository {
       }
     }
 
-    return [...organizations].map(([organizationId, login]) => ({ organizationId, login }));
+    return [...organizations].map(([organizationId, login]) => ({
+      organizationId,
+      login,
+    }));
   }
 
   /** Página (por id ascendente, tras `afterProjectId`) de Projects de organización vivos con registros: la parte (b) de la reconciliación. */
-  async findProjectIdsWithRecords(afterProjectId: string | null, take: number): Promise<string[]> {
+  async findProjectIdsWithRecords(
+    afterProjectId: string | null,
+    take: number,
+  ): Promise<string[]> {
     const rows = await this.prisma.project.findMany({
       where: {
         deletedAt: null,
@@ -191,7 +236,9 @@ export class ProjectAccessRepository {
 
   /** Project vivo (no borrado) sin filtro de usuario: solo para decidir si aplica una verificación viva. */
   findLive(projectId: string): Promise<Project | null> {
-    return this.prisma.project.findFirst({ where: { id: projectId, deletedAt: null } });
+    return this.prisma.project.findFirst({
+      where: { id: projectId, deletedAt: null },
+    });
   }
 
   /**
@@ -200,25 +247,73 @@ export class ProjectAccessRepository {
    * antes de que las consultas con `accessibleProject` puedan encontrar el recurso. Solo
    * devuelve el id; nunca el recurso. `null` si el recurso no existe.
    */
-  async findProjectIdOf(resource: Exclude<ProjectResourceKind, 'project'>, id: string): Promise<string | null> {
+  async findProjectIdOf(
+    resource: Exclude<ProjectResourceKind, 'project'>,
+    id: string,
+  ): Promise<string | null> {
     switch (resource) {
       case 'analysisRun':
-        return (await this.prisma.analysisRun.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+        return (
+          (
+            await this.prisma.analysisRun.findUnique({
+              where: { id },
+              select: { projectId: true },
+            })
+          )?.projectId ?? null
+        );
       case 'projectVersion':
-        return (await this.prisma.projectVersion.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+        return (
+          (
+            await this.prisma.projectVersion.findUnique({
+              where: { id },
+              select: { projectId: true },
+            })
+          )?.projectId ?? null
+        );
       case 'experiment':
-        return (await this.prisma.experimentRun.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+        return (
+          (
+            await this.prisma.experimentRun.findUnique({
+              where: { id },
+              select: { projectId: true },
+            })
+          )?.projectId ?? null
+        );
+      case 'contextTrace':
+        return (
+          (
+            await this.prisma.contextTrace.findUnique({
+              where: { id },
+              select: { experiment: { select: { projectId: true } } },
+            })
+          )?.experiment.projectId ?? null
+        );
       case 'functionalQuestion':
-        return (await this.prisma.functionalQuestion.findUnique({ where: { id }, select: { projectId: true } }))?.projectId ?? null;
+        return (
+          (
+            await this.prisma.functionalQuestion.findUnique({
+              where: { id },
+              select: { projectId: true },
+            })
+          )?.projectId ?? null
+        );
       case 'testPublication':
         return (
-          (await this.prisma.testPublication.findUnique({ where: { id }, select: { analysisRun: { select: { projectId: true } } } }))
-            ?.analysisRun.projectId ?? null
+          (
+            await this.prisma.testPublication.findUnique({
+              where: { id },
+              select: { analysisRun: { select: { projectId: true } } },
+            })
+          )?.analysisRun.projectId ?? null
         );
       case 'testTarget':
         return (
-          (await this.prisma.testTarget.findUnique({ where: { id }, select: { projectVersion: { select: { projectId: true } } } }))
-            ?.projectVersion.projectId ?? null
+          (
+            await this.prisma.testTarget.findUnique({
+              where: { id },
+              select: { projectVersion: { select: { projectId: true } } },
+            })
+          )?.projectVersion.projectId ?? null
         );
     }
   }
@@ -229,7 +324,11 @@ export class ProjectAccessRepository {
    * se libera al terminar la transacción. Retiene una conexión de base de datos durante
    * las llamadas a GitHub del callback, acotado por el presupuesto de verificaciones.
    */
-  withAccessLock<T>(projectId: string, userId: string, work: (scope: AccessLockScope) => Promise<T>): Promise<T> {
+  withAccessLock<T>(
+    projectId: string,
+    userId: string,
+    work: (scope: AccessLockScope) => Promise<T>,
+  ): Promise<T> {
     const lockKey = `project_access:${projectId}:${userId}`;
 
     return this.prisma.$transaction(
@@ -242,7 +341,10 @@ export class ProjectAccessRepository {
               where: { id: projectId, deletedAt: null },
               include: { repositoryBinding: true },
             }),
-          findRecord: () => tx.projectAccess.findUnique({ where: { projectId_userId: { projectId, userId } } }),
+          findRecord: () =>
+            tx.projectAccess.findUnique({
+              where: { projectId_userId: { projectId, userId } },
+            }),
           upsertRecord: (role) => {
             const verifiedAt = new Date();
             return tx.projectAccess.upsert({
@@ -255,7 +357,9 @@ export class ProjectAccessRepository {
             await tx.projectAccess.deleteMany({ where: { projectId, userId } });
           },
           lockBindingStatus: async () => {
-            const rows = await tx.$queryRaw<Array<{ status: RepositoryBindingStatus }>>`
+            const rows = await tx.$queryRaw<
+              Array<{ status: RepositoryBindingStatus }>
+            >`
               SELECT "status" FROM "repository_bindings" WHERE "projectId" = ${projectId} FOR SHARE
             `;
             return rows[0]?.status ?? null;
@@ -271,10 +375,18 @@ export class ProjectAccessRepository {
    * Admin): el respaldo de `GET /workspaces` ante una caída de GitHub. Los Projects
    * personales no cuentan.
    */
-  async findRegisteredOrganizations(userId: string): Promise<RegisteredOrganization[]> {
+  async findRegisteredOrganizations(
+    userId: string,
+  ): Promise<RegisteredOrganization[]> {
     const rows = await this.prisma.project.findMany({
-      where: { AND: [accessibleProject(userId), { githubOrgId: { not: null } }] },
-      select: { githubOrgId: true, githubOrgLogin: true, access: { where: { userId }, select: { role: true } } },
+      where: {
+        AND: [accessibleProject(userId), { githubOrgId: { not: null } }],
+      },
+      select: {
+        githubOrgId: true,
+        githubOrgLogin: true,
+        access: { where: { userId }, select: { role: true } },
+      },
     });
     const organizations = new Map<string, RegisteredOrganization>();
 
@@ -306,7 +418,10 @@ export class ProjectAccessRepository {
     memberOrganizationIds: string[],
     take: number,
   ): Promise<Array<Pick<Project, 'id' | 'githubOrgId'>>> {
-    if (adminOrganizationIds.length === 0 && memberOrganizationIds.length === 0) {
+    if (
+      adminOrganizationIds.length === 0 &&
+      memberOrganizationIds.length === 0
+    ) {
       return [];
     }
 

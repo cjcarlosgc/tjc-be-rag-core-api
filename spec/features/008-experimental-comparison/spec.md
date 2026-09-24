@@ -18,6 +18,7 @@ Ejecutar una comparación pareada entre la arquitectura RAG especializada y un a
 - La variable de interés es la política de adquisición y construcción de contexto. Registrar también el costo de esa adquisición: tool calls/archivos consultados para el agente y retrieved/selected chunks para RAG.
 - Evaluación principal first-shot; autorreparación desactivada. No existe experimento RAG+autorepair.
 - Default de tesis: 3 repeticiones por target y estrategia.
+- `completedRepetitions` cuenta slots lógicos distintos `(strategy, repetition)` que alcanzaron estado terminal (`COMPLETED` o `FAILED`) en al menos un intento. Reintentar un slot no suma otra repetición ni permite superar `totalRepetitions`.
 - Métricas obligatorias: compiled,executed,passed,valid,failureType,generationDurationMs,executionDurationMs,totalDurationMs,inputTokens,outputTokens,totalTokens,estimatedCost cuando proveedor permita datos suficientes.
 - Métricas RAG explicativas: retrievedChunks,selectedChunks,contextTokens.
 - Métricas explicativas del agente generalista: toolCalls,filesInspected y contexto/tokens atribuibles a la exploración cuando el proveedor permita observarlos.

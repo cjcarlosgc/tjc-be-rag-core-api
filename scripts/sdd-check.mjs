@@ -8,8 +8,8 @@ const required = ['AGENTS.md','README.md','CHANGELOG.md','spec/README.md','spec/
 for (const f of required) if (!existsSync(join(root,f))) errors.push(`Falta ${f}`);
 let state=null; try { state=JSON.parse(readFileSync(join(root,'harness/state.json'),'utf8')); } catch(e){ errors.push(`state.json inválido: ${e.message}`); }
 if(state){
-  const allowed=['SELECTED','SPEC_VERIFIED','AWAITING_APPROVAL','IN_PROGRESS','IN_REVIEW','BLOCKED','DONE'];
-  if(state.schemaVersion!==2) errors.push('schemaVersion no soportado');
+  const allowed=['SELECTED','SPEC_VERIFIED','AWAITING_APPROVAL','IN_PROGRESS','IN_REVIEW','BLOCKED','DECISION_REQUIRED','DONE'];
+  if(state.schemaVersion!==3) errors.push('schemaVersion no soportado');
   const item=state.activeWorkItem;
   if(item){
     if(!Array.isArray(item.storyIds)||item.storyIds.length===0) errors.push('activeWorkItem requiere storyIds');

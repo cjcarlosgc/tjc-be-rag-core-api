@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { ContextBuilder } from './context-builder.service.js';
-import type { RetrievalCandidate, RetrievalResult } from './retrieval.service.js';
+import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import type {
+  RetrievalCandidate,
+  RetrievalResult,
+} from './retrieval.service.js';
 import type { CodeChunk } from '../generated/prisma/client.js';
 
 function makeConfigService(overrides: Record<string, number> = {}) {
-  return { get: (key: string, fallback: number) => overrides[key] ?? fallback } as never;
+  return {
+    get: (key: string, fallback: number) => overrides[key] ?? fallback,
+  } as never;
 }
 
 function makeChunk(overrides: Partial<CodeChunk> = {}): CodeChunk {
@@ -27,7 +33,9 @@ function makeChunk(overrides: Partial<CodeChunk> = {}): CodeChunk {
   } as CodeChunk;
 }
 
-function makeCandidate(overrides: Partial<RetrievalCandidate> = {}): RetrievalCandidate {
+function makeCandidate(
+  overrides: Partial<RetrievalCandidate> = {},
+): RetrievalCandidate {
   return {
     chunk: makeChunk(),
     semanticScore: null,
@@ -47,17 +55,30 @@ describe('ContextBuilder', () => {
   it('always includes the target content and reports retrieval/selection counters', () => {
     const builder = new ContextBuilder(makeConfigService());
     const result: RetrievalResult = {
-      targetChunks: [makeChunk({ content: 'function foo() { return 1; }', tokenCount: 8 })],
+      targetChunks: [
+        makeChunk({ content: 'function foo() { return 1; }', tokenCount: 8 }),
+      ],
       candidates: [],
     };
 
     const context = builder.build(result, target, { framework: 'VITEST' });
 
     expect(context.target.content).toBe('function foo() { return 1; }');
-    expect(context.metadata).toEqual({ language: 'typescript', framework: 'VITEST' });
+    expect(context.metadata).toEqual({
+      language: 'typescript',
+      framework: 'VITEST',
+    });
     expect(context.retrievedChunks).toBe(0);
     expect(context.selectedChunks).toBe(0);
     expect(context.contextTokens).toBe(8);
+    expect(context.audit?.target.chunkIds).toEqual(['chunk-id']);
+    expect(context.audit?.configuration).toEqual({
+      minimumScore: 0,
+      topK: 10,
+      maxContextTokens: 6000,
+      semanticWeight: 0.7,
+      structuralWeight: 0.3,
+    });
   });
 
   it('ranks candidates by weighted semantic + structural score and labels matchedVia', () => {
@@ -77,17 +98,27 @@ describe('ContextBuilder', () => {
 
     const context = builder.build(result, target, { framework: null });
 
-    expect(context.relatedChunks.map((chunk) => chunk.filePath)).toEqual(['src/foo.ts', 'src/foo.ts']);
+    expect(context.relatedChunks.map((chunk) => chunk.filePath)).toEqual([
+      'src/foo.ts',
+      'src/foo.ts',
+    ]);
     expect(context.relatedChunks[0].matchedVia).toEqual(['SEMANTIC']);
     expect(context.relatedChunks[1].matchedVia).toEqual(['IMPORTS']);
     // 0.7 * 0.9 (semantic) > 0.3 * 1 (structural) con los pesos default
-    expect(context.relatedChunks[0].score).toBeGreaterThan(context.relatedChunks[1].score);
+    expect(context.relatedChunks[0].score).toBeGreaterThan(
+      context.relatedChunks[1].score,
+    );
   });
 
   it('drops candidates below minimumScore', () => {
-    const builder = new ContextBuilder(makeConfigService({ RETRIEVAL_MINIMUM_SCORE: 0.5 }));
+    const builder = new ContextBuilder(
+      makeConfigService({ RETRIEVAL_MINIMUM_SCORE: 0.5 }),
+    );
     const weak = makeCandidate({ semanticScore: 0.1 });
-    const result: RetrievalResult = { targetChunks: [makeChunk({ tokenCount: 1 })], candidates: [weak] };
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ tokenCount: 1 })],
+      candidates: [weak],
+    };
 
     const context = builder.build(result, target, { framework: null });
 
@@ -97,9 +128,17 @@ describe('ContextBuilder', () => {
   });
 
   it('respects topK even when more candidates pass the score threshold', () => {
-    const builder = new ContextBuilder(makeConfigService({ RETRIEVAL_TOP_K: 1 }));
-    const first = makeCandidate({ chunk: makeChunk({ id: 'a', tokenCount: 1 }), semanticScore: 0.9 });
-    const second = makeCandidate({ chunk: makeChunk({ id: 'b', tokenCount: 1 }), semanticScore: 0.8 });
+    const builder = new ContextBuilder(
+      makeConfigService({ RETRIEVAL_TOP_K: 1 }),
+    );
+    const first = makeCandidate({
+      chunk: makeChunk({ id: 'a', tokenCount: 1 }),
+      semanticScore: 0.9,
+    });
+    const second = makeCandidate({
+      chunk: makeChunk({ id: 'b', tokenCount: 1 }),
+      semanticScore: 0.8,
+    });
     const result: RetrievalResult = {
       targetChunks: [makeChunk({ tokenCount: 1 })],
       candidates: [first, second],
@@ -112,7 +151,10 @@ describe('ContextBuilder', () => {
 
   it('stops adding candidates once maxContextTokens would be exceeded, trying smaller ones after', () => {
     const builder = new ContextBuilder(
-      makeConfigService({ RETRIEVAL_MAX_CONTEXT_TOKENS: 15, RETRIEVAL_TOP_K: 10 }),
+      makeConfigService({
+        RETRIEVAL_MAX_CONTEXT_TOKENS: 15,
+        RETRIEVAL_TOP_K: 10,
+      }),
     );
     const target1 = { targetChunks: [makeChunk({ tokenCount: 10 })] };
     const tooBig = makeCandidate({
@@ -130,5 +172,89 @@ describe('ContextBuilder', () => {
     expect(context.selectedChunks).toBe(1);
     expect(context.relatedChunks[0].content).toBe(fits.chunk.content);
     expect(context.contextTokens).toBe(15);
+  });
+
+  it('audits every candidate with the observed discard reason and does not change the prompt', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const promptBuilder = new PromptBuilder();
+    const options = { minimumScore: 0.5, topK: 2, maxContextTokens: 2 };
+    const targetChunk = makeChunk({ id: 'target', tokenCount: 1 });
+    const budget = makeCandidate({
+      chunk: makeChunk({
+        id: 'budget',
+        filePath: 'src/budget.ts',
+        tokenCount: 5,
+      }),
+      semanticScore: 1,
+    });
+    const selected = makeCandidate({
+      chunk: makeChunk({
+        id: 'selected',
+        filePath: 'src/selected.ts',
+        tokenCount: 1,
+      }),
+      semanticScore: 0.9,
+    });
+    const topK = makeCandidate({
+      chunk: makeChunk({
+        id: 'top-k',
+        filePath: 'src/top-k.ts',
+        tokenCount: 1,
+      }),
+      semanticScore: 0.8,
+    });
+    const below = makeCandidate({
+      chunk: makeChunk({
+        id: 'below',
+        filePath: 'src/below.ts',
+        tokenCount: 1,
+      }),
+      semanticScore: 0.1,
+    });
+    const context = builder.build(
+      {
+        targetChunks: [targetChunk],
+        candidates: [below, topK, selected, budget],
+      },
+      target,
+      { framework: 'VITEST' },
+      options,
+    );
+
+    expect(
+      context.audit?.candidates.map((candidate) => [
+        candidate.chunkId,
+        candidate.rank,
+      ]),
+    ).toEqual([
+      ['budget', 1],
+      ['selected', 2],
+      ['top-k', 3],
+      ['below', 4],
+    ]);
+    expect(
+      context.audit?.candidates.map(({ chunkId, decision, discardReason }) => [
+        chunkId,
+        decision,
+        discardReason,
+      ]),
+    ).toEqual([
+      ['budget', 'DISCARDED', 'TOKEN_BUDGET'],
+      ['selected', 'SELECTED', null],
+      ['top-k', 'DISCARDED', 'TOP_K_LIMIT'],
+      ['below', 'DISCARDED', 'BELOW_MINIMUM_SCORE'],
+    ]);
+    expect(context.relatedChunks.map((chunk) => chunk.filePath)).toEqual([
+      'src/selected.ts',
+    ]);
+
+    const ordinaryPrompt = promptBuilder.build({
+      ...context,
+      audit: undefined,
+    });
+    const auditedPrompt = promptBuilder.build(context);
+    expect(auditedPrompt).toBe(ordinaryPrompt);
+    expect(auditedPrompt).not.toContain('BELOW_MINIMUM_SCORE');
+    expect(auditedPrompt).not.toContain('src/below.ts');
   });
 });
