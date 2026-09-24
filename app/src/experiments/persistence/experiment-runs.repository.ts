@@ -103,7 +103,16 @@ export class ExperimentRunsRepository {
   findRepetitions(experimentId: string): Promise<ExperimentRepetition[]> {
     return this.prisma.experimentRepetition.findMany({
       where: { experimentId },
-      orderBy: [{ strategy: 'asc' }, { repetition: 'asc' }],
+      orderBy: [{ strategy: 'asc' }, { repetition: 'asc' }, { attempt: 'desc' }],
+    }).then((attempts) => {
+      const latestByRepetition = new Map<string, ExperimentRepetition>();
+
+      for (const attempt of attempts) {
+        const logicalKey = `${attempt.strategy}:${attempt.repetition}`;
+        if (!latestByRepetition.has(logicalKey)) latestByRepetition.set(logicalKey, attempt);
+      }
+
+      return [...latestByRepetition.values()];
     });
   }
 }
