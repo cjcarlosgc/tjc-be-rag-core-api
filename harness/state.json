@@ -16,7 +16,7 @@
     "workItemType": "PRODUCT",
     "storyIds": ["HU27", "HU28"],
     "sprint": "T-004",
-    "status": "IN_REVIEW",
+    "status": "DONE",
     "specPaths": [
       "spec/features/011-context-traces/spec.md",
       "spec/features/011-context-traces/plan.md",
@@ -216,14 +216,14 @@
           "commit": "working tree"
         }
       ],
-      "reviewCycles": 1,
+      "reviewCycles": 2,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "PASSED",
       "implementationCompleted": "PASSED",
       "independentReviewPassed": "PASSED",
-      "technicalChecksPassed": "FAILED",
+      "technicalChecksPassed": "PASSED",
       "contractReviewed": "PASSED",
       "canonicalContractSynced": "NOT_APPLICABLE",
       "contractSyncPublished": "NOT_APPLICABLE",
@@ -273,6 +273,11 @@
           "checkpoint": "before-review",
           "checkedAt": "2026-09-24T05:11:21.405Z",
           "relevantPendingSyncIds": []
+        },
+        {
+          "checkpoint": "before-review",
+          "checkedAt": "2026-09-24T05:22:39.586Z",
+          "relevantPendingSyncIds": []
         }
       ],
       "publishedSyncIds": [],
@@ -286,11 +291,14 @@
       "Corte 1 f568cf7, schema/migración/repositorio: `pnpm exec prisma validate`, `pnpm exec prisma generate`, 29 tests enfocados y lint aprobados; ninguna migración remota aplicada.",
       "Fan-out implementador: T-004-A (API), T-004-B (matriz e2e), T-004-C (batch insert), T-004-D (detalle inicial) entregados; sus handoffs y evidencia están registrados arriba.",
       "Verificación final pre-review: `pnpm run lint` exit 0; `pnpm run build` exit 0; 7 specs focales, 58 tests pasan; `git diff --check` sin errores.",
-      "El e2e de access-matrix y dos pruebas Supertest de la suite completa fueron bloqueados en sandbox por `listen EPERM` en 0.0.0.0; pendiente repetirlos con permiso escalado.",
+      "Las dos pruebas Supertest que fallaron con listen EPERM en sandbox pasaron al ejecutar la suite con permiso escalado; `pnpm run test`: 1131 pasan, 36 omitidas.",
+      "`pnpm test:e2e`: 221/221 pruebas pasan, incluida la matriz de acceso para las tres rutas de trazas.",
+      "`pnpm run lint`, `pnpm run build`, `node scripts/sdd-check.mjs` y `node harness/validate-harness.mjs` pasan; `git diff --check` sin errores.",
+      "PULL before-review: `node harness/contract-sync.mjs check --checkpoint before-review --work-item T-004-context-traces` devolvió `relevantPendingSyncIds: []` a las 2026-09-24T05:22:39.586Z.",
       "T-004-H corrigió la incompatibilidad del validador SDD con schemaVersion 3 y DECISION_REQUIRED; implementación y revisión independiente aprobadas, node scripts/sdd-check.mjs y node harness/validate-harness.mjs pasan.",
       "Suite completa: 1126 pruebas pasan, 36 omitidas y 2 pruebas Supertest fallaron al abrir listener por EPERM; la matriz e2e requiere la misma autorización de listener."
     ],
     "blockedReason": null
   },
-  "lastUpdatedAt": "2026-09-24T05:11:21Z"
+  "lastUpdatedAt": "2026-09-24T05:22:39Z"
 }

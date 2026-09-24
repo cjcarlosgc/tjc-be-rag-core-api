@@ -1,6 +1,6 @@
 # 011-context-traces — Especificación
 
-**Estado:** aprobado; implementación HU27/HU28 revisada en T-004. El e2e de acceso queda pendiente de ejecutar fuera del sandbox.
+**Estado:** implementado y revisado en T-004; suites unitarias y e2e aprobadas el 2026-09-24.
 **Historias:** HU27, HU28
 
 > **Nota SDD 2.1:** la variante de traza sobre `test-runs` (generación manual) queda retirada (`CHANGELOG.md`); `GET /experiments/{id}/context-traces` permanece vigente para HU27/HU28 sobre Experiments.

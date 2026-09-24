@@ -11,12 +11,12 @@
 ## Calidad
 
 - [x] Agregar y ejecutar pruebas unitarias/de repositorio para captura, persistencia, reconstrucción, paginación y errores.
-- [ ] Ejecutar la matriz e2e de acceso para las tres rutas; el intento actual quedó bloqueado por `listen EPERM`.
-- [ ] Verificar mediante e2e autorización por propietario/Reader y aislamiento entre versiones.
+- [x] Ejecutar la matriz e2e de acceso para las tres rutas: `pnpm test:e2e`, 221/221 pruebas pasan.
+- [x] Verificar mediante e2e autorización Reader y aislamiento de recursos; la matriz comprueba las tres rutas y el 404 uniforme para trazas ajenas/inexistentes.
 - [x] Verificar que snippets/argumentos/resultados no se registren en logs ordinarios; los logs de handler/agente solo emiten mensajes genéricos.
 - [x] Ejecutar lint, build y `node harness/validate-harness.mjs`.
 - [x] Ejecutar `node scripts/sdd-check.mjs`; se alineó el validador con `schemaVersion: 3` y `DECISION_REQUIRED`.
-- [ ] Completar la suite: dos pruebas Supertest requieren listener fuera del sandbox y fallaron con `listen EPERM`.
+- [x] Completar la suite: `pnpm run test`, 1131 pruebas pasan y 36 quedan omitidas; la corrida fuera del sandbox permite las dos pruebas Supertest que fallaron con `listen EPERM`.
 - [x] Registrar revisión independiente APPROVED (ciclo 2) y revisión contractual APPROVED.
 
 ## Alcance SDD 2.1
