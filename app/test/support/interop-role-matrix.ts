@@ -64,9 +64,9 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   entry('READER', 'GET', '/experiments/{id}', 'GET /experiments/{id}', 'READER'),
   entry('READER', 'GET', '/experiments/{id}/results', '.../results', 'READER'),
   entry('READER', 'GET', '/analysis-runs/{id}/experiments', 'GET /analysis-runs/{id}/experiments', 'READER', false),
-  entry('READER', 'GET', '/experiments/{id}/context-traces', 'GET /experiments/{id}/context-traces', 'READER', false),
-  entry('READER', 'GET', '/context-traces/{id}', 'GET /context-traces/{id}', 'READER', false),
-  entry('READER', 'GET', '/context-traces/{id}/discovered-files', '.../discovered-files', 'READER', false),
+  entry('READER', 'GET', '/experiments/{id}/context-traces', 'GET /experiments/{id}/context-traces', 'READER'),
+  entry('READER', 'GET', '/context-traces/{id}', 'GET /context-traces/{id}', 'READER'),
+  entry('READER', 'GET', '/context-traces/{id}/discovered-files', '.../discovered-files', 'READER'),
   entry('READER', 'WS', 'subscribe:project-version', 'subscribe:project-version', 'READER'),
   // Maintainer.
   entry('MAINTAINER', 'POST', '/projects/{projectId}/integrations/github', 'POST /projects/{projectId}/integrations/github', 'MAINTAINER'),

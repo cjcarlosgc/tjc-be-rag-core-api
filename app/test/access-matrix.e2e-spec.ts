@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { AppModule } from '../src/app.module.js';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter.js';
 import { ExperimentsService } from '../src/experiments/experiments.service.js';
+import { ContextTracesService } from '../src/context-traces/context-traces.service.js';
 import { GITHUB_ACCESS_PORT } from '../src/github-app/github-access.port.js';
 import { GithubAppAuthService } from '../src/github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService } from '../src/github-app/github-repository-content.service.js';
@@ -57,6 +58,7 @@ interface Ids {
   questionId: string;
   publicationId: string;
   experimentId: string;
+  contextTraceId: string;
 }
 
 interface RouteCase {
@@ -67,6 +69,8 @@ interface RouteCase {
 }
 
 const PROJECT_404 = 'PROJECT_NOT_FOUND';
+/** UUID válido pero ausente: las rutas de recursos aplican ParseUUIDPipe antes de buscarlo. */
+const MISSING_RESOURCE_ID = '00000000-0000-4000-8000-000000000099';
 /** Cada ruta con recurso: cómo invocarla y qué `404` conserva. Los listados van aparte. */
 const ROUTE_CASES: Record<string, RouteCase> = {
   'GET /projects/{}': { url: (i) => `/projects/${i.projectId}`, notFound: PROJECT_404 },
@@ -83,6 +87,9 @@ const ROUTE_CASES: Record<string, RouteCase> = {
   'GET /test-publications/{}': { url: (i) => `/test-publications/${i.publicationId}`, notFound: 'TEST_PUBLICATION_NOT_FOUND' },
   'GET /experiments/{}': { url: (i) => `/experiments/${i.experimentId}`, notFound: 'EXPERIMENT_NOT_FOUND' },
   'GET /experiments/{}/results': { url: (i) => `/experiments/${i.experimentId}/results`, notFound: 'EXPERIMENT_NOT_FOUND' },
+  'GET /experiments/{}/context-traces': { url: (i) => `/experiments/${i.experimentId}/context-traces`, notFound: 'EXPERIMENT_NOT_FOUND' },
+  'GET /context-traces/{}': { url: (i) => `/context-traces/${i.contextTraceId}`, notFound: 'CONTEXT_TRACE_NOT_FOUND' },
+  'GET /context-traces/{}/discovered-files': { url: (i) => `/context-traces/${i.contextTraceId}/discovered-files`, notFound: 'CONTEXT_TRACE_NOT_FOUND' },
   'POST /projects/{}/integrations/github': {
     url: (i) => `/projects/${i.projectId}/integrations/github`,
     body: () => ({ repositoryId: '100', repositoryName: REPO, integrationBranch: 'main' }),
@@ -148,6 +155,12 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
           createRun: () => Promise.resolve({ experimentId: 'e' }),
           getStatus: () => Promise.resolve({ id: 'e' }),
           getResults: () => Promise.resolve({ id: 'e' }),
+        })
+        .overrideProvider(ContextTracesService)
+        .useValue({
+          listContextTraces: () => Promise.resolve({ items: [], nextCursor: null }),
+          getContextTraceDetail: () => Promise.resolve({ id: 'trace', kind: 'AGENT' }),
+          listDiscoveredFiles: () => Promise.resolve({ items: [], nextCursor: null }),
         }),
     ).compile();
 
@@ -263,6 +276,11 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       failureMessage: null,
     });
     const experiment = prisma.insert('experimentRun', { projectId: project.id });
+    const contextTrace = prisma.insert('contextTrace', {
+      projectId: project.id,
+      projectVersionId: version.id,
+      experimentId: experiment.id,
+    });
 
     return {
       projectId: project.id as string,
@@ -271,6 +289,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       questionId: question.id as string,
       publicationId: publication.id as string,
       experimentId: experiment.id as string,
+      contextTraceId: contextTrace.id as string,
     };
   }
 
@@ -422,12 +441,13 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
         const routeCase = ROUTE_CASES[key];
         const hidden = await invoke(STRANGER, key, ids);
         const missingIds: Ids = {
-          projectId: 'missing',
-          runId: 'missing',
-          versionId: 'missing',
-          questionId: 'missing',
-          publicationId: 'missing',
-          experimentId: 'missing',
+          projectId: MISSING_RESOURCE_ID,
+          runId: MISSING_RESOURCE_ID,
+          versionId: MISSING_RESOURCE_ID,
+          questionId: MISSING_RESOURCE_ID,
+          publicationId: MISSING_RESOURCE_ID,
+          experimentId: MISSING_RESOURCE_ID,
+          contextTraceId: MISSING_RESOURCE_ID,
         };
         const missing = await invoke(STRANGER, key, missingIds);
 
@@ -436,7 +456,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
         expect(hidden.body.code).toBe(routeCase.notFound);
         expect(missing.body.code).toBe(routeCase.notFound);
         expect(hidden.body.message.replace(ids.projectId, 'X').replace(ids.runId, 'X').replace(ids.versionId, 'X').replace(ids.publicationId, 'X').replace(ids.experimentId, 'X')).toBe(
-          missing.body.message.replace('missing', 'X'),
+          missing.body.message.replace(MISSING_RESOURCE_ID, 'X'),
         );
       },
     );
@@ -529,6 +549,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       ['a version', (ids: Ids) => `/project-versions/${ids.versionId}`],
       ['a publication', (ids: Ids) => `/test-publications/${ids.publicationId}`],
       ['an experiment', (ids: Ids) => `/experiments/${ids.experimentId}`],
+      ['a context trace', (ids: Ids) => `/context-traces/${ids.contextTraceId}`],
       ['the questions of a Run', (ids: Ids) => `/analysis-runs/${ids.runId}/context-questions`],
     ])('a member with access to the repository enters by %s without opening the project first: access record created, same predicate', async (_label, url) => {
       const ids = seedProject('ORG');

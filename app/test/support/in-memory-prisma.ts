@@ -28,6 +28,7 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   },
   projectVersion: { project: { model: 'project', many: false, local: 'projectId', foreign: 'id' } },
   experimentRun: { project: { model: 'project', many: false, local: 'projectId', foreign: 'id' } },
+  contextTrace: { experiment: { model: 'experimentRun', many: false, local: 'experimentId', foreign: 'id' } },
   testPublication: { analysisRun: { model: 'analysisRun', many: false, local: 'analysisRunId', foreign: 'id' } },
   testTarget: { projectVersion: { model: 'projectVersion', many: false, local: 'projectVersionId', foreign: 'id' } },
 };
@@ -42,6 +43,7 @@ const MODELS = [
   'projectVersion',
   'testPublication',
   'experimentRun',
+  'contextTrace',
   'testTarget',
   'generatedTestProposal',
   'analysisSymbol',

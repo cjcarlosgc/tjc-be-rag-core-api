@@ -13,7 +13,10 @@ export function projectNotFound(projectId: string): AppException {
 }
 
 /** Project visible con un rol menor al mínimo de la operación (`INTEROP-2.4` §6.13). */
-export function projectRoleInsufficient(requiredRole: ProjectRole, currentRole: ProjectRole): AppException {
+export function projectRoleInsufficient(
+  requiredRole: ProjectRole,
+  currentRole: ProjectRole,
+): AppException {
   return new AppException(
     ErrorCode.PROJECT_ROLE_INSUFFICIENT,
     `La operación requiere el rol ${requiredRole} sobre el proyecto.`,
@@ -58,11 +61,15 @@ export type ProjectResourceKind =
   | 'analysisRun'
   | 'projectVersion'
   | 'experiment'
+  | 'contextTrace'
   | 'testPublication'
   | 'functionalQuestion'
   | 'testTarget';
 
-export function resourceNotFound(resource: ProjectResourceKind, id: string): AppException {
+export function resourceNotFound(
+  resource: ProjectResourceKind,
+  id: string,
+): AppException {
   switch (resource) {
     case 'project':
       return projectNotFound(id);
@@ -79,7 +86,17 @@ export function resourceNotFound(resource: ProjectResourceKind, id: string): App
         HttpStatus.NOT_FOUND,
       );
     case 'experiment':
-      return new AppException(ErrorCode.EXPERIMENT_NOT_FOUND, `No existe el experimento ${id}.`, HttpStatus.NOT_FOUND);
+      return new AppException(
+        ErrorCode.EXPERIMENT_NOT_FOUND,
+        `No existe el experimento ${id}.`,
+        HttpStatus.NOT_FOUND,
+      );
+    case 'contextTrace':
+      return new AppException(
+        ErrorCode.CONTEXT_TRACE_NOT_FOUND,
+        'No existe una traza de contexto visible.',
+        HttpStatus.NOT_FOUND,
+      );
     case 'testPublication':
       return new AppException(
         ErrorCode.TEST_PUBLICATION_NOT_FOUND,
@@ -93,6 +110,10 @@ export function resourceNotFound(resource: ProjectResourceKind, id: string): App
         HttpStatus.NOT_FOUND,
       );
     case 'testTarget':
-      return new AppException(ErrorCode.UNRESOLVABLE_TARGET, `No existe el target ${id}.`, HttpStatus.NOT_FOUND);
+      return new AppException(
+        ErrorCode.UNRESOLVABLE_TARGET,
+        `No existe el target ${id}.`,
+        HttpStatus.NOT_FOUND,
+      );
   }
 }
