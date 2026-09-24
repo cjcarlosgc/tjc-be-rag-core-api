@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import type { ExperimentRepetition, ExperimentRun, Prisma } from '../../generated/prisma/client.js';
-import { ExperimentStatus } from '../../generated/prisma/enums.js';
+import type {
+  ExperimentRepetition,
+  ExperimentRun,
+  Prisma,
+} from '../../generated/prisma/client.js';
+import {
+  ExperimentRepetitionState,
+  ExperimentStatus,
+} from '../../generated/prisma/enums.js';
 import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
 import { accessibleProject } from '../../common/persistence/accessible-project.filter.js';
 
@@ -40,7 +47,10 @@ export interface ExperimentRepetitionInput {
 export class ExperimentRunsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(input: CreateExperimentRunInput, tx?: Prisma.TransactionClient): Promise<ExperimentRun> {
+  create(
+    input: CreateExperimentRunInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ExperimentRun> {
     return (tx ?? this.prisma).experimentRun.create({ data: input });
   }
 
@@ -57,7 +67,9 @@ export class ExperimentRunsRepository {
    * (HU29) en vez de cargar y comprobar después.
    */
   findByIdForOwner(id: string, userId: string): Promise<ExperimentRun | null> {
-    return this.prisma.experimentRun.findFirst({ where: { id, project: accessibleProject(userId) } });
+    return this.prisma.experimentRun.findFirst({
+      where: { id, project: accessibleProject(userId) },
+    });
   }
 
   markStarted(id: string): Promise<ExperimentRun> {
@@ -67,10 +79,34 @@ export class ExperimentRunsRepository {
     });
   }
 
-  incrementCompletedRepetitions(id: string): Promise<ExperimentRun> {
-    return this.prisma.experimentRun.update({
-      where: { id },
-      data: { completedRepetitions: { increment: 1 } },
+  refreshCompletedRepetitions(id: string): Promise<ExperimentRun> {
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize refreshes so concurrent terminal attempts cannot overwrite a
+      // newer logical-repetition count with a stale snapshot.
+      await tx.$queryRaw`SELECT "id" FROM "experiment_runs" WHERE "id" = ${id} FOR UPDATE`;
+
+      const terminalAttempts = await tx.experimentRepetition.findMany({
+        where: {
+          experimentId: id,
+          state: {
+            in: [
+              ExperimentRepetitionState.COMPLETED,
+              ExperimentRepetitionState.FAILED,
+            ],
+          },
+        },
+        select: { strategy: true, repetition: true },
+      });
+      const completedSlots = new Set(
+        terminalAttempts.map(
+          ({ strategy, repetition }) => `${strategy}:${repetition}`,
+        ),
+      );
+
+      return tx.experimentRun.update({
+        where: { id },
+        data: { completedRepetitions: completedSlots.size },
+      });
     });
   }
 
@@ -81,7 +117,11 @@ export class ExperimentRunsRepository {
     });
   }
 
-  markFailed(id: string, failureCode: string, failureMessage: string): Promise<ExperimentRun> {
+  markFailed(
+    id: string,
+    failureCode: string,
+    failureMessage: string,
+  ): Promise<ExperimentRun> {
     return this.prisma.experimentRun.update({
       where: { id },
       data: {
@@ -97,22 +137,53 @@ export class ExperimentRunsRepository {
     experimentId: string,
     repetition: ExperimentRepetitionInput,
   ): Promise<ExperimentRepetition> {
-    return this.prisma.experimentRepetition.create({ data: { experimentId, ...repetition } });
+    return this.prisma.experimentRepetition.create({
+      data: { experimentId, ...repetition },
+    });
+  }
+
+  updateRepetitionById(
+    id: string,
+    repetition: ExperimentRepetitionInput,
+    state: 'COMPLETED' | 'FAILED',
+  ): Promise<ExperimentRepetition> {
+    const {
+      repetition: _logicalRepetition,
+      strategy: _strategy,
+      trajectory,
+      ...metrics
+    } = repetition;
+
+    return this.prisma.experimentRepetition.update({
+      where: { id },
+      data: {
+        ...metrics,
+        state,
+        ...(trajectory === undefined ? {} : { trajectory }),
+      },
+    });
   }
 
   findRepetitions(experimentId: string): Promise<ExperimentRepetition[]> {
-    return this.prisma.experimentRepetition.findMany({
-      where: { experimentId },
-      orderBy: [{ strategy: 'asc' }, { repetition: 'asc' }, { attempt: 'desc' }],
-    }).then((attempts) => {
-      const latestByRepetition = new Map<string, ExperimentRepetition>();
+    return this.prisma.experimentRepetition
+      .findMany({
+        where: { experimentId },
+        orderBy: [
+          { strategy: 'asc' },
+          { repetition: 'asc' },
+          { attempt: 'desc' },
+        ],
+      })
+      .then((attempts) => {
+        const latestByRepetition = new Map<string, ExperimentRepetition>();
 
-      for (const attempt of attempts) {
-        const logicalKey = `${attempt.strategy}:${attempt.repetition}`;
-        if (!latestByRepetition.has(logicalKey)) latestByRepetition.set(logicalKey, attempt);
-      }
+        for (const attempt of attempts) {
+          const logicalKey = `${attempt.strategy}:${attempt.repetition}`;
+          if (!latestByRepetition.has(logicalKey))
+            latestByRepetition.set(logicalKey, attempt);
+        }
 
-      return [...latestByRepetition.values()];
-    });
+        return [...latestByRepetition.values()];
+      });
   }
 }

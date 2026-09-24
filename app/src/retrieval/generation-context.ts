@@ -37,4 +37,48 @@ export interface GenerationContext {
   retrievedChunks: number;
   selectedChunks: number;
   contextTokens: number;
+  /** Evidence about retrieval and selection. PromptBuilder intentionally ignores this field. */
+  audit?: GenerationContextAudit;
+}
+
+export type RagCandidateDecision = 'SELECTED' | 'DISCARDED';
+export type RagDiscardReason =
+  'BELOW_MINIMUM_SCORE' | 'TOP_K_LIMIT' | 'TOKEN_BUDGET';
+
+export interface GenerationContextAuditChunk {
+  chunkId: string;
+  filePath: string;
+  symbolKind: string;
+  symbolName: string | null;
+  parentSymbolName: string | null;
+  startLine: number;
+  endLine: number;
+  content: string;
+  tokenCount: number;
+}
+
+export interface GenerationContextAuditCandidate extends GenerationContextAuditChunk {
+  rank: number;
+  semanticScore: number | null;
+  structuralMatch: StructuralMatch | null;
+  combinedScore: number;
+  matchedVia: Array<'SEMANTIC' | StructuralMatch>;
+  decision: RagCandidateDecision;
+  discardReason: RagDiscardReason | null;
+}
+
+export interface GenerationContextAudit {
+  target: {
+    chunkIds: string[];
+    chunks: GenerationContextAuditChunk[];
+    tokenCount: number;
+  };
+  candidates: GenerationContextAuditCandidate[];
+  configuration: {
+    minimumScore: number;
+    topK: number;
+    maxContextTokens: number;
+    semanticWeight: number;
+    structuralWeight: number;
+  };
 }

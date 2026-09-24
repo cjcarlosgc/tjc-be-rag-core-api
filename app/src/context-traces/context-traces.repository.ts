@@ -31,6 +31,10 @@ function isSafeRelativePath(filePath: string): boolean {
   );
 }
 
+// Each row binds three values. Keep inserts well below PostgreSQL's bind
+// parameter ceiling while retaining a useful bulk-insert size.
+const DISCOVERED_FILES_INSERT_BATCH_SIZE = 1_000;
+
 @Injectable()
 export class ContextTracesRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -129,9 +133,14 @@ export class ContextTracesRepository {
       throw new Error('DiscoveredFile requiere rutas relativas POSIX seguras.');
     }
 
-    await this.prisma.discoveredFile.createMany({
-      data: uniquePaths.map((filePath) => ({ contextTraceId: traceId, step, filePath })),
-      skipDuplicates: true,
+    await this.prisma.$transaction(async (tx) => {
+      for (let offset = 0; offset < uniquePaths.length; offset += DISCOVERED_FILES_INSERT_BATCH_SIZE) {
+        const batch = uniquePaths.slice(offset, offset + DISCOVERED_FILES_INSERT_BATCH_SIZE);
+        await tx.discoveredFile.createMany({
+          data: batch.map((filePath) => ({ contextTraceId: traceId, step, filePath })),
+          skipDuplicates: true,
+        });
+      }
     });
   }
 

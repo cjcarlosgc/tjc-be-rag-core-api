@@ -12,6 +12,9 @@ function makeRepository(overrides: Record<string, unknown> = {}) {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       create: vi.fn().mockResolvedValue({ id: 'trace-1', attempt: 1 }),
     },
+    discoveredFile: {
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
   };
   const prisma = {
     $transaction: vi.fn(async (work: (client: typeof tx) => unknown) => work(tx)),
@@ -91,21 +94,64 @@ describe('ContextTracesRepository', () => {
   });
 
   it('deduplicates discovered paths and rejects non-relative or traversal paths', async () => {
-    const { repository, prisma } = makeRepository();
+    const { repository, prisma, tx } = makeRepository();
 
     await repository.insertDiscoveredFiles('trace-1', 1, ['src/a.ts', 'src/a.ts', 'src/b.ts']);
 
-    expect(prisma.discoveredFile.createMany).toHaveBeenCalledWith({
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(tx.discoveredFile.createMany).toHaveBeenCalledWith({
       data: [
         { contextTraceId: 'trace-1', step: 1, filePath: 'src/a.ts' },
         { contextTraceId: 'trace-1', step: 1, filePath: 'src/b.ts' },
       ],
       skipDuplicates: true,
     });
-    await expect(repository.insertDiscoveredFiles('trace-1', 1, ['../secret.txt'])).rejects.toThrow(
+    await expect(repository.insertDiscoveredFiles('trace-1', 1, ['src/safe.ts', '../secret.txt'])).rejects.toThrow(
       'DiscoveredFile requiere rutas relativas POSIX seguras.',
     );
-    expect(prisma.discoveredFile.createMany).toHaveBeenCalledOnce();
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(tx.discoveredFile.createMany).toHaveBeenCalledOnce();
+  });
+
+  it('inserts large discovered-file sets in bounded batches within one transaction', async () => {
+    const { repository, prisma, tx } = makeRepository();
+    const paths = Array.from({ length: 2_001 }, (_, index) => `src/file-${index}.ts`);
+    paths.push(paths[0], paths[999]);
+
+    await repository.insertDiscoveredFiles('trace-1', 4, paths);
+
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(tx.discoveredFile.createMany).toHaveBeenCalledTimes(3);
+    expect(tx.discoveredFile.createMany.mock.calls.map(([args]) => args.data.length)).toEqual([1_000, 1_000, 1]);
+    const firstBatch = tx.discoveredFile.createMany.mock.calls[0][0];
+    expect(firstBatch.data.slice(0, 2)).toEqual([
+      { contextTraceId: 'trace-1', step: 4, filePath: 'src/file-0.ts' },
+      { contextTraceId: 'trace-1', step: 4, filePath: 'src/file-1.ts' },
+    ]);
+    expect(firstBatch.skipDuplicates).toBe(true);
+    expect(tx.discoveredFile.createMany.mock.calls[2][0]).toEqual({
+      data: [{ contextTraceId: 'trace-1', step: 4, filePath: 'src/file-2000.ts' }],
+      skipDuplicates: true,
+    });
+    expect(prisma.discoveredFile.createMany).not.toHaveBeenCalled();
+  });
+
+  it('propagates a failed batch so the surrounding transaction can roll back all batches', async () => {
+    const { repository, prisma, tx } = makeRepository();
+    const failure = new Error('batch insert failed');
+    tx.discoveredFile.createMany.mockResolvedValueOnce({ count: 1_000 }).mockRejectedValueOnce(failure);
+
+    await expect(
+      repository.insertDiscoveredFiles(
+        'trace-1',
+        1,
+        Array.from({ length: 1_001 }, (_, index) => `src/file-${index}.ts`),
+      ),
+    ).rejects.toBe(failure);
+
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(tx.discoveredFile.createMany).toHaveBeenCalledTimes(2);
+    expect(prisma.discoveredFile.createMany).not.toHaveBeenCalled();
   });
 
   it('uses a stable id cursor and returns one extra row to detect the next page', async () => {
