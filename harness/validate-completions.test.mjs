@@ -54,6 +54,13 @@ test('W-DONE needs an independent approved review', () => {
   assert.match(result.stderr, /reviewer handoff/);
 });
 
+test('W-DONE accepts the human reviewer as the independent reviewer', () => {
+  const humanReviewed = structuredClone(completion);
+  humanReviewed.execution.reviewAgent = 'human-reviewer';
+  humanReviewed.execution.handoffs[0].agent = 'human-reviewer';
+  assert.equal(run([humanReviewed]).status, 0);
+});
+
 test('W-DONE is rejected when a relevant inbox event is merely acknowledged', () => {
   const event = 'type: CONTRACT_SYNC\nid: CS-20260924-998\nsource: external\ntargets: [core]\nstatus: C-ACKNOWLEDGED\n';
   const result = run([completion], [event]);

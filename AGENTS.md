@@ -23,6 +23,7 @@ Este repositorio usa Specification-Driven Development (SDD). Este archivo es del
 - Cada commit debe ser un cambio coherente y declarar en el cuerpo `Refs: HU...` con todas las historias afectadas.
 - No marcar una tarea como terminada sin evidencia verificable.
 - Antes de cerrar: lint, test y build; agregar pruebas para correcciones cuando sea viable.
+- Antes de declarar un WI terminado, el usuario es el reviewer independiente por defecto; el leader debe presentar diff y evidencia, y esperar su veredicto. Solo delega esa revisión a un agente si el usuario lo pide explícitamente. El implementer no puede autoaprobarse; la revisión delegada tampoco sustituye la aprobación humana de alcance/arquitectura.
 - Antes de hacer push al cierre del sprint, el reviewer debe aprobar el rango completo que se publicará y registrar la evidencia de revisión.
 - Commitear por corte con sentido lógico sin pedir permiso previo (`spec/constitution/delivery-workflow.md`, "Puerta de push"). No hacer push, PR, merge o cambios de infraestructura externa sin solicitud explícita en cada ocasión.
 - Si la causa raíz de un fallo está en otro componente (Developer Console, Test Execution Sandbox), no corregirla en ese repositorio: diagnosticar y entregar una indicación compacta al agente propio de ese componente (`spec/constitution/delivery-workflow.md`).

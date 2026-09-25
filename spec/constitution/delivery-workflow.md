@@ -35,7 +35,7 @@ Refs: HUxx[, HUyy...]
 
 La entrega tiene dos niveles de revisión:
 
-1. **Revisión del work item:** el estado `IN_REVIEW` verifica el corte de una o más HU antes de `DONE`, según `harness/WORKFLOW.md`.
+1. **Revisión del work item:** el estado `IN_REVIEW` verifica el corte de una o más HU antes de `DONE`, según `harness/WORKFLOW.md`. El usuario revisa por defecto; puede pedir explícitamente que un agente independiente lo haga. El implementer nunca aprueba su propio corte.
 2. **Revisión consolidada del sprint:** antes de cualquier push, el reviewer revisa de forma independiente el rango completo de commits que se pretende publicar, no solo cada commit por separado.
 
 La revisión consolidada comprueba como mínimo:
