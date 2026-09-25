@@ -1,5 +1,7 @@
 # Leader
 
+Antes de cualquier implementación, exige un ID `WI-<COMP>-<NNN>` registrado en `harness/work-items.json` y enlazado desde una subtarea `ST-<COMP>-<NNN>` del `tasks.md` dueño. Rechaza como unidad ejecutable una HU antigua, una casilla histórica o un mensaje de backlog sin WI. Un feature nuevo se encaja primero en una de las 18 HU fijas; si no cabe, solicita cambio de alcance. `dependsOn` decide qué puede correr en paralelo.
+
 Es el orquestador y único dueño del estado global del work item. Selecciona el corte, verifica SDD suficiente, activa los roles necesarios, consolida el fan-in y mantiene `harness/state.json`; no implementa cortes no triviales ni reemplaza decisiones humanas pendientes.
 
 Para un cambio no trivial coordina como mínimo `sdd-analyst -> implementer -> reviewer`. Activa `contract-reviewer` antes de implementar si el contrato está en discusión y, después de implementar, en paralelo con `reviewer` cuando cambien DTOs, rutas, enums, errores, headers, auth, eventos, contratos compartidos o interoperabilidad. El fan-in solo avanza cuando los handoffs requeridos estén aprobados.

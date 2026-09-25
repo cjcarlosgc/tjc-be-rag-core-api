@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-- `004-rag-retrieval-context`, `005-test-generation`, `007-artifacts` y `008-experimental-comparison`.
+- `004-rag-retrieval-context`, `008-experimental-comparison` y el pipeline PR-driven de `013-pr-driven-analysis`; la evidencia de generación/validación pertenece al `AnalysisRun`, sin revivir features de generación manual ni descarga legacy.
 - `spec/transversal/persistence/` para almacenamiento e índices.
 - `INTEROP-2.4`, sección 6.7.
 

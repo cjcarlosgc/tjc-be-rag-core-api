@@ -1,46 +1,33 @@
 # CONTRACT_SYNC
 
-`CONTRACT_SYNC` es el protocolo persistente entre los tres harnesses. No depende de una sesión activa: cada evento se versiona como un archivo YAML en el `outbox` del repositorio emisor y los consumidores lo importan a su `inbox` local. Un evento no autoriza cambios funcionales ni edita repositorios de destino.
-
-## Evento
+Protocolo persistente de necesidades/cambios contractuales entre `core`, `console`, `sandbox` y `github-integration`. Cada evento `CS-AAAAMMDD-NNN` vive como YAML en `outbox/` del emisor y se importa al `inbox/` del consumidor. No edita otro repositorio, no aprueba un requisito ni sustituye un handoff humano cuando la política lo exige.
 
 ```yaml
 type: CONTRACT_SYNC
-id: CS-20260919-001
+id: CS-20260924-001
 source: core
-targets: [sandbox, console]
+targets: [console, github-integration]
+scopePaths: [spec/contracts/interoperability-contract.md]
 breaking: false
 changed:
-  - INTEROP-2.2 §6.8 repository binding
+  - Contract section or approved need
 requiredAction:
-  - Review the affected adapter and acknowledge compatibility.
+  - Review the affected consumer or service.
 sourceRevision: 0123abc
-status: PENDING
+status: C-PENDING
 ```
 
-`source` es `core`, `sandbox` o `console`; `targets` contiene solo consumidores realmente afectados. `status` puede ser `PENDING`, `ACKNOWLEDGED`, `RESOLVED` o `REJECTED`. El emisor no cambia el estado de la copia importada por un consumidor.
-
-## Comandos
+Estados: `C-PENDING → C-ACKNOWLEDGED → C-RESOLVED`; `C-REJECTED` explica incompatibilidad o rechazo. Los YAML históricos sin `C-` se leen por compatibilidad, pero todo evento nuevo se publica con prefijo.
 
 ```sh
-# Validar el estado, roles, ejemplo y eventos locales.
-node harness/validate-harness.mjs
-
-# PULL: detectar syncs relevantes del inbox en cada checkpoint.
-node harness/contract-sync.mjs check --checkpoint start --work-item T-002-analysis-run-domain
-
-# Importar de forma explícita eventos persistentes desde un outbox recibido/clonado.
+node harness/contract-sync.mjs check --checkpoint start --work-item WI-CORE-001 --record
+node harness/contract-sync.mjs check --checkpoint implementation-delivery --work-item WI-CORE-001 --record
+node harness/contract-sync.mjs check --checkpoint before-review --work-item WI-CORE-001 --record
+node harness/contract-sync.mjs check --checkpoint before-done --work-item WI-CORE-001 --record
 node harness/contract-sync.mjs import --from /ruta/al/harness/contract-sync/outbox
-
-# Core publica solo después de aprobar un cambio contractual.
-node harness/contract-sync.mjs publish \
-  --id CS-20260919-001 --targets sandbox,console --breaking false \
-  --changed 'INTEROP-2.2 §6.8' --required-action 'Review adapter compatibility.' \
-  --source-revision 0123abc
+node harness/contract-sync.mjs publish --id CS-20260924-001 --targets console,github-integration --scope-paths spec/contracts/interoperability-contract.md --breaking false --changed 'approved contract change' --required-action 'review compatibility' --source-revision 0123abc
 ```
 
-Ejecutar `check` en `start`, `implementation-delivery`, `before-review` y `before-done`. El resultado se copia como evidencia a `activeWorkItem.coordination.pullCheckpoints`. Si la salida enumera eventos relevantes `PENDING`, el gate `interopSyncChecked` falla y no se puede cerrar el work item hasta revisarlos.
+`check` exige un WI registrado y activo; `--record` guarda el checkpoint en orden cuando no hay pendientes. `scopePaths` admite `*` o rutas compartidas `spec/contracts/...`; no admite lista vacía ni rutas de feature propias del emisor, que podrían ser invisibles al receptor. Los eventos históricos sin este campo son globales (`*`). El WI transversal 001 usa `syncScopePaths: ["*"]` para inspeccionar todo evento dirigido a su componente. Todo evento relevante no `C-RESOLVED` bloquea `interopSyncChecked` y `W-DONE`, excepto una clasificación local `contractSyncReview` exacta para ese WI; el checkpoint registra por separado sus `notRelevantSyncIds`. La clasificación requiere evento anterior a la línea base, SHA-256 del cuerpo normalizado sin `status`, motivo y reporte existente. No resuelve el evento ni permite ignorarlo en otros WIs. Una necesidad de Console para GitHub Integration puede enviarse a ambos dueños (`core,github-integration`) y origina WIs propios en los repositorios afectados; no permite crear unilateralmente un endpoint.
 
-## Responsabilidad de Core
-
-Core es el propietario canónico de `SYSTEM-*` e `INTEROP-*`. Cuando un cambio aprobado afecta a Console o Sandbox, publica un evento en `outbox/`, actualiza sus contratos canónicos y registra el ID en `publishedSyncIds`. No modifica automáticamente los otros repositorios. Para un trabajo sin impacto contractual, no se fabrica un evento.
+Un diferimiento excepcional solo se admite en un WI de tipo `HARNESS`: `deferredSyncIds` enumera eventos antiguos no resueltos y `deferredSyncReport` justifica cada ID. Para otros WIs, `contractSyncReview` puede marcar un evento antiguo sin alcance como `NOT_RELEVANT` con razón, digest del contenido y reporte existente; el checkpoint lo registra en `notRelevantSyncIds`. Esto permite separar una acción aún abierta de su aplicabilidad a un corte concreto. No modifica el status del YAML ni sustituye completar la acción en los WIs que sí la requieren. El digest normaliza únicamente la línea `status`, que puede cambiar sin alterar el contenido contractual. Los checkpoints grabados con la semántica anterior se invalidaron y repitieron con evidencia en `harness/reports/legacy-contract-sync-triage-3.0.md`.

@@ -1,32 +1,16 @@
-# 013 — Plan
+# 013 — Plan de análisis PR-driven
 
 ## Dependencias
 
-- SYSTEM-2.4 e INTEROP-2.4.
-- ownership HU29, jobs DB-backed, object storage, snapshots, retrieval, generación, Sandbox client, artifacts y traces existentes.
+SYSTEM-2.4/INTEROP-2.4, Project/binding, jobs durables, snapshots, índice, retrieval, Functional Knowledge, generación, Sandbox y propuestas. El contrato futuro Core↔GitHub Integration se aprueba en `WI-CORE-003`; no se inventa desde este plan.
 
-## Cortes de implementación
+## Cortes
 
-1. Dominio/state model: AnalysisRun, PR/HEAD, attempts, states y repository binding.
-2. Repository binding user-centric: discovery OAuth efímero, validación App por repositorio, listado de ramas por installation token y persistencia del binding con rama explícita; después Functional Knowledge versionado.
-3. GitHub ingress: firma, event normalization, idempotencia y PR lifecycle.
-4. Snapshot intelligence: commit SHA, bootstrap/incremental, CHANGESET/INDEX DELTA, símbolos cambiados/impactados.
-5. Functional RAG: retrieval multi-source, preguntas, ACTION_REQUIRED y continuation.
-6. Validation: baseline, generación, execution profile y clasificación objetiva.
-7. Feedback: Checks por SHA, review/freshness y companion PR.
-8. PHP: adapters de lenguaje/generación coordinados con el profile real del Sandbox.
-9. Binding lifecycle (HU56/HU57, work item `T-002-binding-lifecycle`, INTEROP-2.3): `REPOSITORY_ALREADY_BOUND` con orden de validación y mapeo de `P2002`; `POST .../enable` con revalidación de la App y reactivación de `REVOKED`; `disable` que no degrada `REVOKED`; `unsuspend` que distingue bindings pausados por el usuario (columna de motivo de `DISABLED` en `repository_bindings`); `DELETE /projects/{id}` con `deletedAt`, transacción única (marcar, borrar binding, cancelar Runs/jobs), filtro `deletedAt IS NULL` en todas las lecturas owner-scoped y validación `binding.projectId == run.projectId` + Project vivo en los job handlers (checks, publications, validation, snapshot-intelligence). Requiere migración Prisma (`projects.deletedAt`, motivo de `DISABLED`). Al terminar, Core publica `CONTRACT_SYNC` a Console.
-
-Cada corte reutiliza capacidades internas existentes sin conservar APIs, DTOs o adapters de producto paralelos. GitHub se integra mediante un puerto productivo real; fakes se limitan a tests.
+1. Conservar el pipeline vigente AnalysisRun por PR/HEAD, CHANGESET frente a INDEX DELTA y autorización por Project.
+2. En `WI-CORE-002`, retirar rutas y persistencia legacy sin afectar snapshot ZIP interno, ContextTrace, experimentos ni propuestas.
+3. En `WI-CORE-003`, definir y verificar el contrato de servicio; mover SDK, App, webhooks, discovery, repositorios, Checks y publicación GitHub al cuarto componente. Core retiene estado de dominio, decisiones RAG y orquestación.
+4. En `WI-CORE-004`, especificar happy paths OC01–OC15 y luego subcasos elegidos; cada uno con entrada, resultado, invariantes, evidencia y pruebas.
 
 ## Verificación
 
-- Contract tests para INTEROP-2.4 y fixtures compartidos por copia, no por paquete oculto.
-- Tests de discovery sin/ con provider token inválido, repositorio visible sin App, autorización App, ramas por installation token, creación con rama real y webhook firmado/alterado/duplicado.
-- Tests de state machine para draft/base change/closed/merged/force-push/new HEAD durante processing o action required.
-- Matriz de ownership 404 sobre bindings, Runs, preguntas, conocimiento y publicaciones.
-- Corte 9: tests de conflicto de repositorio entre dos Projects (secuencial y concurrente), enable idempotente/con y sin acceso de la App/desde `REVOKED`, disable sobre `REVOKED`, unsuspend con binding pausado por el usuario, y borrado lógico (404 en cada lectura owner-scoped, binding liberado y re-vinculable, Runs cancelados, job handlers que ignoran Runs de Projects borrados o de repos re-vinculados).
-- Casos obligatorios 1-15 de la spec.
-- Tests de freshness y garantía de no publicar resultados/propuestas viejos.
-- Compatibilidad TypeScript y contract tests PHP antes de habilitar el profile.
-- Lint, unit, integration, e2e, build y revisión consolidada antes de cada push.
+Contract tests por frontera, idempotencia, seguridad, freshness de HEAD, no publicación sobre Run obsoleto, fallos de Sandbox/Storage y ausencia de secretos en Console/Sandbox. Lint, tests, build, revisión independiente y cuatro checkpoints Contract Sync antes de cerrar cada WI.

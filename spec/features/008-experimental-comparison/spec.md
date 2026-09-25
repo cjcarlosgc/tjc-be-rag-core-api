@@ -1,9 +1,9 @@
 # 008-experimental-comparison — Especificación
 
-**Estado:** aprobado salvo elementos marcados PENDING/PROPOSED. Se conserva bajo SDD 2.1.
-**Historias:** HU19, HU27, HU28
+**Estado:** comparación aprobada como objetivo; entrada live por AnalysisRun y aceptación por evidencia pendientes.
+**Historias:** HU17, HU18
 
-> **Nota SDD 2.1:** `targetId` en `CreateExperimentRequest` referencia un `TestTarget` producido por la indexación ZIP, retirada como ruta de producto (`CHANGELOG.md`). Mientras no exista una ruta que derive targets desde un `AnalysisRun` (P1/P4, corte futuro — ver handoff de reorientación de Experiments citado en `CHANGELOG.md`), este endpoint no tiene forma vigente de crear experimentos nuevos. No se rediseña en este corte; el desarrollo P0 (PR-driven) no espera por esto.
+El experimento productivo parte de un `AnalysisRun` real y un símbolo elegible del changeset, según INTEROP-2.4 §6.5. El código que aún dependa de selección manual de `TestTarget` es deuda de adaptación, no otra ruta de producto.
 
 ## Objetivo
 
@@ -42,14 +42,14 @@ El brazo de referencia es `GENERALIST_AGENT`; el término académico “baseline
 **Resolución:**
 
 1. **Herramientas** (todas read-only, sin shell/red/escritura, acotadas al snapshot del `ProjectVersion`): listar archivos, leer contenido de un archivo, buscar texto/símbolo (grep), seguir imports/referencias de un archivo, y capacidades de TypeScript language service (ir a definición, buscar referencias, inspeccionar tipos).
-2. **Entrega del snapshot:** se reutiliza el mismo mecanismo de materialización de workspace ya usado por indexación/generación (extracción del ZIP a un directorio temporal); no se inventa un mecanismo de acceso nuevo.
+2. **Entrega del snapshot:** se reutiliza la materialización interna del commit fijado; su ZIP privado puede extraerse en un directorio temporal, sin introducir carga manual.
 3. **Trazabilidad de la trayectoria:** se persiste la trayectoria completa del agente — secuencia ordenada de tool calls con argumentos y resultado resumido — como evidencia auditable/reproducible. Las métricas agregadas `toolCalls`/`filesInspected` se derivan de esa trayectoria, no la reemplazan.
 4. **Política sobre pruebas existentes:** los archivos `*.test.ts`/`*.spec.ts` que cubren el target actual quedan excluidos de la vista del snapshot que recibe el agente, para evitar que copie la prueba existente en vez de generarla y mantener comparabilidad con RAG.
 5. **Límites y paridad frente a RAG:** mismo presupuesto de tokens de contexto que usa `ContextBuilder` para RAG (`maxContextTokens`), mismo timeout de generación del pipeline, y un tope de ~20 tool calls para evitar loops de exploración descontrolados.
 
 El implementador no debe simular el agente con un contexto fijo ni darle shell irrestricto por defecto; el diseño anterior es la resolución definitiva, pendiente de implementación.
 
-Para HU27/HU28, la trayectoria JSON existente debe migrar a la forma normalizada y consultable de `011-context-traces`: hashes, rangos, snippets, truncamiento, resultados vacíos/errores y archivos descubiertos paginables. Las métricas agregadas se conservan.
+Para HU15/HU17, la trayectoria observable se expone en la forma normalizada y consultable de `011-context-traces`: hashes, rangos, snippets, truncamiento, resultados vacíos/errores y archivos descubiertos paginables. Las métricas agregadas se conservan.
 
 ## Fuera de alcance
 

@@ -1,9 +1,9 @@
 # 011-context-traces — Especificación
 
-**Estado:** implementado y revisado en T-004; suites unitarias y e2e aprobadas el 2026-09-24.
-**Historias:** HU27, HU28
+**Estado:** capacidad implementada con evidencia histórica en Git y `harness/reports/`; la aceptación de HU15/HU17 requiere sus criterios vigentes.
+**Historias:** HU15, HU17
 
-> **Nota SDD 2.1:** la variante de traza sobre `test-runs` (generación manual) queda retirada (`CHANGELOG.md`); `GET /experiments/{id}/context-traces` permanece vigente para HU27/HU28 sobre Experiments.
+`GET /experiments/{id}/context-traces` es la ruta vigente para HU17. La futura traza completa de `AnalysisRun` se vincula a HU15 solo cuando su contrato esté definido.
 
 ## Objetivo
 
@@ -11,19 +11,19 @@ Persistir y exponer evidencia navegable de cómo se adquirió el contexto de una
 
 ## Reglas y comportamiento
 
-- Cada traza pertenece a una `ProjectVersion` inmutable, un `TestTarget` y una repetición de `ExperimentRun`; no se origina en `TestGenerationRun`. La ruta de generación manual y su variante de trazas quedaron retiradas en SDD 2.1.
+- Cada traza experimental pertenece a una `ProjectVersion` inmutable, un target interno y una repetición de `ExperimentRun`; no constituye una traza operativa completa del `AnalysisRun`.
 - Cada repetición produce una traza `RAG` o `AGENT`, según su estrategia. Un experimento tiene hasta seis trazas: tres repeticiones por cada estrategia.
 - Los listados devuelven solo el intento vigente por defecto; `includeSuperseded=true` permite auditar intentos anteriores cuando existan.
 - La entrada principal lista las trazas del experimento y permite filtrar por estrategia y repetición. El contrato conserva `testRunId` y `artifactIds` por compatibilidad de DTO: para las trazas vigentes de Experiments, `testRunId` es `null` y `artifactIds` es una lista vacía.
 
-### Contexto RAG — HU27
+### Contexto RAG experimental
 
 - Conservar el target raíz y todos los candidatos recuperados después de deduplicar por `chunkId`, incluidos seleccionados y descartados.
 - Cada candidato registra señales `SEMANTIC`, `IMPORTS` o `IMPORTED_BY`, score semántico nullable, relación estructural nullable, score combinado, ranking, tokens y configuración efectiva de `ContextBuilder`.
 - La decisión es `SELECTED` o `DISCARDED`. Un descarte declara exactamente `BELOW_MINIMUM_SCORE`, `TOP_K_LIMIT` o `TOKEN_BUDGET`; no se inventa una causa que el algoritmo no observó.
 - El score explica el ranking configurado y no se presenta como probabilidad, confianza científica o prueba causal.
 
-### Exploración del agente — HU28
+### Exploración experimental del agente
 
 - Conservar la secuencia cronológica observable de `list_files`, `search_text`, `inspect_symbol` y `read_file`, con número de paso, argumentos, estado, resumen, hash, truncamiento y observaciones normalizadas.
 - `list_files` persiste el conjunto descubierto, pero el contrato principal devuelve solo el total; las rutas se consultan paginadas mediante “Mostrar descubiertos”.
@@ -43,6 +43,6 @@ Las tres rutas y DTOs son los de `INTEROP-2.4`, sección 6.7: listado desde Expe
 ## Fuera de alcance
 
 - Visualizar razonamiento interno, mensajes ocultos del modelo o influencia causal.
-- Exponer trazas desde `test-runs`, `TestGenerationRun` o artefactos de generación manual, retirados en SDD 2.1.
+- Inferir trazas operativas completas del `AnalysisRun` sin un contrato y evidencia de captura aprobados.
 - Reemplazar las métricas experimentales agregadas; las trazas las complementan.
 - Hacer test-aware retrieval mientras `DEC-RAG-001` permanezca `PENDING`.

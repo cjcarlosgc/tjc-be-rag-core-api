@@ -1,14 +1,5 @@
-# 001-project-management — Tareas
+# 001-project-management — Subtareas vigentes
 
-- [x] Definir modelo Project y DTO de creación.
-- [x] Implementar servicio/repositorio.
-- [x] Implementar endpoints mínimos de creación/consulta.
-- [x] Probar currentVersionId y errores 404.
+No hay una subtarea técnica seleccionable en este archivo para SDD 3.0. El comportamiento vigente está en `spec.md` y `plan.md`; la ejecución futura requiere una ST local y un WI registrado antes de comenzar.
 
-## Calidad
-
-- [x] Agregar/actualizar pruebas.
-- [x] Verificar manejo de errores.
-- [x] Verificar observabilidad mínima.
-- [x] Ejecutar lint/test/build.
-- [x] Registrar evidencia de revisión en `harness/reports/`.
+Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

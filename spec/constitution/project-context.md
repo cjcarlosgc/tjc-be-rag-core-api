@@ -1,11 +1,11 @@
 # Contexto operativo del proyecto
 
-**Estado:** APROBADO — SDD 2.1
+**Estado:** transición aprobada Core/Console; homologación Sandbox pendiente
 **Alcance:** frontera de contexto para especificación, implementación y revisión.
 
 ## Identidad
 
-`tjc-be-rag-core-api` es el backend principal de RAG Test Studio. Coordina GitHub Integration, conocimiento de código/funcional, generación, validación, jobs, métricas y publicación; el código fuente vive exclusivamente en `app/`.
+`tjc-be-rag-core-api` es el backend de dominio de RAG Test Studio. Coordina conocimiento de código/funcional, generación, validación, jobs y métricas; el código fuente vive exclusivamente en `app/`. La interacción directa con GitHub se trasladará por cortes a `tjc-be-github-integration-api`, propietario futuro de SDK, App, webhooks, discovery, repositorios, Checks y publicación. Hasta terminar el traslado, el código GitHub existente en Core es deuda de migración, no la topología objetivo.
 
 ## Núcleo del producto
 
@@ -27,10 +27,10 @@ El producto valida changesets de Pull Requests mediante RAG semántico-estructur
 
 - Contrato compartido: `spec/contracts/system-contract.md`.
 - Transporte/DTOs/estados: `spec/contracts/interoperability-contract.md`.
-- Re-baseline: `spec/backlog.md` y `spec/backlog-migration-sdd-2.0.md`.
+- Planificación vigente: `spec/backlog.md`, `spec/operational-cases.md`, `spec/constitution/planning-model.md` y `harness/work-items.json`.
 - Comportamiento Core: `spec/features/013-pr-driven-analysis/` y specs transversales.
 - Historia: `CHANGELOG.md`.
 
 ## Contexto excluido
 
-No se incorporan personas, reuniones, cronogramas académicos, bibliografía, marco teórico ni handoffs antiguos. El único insumo externo de T-001 es el handoff final contrastado con la spec; solo sus decisiones funcionales aprobadas se consolidan.
+No se incorporan personas, reuniones, cronogramas académicos, bibliografía, marco teórico ni handoffs antiguos. Un insumo externo solo se consolida tras contrastarlo con la spec y confirmar sus decisiones funcionales con el usuario.

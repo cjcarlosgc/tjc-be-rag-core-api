@@ -1,33 +1,28 @@
-# Roadmap SDD 2.0
+# Roadmap de Core
 
-## Baseline histórica
+La planificación de producto conserva las seis épicas y 18 HU fijas de `spec/backlog.md`. Los sprints S1–S4 son referencias para conversar con la planificación de la tesis, no certifican que la implementación o aceptación ya ocurrió. La ejecución real se selecciona por subtareas y work items locales con dependencias explícitas.
 
-SDD 1.16 y HU01-HU29 conservan la historia de la primera arquitectura. Sus capacidades se reevalúan en `spec/backlog-migration-sdd-2.0.md`; no determinan la prioridad por inercia.
+| Sprint de referencia | Objetivo de producto | HU | Incremento esperado |
+| --- | --- | --- | --- |
+| S1 | Representar un repositorio vinculado de manera semántico-estructural. | HU01–HU04 | Proyecto, binding, snapshot por commit, índice y tests existentes. |
+| S2 | Generar y validar pruebas con contexto técnico. | HU05, HU10–HU12 | Retrieval, Context Builder, generación, Sandbox y evidencia. |
+| S3 | Analizar cambios de PR con conocimiento funcional cuando haga falta. | HU06–HU08, HU13–HU14 | AnalysisRun, impacto, Action Required, clasificación y Check. |
+| S4 | Consolidar operación y evaluación reproducible. | HU09, HU15–HU18 | Trace, publicación controlada y comparación experimental. |
 
-## Frontend — mock-first
+## Cortes de transición actuales
 
-1. Migrar Developer Console a control plane con Projects, Runs, Action Required, Focus Mode e Integrations/GitHub.
-2. Demostrar nueve escenarios SDD 2.0 mediante fixtures INTEROP-2.1 señalizados como demo.
-3. Revisar UX/arquitectura y sustituir adapters mock por live progresivamente.
+1. `WI-CORE-001` (P0, cerrado localmente): reordenar SDD/Harness, IDs, estados, gates y contratos sin asumir aceptación de HU antiguas.
+2. `WI-CORE-002` (P0, después del 001): retirar carga manual de código ZIP y descarga legacy de artefactos. Conservar snapshot ZIP interno y datos activos; migración/purga solo con inventario y respaldo.
+3. `WI-CORE-003` (P1, después de 001/002): establecer la frontera con `tjc-be-github-integration-api`. Trasladar allí SDK e implementación GitHub desde Core por cortes verificables.
+4. `WI-CORE-004` (P2): formalizar OC01–OC15, happy paths primero y subcasos después. El catálogo de nombres no equivale a cobertura validada.
 
-## Core — implementación real
+## Backlog técnico P2, no seleccionado
 
-1. Milestone A: AnalysisRun/state model, repository binding y Functional Knowledge.
-2. Milestone B: GitHub App, webhooks verificados, normalization e idempotencia.
-3. Milestone C: snapshot SHA, CHANGESET/INDEX DELTA, changed/impacted symbols.
-4. Milestone D: functional retrieval, ACTION_REQUIRED y continuation jobs.
-5. Milestone E: adapters PHP/Laravel/PHPUnit.
-6. Milestone F: Checks, review/freshness y companion PR.
+- `WI-CORE-005`: HNSW y reindexación controlada (HU03/HU05); inventario de datos antes de cualquier migración.
+- `WI-CORE-006`: trazabilidad de candidatos RAG descartados (HU05/HU15/HU17).
+- `WI-CORE-007`: diagnóstico persistido de fallos experimentales (HU12/HU17).
+- `WI-CORE-008`: verificación organizacional y Contract Sync de implementación (HU01/HU02/HU14), sin implicar despliegue autorizado.
 
-## Sandbox — implementación real
+Estos cortes proceden del triage de casillas antiguas, no se ejecutan automáticamente y pueden repriorizarse sin abrir nuevas HU. Las propuestas condicionales quedan en `spec/ideas.md`.
 
-1. Preservar aislamiento y profile Node/TypeScript.
-2. Adoptar INTEROP-2.1 y abstracción de execution profiles.
-3. Implementar PHP, Composer, materialización Laravel-compatible y PHPUnit.
-4. Normalizar evidence PHP y verificar integración real con Core.
-
-## Puertas posteriores
-
-Mutation testing (`DEC-MET-001`), VM remota (`DEC-INF-001`), validación empresarial (`DEC-VAL-001`) y paridad de Functional Knowledge en el experimento (`DEC-EXP-FK-001`) se resuelven solo antes del trabajo que bloquean.
-
-No se inicia automáticamente ningún work item posterior hasta revisión humana de T-001/SDD 2.0.
+Los WIs de componentes distintos pueden avanzar en paralelo si `dependsOn` y los contratos lo permiten; el Harness actual admite solo un WI activo por repositorio y sí permite agentes paralelos dentro de ese WI. No se abren nuevas épicas/HU por defecto. Mutation testing se descartó para este alcance. Sandbox conserva su SDD/Harness actual mientras el compañero implementa PHP; se homologará en un corte posterior coordinado.

@@ -1,7 +1,7 @@
 # 013 — Análisis PR-driven y contexto funcional
 
 **Estado:** APROBADO
-**Story IDs:** HU30-HU36, HU39-HU42
+**Story IDs:** HU02, HU06-HU09, HU13-HU16
 **Contrato:** SYSTEM-2.4 / INTEROP-2.4
 
 ## Objetivo
@@ -17,7 +17,7 @@ RAG Core recibe eventos de una GitHub App para repositorios vinculados, crea un 
 - `CHANGESET` define qué validar; `INDEX DELTA` define qué reindexar.
 - Un repositorio (`repositoryId`) pertenece a lo sumo a un Project con binding. Vincularlo a un segundo Project es `409 REPOSITORY_ALREADY_BOUND`, nunca `500`, y no revela al Project ajeno.
 - Desconectar es una pausa (`DISABLED`, reversible con `POST .../enable`); `REVOKED` nunca se degrada a `DISABLED` y solo sale de `REVOKED` por reactivación explícita del usuario cuando Core revalida que la App recuperó acceso. `installation.unsuspend` solo rehabilita lo que la suspensión deshabilitó, no lo pausado por el usuario.
-- Eliminar un Project es lógico (HU56): libera el binding, cancela u obsoleta Runs y jobs en curso y oculta todo por API; el Run de un Project borrado, o cuyo `repositoryId` hoy pertenece a otro Project, no se procesa ni publica (Checks, publicaciones, validación, snapshot).
+- Eliminar un Project es lógico: libera el binding, cancela u obsoleta Runs y jobs en curso y oculta todo por API; el Run de un Project borrado, o cuyo `repositoryId` hoy pertenece a otro Project, no se procesa ni publica (Checks, publicaciones, validación, snapshot).
 - Solo el Run vigente publica Check vigente. La merge policy pertenece al repositorio.
 - `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD.
 - `UNKNOWN`/No lo sé no crea `FunctionalKnowledge ACTIVE`.
@@ -69,23 +69,9 @@ En `SUCCESS`, Core expone propuestas para revisión. Al solicitar publicación:
 
 Propuestas de un mismatch quedan `HELD`. El companion PR no dispara el pipeline principal porque su base no es `integrationBranch`; al mergearse en la feature branch, el PR original recibe `synchronize` y se revalida.
 
-## Casos operativos obligatorios
+## Casos operativos
 
-1. Cambio sin tests y sin pregunta funcional: bootstrap/incremental, generación, Sandbox y `SUCCESS`.
-2. Cambio con tests existentes: ejecutar baseline antes de propuestas nuevas.
-3. Tests existentes suficientes: `NO_ADDITIONAL_TESTS_REQUIRED` sin duplicados.
-4. Falta contexto funcional: `ACTION_REQUIRED`, Check y Focus Mode.
-5. Respuesta humana revela inconsistencia: `BEHAVIORAL_MISMATCH` con expected/observed.
-6. Corrección + `synchronize`: Run viejo `OBSOLETE`, Run nuevo reutiliza conocimiento válido.
-7. Inconsistencia detectable sin humano: mismatch con regla ACTIVE recuperada.
-8. Prueba generada inválida: `TECHNICAL_GENERATION_FAILURE`.
-9. Baseline ya rojo: `BASELINE_FAILED`, sin atribuirlo a la propuesta.
-10. Primer análisis de repo grande: `BOOTSTRAP` suficiente aunque el diff sea pequeño.
-11. PR grande: filtrar símbolos, analizar impacto y dividir en batches según política configurable.
-12. Solo docs/comments/format: `NO_TEST_RELEVANT_CHANGES`.
-13. Impacto indirecto: incluir `POTENTIALLY_IMPACTED` con relación trazable.
-14. Regla funcional desactualizada: solicitar decisión; superseder, no sobrescribir.
-15. Nuevo HEAD durante espera humana: Run/pregunta viejos `OBSOLETE`, nueva evaluación.
+OC01–OC15 se catalogan en `spec/operational-cases.md` con prioridad P2 de formalización. Los títulos no declaran automáticamente subcasos implementados: cada happy path, edge case y prueba se vinculará aquí o a la feature dueña mediante `WI-CORE-004`. Hasta entonces, el contrato vigente es el comportamiento explícito de esta spec y de INTEROP-2.4, no una promesa de cobertura total de los quince escenarios.
 
 ## Seguridad y auditoría
 
@@ -94,9 +80,8 @@ Verificar firma sobre body crudo, estado de instalación/binding y mínimo privi
 ## Fuera de alcance inicial
 
 - soporte completo de fork PR;
-- RBAC propio: los roles Admin/Maintainer/Reader se derivan de GitHub y viven en `014-organizations-access` (HU58-HU64);
-- Mutation Score obligatorio;
+- RBAC propio: los roles Admin/Maintainer/Reader se derivan de GitHub y viven en `014-organizations-access` como capacidad de apoyo a HU01/HU02;
 - proveedor remoto del Sandbox;
-- integración GitHub real o PHP completo dentro de T-001.
+- integración GitHub real hasta completar la separación hacia el cuarto componente, ni PHP completo mientras Sandbox siga bajo desarrollo paralelo.
 
-`DEC-MET-001`, `DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` conservan sus blocks acotados y no bloquean esta baseline documental.
+`DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` conservan sus blocks acotados y no bloquean esta baseline documental.

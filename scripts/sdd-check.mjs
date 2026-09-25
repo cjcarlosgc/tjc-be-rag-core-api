@@ -8,15 +8,17 @@ const required = ['AGENTS.md','README.md','CHANGELOG.md','spec/README.md','spec/
 for (const f of required) if (!existsSync(join(root,f))) errors.push(`Falta ${f}`);
 let state=null; try { state=JSON.parse(readFileSync(join(root,'harness/state.json'),'utf8')); } catch(e){ errors.push(`state.json inválido: ${e.message}`); }
 if(state){
-  const allowed=['SELECTED','SPEC_VERIFIED','AWAITING_APPROVAL','IN_PROGRESS','IN_REVIEW','BLOCKED','DECISION_REQUIRED','DONE'];
-  if(state.schemaVersion!==3) errors.push('schemaVersion no soportado');
+  if(state.sddVersion!=='3.0') errors.push('Core/Console requiere sddVersion 3.0');
+  if(state.planningBaseline!=='2026-09-24-core-console-transition') errors.push('falta la marca de homologación Sandbox pendiente');
+  const allowed=['W-PLANNED','W-READY','W-SELECTED','W-SPEC_VERIFIED','W-AWAITING_APPROVAL','W-IN_PROGRESS','W-IN_REVIEW','W-DONE','W-BLOCKED','W-DECISION_REQUIRED','W-CANCELLED'];
+  if(state.schemaVersion!==4) errors.push('schemaVersion no soportado');
   const item=state.activeWorkItem;
   if(item){
     if(!Array.isArray(item.storyIds)||item.storyIds.length===0) errors.push('activeWorkItem requiere storyIds');
     if(!item.sprint) errors.push('activeWorkItem requiere sprint');
     if(!allowed.includes(item.status)) errors.push('status no permitido');
     for(const p of [...(item.specPaths||[]),...(item.transversalPaths||[])]) if(!existsSync(join(root,p))) errors.push(`Referencia inexistente: ${p}`);
-    if(['IN_PROGRESS','IN_REVIEW','DONE'].includes(item.status)&&item.approved!==true) errors.push(`${item.status} requiere approved=true`);
+    if(['W-IN_PROGRESS','W-IN_REVIEW','W-DONE'].includes(item.status)&&item.approved!==true) errors.push(`${item.status} requiere approved=true`);
     const gate=item.decisionGate;
     if(!gate) errors.push('activeWorkItem requiere decisionGate');
     else {
@@ -24,11 +26,11 @@ if(state){
       const hasNonBlockingDecisionIds=Array.isArray(gate.nonBlockingDecisionIds);
       const blockingDecisionIds=hasBlockingDecisionIds?gate.blockingDecisionIds:[];
       if(!hasBlockingDecisionIds||!hasNonBlockingDecisionIds) errors.push('decisionGate requiere listas de IDs');
-      if(['SPEC_VERIFIED','AWAITING_APPROVAL','IN_PROGRESS','IN_REVIEW','DONE'].includes(item.status)){
+      if(['W-SPEC_VERIFIED','W-AWAITING_APPROVAL','W-IN_PROGRESS','W-IN_REVIEW','W-DONE'].includes(item.status)){
         if(gate.checked!==true||!gate.checkedAt) errors.push(`${item.status} requiere decisionGate verificado`);
         if(blockingDecisionIds.length>0) errors.push(`${item.status} no admite decisiones bloqueantes`);
       }
-      if(blockingDecisionIds.length>0&&(item.status!=='BLOCKED'||!item.blockedReason)) errors.push('decisiones bloqueantes requieren estado BLOCKED y blockedReason');
+      if(blockingDecisionIds.length>0&&(!['W-BLOCKED','W-DECISION_REQUIRED'].includes(item.status)||!item.blockedReason)) errors.push('decisiones bloqueantes requieren W-BLOCKED o W-DECISION_REQUIRED y blockedReason');
     }
   }
 }

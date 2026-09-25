@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "component": "CORE",
+  "workItems": [
+    {
+      "id": "WI-CORE-001",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "priority": "P0",
+      "sprint": "Transition",
+      "title": "Alinear SDD y Harness",
+      "storyIds": [
+        "HU01",
+        "HU02",
+        "HU03",
+        "HU04",
+        "HU05",
+        "HU06",
+        "HU07",
+        "HU08",
+        "HU09",
+        "HU10",
+        "HU11",
+        "HU12",
+        "HU13",
+        "HU14",
+        "HU15",
+        "HU16",
+        "HU17",
+        "HU18"
+      ],
+      "taskIds": [
+        "ST-CORE-001"
+      ],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": ["*"],
+      "deferredSyncIds": ["CS-20260920-001", "CS-20260921-003"],
+      "deferredSyncDigests": {
+        "CS-20260920-001": "0afa745edf954a9ba9cf56f58b1150da46ad52aa8cc7f625f854565a5de82d5b",
+        "CS-20260921-003": "662d7c9bd8e2aa32dc3c7a1ad300f48fe11612c0ca6ab8d44146f519603ebcb4"
+      },
+      "deferredSyncReport": "harness/reports/legacy-contract-sync-triage-3.0.md",
+      "specPaths": [
+        "spec/features/015-sdd-harness-transition/spec.md",
+        "spec/features/015-sdd-harness-transition/plan.md",
+        "spec/features/015-sdd-harness-transition/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-002",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P0",
+      "sprint": "Transition",
+      "title": "Retirar flujos legacy",
+      "storyIds": [
+        "HU01",
+        "HU03",
+        "HU10",
+        "HU12"
+      ],
+      "taskIds": [
+        "ST-CORE-002"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-001"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Este WI retira carga manual de ZIP y descargas legacy; el evento trata creación, pausa, reactivación y baja de RepositoryBinding/Project, que permanecen vigentes.",
+          "report": "harness/reports/contract-sync-relevance-wi002-3.0.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Este WI no cambia identidad GitHub, despliegue del bundle A ni verificación organizacional; sus acciones externas siguen pendientes para sus WIs de despliegue.",
+          "report": "harness/reports/contract-sync-relevance-wi002-3.0.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-003",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "Post-transition",
+      "title": "Separar GitHub Integration",
+      "storyIds": [
+        "HU02",
+        "HU14",
+        "HU16"
+      ],
+      "taskIds": [
+        "ST-CORE-003"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-001",
+        "WI-CORE-002"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "specPaths": [
+        "spec/features/015-sdd-harness-transition/spec.md",
+        "spec/features/015-sdd-harness-transition/plan.md",
+        "spec/features/015-sdd-harness-transition/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-004",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Formalizar casos operativos",
+      "storyIds": [
+        "HU03",
+        "HU04",
+        "HU05",
+        "HU06",
+        "HU07",
+        "HU08",
+        "HU09",
+        "HU10",
+        "HU11",
+        "HU12",
+        "HU13",
+        "HU14",
+        "HU15",
+        "HU16"
+      ],
+      "taskIds": [
+        "ST-CORE-004"
+      ],
+      "caseIds": [
+        "OC01",
+        "OC02",
+        "OC03",
+        "OC04",
+        "OC05",
+        "OC06",
+        "OC07",
+        "OC08",
+        "OC09",
+        "OC10",
+        "OC11",
+        "OC12",
+        "OC13",
+        "OC14",
+        "OC15"
+      ],
+      "dependsOn": [
+        "WI-CORE-001"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "specPaths": [
+        "spec/features/015-sdd-harness-transition/spec.md",
+        "spec/features/015-sdd-harness-transition/plan.md",
+        "spec/features/015-sdd-harness-transition/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-005", "component": "CORE", "workItemType": "PRODUCT", "status": "W-PLANNED",
+      "priority": "P2", "sprint": "P2", "title": "Optimizar índice vectorial y reindexación controlada",
+      "storyIds": ["HU03", "HU05"], "taskIds": ["ST-CORE-005"], "caseIds": [],
+      "dependsOn": ["WI-CORE-001"], "contractImpact": false, "publishesContract": false,
+      "specPaths": ["spec/features/002-project-version-indexing/spec.md", "spec/features/002-project-version-indexing/plan.md", "spec/features/002-project-version-indexing/tasks.md", "spec/transversal/persistence/spec.md"]
+    },
+    {
+      "id": "WI-CORE-006", "component": "CORE", "workItemType": "PRODUCT", "status": "W-PLANNED",
+      "priority": "P2", "sprint": "P2", "title": "Trazar decisiones de candidatos RAG",
+      "storyIds": ["HU05", "HU15", "HU17"], "taskIds": ["ST-CORE-006"], "caseIds": [],
+      "dependsOn": ["WI-CORE-001"], "contractImpact": true, "publishesContract": true,
+      "specPaths": ["spec/features/004-rag-retrieval-context/spec.md", "spec/features/004-rag-retrieval-context/plan.md", "spec/features/004-rag-retrieval-context/tasks.md", "spec/features/011-context-traces/spec.md"]
+    },
+    {
+      "id": "WI-CORE-007", "component": "CORE", "workItemType": "PRODUCT", "status": "W-PLANNED",
+      "priority": "P2", "sprint": "P2", "title": "Persistir diagnóstico detallado de fallos experimentales",
+      "storyIds": ["HU12", "HU17"], "taskIds": ["ST-CORE-007"], "caseIds": [],
+      "dependsOn": ["WI-CORE-001"], "contractImpact": true, "publishesContract": true,
+      "specPaths": ["spec/features/008-experimental-comparison/spec.md", "spec/features/008-experimental-comparison/plan.md", "spec/features/008-experimental-comparison/tasks.md", "spec/transversal/persistence/spec.md"]
+    },
+    {
+      "id": "WI-CORE-008", "component": "CORE", "workItemType": "PRODUCT", "status": "W-PLANNED",
+      "priority": "P2", "sprint": "P2", "title": "Verificar despliegue organizacional y sincronización contractual",
+      "storyIds": ["HU01", "HU02", "HU14"], "taskIds": ["ST-CORE-008"], "caseIds": [],
+      "dependsOn": ["WI-CORE-001"], "contractImpact": true, "publishesContract": true,
+      "specPaths": ["spec/features/014-organizations-access/spec.md", "spec/features/014-organizations-access/plan.md", "spec/features/014-organizations-access/tasks.md"]
+    }
+  ]
+}

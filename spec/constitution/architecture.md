@@ -1,4 +1,4 @@
-# Arquitectura SDD 2.0
+# Arquitectura objetivo de cuatro componentes
 
 **Contratos compartidos:** SYSTEM-2.4 / INTEROP-2.4
 **Estado:** aprobado con decisiones `PENDING` explícitas
@@ -6,16 +6,17 @@
 ## Topología
 
 ```text
-GitHub -> GitHub App -> RAG Core -> Test Execution Sandbox
-                           ^
-                           |
-                    Developer Console
-                           |
-                     Supabase Auth
+GitHub <-> GitHub Integration API <-> RAG Core API <-> Test Execution Sandbox
+                                      ^
+                                      |
+                              Developer Console
+                                      |
+                                Supabase Auth
 ```
 
-- Console consume Core para dominio y usa Supabase Auth solo para identidad de persona.
-- Core integra GitHub, persiste dominio/conocimiento, construye contexto, genera, orquesta y clasifica.
+- GitHub Integration API (`tjc-be-github-integration-api`) posee toda interacción con GitHub: App, webhooks, installation tokens, discovery, repositorios, ramas, snapshots por commit, Checks y companion PR. Conserva SDK y código extraído de Core. Su contrato con Core se especifica antes del traslado.
+- Console consume Core para dominio y usa Supabase Auth para identidad de persona; no automatiza GitHub directamente.
+- Core persiste dominio/conocimiento, construye contexto, genera, orquesta y clasifica. Durante la migración todavía contiene código GitHub; ese estado no define la frontera final.
 - Sandbox materializa snapshots/artifacts, ejecuta el profile solicitado y devuelve evidencia neutral.
 
 ## Flujo principal
@@ -32,7 +33,7 @@ PR event -> binding -> AnalysisRun(PR, HEAD) -> PR_ANALYSIS job
 
 ## Fronteras de Core
 
-- GitHub Integration: instalación/revocación, binding, webhooks, normalización, idempotencia, Checks y branches/PR.
+- Frontera GitHub Integration: Core mantiene Project, autorización de dominio, AnalysisRun y decisiones del pipeline; delega operaciones GitHub mediante contrato versionado sin portar SDK ni credenciales de App al final de la extracción.
 - Analysis domain: PR/HEAD lifecycle, Run vs Attempt, states y auditoría.
 - Snapshot/changeset: bootstrap/incremental, CHANGESET vs INDEX DELTA, changed/impacted symbols.
 - Knowledge: retrieval semántico/estructural, Functional Knowledge versionado, existing test context y Context Builder.
@@ -52,4 +53,4 @@ Core usa adapters de lenguaje y framework de tests. `NODE_TYPESCRIPT` preserva t
 
 ## Compatibilidad
 
-Los componentes de ingestión, indexación, generación, validación y artefactos se conservan solo como capacidades reutilizables dentro del flujo PR-driven; no mantienen rutas, DTOs, mocks ni adapters de producto independientes. La experiencia mock GitHub de login/importación está retirada. INTEROP-2.2 es la única autoridad para nuevos adapters y fixtures.
+Los componentes de ingestión, indexación, generación y validación se conservan solo como capacidades reutilizables dentro del flujo PR-driven. No hay ruta de carga manual ZIP ni descarga agrupada de artefactos; el snapshot ZIP interno que Docker/Sandbox recupera permanece. La experiencia mock GitHub de login/importación está retirada. INTEROP-2.4 es la autoridad de transporte vigente hasta que se apruebe el contrato del cuarto componente.

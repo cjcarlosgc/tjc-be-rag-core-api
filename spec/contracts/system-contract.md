@@ -5,9 +5,9 @@
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
-Developer Console y Test Execution Sandbox conservan una copia espejo byte por byte. Una spec local puede detallar la implementación de su componente, pero no redefinir este contrato.
+Core y Console preparan la frontera de un cuarto componente durante `planningBaseline: 2026-09-24-core-console-transition`. Sandbox conserva por ahora la copia operativa SYSTEM-2.4 sin editarla. Una spec local no redefine rutas o DTOs; el nuevo contrato de servicio se aprobará y versionará antes de extraer código.
 
-## Arquitectura objetivo
+## Arquitectura operativa vigente y transición aprobada
 
 RAG Test Studio adopta un flujo PR-driven. La unidad operativa principal es un `CHANGESET` asociado al HEAD de un Pull Request, no una selección manual `METHOD|CLASS|PROJECT` iniciada obligatoriamente desde la Console.
 
@@ -27,7 +27,7 @@ developer and/or coding agent
 ```
 
 - Developer Console es el control plane, workspace human-in-the-loop y superficie de revisión/trazabilidad. No es un launcher obligatorio.
-- RAG Core contiene inicialmente GitHub Integration, dominio, RAG, Functional Knowledge, generación, jobs, orquestación, métricas y publicación de resultados. No se crea un cuarto microservicio por defecto.
+- RAG Core todavía contiene GitHub Integration junto con dominio, RAG, Functional Knowledge, generación, jobs, orquestación, métricas y publicación. Se aprobó trasladar **toda** interacción GitHub, SDK incluido, a `tjc-be-github-integration-api`, repositorio hermano. Este traslado no es todavía un contrato HTTP desplegado: `WI-CORE-003` definirá llamadas, autenticación, idempotencia y ownership antes de mover código. Core conservará dominio, decisiones de análisis y orquestación; Console seguirá consumiendo Core para dominio.
 - Test Execution Sandbox ejecuta perfiles aislados y devuelve hechos. Permanece ciego a GitHub, OAuth, usuarios, RAG, reglas funcionales, estrategia experimental y conclusiones de negocio.
 - PostgreSQL + pgvector, Supabase Storage, jobs DB-backed y containers efímeros permanecen vigentes. No se incorporan Redis, RabbitMQ o Kafka sin una decisión posterior.
 
@@ -35,7 +35,7 @@ developer and/or coding agent
 
 Son fronteras independientes:
 
-1. **Login:** solo GitHub OAuth mediante Supabase Auth produce un `PlatformUser` (`DEC-ORG-001`, HU62; el correo y la contraseña se retiran). Google OAuth queda fuera de alcance.
+1. **Login:** solo GitHub OAuth mediante Supabase Auth produce un `PlatformUser` (`DEC-ORG-001`, HU01/HU02; el correo y la contraseña se retiran). Google OAuth queda fuera de alcance.
 2. **Automatización de repositorio:** una GitHub App administra instalaciones, repositorios autorizados, webhooks, Checks y, cuando se habilite, ramas/PR.
 
 GitHub OAuth permite únicamente descubrir los repositorios visibles para la persona autenticada; no autoriza automatización, snapshots, Checks ni publicación. `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son conceptos independientes. No se implementa linking propio por coincidencia de correo; se admite únicamente el linking seguro que Supabase Auth aplique a identidades con correo verificado y configuración explícita. El actor de GitHub es metadata y no autoridad automática dentro de un Project.
@@ -51,13 +51,13 @@ Los permisos de la GitHub App aplican mínimo privilegio:
 
 Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console usa el token OAuth GitHub del usuario, transportado solo para ese descubrimiento, para listar repositorios visibles. Al seleccionar uno, Core se autentica como GitHub App y consulta directamente la instalación que tiene acceso al repositorio. La ausencia de acceso es `NOT_AUTHORIZED`, un resultado de producto que ofrece la URL de configuración centralizada de la App; no se enumeran instalaciones ni se infiere acceso desde OAuth.
 
-El repositorio debe pertenecer al workspace del Project y el usuario debe tener permiso `maintain`/`write`/`admin` sobre él (`DEC-ORG-001`, HU64; ver "Workspaces, roles y acceso"). Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU31): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core revalida que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
+El repositorio debe pertenecer al workspace del Project y el usuario debe tener permiso `maintain`/`write`/`admin` sobre él (`DEC-ORG-001`, HU02; ver "Workspaces, roles y acceso"). Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU14): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core revalida que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
 
 Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la API (sin restauración): el Project y todo lo que cuelga de él dejan de ser visibles, se libera su binding para que el repositorio pueda vincularse a otro Project, y los Runs y jobs en curso se cancelan u obsoletan. Runs, versiones y Functional Knowledge se conservan como evidencia, sin exposición por la API. Un webhook de un repositorio sin binding se ignora.
 
 ## Workspaces, roles y acceso
 
-Consolida `DEC-ORG-001` (HU58-HU64); el detalle normativo de rutas, DTOs, errores y eventos vive en `INTEROP-2.4` §6.13 y §6.9.
+Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo de rutas, DTOs, errores y eventos vive en `INTEROP-2.4` §6.13 y §6.9.
 
 - Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. Un Project personal solo lo ve su creador, que es siempre su Admin y no tiene registro de acceso; solo se comparte mediante organizaciones. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y, para Projects de organización, un registro de acceso `(projectId, userId, rol, verifiedAt)`.
 - Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Reader (en una organización, Maintainer y Reader exigen además ser miembro activo de ella): Reader solo consulta; Maintainer opera el día a día (binding, preguntas funcionales, publicaciones, experimentos); Admin, además, crea, renombra y elimina Projects. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.4` §6.13.
@@ -92,7 +92,7 @@ Un `AnalysisRun` valida un HEAD concreto de un PR concreto. Su identidad concept
 
 Un Run no es un Job/Attempt. Reintentos técnicos y continuaciones pertenecen al mismo Run mientras el HEAD no cambie. `ACTION_REQUIRED` termina el job actual; una respuesta válida crea un continuation job sobre el mismo Run si el HEAD sigue vigente. Eventos duplicados se deduplican mediante delivery id más repository/PR/head/event/action.
 
-Core conserva un historial append-only de transiciones de status por Run (estado previo, estado nuevo, motivo, timestamp; HU53) para que un usuario autorizado entienda cómo llegó a su estado actual sin inferirlo de los timestamps sueltos; complementa esos timestamps, no los reemplaza.
+Core conserva un historial append-only de transiciones de status por Run (estado previo, estado nuevo, motivo, timestamp; HU12) para que un usuario autorizado entienda cómo llegó a su estado actual sin inferirlo de los timestamps sueltos; complementa esos timestamps, no los reemplaza.
 
 Todo Check pertenece al SHA del Run. Un resultado viejo nunca sobrescribe el Check del HEAD vigente. Core publica conclusión objetiva (`success|failure|action_required|neutral`); la configuración del repositorio decide si el Check es required.
 
@@ -120,7 +120,7 @@ TARGET
 `FunctionalKnowledge` es conocimiento funcional persistente y específico del Project. Core conserva pregunta/respuesta originales, regla normalizada, scope (`PROJECT|MODULE|CLASS|METHOD|SYMBOL`), referencia, fuente, estado (`ACTIVE|SUPERSEDED`), validez/versión, timestamp y embedding cuando corresponda.
 
 - Una regla no se sobrescribe silenciosamente: la anterior pasa a `SUPERSEDED` y la nueva a `ACTIVE`.
-- Antes de persistir una regla nueva, Core detecta si contradice una regla `ACTIVE` vigente en scope compatible y expone el conflicto para decisión humana explícita (`SUPERSEDE` o mantener la vigente) antes de contaminar el conocimiento persistido (HU51); no se resuelve automáticamente.
+- Antes de persistir una regla nueva, Core detecta si contradice una regla `ACTIVE` vigente en scope compatible y expone el conflicto para decisión humana explícita (`SUPERSEDE` o mantener la vigente) antes de contaminar el conocimiento persistido (HU09); no se resuelve automáticamente.
 - `No lo sé` puede registrarse como evidencia de pregunta, pero no crea una regla autoritativa `ACTIVE`.
 - Si falta conocimiento relevante, el Run pasa a `ACTION_REQUIRED`, no `ERROR`; el job termina y no deja runners esperando.
 - Si una regla vigente contradice un cambio, Core solicita decisión humana o clasifica con evidencia; no concluye automáticamente que el código está mal.
@@ -140,7 +140,7 @@ Antes de atribuir una falla a pruebas generadas, se ejecuta el baseline relevant
 - Docker/red/storage/worker/runtime de plataforma -> `INFRASTRUCTURE_FAILURE`;
 - validación correcta -> `SUCCESS`.
 
-No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU48) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
+No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU17) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
 
 ## Publicación human-in-the-loop
 
@@ -175,12 +175,11 @@ NO_TEST_RELEVANT_CHANGES
 OBSOLETE
 ```
 
-## Compatibilidad y legado
+## Demo y alcance
 
-- Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
-- El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
-- La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
-- Mocks frontend deben implementar `INTEROP-2.4`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
+- El análisis productivo nace de un `AnalysisRun` asociado a PR/HEAD. El snapshot ZIP que recupera Docker/Sandbox es un detalle interno, no una entrada manual de proyecto.
+- La comparación `RAG` vs `GENERALIST_AGENT` de HU17 usa un `AnalysisRun` y un símbolo elegible compartidos; su adaptación live sigue pendiente de aceptación.
+- Los mocks frontend implementan `INTEROP-2.4`, están señalizados como demo y permanecen detrás de adapters separados de live. No son evidencia científica ni empresarial.
 
 ## Decisiones compartidas
 
@@ -198,7 +197,7 @@ OBSOLETE
 
 **Blocks:** NONE
 
-**Resolución:** Supabase Auth admite únicamente GitHub OAuth (el correo y la contraseña se retiraron por `DEC-ORG-001`, HU62). Core valida el access token y autoriza por Project. Login e instalación GitHub App son independientes; Google OAuth y linking propio por correo quedan fuera de alcance.
+**Resolución:** Supabase Auth admite únicamente GitHub OAuth (el correo y la contraseña se retiraron por `DEC-ORG-001`, HU01/HU02). Core valida el access token y autoriza por Project. Login e instalación GitHub App son independientes; Google OAuth y linking propio por correo quedan fuera de alcance.
 
 ### DEC-INT-001 — Contrato Core<->Sandbox
 
@@ -224,19 +223,11 @@ OBSOLETE
 
 **Resolución:** keys durables y jobs DB-backed existentes se adaptan al lifecycle PR/HEAD. GitHub deliveries y continuaciones tienen identidades estables.
 
-### DEC-MET-001 — Mutation testing
-
-**Estado:** PENDING
-
-**Blocks:** únicamente investigación e implementación de mutation testing; no bloquea T-001 ni el pipeline principal.
-
-**Pregunta:** definir herramientas, stacks, costo y rol metodológico antes de volver Mutation Score una métrica; no es requisito obligatorio en SDD 2.0.
-
 ### DEC-INF-001 — Infraestructura remota del Sandbox
 
 **Estado:** PENDING
 
-**Blocks:** aprovisionamiento remoto; no bloquea desarrollo/prevalidación local ni T-001.
+**Blocks:** aprovisionamiento remoto; no bloquea desarrollo ni prevalidación local.
 
 **Pregunta:** seleccionar proveedor y controles de VM remota sin resolver silenciosamente costo, aislamiento, red o retención.
 
@@ -244,7 +235,7 @@ OBSOLETE
 
 **Estado:** PENDING
 
-**Blocks:** ingestión/despliegue con código empresarial y producción de evidencia empresarial; no bloquea T-001.
+**Blocks:** ingestión/despliegue con código empresarial y producción de evidencia empresarial; no bloquea trabajo con código de demostración autorizado.
 
 **Pregunta:** aprobar autorización organizacional, retención, proveedores externos, protección de código y exportación de evidencia.
 
@@ -252,12 +243,12 @@ OBSOLETE
 
 **Estado:** APROBADO (2026-09-20, por el usuario)
 
-**Blocks:** NONE. No cierra `DEC-VAL-001`. Modifica `DEC-WEB-AUTH-001`: el login pasa a ser solo GitHub (HU62). Lo no probado contra una organización real es criterio de aceptación de los cortes que lo usan y **condición para desplegar**, no para implementar (ver "Precondiciones de despliegue").
+**Blocks:** NONE. No cierra `DEC-VAL-001`. Modifica `DEC-WEB-AUTH-001`: el login pasa a ser solo GitHub (HU01/HU02). Lo no probado contra una organización real es criterio de aceptación de los cortes que lo usan y **condición para desplegar**, no para implementar (ver "Precondiciones de despliegue").
 
 **Resolución:** GitHub es la fuente de verdad de la autorización y Core persiste solo lo necesario para poder revocar por evento.
 
 - **Workspaces:** el home ofrece la cuenta personal (siempre) y cada organización donde la GitHub App está instalada y el usuario es miembro; Core la obtiene listando las instalaciones de la App y verificando la membresía con el token de la App, sin depender del token del usuario ni del scope `read:org`. Una organización aparece cuando alguien instala la App en ella. El "equipo" es la organización; los Teams de GitHub no son workspace y solo aportan permisos de forma indirecta. Un Project guarda su organización (`githubOrgId`, `login`; nulo = personal) porque al crearse aún no tiene repositorio.
-- **Login:** solo GitHub (HU62). La identidad se resuelve por el `githubUserId` numérico que Core obtiene de la Admin API de Supabase con el `sub` del token; nunca de `user_metadata`, que el propio usuario puede editar.
+- **Login:** solo GitHub (HU01/HU02). La identidad se resuelve por el `githubUserId` numérico que Core obtiene de la Admin API de Supabase con el `sub` del token; nunca de `user_metadata`, que el propio usuario puede editar.
 - **Roles (jerarquía Admin ⊃ Maintainer ⊃ Reader):** Admin es solo el owner de la organización (en el workspace personal, quien lo creó) y es además Maintainer; solo Admin crea, renombra y elimina Projects (el borrado sigue siendo lógico). Maintainer es quien tiene permiso `maintain`, `write` o `admin` sobre el repositorio vinculado; opera el día a día (binding, preguntas funcionales, publicación, experimentos). Reader es quien tiene `triage` o `read`: solo consulta.
 - **Visibilidad:** en una organización se ve un Project si se tiene al menos `read` sobre su repositorio vinculado. Un Project sin repositorio solo lo ven los Admin (todos los owners de la organización). Un Project personal solo lo ve su creador. Un recurso no visible responde el mismo `404` que uno inexistente. *Enmienda 2026-09-20 (`DEC-ORG-002`): la versión aprobada decía "también en el workspace personal"; los Projects personales no se comparten con colaboradores, solo se comparte mediante organizaciones, y el registro de acceso existe únicamente para Projects de organización.*
 - **Binding:** un Project tiene un solo repositorio y no se revincula (para otro repositorio se elimina el Project y se crea otro). En una organización solo se ofrecen y aceptan repositorios de esa organización; en el workspace personal, solo los propios. Vincular exige permiso `maintain`/`write` (o `admin`) sobre el repositorio, porque la GitHub App publica con permisos de escritura. Vincular, pausar y reactivar lo hacen Admin y Maintainer; como el Project sin repositorio solo lo ven los Admin, el primer vínculo es de un Admin. Un renombre del repositorio actualiza el nombre; una transferencia a otra organización o su eliminación pasa el binding a `REVOKED` sin borrar evidencia.
@@ -321,7 +312,7 @@ OBSOLETE
 - (s) Jobs de acceso: `jobs` no tiene columna de alcance, así que se añade `dedupeKey` (texto, nullable) y un índice único parcial que cubre SOLO filas `PENDING` con `dedupeKey` no nulo (no `RUNNING`), para `ACCESS_RECONCILIATION` y `ACCESS_REVERIFY`. La siguiente ocurrencia de la reconciliación se autoencola al inicio sin chocar con la fila `RUNNING`, y un evento que llega durante un `ACCESS_REVERIFY` en ejecución encola uno nuevo que corre después (el reclamo no toma un `PENDING` cuya `dedupeKey` coincide con una fila `RUNNING` no obsoleta). La siembra al arrancar solo omite si existe un `PENDING` o un `RUNNING` no obsoleto.
 - (t) El advisory lock transaccional por `(projectId, userId)` es el único mecanismo contra la carrera alta/revocación; reverificaciones y revocaciones toman el mismo lock. Retiene una conexión durante las llamadas a GitHub, acotado por el presupuesto de verificaciones.
 - (u) El predicado de acceso de un Project de organización es "registro de acceso suficiente Y (binding no `REVOKED` o rol `ADMIN`)", evaluado en cada petición, con prueba.
-- (v) `POST .../enable` sobre un binding `REVOKED` aplica la misma validación de propietario y de `repositoryId` que `POST .../integrations/github` (`404 GITHUB_REPOSITORY_NOT_FOUND`, `400 REPOSITORY_OUTSIDE_WORKSPACE`); deja sin efecto, para ese camino, la simplificación registrada en `T-002`.
+- (v) `POST .../enable` sobre un binding `REVOKED` aplica la misma validación de propietario y de `repositoryId` que `POST .../integrations/github` (`404 GITHUB_REPOSITORY_NOT_FOUND`, `400 REPOSITORY_OUTSIDE_WORKSPACE`); no se permite reactivar sin comparar el `repositoryId` persistido.
 - (w) Alcance de la reconciliación: la revalidación del repositorio (propietario, nombre) cubre todo Project vivo con binding, personales incluidos; la recalculación de registros cubre los Projects con registros de acceso. Al pasar un binding a `REVOKED` se borran los registros Maintainer y Reader.
 - (x) `SubscribeAck` con tres resultados fijos y comportamiento del handshake WebSocket ante `GITHUB_IDENTITY_REQUIRED`, `IDENTITY_UNAVAILABLE` e `INVALID_ACCESS_TOKEN` (`INTEROP-2.4` §6.6); es aditivo y la Console, que emite `subscribe` sin callback, lo ignora.
 - (y) La Console envía `workspaceId` a `POST /projects` y `GET /projects` y consume `workspace`/`role` solo después del sync de implementación del bundle B; el bundle A solo acepta `workspaceId` (personal) en el discovery. El bundle A espera a la Console solo-GitHub publicada.
@@ -334,10 +325,10 @@ OBSOLETE
 
 **Estado:** PENDING
 
-**Blocks:** ejecución experimental que incorpore Functional Knowledge; no bloquea implementación del producto ni T-001.
+**Blocks:** ejecución experimental que incorpore Functional Knowledge; no bloquea el producto operativo ni experimentos sin esa fuente.
 
 **Pregunta:** definir si ambos brazos reciben la misma información funcional para aislar la variable de adquisición/construcción de contexto.
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.4` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto y el repository discovery user-centric con automatización GitHub-App-centric de `SYSTEM-2.2`, y el ciclo de vida del binding (pausa/reactivación, un repositorio por Project) y el borrado lógico de Project (HU56/HU57) de `SYSTEM-2.3`; agrega workspaces personal y de organización, roles Admin/Maintainer/Reader derivados de GitHub, acceso revocable por webhook y el login solo con GitHub (`DEC-ORG-001`, HU58-HU64, definidos y pendientes de implementación). No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.4` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.4` sigue definiendo el contrato operativo PR/HEAD de tres componentes mientras se prepara GitHub Integration. La transición de cuatro componentes no se presenta como desplegada: sus DTOs y transporte se definirán en un corte contractual propio. La carga manual ZIP y los modos manuales no son rutas de producto; el ZIP interno de snapshot para Docker/Sandbox continúa. El estado de implementación o despliegue de cada capacidad se demuestra con evidencia por componente, no se infiere del número de contrato.
