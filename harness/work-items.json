@@ -54,7 +54,7 @@
       "id": "WI-CORE-002",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-DONE",
       "priority": "P0",
       "sprint": "Transition",
       "title": "Retirar flujos legacy",

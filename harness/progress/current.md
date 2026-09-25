@@ -4,7 +4,7 @@
 
 **Hecho en este corte:** línea base SDD 3.0 de Core/Console (no homologada aún con Sandbox), catálogo fijo EP01–EP06/HU01–HU18, OC01–OC15 (P2), modelo ST↔WI, triage de checklists antiguos y validadores de cierre/Contract Sync. Core y Console se editan en `feature/jean`; Sandbox y el nuevo repositorio no se han modificado.
 
-**Siguiente corte previsto:** `WI-CORE-002` (retirada ZIP/artefactos legacy), seguido de `WI-CORE-003` (frontera GitHub Integration) y `WI-CORE-004` (casos P2). Estos work items aún no están seleccionados ni terminados.
+**Último corte cerrado:** `WI-CORE-002` (retirada de flujos legacy; snapshot ZIP interno conservado). **Siguientes cortes previstos:** `WI-CORE-003` (frontera GitHub Integration) y `WI-CORE-004` (casos P2); aún no están seleccionados.
 
 **Contract Sync heredado:** los dos eventos `ACKNOWLEDGED` se mantienen abiertos. Su irrelevancia para `WI-CORE-002` quedó clasificada con motivo y digest; las obligaciones de binding, identidad y despliegue deberán revisarse en `WI-CORE-003`/`WI-CORE-008`.
 
