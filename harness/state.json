@@ -901,13 +901,13 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_RUN",
       "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-PASSED"
     },
@@ -922,16 +922,19 @@
         "harness/reports/wi-core-003-contract-review.md"
       ],
       "implementationCompleted": [
-        "harness/reports/wi-core-003-implementation.md"
+        "harness/reports/wi-core-003-implementation.md",
+        "harness/reports/contract-sync-resolution-cs-gh-20260926-001.md"
       ],
       "technicalChecksPassed": [
-        "harness/reports/wi-core-003-implementation.md"
+        "harness/reports/wi-core-003-implementation.md",
+        "harness/reports/contract-sync-resolution-cs-gh-20260926-001.md"
       ],
       "canonicalContractSynced": [
         "harness/reports/wi-core-003-implementation.md"
       ],
       "interopSyncChecked": [
-        "harness/reports/wi-core-003-implementation.md"
+        "harness/reports/wi-core-003-implementation.md",
+        "harness/reports/contract-sync-resolution-cs-gh-20260926-001.md"
       ],
       "retryLimitRespected": [
         "harness/reports/wi-core-003-implementation.md"

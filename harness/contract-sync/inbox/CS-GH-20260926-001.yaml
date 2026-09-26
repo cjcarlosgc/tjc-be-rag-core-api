@@ -11,4 +11,6 @@ requiredAction:
   - Revisar el contrato espejo y verificar las rutas/DTOs, autorización, manejo efímero de tokens y compatibilidad antes de aprobar el WI consumidor.
 sourceRevision: feature/jean@working-tree
 consumerImportedAt: 2026-09-26T07:48:26.072Z
-status: C-PENDING
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/contract-sync-resolution-cs-gh-20260926-001.md
+resolutionEvidence: harness/reports/contract-sync-resolution-cs-gh-20260926-001.md
