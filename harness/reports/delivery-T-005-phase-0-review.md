@@ -50,3 +50,46 @@
 ## Veredicto
 
 `CHANGES_REQUESTED`: el código y las verificaciones técnicas están en verde y el delta es aditivo y coherente, pero M1 y M2 deben corregirse (cambios documentales pequeños) y el rango resultante debe volver a revisarse antes del push.
+
+## Ciclo 2
+
+**Rango:** `origin/develop..f94460f` (4 commits; el nuevo es `f94460f`) · **Veredicto:** `APPROVED`
+
+### Commit nuevo
+
+| Commit | Asunto | Refs | Conventional / Refs válidos |
+|---|---|---|---|
+| `f94460f` | `docs(sdd): homologa INTEROP-2.5 y marca language/PHPUNIT pendientes en Core` | HU41, HU42 · `Decisions: DEC-PHP-AST-001` | Sí / existen |
+
+**HU incluidas en el rango:** HU41, HU42, HU43 (sin cambios).
+
+### Verificaciones (repetidas sobre `f94460f`)
+
+| Verificación | Resultado |
+|---|---|
+| `pnpm exec vitest run src/sandbox` | 3 archivos, 16/16 OK |
+| `pnpm exec tsc -p tsconfig.build.json --noEmit` | exit 0 |
+| `pnpm exec oxlint src/sandbox` | exit 0, sin avisos |
+| `node scripts/sdd-check.mjs` | `SDD check OK` |
+| `node harness/validate-harness.mjs` | `Harness V2 validation passed.` |
+| `contract-sync.mjs check --checkpoint before-review --work-item T-005-php-laravel-support` | `relevantPendingSyncIds: []` |
+| Parseo YAML de `CS-20260926-001.yaml` (Ruby Psych) | `requiredAction` es ahora una lista de strings |
+| `harness/state.json` | JSON válido; `reviewCycles: 1` <= `maxReviewCycles: 2`; handoff del ciclo 1 registrado |
+
+### Estado de los hallazgos del ciclo 1
+
+- **M1: resuelto.** Pasan a `INTEROP-2.5` `spec/backlog.md:3`, `spec/constitution/architecture.md:3` y `spec/contracts/system-contract.md:183`, y también `:343` (regla de compatibilidad), que es correcto. Las referencias restantes a `INTEROP-2.4` (p. ej., `backlog.md:128,130` y features 011/014) son históricas o apuntan a secciones concretas; se aceptan.
+- **M2: resuelto.** §1 de INTEROP declara "Definido, pendiente de implementación en Core": `language` puede llegar ausente, `PHPUNIT` todavía no se emite y los consumidores tratan la ausencia como `null`. Queda reflejado en `requiredAction` de `CS-20260926-001` y en la spec 015. Es una aclaración de estado; la forma del contrato no cambia.
+- **L1: resuelto.** La evidencia ahora cita `bc9c42f`, y los agentes de revisión y el ciclo 1 quedan registrados en `execution`.
+- **L2: resuelto.** Los ítems de `changed` y `requiredAction` están entrecomillados.
+- **L3: fuera de alcance, a propósito.** Sigue abierto para el próximo corte contractual; no bloquea.
+- **L4: resuelto.** `DEC-PHP-AST-001` figura en la lista de decisiones `APROBADO` de §8.
+
+### Observaciones nuevas (no bloqueantes)
+
+- **I1 (INFO):** `CS-20260926-001` se editó en sitio con `sourceRevision: 3baa74a`, pero el texto final del contrato (marcador de M2 y §8) está en `f94460f`. Como el evento no ha salido del repositorio (no hay push), la edición en sitio es aceptable. Un archivo no puede citar el hash de su propio commit, así que los consumidores deben tomar el mirror del contrato desde la revisión publicada tras el push, no desde `3baa74a`. Opcional: indicarlo en `requiredAction`.
+- **I2 (INFO):** el commit `f94460f` incluye el reporte de revisión del ciclo 1 junto con las correcciones, en lugar de un commit exclusivo `docs(review)`. No afecta al veredicto porque el rango se revisó completo de nuevo. La sección de este ciclo 2 queda en el árbol de trabajo y debe entrar en un commit exclusivo `docs(review)` que solo toque este reporte. Actualizar `harness/state.json` (gates, ciclo 2) es otro cambio y requeriría revisarse.
+
+### Veredicto del ciclo 2
+
+`APPROVED` para `origin/develop..f94460f`. Solo puede publicarse `f94460f` más, opcionalmente, un commit exclusivo `docs(review)` con este reporte. Cualquier otro cambio exige una nueva revisión. El push sigue requiriendo autorización humana explícita (entrega extraordinaria).
