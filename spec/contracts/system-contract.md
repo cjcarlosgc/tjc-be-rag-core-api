@@ -180,7 +180,7 @@ OBSOLETE
 - Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
 - El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
 - La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
-- Mocks frontend deben implementar `INTEROP-2.4`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
+- Mocks frontend deben implementar `INTEROP-2.5`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
 
 ## Decisiones compartidas
 
@@ -340,4 +340,4 @@ OBSOLETE
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.4` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto y el repository discovery user-centric con automatización GitHub-App-centric de `SYSTEM-2.2`, y el ciclo de vida del binding (pausa/reactivación, un repositorio por Project) y el borrado lógico de Project (HU56/HU57) de `SYSTEM-2.3`; agrega workspaces personal y de organización, roles Admin/Maintainer/Reader derivados de GitHub, acceso revocable por webhook y el login solo con GitHub (`DEC-ORG-001`, HU58-HU64, definidos y pendientes de implementación). No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.4` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.4` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto y el repository discovery user-centric con automatización GitHub-App-centric de `SYSTEM-2.2`, y el ciclo de vida del binding (pausa/reactivación, un repositorio por Project) y el borrado lógico de Project (HU56/HU57) de `SYSTEM-2.3`; agrega workspaces personal y de organización, roles Admin/Maintainer/Reader derivados de GitHub, acceso revocable por webhook y el login solo con GitHub (`DEC-ORG-001`, HU58-HU64, definidos y pendientes de implementación). No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.5` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.

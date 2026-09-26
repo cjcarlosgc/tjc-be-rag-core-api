@@ -46,10 +46,17 @@
       "leaderAgent": "leader",
       "analysisAgent": null,
       "implementationAgent": null,
-      "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
-      "reviewCycles": 0,
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "from": "reviewer",
+          "status": "CHANGES_REQUESTED",
+          "summary": "Ciclo 1 sobre origin/develop..eea7ec4: M1 versión vigente INTEROP-2.4 en backlog/architecture/system-contract; M2 falta marcar language/PHPUNIT como pendiente de implementación en Core; L1/L2/L4 menores. Checks técnicos en verde.",
+          "commit": "eea7ec4"
+        }
+      ],
+      "reviewCycles": 1,
       "maxReviewCycles": 2
     },
     "gates": {
@@ -73,7 +80,7 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "Fase 0: fix executionProfile (5674785) aplicado sobre develop sin commit; vitest src/sandbox 16/16 y tsc --noEmit en verde.",
+      "Fase 0: fix executionProfile reaplicado sobre develop como bc9c42f; vitest src/sandbox 16/16 y tsc --noEmit en verde.",
       "Spike DEC-PHP-AST-001: harness/reports/T-005-php-ast-spike.md (8.048 archivos PHP reales).",
       "tjc-be-php-repo-test local (Laravel 13, platform.php 8.3.0): 10/10 PHPUnit en php:8.3-cli.",
       "2026-09-26: aprobación humana de DEC-PHP-AST-001 e INTEROP-2.5; contrato canónico actualizado a INTEROP-2.5."

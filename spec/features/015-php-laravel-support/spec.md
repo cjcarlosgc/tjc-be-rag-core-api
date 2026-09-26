@@ -37,6 +37,7 @@ Extender el flujo PR-driven para que Core analice repositorios PHP/Laravel (HU41
 
 - `detectedFramework`: `'JEST' | 'VITEST' | 'PHPUNIT' | null` en `ProjectVersionResultsResponse`, `ProjectVersionSummaryResponse` y `TestInventoryResponse`.
 - `ProjectVersionResponse.language: 'TYPESCRIPT' | 'PHP' | null` (`null` hasta detectarlo en el snapshot; las versiones existentes se rellenan con `TYPESCRIPT`).
+- Hasta que Core implemente HU41, `language` puede llegar ausente y `PHPUNIT` no se emite (marcado "definido, pendiente de implementación en Core" en el contrato).
 - Sin rutas nuevas. `AnalysisSymbolResponse.language` y los perfiles del Sandbox ya existen en INTEROP-2.4.
 - `CONTRACT_SYNC` `CS-20260926-001` publicado a Console y Sandbox al aprobarse; se publicará otro al implementarse.
 
