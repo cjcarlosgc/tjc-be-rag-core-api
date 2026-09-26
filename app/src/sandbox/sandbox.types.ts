@@ -56,6 +56,8 @@ export interface SandboxExecutionResult {
   stageDurations: StageDuration[];
 }
 
+export type ExecutionProfile = 'NODE_TYPESCRIPT' | 'PHP_LARAVEL_PHPUNIT';
+
 export interface SandboxArtifactInput {
   artifactId: string;
   relativePath: string;

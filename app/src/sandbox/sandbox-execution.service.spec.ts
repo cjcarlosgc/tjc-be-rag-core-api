@@ -135,6 +135,10 @@ describe('SandboxExecutionService', () => {
     expect(postCall[0]).toBe('http://sandbox.local/executions');
     const postedBody = JSON.parse(postCall[1].body);
     expect(postedBody.snapshot.role).toBe('PROJECT_SNAPSHOT');
+    // INTEROP §7.2: `executionProfile` es obligatorio; sin él el Sandbox
+    // responde 400 VALIDATION_ERROR y la ejecución nunca se acepta.
+    expect(postedBody.executionProfile).toBe('NODE_TYPESCRIPT');
+    expect(postedBody.runnerHint).toBe('VITEST');
     expect(postedBody.artifacts[0].download.role).toBe('GENERATED_ARTIFACT');
     expect(postedBody.artifacts[0].download.sha256).toHaveLength(64);
     expect(postCall[1].headers['idempotency-key']).toBe('request-1');

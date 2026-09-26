@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
+  ExecutionProfile,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFailureFact,
@@ -11,6 +12,20 @@ import type {
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_POLL_ATTEMPTS = 120;
+
+// `executionProfile` es obligatorio en `POST /executions`
+// (`interoperability-contract.md` §7.2) y el Sandbox rechaza el request con 400
+// si falta. Core todavía no modela el profile como dato de dominio: solo indexa
+// proyectos Node/TypeScript (el materializador exige `pnpm-lock.yaml`), así que
+// se deriva del runner detectado durante la indexación. HU43 incorporará
+// `PHP_LARAVEL_PHPUNIT` y con él un profile propio del `ProjectVersion`.
+const EXECUTION_PROFILE_BY_RUNNER: Record<
+  SandboxExecutionRequest['runnerHint'],
+  ExecutionProfile
+> = {
+  JEST: 'NODE_TYPESCRIPT',
+  VITEST: 'NODE_TYPESCRIPT',
+};
 
 interface EphemeralDownloadRef {
   role: 'PROJECT_SNAPSHOT' | 'GENERATED_ARTIFACT';
@@ -69,6 +84,7 @@ export class SandboxExecutionService {
       artifacts,
       scope: request.scope,
       targetIds: request.targetIds,
+      executionProfile: EXECUTION_PROFILE_BY_RUNNER[request.runnerHint],
       runnerHint: request.runnerHint,
     };
 
