@@ -44,7 +44,6 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   entry('SIN_ROL', 'GET', '/integrations/github/repositories/{owner}/{repo}/branches', 'GET /integrations/github/repositories/{owner}/{repo}/branches', 'NONE'),
   entry('SIN_ROL', 'POST', '/projects', 'POST /projects', 'NONE'),
   entry('SIN_ROL', 'GET', '/health', 'GET /health', 'PUBLIC'),
-  entry('SIN_ROL', 'POST', '/integrations/github/webhooks', 'POST /integrations/github/webhooks', 'PUBLIC'),
   // Reader.
   entry('READER', 'GET', '/projects', 'GET /projects', 'READER'),
   entry('READER', 'GET', '/projects/{projectId}', 'GET /projects/{projectId}', 'READER'),

@@ -24,7 +24,6 @@ describe('RepositoryBindingsService', () => {
   let projectAccess: { require: ReturnType<typeof vi.fn> };
   let githubAppAuthService: {
     findInstallationForRepository: ReturnType<typeof vi.fn>;
-    getInstallationToken: ReturnType<typeof vi.fn>;
   };
   let githubRepositoryContentService: { listBranches: ReturnType<typeof vi.fn> };
   let github: FakeGithubAccessPort;
@@ -79,7 +78,6 @@ describe('RepositoryBindingsService', () => {
     projectAccess = { require: vi.fn().mockResolvedValue({ project, role: 'ADMIN' }) };
     githubAppAuthService = {
       findInstallationForRepository: vi.fn().mockResolvedValue('install-1'),
-      getInstallationToken: vi.fn().mockResolvedValue('token'),
     };
     githubRepositoryContentService = {
       listBranches: vi.fn().mockResolvedValue([{ name: 'main', protected: false }]),
@@ -115,7 +113,7 @@ describe('RepositoryBindingsService', () => {
       const result = await create();
 
       expect(githubAppAuthService.findInstallationForRepository).toHaveBeenCalledWith('org', 'repo');
-      expect(githubRepositoryContentService.listBranches).toHaveBeenCalledWith('org/repo', 'token');
+      expect(githubRepositoryContentService.listBranches).toHaveBeenCalledWith('install-1', 'org/repo');
       expect(repository.create).toHaveBeenCalledWith(PROJECT_ID, {
         installationId: 'install-1',
         repositoryId: 'repo-1',

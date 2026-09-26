@@ -1,6 +1,4 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { isValidWebhookSignature } from './webhook-signature.util.js';
+import { Injectable, Logger } from '@nestjs/common';
 import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js';
 import type { GithubPullRequestWebhookPayload } from './dto/pull-request-webhook.payload.js';
 import type {
@@ -12,28 +10,20 @@ import type { GitHubWebhookAcceptedResponse } from './dto/webhook-accepted.respo
 import { RepositoryEventsService } from './repository-events.service.js';
 import { ACCESS_EVENT_NAMES, AccessEventsService, type AccessEventName } from './access-events.service.js';
 import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
+import { toGithubId } from '../access-sync/access-reverify.scope.js';
 import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import type { CreateAnalysisRunInput } from '../analysis-runs/analysis-runs.repository.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
-import { AppException } from '../common/errors/app.exception.js';
-import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
-
-export interface IncomingWebhookRequest {
-  rawBody: Buffer | undefined;
-  signatureHeader: string | undefined;
-  deliveryId: string | undefined;
-  eventName: string | undefined;
-  payload: unknown;
-}
+import type { NormalizedWebhookEvent } from './dto/normalized-webhook-event.js';
 
 /**
- * HU31: firma sobre body crudo, normalización de `pull_request` e
- * idempotencia por delivery id. Solo bindings ENABLED cuya instalación
+ * HU31: procesa el evento allowlisted que GH Integration ya normalizó e
+ * idempotencia por delivery id para pull requests. Solo bindings ENABLED cuya instalación
  * coincide con la del payload producen trabajo (`spec/contracts/
  * system-contract.md`, "AnalysisRun, Job y Check"). También procesa
  * `installation`/`installation_repositories` (revocación): mueve el/los
@@ -44,7 +34,6 @@ export class GithubWebhooksService {
   private readonly logger = new Logger(GithubWebhooksService.name);
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly webhookDeliveriesRepository: WebhookDeliveriesRepository,
     private readonly repositoryBindingsRepository: RepositoryBindingsRepository,
     private readonly analysisRunsRepository: AnalysisRunsRepository,
@@ -56,79 +45,45 @@ export class GithubWebhooksService {
     private readonly accessEvents: AccessEventsService,
   ) {}
 
-  async handle(request: IncomingWebhookRequest): Promise<GitHubWebhookAcceptedResponse> {
-    const secret = this.configService.get<string>('GITHUB_APP_WEBHOOK_SECRET');
+  async handle(event: NormalizedWebhookEvent): Promise<GitHubWebhookAcceptedResponse> {
+    const { deliveryId } = event;
+    const accepted = (analysisRunId: string | null = null): GitHubWebhookAcceptedResponse => ({
+      deliveryId,
+      accepted: true,
+      duplicate: false,
+      analysisRunId,
+    });
 
-    if (!secret) {
-      throw new AppException(
-        ErrorCode.GITHUB_WEBHOOK_UNAVAILABLE,
-        'La integración de GitHub App no está configurada.',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
+    if (event.data.kind === 'INSTALLATION') {
+      await this.handleInstallationEvent(toInstallationPayload(event));
+      return accepted();
     }
 
-    if (!isValidWebhookSignature(request.rawBody, request.signatureHeader, secret)) {
-      throw new AppException(
-        ErrorCode.INVALID_WEBHOOK_SIGNATURE,
-        'La firma del webhook de GitHub es inválida.',
-        HttpStatus.UNAUTHORIZED,
-      );
+    if (event.data.kind === 'INSTALLATION_REPOSITORIES') {
+      await this.handleInstallationRepositoriesEvent(toInstallationRepositoriesPayload(event));
+      return accepted();
     }
 
-    if (!request.deliveryId) {
-      throw new AppException(
-        ErrorCode.INVALID_REQUEST,
-        'Falta el header x-github-delivery.',
-        HttpStatus.BAD_REQUEST,
-      );
+    if (event.data.kind === 'REPOSITORY') {
+      await this.repositoryEvents.handle(toRepositoryPayload(event));
+      return accepted();
     }
 
-    const existing = await this.webhookDeliveriesRepository.findByDeliveryId(request.deliveryId);
+    if (ACCESS_EVENT_NAMES.has(event.eventName)) {
+      await this.accessEvents.handle(event.eventName as AccessEventName, toAccessPayload(event));
+      return accepted();
+    }
 
+    if (event.data.kind !== 'PULL_REQUEST') {
+      return accepted();
+    }
+
+    const existing = await this.webhookDeliveriesRepository.findByDeliveryId(deliveryId);
     if (existing) {
-      return {
-        deliveryId: request.deliveryId,
-        accepted: true,
-        duplicate: true,
-        analysisRunId: existing.analysisRunId,
-      };
+      return { deliveryId, accepted: true, duplicate: true, analysisRunId: existing.analysisRunId };
     }
 
-    if (request.eventName === 'installation') {
-      await this.handleInstallationEvent(request.payload as GithubInstallationWebhookPayload);
-      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
-    }
-
-    if (request.eventName === 'installation_repositories') {
-      await this.handleInstallationRepositoriesEvent(
-        request.payload as GithubInstallationRepositoriesWebhookPayload,
-      );
-      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
-    }
-
-    if (request.eventName === 'repository') {
-      await this.repositoryEvents.handle(request.payload as GithubRepositoryWebhookPayload);
-      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
-    }
-
-    // Eventos de acceso de organización: solo encolan una reverificación viva (o ocultan/renombran la
-    // organización) y responden `202`; sin `WebhookDelivery` porque todo es idempotente.
-    if (request.eventName !== undefined && ACCESS_EVENT_NAMES.has(request.eventName)) {
-      await this.accessEvents.handle(request.eventName as AccessEventName, request.payload);
-      return { deliveryId: request.deliveryId, accepted: true, duplicate: false, analysisRunId: null };
-    }
-
-    // Cualquier otro evento no listado se acepta (`202`) sin efecto.
-    if (request.eventName !== 'pull_request') {
-      return {
-        deliveryId: request.deliveryId,
-        accepted: true,
-        duplicate: false,
-        analysisRunId: null,
-      };
-    }
-
-    const payload = request.payload as GithubPullRequestWebhookPayload;
+    const payload = toPullRequestPayload(event);
     const binding = await this.repositoryBindingsRepository.findByRepositoryId(
       String(payload.repository.id),
     );
@@ -140,17 +95,17 @@ export class GithubWebhooksService {
     const analysisRunId = actionable ? await this.handlePullRequestEvent(payload, binding!) : null;
 
     await this.webhookDeliveriesRepository.create({
-      deliveryId: request.deliveryId,
+      deliveryId,
       repositoryId: String(payload.repository.id),
       prNumber: payload.number,
       headSha: payload.pull_request.head.sha,
-      event: request.eventName,
-      action: payload.action,
+      event: event.eventName,
+      action: event.action ?? '',
       analysisRunId,
     });
 
     return {
-      deliveryId: request.deliveryId,
+      deliveryId,
       accepted: true,
       duplicate: false,
       analysisRunId,
@@ -271,7 +226,7 @@ export class GithubWebhooksService {
       // borran también los registros Admin (la organización ya no puede verificarse; los Projects
       // sin repositorio también). Reaparecen al reinstalar la App.
       const account = payload.installation.account;
-      const organizationId = account?.type === 'Organization' && typeof account.id === 'number' ? String(account.id) : null;
+      const organizationId = account?.type === 'Organization' ? toGithubId(account.id) : null;
 
       if (organizationId !== null) {
         try {
@@ -343,4 +298,104 @@ export class GithubWebhooksService {
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function toPullRequestPayload(event: NormalizedWebhookEvent): GithubPullRequestWebhookPayload {
+  if (event.data.kind !== 'PULL_REQUEST') throw new Error('Expected PULL_REQUEST event data.');
+  const data = event.data;
+  return {
+    action: event.action ?? '',
+    number: data.pullRequestNumber,
+    pull_request: {
+      title: data.pullRequest.title,
+      draft: data.pullRequest.draft,
+      merged: data.pullRequest.merged,
+      base: data.pullRequest.base,
+      head: data.pullRequest.head,
+      user: data.pullRequest.userLogin === null ? null : { login: data.pullRequest.userLogin },
+    },
+    repository: { id: data.repository.id, full_name: data.repository.fullName },
+    ...(data.installationId === null ? {} : { installation: { id: data.installationId } }),
+  };
+}
+
+function toInstallationPayload(event: NormalizedWebhookEvent): GithubInstallationWebhookPayload {
+  if (event.data.kind !== 'INSTALLATION') throw new Error('Expected INSTALLATION event data.');
+  return {
+    action: event.action ?? '',
+    installation: {
+      id: event.data.installationId,
+      account: {
+        id: event.data.account.id ?? undefined,
+        type: event.data.account.type ?? undefined,
+      },
+    },
+  };
+}
+
+function toInstallationRepositoriesPayload(event: NormalizedWebhookEvent): GithubInstallationRepositoriesWebhookPayload {
+  if (event.data.kind !== 'INSTALLATION_REPOSITORIES') throw new Error('Expected INSTALLATION_REPOSITORIES event data.');
+  return {
+    action: event.action ?? '',
+    installation: { id: event.data.installationId },
+    repositories_added: event.data.added.map((repository) => ({ id: repository.id, full_name: repository.fullName })),
+    repositories_removed: event.data.removed.map((repository) => ({ id: repository.id, full_name: repository.fullName })),
+  };
+}
+
+function toRepositoryPayload(event: NormalizedWebhookEvent): GithubRepositoryWebhookPayload {
+  if (event.data.kind !== 'REPOSITORY') throw new Error('Expected REPOSITORY event data.');
+  const data = event.data;
+  return {
+    action: event.action ?? '',
+    repository: {
+      id: data.repository.id,
+      full_name: data.repository.fullName,
+      ...(data.repository.owner === null ? {} : {
+        owner: {
+          id: data.repository.owner.id,
+          login: data.repository.owner.login ?? undefined,
+          type: data.repository.owner.type ?? undefined,
+        },
+      }),
+    },
+    ...(data.installationId === null ? {} : { installation: { id: data.installationId } }),
+  };
+}
+
+function toAccessPayload(event: NormalizedWebhookEvent): unknown {
+  const action = event.action ?? '';
+  switch (event.data.kind) {
+    case 'MEMBER':
+      return {
+        action,
+        ...(event.data.memberId === null ? {} : { member: { id: event.data.memberId } }),
+        ...(event.data.repositoryId === null ? {} : { repository: { id: event.data.repositoryId } }),
+      };
+    case 'MEMBERSHIP':
+      return {
+        action,
+        ...(event.data.memberId === null ? {} : { member: { id: event.data.memberId } }),
+        ...(event.data.organizationId === null ? {} : { organization: { id: event.data.organizationId } }),
+      };
+    case 'ORGANIZATION':
+      return {
+        action,
+        ...(event.data.organizationId === null && event.data.organizationLogin === null ? {} : {
+          organization: {
+            ...(event.data.organizationId === null ? {} : { id: event.data.organizationId }),
+            ...(event.data.organizationLogin === null ? {} : { login: event.data.organizationLogin }),
+          },
+        }),
+        ...(event.data.membershipUserId === null ? {} : { membership: { user: { id: event.data.membershipUserId } } }),
+      };
+    case 'TEAM':
+      return {
+        action,
+        ...(event.data.repositoryId === null ? {} : { repository: { id: event.data.repositoryId } }),
+        ...(event.data.organizationId === null ? {} : { organization: { id: event.data.organizationId } }),
+      };
+    default:
+      return {};
+  }
 }

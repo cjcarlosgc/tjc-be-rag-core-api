@@ -20,8 +20,8 @@ export interface GithubPullRequestWebhookPayload {
     user: { login: string } | null;
   };
   repository: {
-    id: number;
+    id: number | string;
     full_name: string;
   };
-  installation?: { id: number };
+  installation?: { id: number | string };
 }

@@ -34,7 +34,7 @@ export class ProjectsService {
   /**
    * HU63: `workspaceId` omitido o el propio id numérico = Project personal (el creador es su
    * único usuario y su Admin). Con el id de una organización solo crea un owner activo,
-   * verificado en vivo con el installation token: no es un workspace del usuario `404
+   * verificado en vivo mediante GitHub Integration: no es un workspace del usuario `404
    * WORKSPACE_NOT_FOUND`, miembro que no es owner `403 WORKSPACE_ADMIN_REQUIRED`, GitHub sin
    * respuesta `503` (no se concede lo nuevo). El Project de organización guarda el login
    * vigente y su registro `ADMIN` del creador entra en la misma transacción.

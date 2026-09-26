@@ -12,7 +12,7 @@ import type { WorkspaceListResponse, WorkspaceRefResponse, WorkspaceResponse } f
 /**
  * HU58: workspaces del usuario. La cuenta personal siempre (su id es el
  * `githubUserId` de la sesión); las organizaciones salen de listar las
- * instalaciones de la App y verificar la membresía activa con el token de la App
+ * instalaciones de la App y verificar la membresía activa mediante GitHub Integration
  * (nunca el token OAuth del usuario ni `read:org`).
  */
 @Injectable()

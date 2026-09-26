@@ -5,9 +5,12 @@ import { GithubChecksService } from './github-checks.service.js';
 import { GithubGitDataService } from './github-git-data.service.js';
 import { GITHUB_ACCESS_PORT } from './github-access.port.js';
 import { GithubAccessHttpAdapter } from './github-access-http.adapter.js';
+import { GITHUB_INTEGRATION_FETCH, GithubIntegrationClient } from './github-integration.client.js';
 
 @Module({
   providers: [
+    { provide: GITHUB_INTEGRATION_FETCH, useValue: fetch },
+    GithubIntegrationClient,
     GithubAppAuthService,
     GithubRepositoryContentService,
     GithubChecksService,
@@ -15,6 +18,7 @@ import { GithubAccessHttpAdapter } from './github-access-http.adapter.js';
     { provide: GITHUB_ACCESS_PORT, useClass: GithubAccessHttpAdapter },
   ],
   exports: [
+    GithubIntegrationClient,
     GithubAppAuthService,
     GithubRepositoryContentService,
     GithubChecksService,

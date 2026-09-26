@@ -1,35 +1,25 @@
-import { Controller, HttpStatus, Post, Req, Res } from '@nestjs/common';
-import type { RawBodyRequest } from '@nestjs/common';
-import type { Request, Response } from 'express';
-import { GithubWebhooksService } from './github-webhooks.service.js';
-import type { GitHubWebhookAcceptedResponse } from './dto/webhook-accepted.response.js';
+import { Body, Controller, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { Public } from '../common/auth/public.decorator.js';
+import type { GitHubWebhookAcceptedResponse } from './dto/webhook-accepted.response.js';
+import { parseNormalizedWebhookEvent } from './dto/normalized-webhook-event.js';
+import { GithubIntegrationAuthGuard } from './github-integration-auth.guard.js';
+import { GithubWebhooksService } from './github-webhooks.service.js';
 
-/**
- * Sin DTO/ValidationPipe: el body es el payload real de GitHub (decenas de
- * campos no declarados) y la verificación de integridad es la firma HMAC
- * sobre el body crudo, no una validación de forma. `@Public()` porque
- * GitHub no envía un access token Supabase; la firma HMAC es la autenticación.
- */
-@Controller('integrations/github/webhooks')
+@Controller('internal/v1/github')
+@Public()
+@UseGuards(GithubIntegrationAuthGuard)
 export class GithubWebhooksController {
   constructor(private readonly githubWebhooksService: GithubWebhooksService) {}
 
-  @Public()
-  @Post()
+  @Post('webhook-events')
   async handle(
-    @Req() req: RawBodyRequest<Request>,
-    @Res({ passthrough: true }) res: Response,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<GitHubWebhookAcceptedResponse> {
-    const result = await this.githubWebhooksService.handle({
-      rawBody: req.rawBody,
-      signatureHeader: req.header('x-hub-signature-256'),
-      deliveryId: req.header('x-github-delivery'),
-      eventName: req.header('x-github-event'),
-      payload: req.body,
-    });
-
-    res.status(result.duplicate ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    const event = parseNormalizedWebhookEvent(body);
+    const result = await this.githubWebhooksService.handle(event);
+    response.status(result.duplicate ? HttpStatus.OK : HttpStatus.ACCEPTED);
     return result;
   }
 }

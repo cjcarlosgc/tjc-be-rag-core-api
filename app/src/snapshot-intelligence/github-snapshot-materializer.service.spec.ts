@@ -17,7 +17,6 @@ const binding: RepositoryBinding = {
 };
 
 describe('GithubSnapshotMaterializerService', () => {
-  let githubAppAuthService: { getInstallationToken: ReturnType<typeof vi.fn> };
   let githubRepositoryContentService: {
     getTree: ReturnType<typeof vi.fn>;
     getFileContent: ReturnType<typeof vi.fn>;
@@ -31,10 +30,8 @@ describe('GithubSnapshotMaterializerService', () => {
   });
 
   function setup(): void {
-    githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
     githubRepositoryContentService = { getTree: vi.fn(), getFileContent: vi.fn() };
     service = new GithubSnapshotMaterializerService(
-      githubAppAuthService as never,
       githubRepositoryContentService as never,
     );
   }
@@ -49,14 +46,19 @@ describe('GithubSnapshotMaterializerService', () => {
       { path: 'package.json' },
     ]);
     githubRepositoryContentService.getFileContent.mockImplementation(
-      async (_repo: string, path: string) => `// content of ${path}`,
+      async (_installationId: string, _repo: string, path: string) => `// content of ${path}`,
     );
 
     const workspace = await service.materialize(binding, 'head-sha');
     createdDirs.push(workspace.dir);
 
-    expect(githubAppAuthService.getInstallationToken).toHaveBeenCalledWith('999');
-    expect(githubRepositoryContentService.getTree).toHaveBeenCalledWith('org/repo', 'head-sha', 'installation-token');
+    expect(githubRepositoryContentService.getTree).toHaveBeenCalledWith('999', 'org/repo', 'head-sha');
+    expect(githubRepositoryContentService.getFileContent).toHaveBeenCalledWith(
+      '999',
+      'org/repo',
+      'src/a.ts',
+      'head-sha',
+    );
 
     const written = await readFile(join(workspace.dir, 'src/a.ts'), 'utf8');
     expect(written).toBe('// content of src/a.ts');
@@ -75,7 +77,7 @@ describe('GithubSnapshotMaterializerService', () => {
       { path: 'pnpm-lock.yaml' },
     ]);
     githubRepositoryContentService.getFileContent.mockImplementation(
-      async (_repo: string, path: string) => `// content of ${path}`,
+      async (_installationId: string, _repo: string, path: string) => `// content of ${path}`,
     );
 
     const workspace = await service.materialize(binding, 'head-sha');

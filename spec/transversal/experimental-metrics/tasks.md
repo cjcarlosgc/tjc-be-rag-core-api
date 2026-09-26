@@ -1,16 +1,6 @@
-# experimental-metrics — Tareas
+# experimental-metrics — Subtareas vigentes
 
-- [x] Schema metrics (`ExperimentRepetition`: compiled/executed/passed/valid/failureType, tiempos, tokens/costo, `retrievedChunks`/`selectedChunks`/`contextTokens` para RAG, `toolCalls`/`filesInspected`/`trajectory` para el agente).
-- [x] Aggregator (`ExperimentsService.aggregateStrategy`: tasas, medias de tiempos/tokens/chunks/tool calls, media de `estimatedCost`, distribución de `failureType`).
-- [x] Export/API para análisis (`GET /experiments/:id/results`).
-- [ ] Coverage secundaria Sprint 4 si se aprueba.
-- [ ] Investigar `DEC-MET-001` inmediatamente después del núcleo de Sprint 2 y solicitar decisión humana.
-- [ ] Solo tras aprobación, crear un work item separado para mutation score/StrykerJS y sincronizar RAG Core, Sandbox y frontend.
+No hay una subtarea técnica seleccionable en este archivo para SDD 3.0. El comportamiento vigente está en `spec.md` y `plan.md`; la ejecución futura requiere una ST local y un WI registrado antes de comenzar.
 
-## Calidad
-
-- [x] Agregar/actualizar pruebas (`cost-calculator.spec.ts`, `experiments.service.spec.ts` — agregación).
-- [x] Verificar manejo de errores (`EXPERIMENT_NOT_FOUND`, `EXPERIMENT_NOT_FINISHED`).
-- [x] Verificar observabilidad mínima (ver `observability/tasks.md`: stage timings, `Logger.warn` por repetición fallida).
-- [x] Ejecutar lint/test/build.
-- [x] Registrar evidencia de revisión en `harness/reports/` (`008-experimental-comparison.md`).
+La propuesta de coverage secundaria permanece como `IDEA-004`.
+Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

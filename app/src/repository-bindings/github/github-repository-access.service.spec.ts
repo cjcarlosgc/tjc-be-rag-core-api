@@ -13,7 +13,6 @@ describe('GithubRepositoryAccessService', () => {
   let service: GithubRepositoryAccessService;
   let githubAppAuthService: {
     findInstallationForRepository: ReturnType<typeof vi.fn>;
-    getInstallationToken: ReturnType<typeof vi.fn>;
     getAppInfo: ReturnType<typeof vi.fn>;
   };
   let githubRepositoryContentService: { listBranches: ReturnType<typeof vi.fn> };
@@ -22,7 +21,6 @@ describe('GithubRepositoryAccessService', () => {
   beforeEach(() => {
     githubAppAuthService = {
       findInstallationForRepository: vi.fn(),
-      getInstallationToken: vi.fn().mockResolvedValue('installation-token'),
       getAppInfo: vi.fn().mockResolvedValue({ slug: 'rag-tesis-gh-app', name: 'rag-tesis-gh-app' }),
     };
     githubRepositoryContentService = { listBranches: vi.fn() };
@@ -97,17 +95,16 @@ describe('GithubRepositoryAccessService', () => {
   });
 
   describe('listBranches', () => {
-    it('exchanges the installation id for a token and lists branches', async () => {
+    it('delegates branch discovery with the resolved installation id', async () => {
       githubRepositoryContentService.listBranches.mockResolvedValue([
         { name: 'main', protected: true },
       ]);
 
       const branches = await service.listBranches('acme/widgets', '123');
 
-      expect(githubAppAuthService.getInstallationToken).toHaveBeenCalledWith('123');
       expect(githubRepositoryContentService.listBranches).toHaveBeenCalledWith(
+        '123',
         'acme/widgets',
-        'installation-token',
       );
       expect(branches).toEqual([{ name: 'main', protected: true }]);
     });
@@ -122,11 +119,25 @@ describe('GithubRepositoryAccessService', () => {
       >({ code: ErrorCode.GITHUB_REPOSITORY_NOT_FOUND });
     });
 
-    it('rethrows unexpected GitHub failures', async () => {
+    it('maps unverified GitHub Integration failures to a safe 503', async () => {
       const error = new GithubAppUnavailableError('boom', 500);
       githubRepositoryContentService.listBranches.mockRejectedValue(error);
 
-      await expect(service.listBranches('acme/widgets', '123')).rejects.toBe(error);
+      await expect(service.listBranches('acme/widgets', '123')).rejects.toMatchObject({
+        code: ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE,
+        status: 503,
+      });
+    });
+
+    it('maps a confirmed missing installation to GITHUB_APP_ACCESS_REQUIRED', async () => {
+      githubRepositoryContentService.listBranches.mockRejectedValue(
+        new GithubAppUnavailableError('not installed', 403),
+      );
+
+      await expect(service.listBranches('acme/widgets', '123')).rejects.toMatchObject<Partial<AppException>>({
+        code: ErrorCode.GITHUB_APP_ACCESS_REQUIRED,
+        status: 403,
+      });
     });
   });
 

@@ -7,7 +7,9 @@
 
 ## Diseño técnico
 
-Pipeline asíncrono durable. Primero se persiste el snapshot en `repositories/{projectId}/versions/{projectVersionId}/original.zip` con `upsert=false`; el workspace temporal siempre se limpia. La base conserva la key interna, no URLs firmadas.
+Pipeline asíncrono durable iniciado por `AnalysisRun` sobre un commit SHA. El snapshot ZIP se crea y almacena internamente cuando la ejecución lo necesita, con key no expuesta al navegador y sin sobrescribir otra versión. El workspace temporal siempre se limpia.
+
+Antes de cerrar `WI-CORE-002`, verificar en código y datos la relación `ProjectVersion`/`AnalysisRun`/`snapshotKey`; conservar cualquier snapshot referenciado por trazas o experimentos.
 
 Responsabilidades implementadas:
 

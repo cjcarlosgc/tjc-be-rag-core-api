@@ -1,0 +1,14 @@
+type: CONTRACT_SYNC
+id: CS-20260924-001
+source: core
+targets: [console]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SDD 3.0 replantea EP01-EP06 y HU01-HU18 para Core y Console; SYSTEM-2.4 e INTEROP-2.4 conservan el contrato runtime y sus versiones.
+  - Los mirrors retiran referencias de planificacion legacy; la frontera futura GitHub Integration no se declara desplegada.
+requiredAction:
+  - Verificar mirrors byte por byte, estados de HU y WIs locales; conservar Sandbox en 2.1 hasta su homologacion coordinada.
+sourceRevision: feature/jean@9ed8dab+working-tree
+sourceWorkItem: WI-CORE-001
+status: C-PENDING

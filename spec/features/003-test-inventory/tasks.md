@@ -1,14 +1,5 @@
-# 003-test-inventory — Tareas
+# 003-test-inventory — Subtareas vigentes
 
-- [x] Definir Target/TestInventory (`TestTarget`: CLASS|METHOD|FUNCTION).
-- [x] Detectar convenciones y archivos de test (framework Jest/Vitest; sin invención cuando no es concluyente).
-- [x] Resolver objetivos con/sin pruebas (heurística de imports + referencia al método).
-- [x] Exponer resumen en results de ProjectVersion (`GET /project-versions/:id/results`) y detalle completo (`GET /project-versions/:id/test-inventory`).
+No hay una subtarea técnica seleccionable en este archivo para SDD 3.0. El comportamiento vigente está en `spec.md` y `plan.md`; la ejecución futura requiere una ST local y un WI registrado antes de comenzar.
 
-## Calidad
-
-- [x] Agregar/actualizar pruebas.
-- [x] Verificar manejo de errores.
-- [x] Verificar observabilidad mínima.
-- [x] Ejecutar lint/test/build.
-- [x] Registrar evidencia de revisión en `harness/reports/`.
+Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

@@ -1,6 +1,6 @@
 # object-storage — Especificación
 
-**Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED.  
+**Estado:** aprobado para snapshots internos y propuestas vigentes salvo elementos marcados PENDING/PROPOSED.
 **Historias:** capacidad técnica transversal
 
 ## Objetivo
@@ -10,7 +10,7 @@ Abstraer snapshots y artifacts sin acoplar el dominio al proveedor.
 ## Reglas y comportamiento
 
 - El proveedor concreto es Supabase Storage y se integra únicamente en RAG Core mediante `@supabase/supabase-js`.
-- El bucket privado aprobado es `repository-zips`; el ZIP original de cada versión usa `repositories/{projectId}/versions/{projectVersionId}/original.zip` y se crea con `upsert=false`.
+- El bucket privado configurado es `repository-zips`. El ZIP de snapshot es interno; una ejecución PR-driven puede almacenarlo bajo `analysis-runs/{analysisRunId}/snapshot.zip` sin exponerlo como carga ni descarga de producto. Las keys de versiones persistidas no se purgan mientras exista evidencia que las referencia.
 - La lógica de dominio consume exclusivamente la abstracción interna `ObjectStorageService`; no importa ni invoca directamente el SDK de Supabase.
 - `ObjectStorageService` define las operaciones requeridas para almacenar, recuperar, eliminar y entregar snapshots y artefactos, sin exponer tipos específicos del proveedor.
 - Las keys son internas y no se construyen confiando en nombres suministrados por el usuario.

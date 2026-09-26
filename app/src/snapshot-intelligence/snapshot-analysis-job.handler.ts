@@ -15,7 +15,6 @@ import { TestTargetExtractorService } from '../project-versions/inventory/test-t
 import { ExistingTestResolverService } from '../project-versions/inventory/existing-test-resolver.service.js';
 import { findPackageJsonPath, detectFramework } from '../project-versions/inventory/framework-detector.js';
 import { isSourceFile, isTestFile } from '../project-versions/indexing.constants.js';
-import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService, type CompareFile } from '../github-app/github-repository-content.service.js';
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
@@ -107,7 +106,6 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     private readonly typeScriptParserService: TypeScriptParserService,
     private readonly testTargetExtractorService: TestTargetExtractorService,
     private readonly existingTestResolverService: ExistingTestResolverService,
-    private readonly githubAppAuthService: GithubAppAuthService,
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
     private readonly githubSnapshotMaterializerService: GithubSnapshotMaterializerService,
     private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
@@ -141,12 +139,11 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     let workspace: ExtractedWorkspace | undefined;
 
     try {
-      const token = await this.githubAppAuthService.getInstallationToken(binding.installationId);
       const changesetFiles = await this.githubRepositoryContentService.compare(
+        binding.installationId,
         binding.repositoryName,
         run.baseSha,
         run.headSha,
-        token,
       );
 
       const previousVersion = await this.projectVersionsRepository.findLatestCompletedByProject(

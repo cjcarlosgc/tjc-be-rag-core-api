@@ -78,7 +78,6 @@ describe('Repository access and binding validation (HU64, corte 4a, e2e)', () =>
         .useValue({
           findInstallationForRepository: (owner: string, repo: string) =>
             Promise.resolve(installations.get(`${owner}/${repo}`) ?? null),
-          getInstallationToken: () => Promise.resolve('installation-token'),
           getAppInfo: () => Promise.resolve({ slug: 'tjc-core', name: 'TJC Core' }),
         })
         .overrideProvider(GithubRepositoryContentService)

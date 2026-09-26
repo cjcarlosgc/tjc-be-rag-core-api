@@ -1,22 +1,19 @@
 # 002-project-version-indexing — Especificación
 
 **Estado:** aprobado salvo elementos marcados PENDING/PROPOSED.
-**Historias:** HU02, HU03, HU04, HU05, HU07
-
-> **Retirado por SDD 2.1:** el ingreso ZIP queda retirado como ruta de producto (ver `CHANGELOG.md`); `ProjectVersion` se conserva como modelo, pero su único origen pasa a ser un snapshot inmutable por commit SHA desde un `RepositoryBinding` (HU33/34, pendiente de implementación), ejecutando `BOOTSTRAP` o `INDEX_DELTA` y ampliando el análisis a PHP/Laravel sin invalidar el soporte TypeScript existente. El contenido técnico de esta spec (chunking, snapshot, estados) sigue siendo referencia de implementación; su disparador ya no es la carga manual.
+**Historias:** HU03, HU04, HU06
 
 ## Objetivo
 
-Ingerir un ZIP seguro, crear un snapshot versionado e indexarlo para recuperación posterior.
+Indexar un snapshot inmutable del commit asociado a un `AnalysisRun` para recuperar código, relaciones y tests existentes.
 
 ## Reglas y comportamiento
 
-- `POST /projects/index` multipart `file` + `projectId?` + `name?`; responde 202 con `projectId`, `projectVersionId`, `status=PENDING`, `pollAfterMs`.
-- Nueva carga crea nueva ProjectVersion; nunca sobrescribe.
-- El ZIP original se almacena con `upsert=false` en el bucket privado `repository-zips`; la key interna vigente es `repositories/{projectId}/versions/{projectVersionId}/original.zip`, preservando el versionado inmutable de HU07.
+- La entrada es un commit SHA de un repositorio vinculado y autorizado. Cada `ProjectVersion` representa un snapshot inmutable; un HEAD nuevo no sobrescribe evidencia del anterior.
+- El snapshot ZIP es un transporte **interno** entre materialización, Object Storage y Docker/Sandbox. Se valida integridad y se materializa con rutas seguras; no existe endpoint de carga de código desde el navegador.
 - PostgreSQL conserva únicamente la `snapshotKey` interna y metadata; nunca una URL firmada. La key no se expone al navegador.
-- Bloquear indexación simultánea del mismo Project con 409 `PROJECT_INDEXING_IN_PROGRESS`.
-- ZIP: extensión/MIME/no vacío/tamaño/safe paths/Zip Slip/cleanup.
+- La concurrencia se controla por Run/HEAD y jobs idempotentes, sin bloquear todo el Project por una carga manual.
+- Validar tamaño, entradas seguras, Zip Slip e integridad del snapshot interno; limpiar siempre el workspace temporal.
 - Estados: PENDING -> EXTRACTING -> ANALYZING -> CHUNKING -> EMBEDDING -> PERSISTING -> COMPLETED; cualquier activo -> FAILED.
 - `GET /project-versions/:id`; `GET /project-versions/:id/results`; antes de completar: 409 `ANALYSIS_NOT_FINISHED`.
 - Pool V1: .ts/.tsx, package.json, tsconfig.json, jest.config.*, vitest.config.*, *.spec.ts(x), *.test.ts(x). Ignorar node_modules,.git,dist,build,coverage,.next.
@@ -25,7 +22,7 @@ Ingerir un ZIP seguro, crear un snapshot versionado e indexarlo para recuperaci�
 
 ## Contrato vigente de análisis y chunking
 
-- `FileDiscoveryService` filtra primero el snapshot y entrega únicamente archivos del pool V1; no todos los archivos del ZIP reciben el mismo tratamiento.
+- `FileDiscoveryService` filtra primero el snapshot y entrega únicamente archivos del pool aplicable; no todos los archivos del repositorio reciben el mismo tratamiento.
 - `TypeScriptParserService` analiza con ts-morph los `.ts/.tsx` descubiertos, incluyendo archivos de producción y de pruebas.
 - **Granularidad jerárquica (definitiva):** una declaración top-level `CLASS` produce un chunk `CLASS` con la declaración completa (imports relevantes, propiedades, herencia, todos sus métodos) **y además** un chunk hijo `METHOD`/`CONSTRUCTOR` por cada método/constructor de la clase, con `parentSymbolName` apuntando al `symbolName` de la clase dueña. `FUNCTION`, `INTERFACE`, `TYPE_ALIAS` y `ENUM` top-level siguen produciendo un único chunk cada uno, sin cambios.
 - Si un archivo TypeScript no contiene alguna de esas declaraciones y su contenido no está vacío, se conserva un único chunk `FILE` con el archivo completo.

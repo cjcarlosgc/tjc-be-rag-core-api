@@ -1,7 +1,7 @@
 # 004-rag-retrieval-context — Especificación
 
 **Estado:** aprobado salvo elementos marcados PENDING/PROPOSED.
-**Historias:** HU08, HU09, HU10, HU11, HU12, HU19, HU27
+**Historias:** HU05, HU10, HU15, HU17
 
 ## Objetivo
 
@@ -20,7 +20,7 @@ Recuperar contexto relevante y construir GenerationContext controlado y trazable
 - Score ponderado configurable; ningún peso se presenta como verdad científica.
 - Selección por minimumScore/topK/maxContextTokens; target entra primero.
 - `GenerationContext` conserva target, relatedChunks y metadata de lenguaje/framework.
-- Para HU27, la ejecución conserva también todos los candidatos deduplicados, configuración efectiva, ranking, señales, decisión y motivo observable de descarte según `011-context-traces`; esa evidencia no altera el contexto entregado al LLM.
+- Para HU15/HU17, la ejecución conserva también todos los candidatos deduplicados, configuración efectiva, ranking, señales, decisión y motivo observable de descarte según `011-context-traces`; esa evidencia no altera el contexto entregado al LLM.
 
 `RetrievalService` entrega candidatos y señales; `ContextBuilder` es una responsabilidad distinta que selecciona, deduplica, ordena, etiqueta y ajusta el contenido al presupuesto. No se considera que un candidato semánticamente próximo sea equivalente por sí mismo a una dependencia estructural.
 

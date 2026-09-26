@@ -31,8 +31,8 @@ export type UserRepositoryPermission = RepositoryPermissionLevel | 'NONE' | 'APP
 
 /**
  * HU30: autorización/operación GitHub-App-centric. `installationId` siempre
- * se resuelve aquí server-side (JWT de App); nunca se acepta desde el
- * navegador (`system-contract.md` §Onboarding y repository binding).
+ * se resuelve aquí server-side mediante GitHub Integration; nunca se acepta
+ * desde el navegador (`system-contract.md` §Onboarding y repository binding).
  */
 @Injectable()
 export class GithubRepositoryAccessService {
@@ -42,7 +42,7 @@ export class GithubRepositoryAccessService {
     @Inject(GITHUB_ACCESS_PORT) private readonly githubAccessPort: GithubAccessPort,
   ) {}
 
-  /** `slug`/`name` se resuelven contra GitHub (`GET /app`), no por env var. */
+  /** `slug`/`name` se resuelven vía GitHub Integration (`GET /app`), no por env var. */
   async getAppInfo(): Promise<GitHubAppInfo> {
     const { slug, name } = await this.githubAppAuthService.getAppInfo();
 
@@ -78,7 +78,7 @@ export class GithubRepositoryAccessService {
 
   /**
    * HU64: propietario y `repositoryId` reales del repositorio según GitHub
-   * (leídos con el installation token; el `repositoryId` del cliente no es
+   * (leídos por GitHub Integration con el installation token; el `repositoryId` del cliente no es
    * autoridad). `404 GITHUB_REPOSITORY_NOT_FOUND` si no existe o la instalación
    * no lo ve; `503` si no es verificable.
    */
@@ -193,10 +193,8 @@ export class GithubRepositoryAccessService {
     repositoryName: string,
     installationId: string,
   ): Promise<GitHubRepositoryBranchResponse[]> {
-    const token = await this.githubAppAuthService.getInstallationToken(installationId);
-
     try {
-      return await this.githubRepositoryContentService.listBranches(repositoryName, token);
+      return await this.githubRepositoryContentService.listBranches(installationId, repositoryName);
     } catch (error) {
       if (error instanceof GithubAppUnavailableError && error.status === 404) {
         throw new AppException(
@@ -204,6 +202,12 @@ export class GithubRepositoryAccessService {
           `No se encontró el repositorio "${repositoryName}" en GitHub.`,
           HttpStatus.NOT_FOUND,
         );
+      }
+      if (error instanceof GithubAppUnavailableError && error.status === 403) {
+        throw this.appAccessRequired(repositoryName);
+      }
+      if (error instanceof GithubAppUnavailableError) {
+        throw this.verificationUnavailable();
       }
       throw error;
     }

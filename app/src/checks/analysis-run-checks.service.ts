@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
-import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
 import { GithubChecksService } from '../github-app/github-checks.service.js';
 import { mapRunStatusToCheckConclusion, buildCheckTitle } from './check-conclusion.util.js';
 import type { AnalysisRun } from '../generated/prisma/client.js';
@@ -19,7 +18,6 @@ export class AnalysisRunChecksService {
 
   constructor(
     private readonly repositoryBindingsRepository: RepositoryBindingsRepository,
-    private readonly githubAppAuthService: GithubAppAuthService,
     private readonly githubChecksService: GithubChecksService,
     private readonly configService: ConfigService,
   ) {}
@@ -38,9 +36,7 @@ export class AnalysisRunChecksService {
         return;
       }
 
-      const token = await this.githubAppAuthService.getInstallationToken(binding.installationId);
-
-      await this.githubChecksService.createCheckRun(binding.repositoryName, token, {
+      await this.githubChecksService.createCheckRun(binding.installationId, binding.repositoryName, {
         name: this.configService.get<string>('GITHUB_CHECK_NAME', DEFAULT_CHECK_NAME),
         headSha: run.headSha,
         conclusion,

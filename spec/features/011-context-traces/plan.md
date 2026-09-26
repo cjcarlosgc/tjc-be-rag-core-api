@@ -2,9 +2,9 @@
 
 ## Dependencias
 
-- `004-rag-retrieval-context`, `005-test-generation`, `007-artifacts` y `008-experimental-comparison`.
+- `004-rag-retrieval-context`, `008-experimental-comparison` y el pipeline PR-driven de `013-pr-driven-analysis`; la evidencia de generación/validación pertenece al `AnalysisRun`, sin revivir features de generación manual ni descarga legacy.
 - `spec/transversal/persistence/` para almacenamiento e índices.
-- `INTEROP-2.4`, sección 6.7.
+- `INTEROP-2.5`, sección 6.7.
 
 ## Diseño técnico
 
@@ -13,7 +13,7 @@
 - Persistir la traza RAG antes de invocar el LLM, de forma atómica o recuperable con el resultado del target. Si el pipeline falla después, la evidencia adquirida sigue consultable al llegar el run a estado terminal.
 - Normalizar las respuestas de `WorkspaceAgentTools` en observaciones estructuradas sin alterar el texto efectivamente entregado al modelo. Calcular hashes sobre ese resultado y conservar truncamiento/rangos.
 - Resolver hasta tres líneas circundantes desde `ProjectVersion`/`CodeChunk` o desde el snapshot privado mediante un servicio de lectura segura; nunca devolver paths absolutos, signed URLs ni storage keys.
-- Implementar el listado paginado de trazas de Experiments, el detalle y el listado paginado de archivos descubiertos, siguiendo exactamente `INTEROP-2.4` §6.7.
+- Implementar el listado paginado de trazas de Experiments, el detalle y el listado paginado de archivos descubiertos, siguiendo exactamente `INTEROP-2.5` §6.7.
 - Autorizar consultas con el acceso Reader vigente al Project del experimento y filtrar en repositorio por el experimento visible.
 
 ## Validación

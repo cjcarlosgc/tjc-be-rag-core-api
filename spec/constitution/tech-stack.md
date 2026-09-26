@@ -5,7 +5,7 @@
 - Backend: NestJS + TypeScript.
 - Persistencia: PostgreSQL + pgvector en Supabase para datos de dominio, chunks, embeddings vectoriales y la cola DB-backed de jobs.
 - ORM: Prisma para relacional; TypedSQL/raw SQL para operaciones vectoriales.
-- AST/análisis estructural: adapters por lenguaje; ts-morph se conserva para TypeScript y la alternativa PHP se selecciona al implementar HU41.
+- AST/análisis estructural: adapters por lenguaje; ts-morph se conserva para TypeScript y el soporte PHP se coordina con el trabajo del Sandbox sin editar ese repositorio en este corte.
 - Input objetivo: GitHub repository + commit SHA + PR CHANGESET. Los componentes reutilizables de ingestión se aplican a snapshots PR-driven; no existe una entrada de producto separada.
 - Stacks: TypeScript (`.ts`/`.tsx`) con Jest/Vitest en compatibility track; PHP/Laravel con PHPUnit como active development track. JavaScript puro no se habilita por esta decisión.
 - Distancia vectorial: cosine.
@@ -16,5 +16,5 @@
 - Integración Sandbox: `SANDBOX_URL` y `SANDBOX_SERVICE_TOKEN`; el secreto es opaco, precompartido solo entre ambos backends, obligatorio en Core cuando existe URL y nunca se expone al frontend ni al container.
 - Package manager del servicio: pnpm. Los proyectos recibidos también deben contener `pnpm-lock.yaml` para ser ejecutables en Sandbox V1; se instalan con pnpm y lockfile congelado.
 - Mecanismo durable de jobs: cola DB-backed sobre PostgreSQL de Supabase (tabla `jobs`, despacho con `SELECT ... FOR UPDATE SKIP LOCKED`). Sin broker externo en V1.
-- Integración de repositorio: GitHub App dentro de Core con firma de webhooks, Checks y permisos mínimos; GitHub OAuth solo se usa por Supabase Auth para login.
+- Integración de repositorio: GitHub Integration (`tjc-be-github-integration-api`) posee la GitHub App, llamadas GitHub, webhooks, Checks y publicación; Core invoca su API privada y mantiene las decisiones de dominio. Supabase Auth usa GitHub OAuth para identidad y su provider token se reenvía efímeramente solo para discovery.
 - Sandbox profiles: `NODE_TYPESCRIPT` vigente y `PHP_LARAVEL_PHPUNIT` aprobado para implementar con PHP, Composer y PHPUnit reales.

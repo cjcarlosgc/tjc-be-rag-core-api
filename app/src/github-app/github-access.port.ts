@@ -3,27 +3,19 @@ export const GITHUB_ACCESS_PORT = Symbol('GITHUB_ACCESS_PORT');
 /** `role_name` de GitHub ya normalizado; un rol personalizado se mapea por su permiso base. */
 export type RepositoryPermissionLevel = 'admin' | 'maintain' | 'write' | 'triage' | 'read';
 
-/**
- * Repositorio a consultar con el installation token de la App: las lecturas de
- * GitHub se direccionan por `owner/repo` y el token es por instalación.
- */
+/** Referencia de dominio que Core envía a GitHub Integration para una lectura autorizada. */
 export interface RepositoryRef {
   installationId: string;
   repositoryName: string;
 }
 
-/**
- * Organización a consultar con el installation token de su instalación. Las
- * lecturas de organización se direccionan por `login` (`/orgs/{org}/...`); el
- * token es de la instalación, así que un `login` que ya no pertenece a esa
- * instalación (renombrado o reasignado) no devuelve datos de otra organización.
- */
+/** Organización que Core pide verificar a GitHub Integration. */
 export interface OrganizationRef {
   installationId: string;
   organizationLogin: string;
 }
 
-/** Instalación de la GitHub App en una organización (`GET /app/installations`, JWT de App). */
+/** DTO normalizado de una instalación de GitHub App devuelto por GitHub Integration. */
 export interface OrganizationInstallation {
   installationId: string;
   /** Id numérico de GitHub de la organización, como texto (el `workspaceId`). */
@@ -88,7 +80,7 @@ export interface GithubAccessPort {
   getRepositoryOwner(repository: RepositoryRef): Promise<GithubLookup<RepositoryOwner>>;
 
   /**
-   * Repositorio por su id inmutable (`GET /repositories/{id}` con el installation token):
+ * Repositorio por su id inmutable:
    * devuelve el nombre y el propietario VIGENTES aunque se haya renombrado o transferido, que
    * es lo que revalida la reconciliación (HU61, parte (c)). `NOT_FOUND` = eliminado o la
    * instalación ya no lo ve; `NOT_INSTALLED` = la App ya no está instalada.
@@ -96,9 +88,8 @@ export interface GithubAccessPort {
   getRepositoryById(installationId: string, repositoryId: string): Promise<GithubLookup<RepositoryDetails>>;
 
   /**
-   * Permiso efectivo de `githubUserId` sobre el repositorio, leído con el
-   * installation token por `login` resuelto desde el id (`GET /user/{id}`); el
-   * `githubLogin` guardado nunca se usa. `NOT_FOUND` = sin ningún permiso.
+   * Permiso efectivo de `githubUserId` sobre el repositorio, resuelto por GitHub
+   * Integration desde el id; el `githubLogin` guardado nunca se usa. `NOT_FOUND` = sin ningún permiso.
    */
   getRepositoryPermission(
     repository: RepositoryRef,
@@ -107,15 +98,14 @@ export interface GithubAccessPort {
 
   /**
    * Instalaciones de la App en organizaciones (las de cuentas personales se
-   * omiten), con el JWT de la App: no hay installation token que pueda fallar
-   * con `NOT_INSTALLED`. Incluye las suspendidas (`suspended`); una lista vacía
+   * omiten). Incluye las suspendidas (`suspended`); una lista vacía
    * es `OK`. `UNVERIFIABLE` = GitHub no responde o la App no está configurada.
    */
   listOrganizationInstallations(): Promise<GithubLookup<OrganizationInstallation[]>>;
 
   /**
-   * Membresía de `githubUserId` en la organización, leída con el installation
-   * token por `login` resuelto desde el id (`GET /user/{id}`, sin caché).
+   * Membresía de `githubUserId` en la organización, resuelta por GitHub Integration
+   * desde el id sin caché.
    * `NOT_FOUND` = no es miembro (ni pendiente). `UNVERIFIABLE` incluye `Members:
    * read` sin aceptar o la instalación suspendida.
    */

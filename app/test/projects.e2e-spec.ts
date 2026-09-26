@@ -6,7 +6,9 @@ import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter.js';
 import { ObjectStorageService } from '../src/object-storage/object-storage.service.js';
+import { GITHUB_ACCESS_PORT } from '../src/github-app/github-access.port.js';
 import { FakeObjectStorageService } from './support/fake-object-storage.service.js';
+import { FakeGithubAccessPort } from './support/fake-github-access.port.js';
 import {
   authedRequest,
   E2E_TEST_USER_ID,
@@ -20,8 +22,10 @@ const OWN_GITHUB_ID = e2eGithubUserId(E2E_TEST_USER_ID);
 
 describe('Projects (e2e)', () => {
   let app: INestApplication;
+  let github: FakeGithubAccessPort;
 
   beforeAll(async () => {
+    github = new FakeGithubAccessPort();
     const moduleFixture: TestingModule = await overrideAuthTokenVerifier(
       Test.createTestingModule({
         imports: [AppModule],
@@ -29,7 +33,9 @@ describe('Projects (e2e)', () => {
         .overrideProvider(PrismaService)
         .useValue(new InMemoryPrisma())
         .overrideProvider(ObjectStorageService)
-        .useClass(FakeObjectStorageService),
+        .useClass(FakeObjectStorageService)
+        .overrideProvider(GITHUB_ACCESS_PORT)
+        .useValue(github),
     ).compile();
 
     app = moduleFixture.createNestApplication();
@@ -181,7 +187,7 @@ describe('Projects (e2e)', () => {
     ['the id of an organization', '424242'],
     ['the personal workspace id of another user', e2eGithubUserId(OTHER_USER_ID)],
     ['a value that is not a workspace', 'octocat'],
-  ])('answers 404 WORKSPACE_NOT_FOUND on POST and GET /projects for %s (until cut 3)', async (_label, workspaceId) => {
+  ])('answers 404 WORKSPACE_NOT_FOUND on POST and GET /projects for %s', async (_label, workspaceId) => {
     const created = await authedRequest(app).post('/projects').send({ name: 'nope', workspaceId }).expect(404);
     const listed = await authedRequest(app).get('/projects').query({ workspaceId }).expect(404);
 

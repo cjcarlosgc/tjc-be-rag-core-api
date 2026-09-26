@@ -1,4 +1,3 @@
-import { createHmac } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -20,8 +19,8 @@ import { authedRequest, e2eGithubUserId, overrideAuthTokenVerifier } from './sup
 
 /**
  * 014, corte 5 (HU61): eventos `repository`, `installation`, `installation_repositories` (5a) y
- * `member`, `membership`, `organization`, `team` y `repository.privatized` (5b) por el ingress REAL
- * (firma HMAC sobre el body crudo, `202`), con fakes de GitHub, `InMemoryPrisma` y la cola en memoria
+ * `member`, `membership`, `organization`, `team` y `repository.privatized` (5b) por el ingress interno
+ * autenticado que recibe el evento normalizado, con fakes de GitHub, `InMemoryPrisma` y la cola en memoria
  * (`InMemoryJobsRepository`, que modela el SQL verificado contra PostgreSQL); el efecto se observa por
  * las rutas HTTP con el predicado de acceso real. Ningún test llama a GitHub ni Supabase.
  */
@@ -35,6 +34,74 @@ const READER = 'wh-reader';
 const PERSONAL = 'wh-personal';
 const gh = e2eGithubUserId;
 
+function normalizeTestWebhook(eventName: string, payload: unknown, deliveryId: string): Record<string, unknown> {
+  const raw = asRecord(payload);
+  const installation = asRecord(raw.installation);
+  const account = asRecord(installation.account);
+  const repository = asRecord(raw.repository);
+  const owner = asRecord(repository.owner);
+  const member = asRecord(raw.member);
+  const organization = asRecord(raw.organization);
+  const membership = asRecord(raw.membership);
+  const membershipUser = asRecord(membership.user);
+  const id = (value: unknown): string | null => value === null || value === undefined ? null : String(value);
+  const action = typeof raw.action === 'string' ? raw.action : null;
+  const repoList = (value: unknown) => Array.isArray(value)
+    ? value.map((item) => {
+      const entry = asRecord(item);
+      return { id: String(entry.id ?? ''), fullName: String(entry.full_name ?? '') };
+    })
+    : [];
+
+  let data: Record<string, unknown>;
+  switch (eventName) {
+    case 'installation':
+      data = { kind: 'INSTALLATION', installationId: id(installation.id) ?? '', account: { id: id(account.id), type: typeof account.type === 'string' ? account.type : null } };
+      break;
+    case 'installation_repositories':
+      data = { kind: 'INSTALLATION_REPOSITORIES', installationId: id(installation.id) ?? '', added: repoList(raw.repositories_added), removed: repoList(raw.repositories_removed) };
+      break;
+    case 'repository':
+      data = {
+        kind: 'REPOSITORY',
+        repository: {
+          id: id(repository.id) ?? '',
+          fullName: typeof repository.full_name === 'string' ? repository.full_name : '',
+          owner: repository.owner && typeof owner.id !== 'undefined'
+            ? { id: id(owner.id) ?? '', login: typeof owner.login === 'string' ? owner.login : null, type: typeof owner.type === 'string' ? owner.type : null }
+            : null,
+        },
+        installationId: id(installation.id),
+      };
+      break;
+    case 'member':
+      data = { kind: 'MEMBER', memberId: id(member.id), repositoryId: id(repository.id) };
+      break;
+    case 'membership':
+      data = { kind: 'MEMBERSHIP', memberId: id(member.id), organizationId: id(organization.id) };
+      break;
+    case 'organization':
+      data = {
+        kind: 'ORGANIZATION',
+        organizationId: id(organization.id),
+        organizationLogin: typeof organization.login === 'string' ? organization.login : null,
+        membershipUserId: id(membershipUser.id),
+      };
+      break;
+    case 'team':
+      data = { kind: 'TEAM', repositoryId: id(repository.id), organizationId: id(organization.id) };
+      break;
+    default:
+      data = { kind: 'IGNORED' };
+  }
+
+  return { schemaVersion: 1, deliveryId, eventName, action, receivedAt: '2026-09-25T20:00:00.000Z', data };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
 describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
   let app: INestApplication;
   let github: FakeGithubAccessPort;
@@ -45,7 +112,10 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
 
   beforeAll(async () => {
     // `ConfigModule.forRoot` lee el entorno al importar `AppModule`: se fija antes del import.
-    process.env.GITHUB_APP_WEBHOOK_SECRET = SECRET;
+    process.env.GITHUB_INTEGRATION_API_BASE_URL = 'http://localhost:3999';
+    process.env.CORE_TO_GITHUB_INTEGRATION_TOKEN = 'e2e-core-to-gh-token';
+    process.env.GITHUB_INTEGRATION_TO_CORE_TOKEN = SECRET;
+    process.env.GITHUB_BINDING_EVIDENCE_SECRET = 'e2e-github-binding-evidence-secret-32-characters';
     process.env.JOBS_POLL_INTERVAL_MS = '3600000'; // los jobs se ejecutan a mano con `runOnce()`
     const { AppModule } = await import('../src/app.module.js');
     github = new FakeGithubAccessPort();
@@ -63,14 +133,13 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
         .overrideProvider(GithubAppAuthService)
         .useValue({
           findInstallationForRepository: () => Promise.resolve('42'),
-          getInstallationToken: () => Promise.resolve('installation-token'),
           getAppInfo: () => Promise.resolve({ slug: 'tjc-core', name: 'TJC Core' }),
         })
         .overrideProvider(GithubRepositoryContentService)
         .useValue({ listBranches: () => Promise.resolve([{ name: 'main', protected: false }]) }),
     ).compile();
 
-    app = moduleFixture.createNestApplication({ rawBody: true });
+    app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
@@ -78,8 +147,11 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    delete process.env.GITHUB_APP_WEBHOOK_SECRET;
+    if (app) await app.close();
+    delete process.env.GITHUB_INTEGRATION_API_BASE_URL;
+    delete process.env.CORE_TO_GITHUB_INTEGRATION_TOKEN;
+    delete process.env.GITHUB_INTEGRATION_TO_CORE_TOKEN;
+    delete process.env.GITHUB_BINDING_EVIDENCE_SECRET;
     delete process.env.JOBS_POLL_INTERVAL_MS;
   });
 
@@ -99,18 +171,13 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       .setPermission(REPO, gh(READER), 'read');
   });
 
-  const sign = (body: string) => `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}`;
-
-  const deliver = (eventName: string, payload: unknown, options: { deliveryId?: string; signature?: string } = {}) => {
-    const body = JSON.stringify(payload);
+  const deliver = (eventName: string, payload: unknown, options: { deliveryId?: string; token?: string } = {}) => {
     deliveries += 1;
     return request(app.getHttpServer())
-      .post('/integrations/github/webhooks')
+      .post('/internal/v1/github/webhook-events')
       .set('content-type', 'application/json')
-      .set('x-github-event', eventName)
-      .set('x-github-delivery', options.deliveryId ?? `delivery-${deliveries}`)
-      .set('x-hub-signature-256', options.signature ?? sign(body))
-      .send(body);
+      .set('Authorization', `Bearer ${options.token ?? SECRET}`)
+      .send(normalizeTestWebhook(eventName, payload, options.deliveryId ?? `delivery-${deliveries}`));
   };
 
   const repositoryEvent = (action: string, repository: Record<string, unknown> = {}) => ({
@@ -143,32 +210,29 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       expect(response.body).toEqual({ deliveryId: 'd-shape', accepted: true, duplicate: false, analysisRunId: null });
     });
 
-    it('rejects an altered signature with 401 and applies nothing', async () => {
+    it('rejects an invalid GH-to-Core bearer with 401 and applies nothing', async () => {
       await setUpOrgProject();
-      const body = JSON.stringify(repositoryEvent('deleted'));
-
-      await request(app.getHttpServer())
-        .post('/integrations/github/webhooks')
-        .set('content-type', 'application/json')
-        .set('x-github-event', 'repository')
-        .set('x-github-delivery', 'd-tampered')
-        .set('x-hub-signature-256', sign(`${body} `))
-        .send(body)
-        .expect(401);
+      await deliver('repository', repositoryEvent('deleted'), { deliveryId: 'd-invalid-token', token: 'wrong-token' }).expect(401);
 
       expect(binding().status).toBe('ENABLED');
       expect(recordsOf()).toHaveLength(3);
     });
 
-    it('rejects a missing signature and a missing delivery id', async () => {
+    it('rejects missing bearer authentication and malformed normalized metadata', async () => {
+      await setUpOrgProject();
+      const event = normalizeTestWebhook('repository', repositoryEvent('deleted'), 'd-missing-metadata');
+      delete event.deliveryId;
+
       await request(app.getHttpServer())
-        .post('/integrations/github/webhooks')
-        .set('content-type', 'application/json')
-        .set('x-github-event', 'repository')
-        .set('x-github-delivery', 'd-nosig')
-        .send(JSON.stringify(repositoryEvent('deleted')))
+        .post('/internal/v1/github/webhook-events')
+        .send(normalizeTestWebhook('repository', repositoryEvent('deleted'), 'd-no-auth'))
         .expect(401);
-      await deliver('repository', repositoryEvent('deleted')).set('x-github-delivery', '').expect(400);
+      await request(app.getHttpServer())
+        .post('/internal/v1/github/webhook-events')
+        .set('Authorization', `Bearer ${SECRET}`)
+        .send(event)
+        .expect(400);
+      expect(binding().status).toBe('ENABLED');
     });
 
     it.each(['member', 'membership', 'organization', 'team'])('answers 202 with the same shape to `%s` and records no delivery', async (eventName) => {
@@ -180,19 +244,9 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       expect(prisma.tables.webhookDelivery).toHaveLength(0);
     });
 
-    // `retry`: flake de arnés no diagnosticado (supertest levanta un servidor efímero por petición y vitest corre los archivos en paralelo): en muy pocas ejecuciones falló con "socket hang up". El 401 se lanza después de leer el cuerpo completo, así que no es un defecto del producto. Si reaparece, captura el error completo antes de tocar nada.
-    it.each(['member', 'membership', 'organization', 'team'])('rejects a tampered `%s` signature with 401 and enqueues/applies nothing', { retry: 2 }, async (eventName) => {
+    it.each(['member', 'membership', 'organization', 'team'])('rejects an invalid credential for `%s` before handling it', async (eventName) => {
       await setUpOrgProject();
-      const body = JSON.stringify({ action: 'removed', member: { id: 1 }, membership: { user: { id: 1 } }, organization: { id: 42 }, repository: { id: 100 } });
-
-      await request(app.getHttpServer())
-        .post('/integrations/github/webhooks')
-        .set('content-type', 'application/json')
-        .set('x-github-event', eventName)
-        .set('x-github-delivery', 'd-tampered')
-        .set('x-hub-signature-256', sign(`${body} `))
-        .send(body)
-        .expect(401);
+      await deliver(eventName, { action: 'removed', member: { id: 1 }, membership: { user: { id: 1 } }, organization: { id: 42 }, repository: { id: 100 } }, { deliveryId: 'd-bad-token', token: 'wrong-token' }).expect(401);
 
       expect(queue.jobs).toHaveLength(0);
       expect(recordsOf()).toHaveLength(3);

@@ -12,16 +12,18 @@ Este repositorio usa Specification-Driven Development (SDD). Este archivo es del
 
 ## Reglas de trabajo
 
+- Antes de tocar código de producto, seleccionar un `WI-<COMP>-<NNN>` local en `harness/work-items.json`, enlazado desde `ST-<COMP>-<NNN>` en el `tasks.md` dueño; ejecutar `node harness/validate-harness.mjs`. Las casillas y HU antiguas no son autorización de implementación.
 - No inventar como cerrada una decisión marcada `PENDING` o `PROPOSED`.
 - Evaluar las decisiones pendientes contra el work item activo: solo una decisión cuyo campo `Blocks` alcance ese trabajo impide avanzar a `SPEC_VERIFIED`.
 - Registrar en `harness/state.json` los IDs de decisión aplicables; no duplicar allí el contenido de la decisión.
 - Un cambio funcional aprobado se consolida en la spec canónica y se registra en `CHANGELOG.md`.
-- Al actualizar la línea base SDD, homologar `sddVersion` en los tres repositorios antes de commit; `SYSTEM-*` e `INTEROP-*` conservan versionado independiente.
-- Mantener `storyIds` y `sprint` en `harness/state.json`.
+- SDD 3.0 es la línea base solicitada para Core/Console; `planningBaseline` marca que Sandbox continúa en 2.1 y la homologación global sigue pendiente. No declarar ni publicar una línea base común de los tres antes de esa homologación. `SYSTEM-*` e `INTEROP-*` conservan versionado independiente.
+- Mantener `storyIds`, `taskIds`, `component` y `sprint` en el WI activo; cada subtarea nueva de `tasks.md` enlaza un WI de `harness/work-items.json`.
 - Implementar por cortes coherentes; dos desarrolladores pueden trabajar en paralelo.
 - Cada commit debe ser un cambio coherente y declarar en el cuerpo `Refs: HU...` con todas las historias afectadas.
 - No marcar una tarea como terminada sin evidencia verificable.
 - Antes de cerrar: lint, test y build; agregar pruebas para correcciones cuando sea viable.
+- Antes de declarar un WI terminado, el usuario es el reviewer independiente por defecto; el leader debe presentar diff y evidencia, y esperar su veredicto. Solo delega esa revisión a un agente si el usuario lo pide explícitamente. El implementer no puede autoaprobarse; la revisión delegada tampoco sustituye la aprobación humana de alcance/arquitectura.
 - Antes de hacer push al cierre del sprint, el reviewer debe aprobar el rango completo que se publicará y registrar la evidencia de revisión.
 - Commitear por corte con sentido lógico sin pedir permiso previo (`spec/constitution/delivery-workflow.md`, "Puerta de push"). No hacer push, PR, merge o cambios de infraestructura externa sin solicitud explícita en cada ocasión.
 - Si la causa raíz de un fallo está en otro componente (Developer Console, Test Execution Sandbox), no corregirla en ese repositorio: diagnosticar y entregar una indicación compacta al agente propio de ese componente (`spec/constitution/delivery-workflow.md`).

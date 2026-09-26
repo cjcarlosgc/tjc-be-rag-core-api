@@ -141,7 +141,6 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
         .useValue({
           findInstallationForRepository: (owner: string, repo: string) =>
             Promise.resolve(`${owner}/${repo}` === REPO ? 'inst-42' : null),
-          getInstallationToken: () => Promise.resolve('installation-token'),
           getAppInfo: () => Promise.resolve({ slug: 'tjc-core', name: 'TJC Core' }),
         })
         .overrideProvider(GithubRepositoryContentService)
@@ -318,10 +317,17 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       ]);
     });
 
-    it('the roles implemented on every route equal the INTEROP §6.13 matrix, route by route', () => {
+    it('the roles on every user-facing route equal the INTEROP §6.13 matrix, route by route', () => {
       const implemented = new Map(
         routes()
           .filter((entry) => entry.transport !== 'ws-handshake')
+          // Endpoints internos o de evidencia no forman parte de la matriz de roles de Console:
+          // los internos validan su bearer propio y los de evidencia validan sesión + autorización firmada.
+          // Sus controles se verifican en sus suites específicas, no se etiquetan como rutas públicas de usuario.
+          .filter((entry) => !(entry.transport === 'http' && (
+            entry.path.startsWith('/internal/v1/github/') ||
+            entry.path === '/projects/:projectId/integrations/github/verified'
+          )))
           .map((entry) => [matrixKey(entry.method, entry.path), policyOf(entry)]),
       );
       const contract = new Map(
@@ -331,6 +337,21 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       implemented.delete(matrixKey('WS', 'unsubscribe:project-version'));
 
       expect(Object.fromEntries([...implemented].sort())).toEqual(Object.fromEntries([...contract].sort()));
+    });
+
+    it('keeps internal service and signed-evidence routes on their separate trust boundaries', () => {
+      const special = routes()
+        .filter((entry) => entry.transport === 'http' && (
+          entry.path.startsWith('/internal/v1/github/') ||
+          entry.path === '/projects/:projectId/integrations/github/verified'
+        ))
+        .map((entry) => [matrixKey(entry.method, entry.path), policyOf(entry)] as const);
+
+      expect(Object.fromEntries(special.sort(([left], [right]) => left.localeCompare(right)))).toEqual({
+        'POST /internal/v1/github/authorization-decisions': 'PUBLIC',
+        'POST /internal/v1/github/webhook-events': 'PUBLIC',
+        'POST /projects/{}/integrations/github/verified': 'NONE',
+      });
     });
 
     it('routes of the contract that Core does not implement yet have no route (they must be added to the router with their role)', () => {

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunChecksService } from './analysis-run-checks.service.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
-import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
 import { GithubChecksService } from '../github-app/github-checks.service.js';
 import type { AnalysisRun, RepositoryBinding } from '../generated/prisma/client.js';
 
@@ -33,13 +32,11 @@ const binding: RepositoryBinding = {
 describe('AnalysisRunChecksService', () => {
   let service: AnalysisRunChecksService;
   let repositoryBindingsRepository: { findForRun: ReturnType<typeof vi.fn> };
-  let githubAppAuthService: { getInstallationToken: ReturnType<typeof vi.fn> };
   let githubChecksService: { createCheckRun: ReturnType<typeof vi.fn> };
   let configService: { get: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
-    githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
     githubChecksService = { createCheckRun: vi.fn().mockResolvedValue(undefined) };
     configService = {
       get: vi.fn((key: string, fallback?: unknown) => {
@@ -50,7 +47,6 @@ describe('AnalysisRunChecksService', () => {
     };
     service = new AnalysisRunChecksService(
       repositoryBindingsRepository as unknown as RepositoryBindingsRepository,
-      githubAppAuthService as unknown as GithubAppAuthService,
       githubChecksService as unknown as GithubChecksService,
       configService as never,
     );
@@ -62,10 +58,9 @@ describe('AnalysisRunChecksService', () => {
     expect(repositoryBindingsRepository.findForRun).toHaveBeenCalledWith(
       expect.objectContaining({ repositoryId: '123' }),
     );
-    expect(githubAppAuthService.getInstallationToken).toHaveBeenCalledWith('999');
     expect(githubChecksService.createCheckRun).toHaveBeenCalledWith(
+      '999',
       'org/repo',
-      'installation-token',
       expect.objectContaining({ headSha: 'head-sha', conclusion: 'success', summary: 'todo bien' }),
     );
   });
@@ -79,8 +74,8 @@ describe('AnalysisRunChecksService', () => {
     await service.publishForRun(buildRun());
 
     expect(githubChecksService.createCheckRun).toHaveBeenCalledWith(
+      '999',
       'org/repo',
-      'installation-token',
       expect.objectContaining({ detailsUrl: 'https://console.example.com/projects/project-1/runs/run-1' }),
     );
   });
@@ -96,7 +91,7 @@ describe('AnalysisRunChecksService', () => {
 
     await service.publishForRun(buildRun());
 
-    expect(githubAppAuthService.getInstallationToken).not.toHaveBeenCalled();
+    expect(githubChecksService.createCheckRun).not.toHaveBeenCalled();
   });
 
   it('never throws when publishing the check fails (best-effort)', async () => {

@@ -210,7 +210,7 @@ export class ProjectAccessService {
 
   /**
    * Reverificación de un registro EXISTENTE (`ACCESS_REVERIFY` y reconciliación (b)): las
-   * mismas reglas que el alta (`deriveRole`, lectura viva del installation token; el payload de
+   * mismas reglas que el alta (`deriveRole`, lectura viva delegada a GitHub Integration; el payload de
    * un evento nunca aporta el rol) bajo el MISMO advisory lock por `(projectId, userId)`, de
    * modo que nunca se intercala con un alta ni con una revocación. Confirma y actualiza
    * `role`/`verifiedAt`; borra el registro si GitHub confirma que se perdió el acceso (no
@@ -320,7 +320,7 @@ export class ProjectAccessService {
   }
 
   /**
-   * Rol derivado de GitHub, siempre con una lectura viva del installation token: owner de
+   * Rol derivado de GitHub, siempre con una lectura viva solicitada a GitHub Integration: owner de
    * la organización = Admin; miembro activo con permiso `maintain`/`write`/`admin` sobre el
    * repositorio vinculado = Maintainer, con `triage`/`read` = Reader. La membresía activa se
    * exige SIEMPRE (un colaborador externo con `write` no accede, ni en repositorios

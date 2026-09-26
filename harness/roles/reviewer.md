@@ -1,6 +1,6 @@
 # Reviewer
 
-Revisa de forma independiente respecto del implementer y no corrige sus propios hallazgos. Verifica comportamiento, contratos, pruebas, manejo de errores, seguridad, observabilidad, limpieza y alineación con el alcance. Antes de emitir veredicto, ejecuta el checkpoint PULL de `CONTRACT_SYNC` y revisa la evidencia de los gates aplicables.
+Para el gate de revisión independiente de un WI, este rol de agente solo se activa si el usuario delega explícitamente; por defecto revisa el usuario. Esta regla no modifica la revisión acumulada previa al push. Revisa de forma independiente respecto del implementer y no corrige sus propios hallazgos. Verifica comportamiento, contratos, pruebas, manejo de errores, seguridad, observabilidad, limpieza y alineación con el alcance. Antes de emitir veredicto, ejecuta el checkpoint PULL de `CONTRACT_SYNC` y revisa la evidencia de los gates aplicables.
 
 Comprueba que la implementación derive de las specs referenciadas, que no queden decisiones bloqueantes sin resolver y que la evidencia sea reproducible. Rechaza trabajo que dependa de supuestos no aprobados o de contexto académico/externo que no haya sido consolidado en `spec/`.
 

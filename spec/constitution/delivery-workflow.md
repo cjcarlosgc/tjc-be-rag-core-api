@@ -6,8 +6,8 @@
 ## Versión SDD conjunta
 
 - `sddVersion` identifica la línea base consolidada de toda la solución, no una versión local independiente de cada repositorio.
-- Cuando se actualiza la línea base SDD en cualquiera de los tres componentes, se homologan en el mismo corte las versiones declaradas por RAG Core API, Developer Console y Test Execution Sandbox.
-- Una diferencia temporal mientras se editan las tres copias no constituye una nueva versión válida y debe resolverse antes de commit.
+- La transición de planificación y Harness se hace primero en Core y Console con `sddVersion: 3.0` por decisión del usuario; Sandbox permanece intacto en 2.1 mientras otro desarrollador trabaja en PHP. `planningBaseline: 2026-09-24-core-console-transition` identifica esta adopción parcial, no compatibilidad desplegada ni homologación global.
+- SDD 3.0 no se declara ni publica como línea base común de toda la solución hasta homologar Sandbox. El cuarto componente se incorpora a ese proceso una vez exista un contrato aprobado.
 - `SYSTEM-*` e `INTEROP-*` mantienen versionado propio y solo cambian cuando cambia su contrato correspondiente.
 
 ## Unidad de commit
@@ -35,7 +35,7 @@ Refs: HUxx[, HUyy...]
 
 La entrega tiene dos niveles de revisión:
 
-1. **Revisión del work item:** el estado `IN_REVIEW` verifica el corte de una o más HU antes de `DONE`, según `harness/WORKFLOW.md`.
+1. **Revisión del work item:** el estado `IN_REVIEW` verifica el corte de una o más HU antes de `DONE`, según `harness/WORKFLOW.md`. El usuario revisa por defecto; puede pedir explícitamente que un agente independiente lo haga. El implementer nunca aprueba su propio corte.
 2. **Revisión consolidada del sprint:** antes de cualquier push, el reviewer revisa de forma independiente el rango completo de commits que se pretende publicar, no solo cada commit por separado.
 
 La revisión consolidada comprueba como mínimo:

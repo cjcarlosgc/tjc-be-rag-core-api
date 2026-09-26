@@ -53,7 +53,6 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
         .useValue({
           findInstallationForRepository: (owner: string, repo: string) =>
             Promise.resolve(`${owner}/${repo}` === REPO ? 'inst-42' : null),
-          getInstallationToken: () => Promise.resolve('installation-token'),
           getAppInfo: () => Promise.resolve({ slug: 'tjc-core', name: 'TJC Core' }),
         })
         .overrideProvider(GithubRepositoryContentService)

@@ -1,11 +1,11 @@
 # Contexto operativo del proyecto
 
-**Estado:** APROBADO — SDD 2.1
+**Estado:** transición aprobada Core/Console; homologación Sandbox pendiente
 **Alcance:** frontera de contexto para especificación, implementación y revisión.
 
 ## Identidad
 
-`tjc-be-rag-core-api` es el backend principal de RAG Test Studio. Coordina GitHub Integration, conocimiento de código/funcional, generación, validación, jobs, métricas y publicación; el código fuente vive exclusivamente en `app/`.
+`tjc-be-rag-core-api` es el backend de dominio de RAG Test Studio. Coordina conocimiento de código/funcional, generación, validación, jobs y métricas; el código fuente vive exclusivamente en `app/`. `tjc-be-github-integration-api` posee el SDK, GitHub App, webhooks, discovery, repositorios, Checks y publicación. Bajo `GH-INTEROP-1.1`, Console lo llama directamente para App info, discovery, verificación GitHub y ramas; Core lo llama para el pipeline y recibe sus eventos normalizados. Core conserva identidad de dominio, autorización de Projects, persistencia, RAG, freshness y efectos de negocio. El WI de migración y el cutover externo permanecen pendientes de revisión/configuración autorizada.
 
 ## Núcleo del producto
 
@@ -27,10 +27,10 @@ El producto valida changesets de Pull Requests mediante RAG semántico-estructur
 
 - Contrato compartido: `spec/contracts/system-contract.md`.
 - Transporte/DTOs/estados: `spec/contracts/interoperability-contract.md`.
-- Re-baseline: `spec/backlog.md` y `spec/backlog-migration-sdd-2.0.md`.
+- Planificación vigente: `spec/backlog.md`, `spec/operational-cases.md`, `spec/constitution/planning-model.md` y `harness/work-items.json`.
 - Comportamiento Core: `spec/features/013-pr-driven-analysis/` y specs transversales.
 - Historia: `CHANGELOG.md`.
 
 ## Contexto excluido
 
-No se incorporan personas, reuniones, cronogramas académicos, bibliografía, marco teórico ni handoffs antiguos. El único insumo externo de T-001 es el handoff final contrastado con la spec; solo sus decisiones funcionales aprobadas se consolidan.
+No se incorporan personas, reuniones, cronogramas académicos, bibliografía, marco teórico ni handoffs antiguos. Un insumo externo solo se consolida tras contrastarlo con la spec y confirmar sus decisiones funcionales con el usuario.

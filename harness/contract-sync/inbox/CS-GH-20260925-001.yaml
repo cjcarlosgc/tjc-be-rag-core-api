@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20260925-001
+source: github-integration
+sourceWorkItem: WI-GH-002
+targets: [core]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - Implementa en GitHub Integration las operaciones internas existentes de app/discovery OAuth/repositorio/organización/ramas; la API Core-Console y el contrato GH-INTEROP no cambian. La clasificación de un 403 ambiguo del provider token como 503 reintentable es una interpretación local, no ratificada explícitamente.
+requiredAction:
+  - Revisar y confirmar que Core acepta 403/429 ambiguos del provider token como GITHUB_UPSTREAM_UNAVAILABLE (503 retryable); documentar su traducción pública antes del futuro cutover Core. Este evento no solicita cutover ni cambios Core en WI-GH-002.
+sourceRevision: 29aedbe112958e0024004ff3ea8bb4270999db62
+consumerImportedAt: 2026-09-25T15:21:50.000Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/contract-sync-review-wi-core-003.md
+resolutionEvidence: harness/reports/wi-core-003-implementation.md
