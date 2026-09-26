@@ -59,7 +59,7 @@
       "technicalChecksPassed": "NOT_RUN",
       "contractReviewed": "NOT_RUN",
       "canonicalContractSynced": "PASSED",
-      "contractSyncPublished": "NOT_RUN",
+      "contractSyncPublished": "PASSED",
       "interopSyncChecked": "NOT_RUN",
       "noBlockingDecisions": "PASSED",
       "retryLimitRespected": "NOT_RUN"
@@ -67,7 +67,9 @@
     "coordination": {
       "contractImpact": true,
       "pullCheckpoints": [],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-20260926-001"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [

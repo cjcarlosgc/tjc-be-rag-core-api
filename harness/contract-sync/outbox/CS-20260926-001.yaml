@@ -1,0 +1,14 @@
+type: CONTRACT_SYNC
+id: CS-20260926-001
+source: core
+targets: [sandbox, console]
+breaking: false
+changed:
+  - INTEROP-2.5 §6.2 detectedFramework admite PHPUNIT
+  - INTEROP-2.5 §6.2 ProjectVersionResponse.language
+  - INTEROP-2.5 §8 Sandbox implementa PHP_LARAVEL_PHPUNIT
+requiredAction:
+  - Console: aceptar PHPUNIT y PHP como valores válidos (tipos, badges, resaltado PHP) y sincronizar el mirror del contrato.
+  - Sandbox: sincronizar el mirror del contrato (sin cambios de comportamiento).
+sourceRevision: 3baa74a
+status: PENDING
