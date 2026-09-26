@@ -2,15 +2,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { agentAssignmentIssues } from './agent-assignment.mjs';
+import { contractSyncIdIssue } from './contract-sync-id.mjs';
 
 const root = process.cwd();
 const workItemCheck = spawnSync(process.execPath, [path.join(root, 'harness/validate-work-items.mjs')], { cwd: root, encoding: 'utf8' });
 const completionCheck = spawnSync(process.execPath, [path.join(root, 'harness/validate-completions.mjs')], { cwd: root, encoding: 'utf8' });
 const completionTests = spawnSync(process.execPath, ['--test', path.join(root, 'harness/validate-completions.test.mjs')], { cwd: root, encoding: 'utf8' });
+const contractSyncIdTests = spawnSync(process.execPath, ['--test', path.join(root, 'harness/contract-sync-id.test.mjs')], { cwd: root, encoding: 'utf8' });
+const externalDependencyGateTests = spawnSync(process.execPath, ['--test', path.join(root, 'harness/external-dependency-gate.test.mjs')], { cwd: root, encoding: 'utf8' });
+const contractSyncLifecycleTests = spawnSync(process.execPath, ['--test', path.join(root, 'harness/contract-sync-lifecycle.test.mjs')], { cwd: root, encoding: 'utf8' });
+const contractSyncCliTests = spawnSync(process.execPath, ['--test', path.join(root, 'harness/contract-sync-cli.test.mjs')], { cwd: root, encoding: 'utf8' });
 const failures = [];
 if (workItemCheck.status !== 0) failures.push(workItemCheck.stderr.trim() || workItemCheck.error?.message || 'work item validation failed');
 if (completionCheck.status !== 0) failures.push(completionCheck.stderr.trim() || completionCheck.error?.message || 'completion validation failed');
 if (completionTests.status !== 0) failures.push(completionTests.stderr.trim() || completionTests.stdout.trim() || completionTests.error?.message || 'completion tests failed');
+if (contractSyncIdTests.status !== 0) failures.push(contractSyncIdTests.stderr.trim() || contractSyncIdTests.stdout.trim() || contractSyncIdTests.error?.message || 'Contract Sync ID tests failed');
+if (externalDependencyGateTests.status !== 0) failures.push(externalDependencyGateTests.stderr.trim() || externalDependencyGateTests.stdout.trim() || externalDependencyGateTests.error?.message || 'external dependency gate tests failed');
+if (contractSyncLifecycleTests.status !== 0) failures.push(contractSyncLifecycleTests.stderr.trim() || contractSyncLifecycleTests.stdout.trim() || contractSyncLifecycleTests.error?.message || 'Contract Sync lifecycle tests failed');
+if (contractSyncCliTests.status !== 0) failures.push(contractSyncCliTests.stderr.trim() || contractSyncCliTests.stdout.trim() || contractSyncCliTests.error?.message || 'Contract Sync CLI tests failed');
 const assignmentTests = spawnSync(process.execPath, ['--test', path.join(root, 'harness/agent-assignment.test.mjs')], { cwd: root, encoding: 'utf8' });
 if (assignmentTests.status !== 0) failures.push(assignmentTests.stderr.trim() || assignmentTests.stdout.trim() || assignmentTests.error?.message || 'agent assignment tests failed');
 const requiredRoles = ['leader.md', 'sdd-analyst.md', 'implementer.md', 'contract-reviewer.md', 'reviewer.md'];
@@ -61,6 +70,8 @@ if (state) {
     assert((registered?.deferredSyncReport ?? null) === (item.deferredSyncReport ?? null), 'activeWorkItem deferredSyncReport must match registry');
     assert(JSON.stringify(registered?.deferredSyncDigests ?? {}) === JSON.stringify(item.deferredSyncDigests ?? {}), 'activeWorkItem deferredSyncDigests must match registry');
     assert(JSON.stringify(registered?.contractSyncReview ?? []) === JSON.stringify(item.contractSyncReview ?? []), 'activeWorkItem contractSyncReview must match registry');
+    assert(JSON.stringify(registered?.externalDependencies ?? null) === JSON.stringify(item.externalDependencies ?? null), 'activeWorkItem externalDependencies must match registry');
+    assert(JSON.stringify(registered?.externalDependencyGate ?? null) === JSON.stringify(item.externalDependencyGate ?? null), 'activeWorkItem externalDependencyGate must match registry');
     assert(registered?.contractImpact === item.coordination?.contractImpact, 'activeWorkItem contractImpact must match registry');
     assert(registered?.publishesContract === item.coordination?.publishesContract, 'activeWorkItem publishesContract must match registry');
     assert(['PRODUCT', 'HARNESS'].includes(item.workItemType), 'workItemType must be PRODUCT or HARNESS');
@@ -113,7 +124,18 @@ if (state) {
     assert(item.coordination?.publishesContract ? ['G-NOT_RUN', 'G-PASSED', 'G-FAILED'].includes(item.gates?.contractSyncPublished) : item.gates?.contractSyncPublished === 'G-NOT_APPLICABLE', 'contractSyncPublished is inconsistent with publisher status');
     if (item.gates?.contractSyncPublished === 'G-PASSED') {
       assert(item.coordination?.publishedSyncIds?.length > 0, 'published contract gate needs event IDs');
-      for (const id of item.coordination?.publishedSyncIds ?? []) assert(/^CS-[0-9]{8}-[0-9]{3}$/.test(id) && fs.existsSync(path.join(root, 'harness/contract-sync/outbox', `${id}.yaml`)), `published event is missing: ${id}`);
+      for (const id of item.coordination?.publishedSyncIds ?? []) {
+        const file = path.join(root, 'harness/contract-sync/outbox', `${id}.yaml`);
+        assert(fs.existsSync(file), `published event is missing: ${id}`);
+        if (!fs.existsSync(file)) continue;
+        const body = fs.readFileSync(file, 'utf8');
+        const field = (name) => body.match(new RegExp(`^${name}:\\s*(.+)$`, 'm'))?.[1]?.trim();
+        const owner = { CORE: 'core', CONSOLE: 'console', SANDBOX: 'sandbox', GH: 'github-integration' }[item.component];
+        const sourceWorkItem = field('sourceWorkItem');
+        const idIssue = contractSyncIdIssue(id, item.component, sourceWorkItem);
+        const sourceWorkItemMatches = sourceWorkItem ? sourceWorkItem === item.id : /^CS-\\d{8}-\\d{3}$/.test(id);
+        assert(idIssue === null && field('id') === id && field('source') === owner && sourceWorkItemMatches, `published event ${id} has invalid namespace/source/sourceWorkItem: ${idIssue ?? 'ownership mismatch'}`);
+      }
     }
     if (item.status === 'W-DONE') {
       for (const gate of ['sddVerified', 'implementationCompleted', 'independentReviewPassed', 'technicalChecksPassed', 'interopSyncChecked', 'noBlockingDecisions', 'retryLimitRespected']) {

@@ -8,3 +8,4 @@ Una idea no es una HU, subtarea ni autorización para implementar. Este registro
 | IDEA-002 | Reevaluar retrieval test-aware (`DEC-RAG-001`) | I-BACKLOGGED | Requiere investigación y aprobación antes de alterar ranking; no autoriza implementación. Posible relación con HU05/HU17. |
 | IDEA-003 | Cambiar modelo o dimensionalidad de embeddings | I-BACKLOGGED | Solo si una evaluación experimental lo justifica; implicaría adapter, migración pgvector y reindexación. Posible relación con HU03/HU05. |
 | IDEA-004 | Cobertura secundaria como métrica experimental | I-BACKLOGGED | Su inclusión en HU17 depende de aprobación; no se cuenta como criterio actual. |
+| IDEA-005 | Reducir privilegios del OAuth usado para discovery de repositorios | I-BACKLOGGED | Comparar mantener OAuth App `repo`, autorizar una GitHub App como usuario con `Metadata: read` y limitar la selección a repositorios con instalación; evaluar privacidad, repositorios privados y UX antes de abrir un WI (HU02). |

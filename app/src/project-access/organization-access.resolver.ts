@@ -60,7 +60,7 @@ export class VerificationContext {
 const NUMERIC_GITHUB_ID = /^[1-9][0-9]*$/;
 
 /**
- * Lecturas de organización con el installation token de la App (nunca el token del
+ * Las lecturas de organización se delegan a GitHub Integration (nunca se usa el token del
  * usuario). El login que se pasa al puerto es el VIGENTE de la instalación: un
  * `githubOrgLogin` guardado puede haberse renombrado o reasignado.
  */

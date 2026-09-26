@@ -1,15 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
+import { configureRequestBodyParsers } from './request-body-parsers.js';
 
 async function bootstrap() {
-  // rawBody: true conserva el body crudo (req.rawBody) para verificar la
-  // firma x-hub-signature-256 de los webhooks de GitHub sobre bytes exactos,
-  // no sobre una re-serialización del JSON ya parseado.
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  const config = app.get(ConfigService);
 
   app.enableCors();
+  configureRequestBodyParsers(
+    app.getHttpAdapter().getInstance(),
+    config.get<string>('GITHUB_INTEGRATION_TO_CORE_TOKEN') ?? '',
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({

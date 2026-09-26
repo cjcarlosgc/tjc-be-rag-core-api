@@ -13,7 +13,7 @@ La planificación de producto conserva las seis épicas y 18 HU fijas de `spec/b
 
 1. `WI-CORE-001` (P0, cerrado localmente): reordenar SDD/Harness, IDs, estados, gates y contratos sin asumir aceptación de HU antiguas.
 2. `WI-CORE-002` (P0, después del 001): retirar carga manual de código ZIP y descarga legacy de artefactos. Conservar snapshot ZIP interno y datos activos; migración/purga solo con inventario y respaldo.
-3. `WI-CORE-003` (P1, después de 001/002): establecer la frontera con `tjc-be-github-integration-api`. Trasladar allí SDK e implementación GitHub desde Core por cortes verificables.
+3. `WI-GH-001` (bootstrap) → `WI-GH-002`–`WI-GH-005` (operaciones privadas, cerradas) → `WI-GH-006` (rutas de usuario para Console, activo) y `WI-CORE-009` (gate verificable) → `WI-CORE-003` + `WI-CONSOLE-003` (pipeline, callback de autorización y consumo directo, activos): separar toda interacción GitHub por cortes verificables. Los WIs siguen abiertos para revisión personal; ningún contrato de código implica configuración, deploy o cutover autorizado.
 4. `WI-CORE-004` (P2): formalizar OC01–OC15, happy paths primero y subcasos después. El catálogo de nombres no equivale a cobertura validada.
 
 ## Backlog técnico P2, no seleccionado

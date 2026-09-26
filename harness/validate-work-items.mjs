@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { externalDependencyIssues } from './external-dependency-gate.mjs';
+import { contractSyncLocalEvidenceIssue, stableContractSyncPayload } from './contract-sync-lifecycle.mjs';
+import { localDependencyIssues } from './work-item-dependencies.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -24,6 +27,10 @@ const statuses = new Set([
 const component = registry.component;
 const backlog = read('spec/backlog.md');
 const cases = read('spec/operational-cases.md');
+for (const event of inboxEvents) {
+  const issue = contractSyncLocalEvidenceIssue(event, root);
+  if (issue) fail(`Contract Sync ${event.id}: ${issue}`);
+}
 const epics = new Set([...backlog.matchAll(/^\| (EP\d{2}) \|/gm)].map((match) => match[1]));
 const stories = new Set([...backlog.matchAll(/^\| (HU\d{2}) \|/gm)].map((match) => match[1]));
 const storyRows = [...backlog.matchAll(/^\| (HU\d{2}) \| (EP\d{2}) \| (S[1-4]) \| (Must|Should|Could) \| (H-[A-Z_]+) \|/gm)];
@@ -91,7 +98,7 @@ for (const item of registry.workItems ?? []) {
     if (!entry || typeof entry.eventId !== 'string') { fail(`invalid Contract Sync scope review entry: ${item.id}`); continue; }
     const event = inboxEvents.find((candidate) => candidate.id === entry.eventId);
     const target = component === 'GH' ? 'github-integration' : component.toLowerCase();
-    const stableText = event?.text.replace(/^status:\s*.*$/m, 'status: <status>');
+    const stableText = event && stableContractSyncPayload(event.text);
     const digest = stableText && createHash('sha256').update(stableText).digest('hex');
     const eventDate = entry.eventId?.match(/^CS-(?:[A-Z]+-)?(\d{8})-/)?.[1];
     const baselineDate = state.planningBaseline?.slice(0, 10).replaceAll('-', '');
@@ -108,16 +115,14 @@ for (const item of registry.workItems ?? []) {
   }
   for (const id of item.caseIds ?? []) if (!caseIds.has(id)) fail(`unknown case ${id} in ${item.id}`);
   for (const specPath of item.specPaths ?? []) if (!fs.existsSync(path.join(root, specPath))) fail(`missing spec path ${specPath}`);
+  for (const issue of externalDependencyIssues(item, { root, events: inboxEvents })) fail(`${item.id}: ${issue}`);
 }
 const executing = (registry.workItems ?? []).filter((item) => ['W-SELECTED', 'W-SPEC_VERIFIED', 'W-AWAITING_APPROVAL', 'W-IN_PROGRESS', 'W-IN_REVIEW', 'W-BLOCKED', 'W-DECISION_REQUIRED'].includes(item.status));
 if (executing.length > 1) fail('only one local work item may be active at a time');
 if (executing.length === 1 && state.activeWorkItem?.id !== executing[0].id) fail('active work item must match the executable registry entry');
 if (executing.length === 0 && state.activeWorkItem !== null) fail('state contains an active WI absent from the executable registry');
 for (const item of registry.workItems ?? []) {
-  for (const dependency of item.dependsOn ?? []) {
-    if (!itemById.has(dependency) || dependency === item.id) fail(`invalid dependency ${dependency} in ${item.id}`);
-    if (['W-IN_PROGRESS', 'W-IN_REVIEW', 'W-DONE'].includes(item.status) && itemById.get(dependency)?.status !== 'W-DONE') fail(`${item.id} started before dependency ${dependency} finished`);
-  }
+  for (const issue of localDependencyIssues(item, itemById)) fail(issue);
 }
 for (const line of tasks.split('\n')) {
   if (!/^- \[[ x]\] \*\*ST-/.test(line)) continue;

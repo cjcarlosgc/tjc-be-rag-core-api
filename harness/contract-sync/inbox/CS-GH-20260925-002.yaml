@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20260925-002
+source: github-integration
+sourceWorkItem: WI-GH-003
+targets: [core]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GitHub Compare paginates commits and includes changed files only on page one, capped at 300. GH reads that files list and returns UNVERIFIABLE at the cap because completeness cannot be proven; routes and DTOs are unchanged.
+requiredAction:
+  - Core: ratify/document this conservative limit interpretation in canonical GH-INTEROP-1.0, import and acknowledge this event before WI-CORE-003 cutover.
+sourceRevision: 6122ab7
+consumerImportedAt: 2026-09-25T16:43:09.000Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/contract-sync-review-wi-core-003.md
+resolutionEvidence: harness/reports/wi-core-003-implementation.md

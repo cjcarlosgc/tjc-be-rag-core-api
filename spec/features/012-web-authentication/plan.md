@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-- `DEC-WEB-AUTH-001`, `DEC-ORG-001`, Supabase Auth e `INTEROP-2.4` (§3, §6.6 y §6.13).
+- `DEC-WEB-AUTH-001`, `DEC-ORG-001`, Supabase Auth e `INTEROP-2.5` (§3, §6.6 y §6.13).
 - Todas las features que consultan recursos descendientes de `Project`.
 
 ## Diseño técnico
@@ -11,7 +11,7 @@
 - Agregar `ownerUserId` UUID a `Project`, indexado y obligatorio para datos live. La migración de datos existentes debe exigir una asignación explícita o limitar los registros sin propietario al modo local; no se adjudican silenciosamente a una cuenta.
 - Cambiar repositorios/servicios para recibir la identidad autenticada y aplicar el predicado `accessibleProject` desde la consulta: Project personal visible solo a su creador; Project organizacional visible solo con membresía y rol vigentes según `014-organizations-access`.
 - Propagar la autorización a evidencia de Runs, contexto, historial, retry, experimentos y suscripciones WebSocket; no existe una descarga agrupada legacy para el usuario.
-- Usar GitHub OAuth solo para identidad y discovery user-centric mediante provider token efímero; el binding se autoriza con la GitHub App conforme a INTEROP-2.4, sin callbacks de instalación. La implementación actual reside en Core hasta WI-CORE-003; el dueño objetivo de toda interacción GitHub es GitHub Integration.
+- Usar GitHub OAuth para identidad y discovery user-centric mediante provider token efímero; el binding se autoriza con la GitHub App, sin callbacks de instalación. En la topología vigente, Console reenvía el provider token directamente a GitHub Integration para discovery/verificación necesaria; Core no lo recibe. Las rutas Core previas pueden conservar temporalmente ese reenvío por compatibilidad hasta un corte separado. La frontera y autorización síncrona se especifican en `016-github-integration` / `WI-CORE-003`.
 - Preservar deep-link `returnTo` tras login para rutas de AnalysisRun/Focus Mode.
 - Exponer errores `AUTH_REQUIRED` e `INVALID_ACCESS_TOKEN` mediante el envelope estándar, sin incluir claims o token.
 

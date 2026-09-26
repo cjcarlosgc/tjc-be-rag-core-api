@@ -85,6 +85,17 @@ function liveOrganizationProjects(filter: AccessRecordFilter) {
 export class ProjectAccessRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Lectura viva y local para decisiones síncronas iniciadas por GitHub Integration; no verifica datos de nuevo contra GitHub. */
+  findLiveForGithubAuthorization(projectId: string, userId: string) {
+    return this.prisma.project.findFirst({
+      where: { id: projectId, deletedAt: null },
+      include: {
+        access: { where: { userId }, select: { role: true } },
+        repositoryBinding: { select: { status: true, repositoryId: true, repositoryName: true } },
+      },
+    });
+  }
+
   /** Project visible para `userId` (predicado `accessibleProject`) con su registro de acceso. */
   findVisible(
     projectId: string,

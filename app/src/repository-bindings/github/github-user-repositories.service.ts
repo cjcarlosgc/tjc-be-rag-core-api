@@ -1,33 +1,43 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { AppException } from '../../common/errors/app.exception.js';
 import { ErrorCode } from '../../common/errors/error-code.enum.js';
-import { GithubAppUnavailableError } from '../../github-app/github-app-auth.service.js';
+import {
+  GithubIntegrationClient,
+  GithubIntegrationClientError,
+} from '../../github-app/github-integration.client.js';
 import type { GitHubUserRepositoryResponse } from '../dto/github-user-repository.response.js';
 
-const GITHUB_API_VERSION = '2022-11-28';
-
-interface GithubApiUserRepository {
-  id: number;
+interface GitHubIntegrationRepository {
+  repositoryId: string;
   name: string;
-  full_name: string;
-  owner: { id: number; login: string; type: string; avatar_url: string | null };
+  repositoryName: string;
+  owner: { login: string; type: string; avatarUrl: string | null };
   private: boolean;
-  default_branch: string;
-  permissions?: { admin?: boolean; maintain?: boolean; push?: boolean; pull?: boolean };
+  defaultBranch: string;
+  permissions?: {
+    admin?: boolean;
+    maintain?: boolean;
+    push?: boolean;
+    pull?: boolean;
+  };
+}
+
+interface GithubRepositoryDiscoveryResponse {
+  items: GitHubIntegrationRepository[];
+  hasNextPage: boolean;
 }
 
 export interface ListGithubUserRepositoriesOptions {
   /**
    * HU64: con el workspace personal, solo repositorios cuyo propietario es esta
-   * cuenta (`githubUserId`). Se pide `affiliation=owner` y se vuelve a filtrar
-   * por id de propietario: el filtrado no depende de un login.
+   * cuenta (`githubUserId`). GitHub Integration solicita la relación adecuada
+   * y aplica el filtro final por id de propietario, nunca por login.
    */
   personalOwnerId?: string;
   /**
-   * HU64: con el workspace de una organización, solo repositorios cuyo propietario es esa
-   * organización. Se pide `affiliation=organization_member` y se vuelve a filtrar por id de
-   * propietario (no por login). La pertenencia del usuario a la organización la verifica
-   * antes el llamador con el installation token.
+   * HU64: con un workspace de organización, solo repositorios cuyo propietario
+   * es esa organización. GitHub Integration filtra por el id recibido; el
+   * llamador ya verificó la pertenencia del usuario.
    */
   organizationOwnerId?: string;
 }
@@ -38,75 +48,92 @@ export interface ListGithubUserRepositoriesResult {
 }
 
 /**
- * HU30: discovery user-centric. `providerToken` es el provider token OAuth
- * GitHub de la sesión Supabase (`X-GitHub-Provider-Token`), nunca persistido
- * ni reenviado; solo autoriza listar los repos visibles para el usuario, no
- * automatización.
+ * Discovery user-centric. El provider token OAuth de GitHub se reenvía solo
+ * como header efímero al servicio GitHub Integration; el bearer de Core→GH lo
+ * agrega el cliente interno. El token de usuario nunca se persiste ni registra.
  */
 @Injectable()
 export class GithubUserRepositoriesService {
+  constructor(
+    private readonly githubIntegrationClient: GithubIntegrationClient,
+  ) {}
+
   async list(
     providerToken: string,
     page: number,
     perPage: number,
     options: ListGithubUserRepositoriesOptions = {},
   ): Promise<ListGithubUserRepositoriesResult> {
-    const affiliation = options.personalOwnerId
-      ? '&affiliation=owner'
-      : options.organizationOwnerId
-        ? '&affiliation=organization_member'
-        : '';
-    const response = await fetch(
-      `https://api.github.com/user/repos?per_page=${perPage}&page=${page}&sort=updated${affiliation}`,
-      {
-        headers: {
-          Authorization: `Bearer ${providerToken}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': GITHUB_API_VERSION,
-        },
-      },
-    );
+    const request = {
+      page,
+      perPage,
+      ...(options.personalOwnerId
+        ? { personalOwnerId: options.personalOwnerId }
+        : {}),
+      ...(options.organizationOwnerId
+        ? { organizationOwnerId: options.organizationOwnerId }
+        : {}),
+    };
 
-    if (response.status === 401 || response.status === 403) {
+    let rawResponse: unknown;
+    try {
+      rawResponse =
+        await this.githubIntegrationClient.post<unknown>(
+          '/repositories/discovery',
+          request,
+          { headers: { 'X-GitHub-Provider-Token': providerToken } },
+        );
+    } catch (error) {
+      if (
+        error instanceof GithubIntegrationClientError &&
+        error.code === 'GITHUB_USER_TOKEN_INVALID'
+      ) {
+        throw new AppException(
+          ErrorCode.GITHUB_USER_TOKEN_INVALID,
+          'El provider token de GitHub es inválido o expiró.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
       throw new AppException(
-        ErrorCode.GITHUB_USER_TOKEN_INVALID,
-        'El provider token de GitHub es inválido o expiró.',
-        HttpStatus.UNAUTHORIZED,
+        ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE,
+        'GitHub no pudo completar la búsqueda de repositorios. Reintenta más tarde.',
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new GithubAppUnavailableError(
-        `GitHub API ${response.status} en /user/repos: ${body}`,
-        response.status,
+    if (!isGithubRepositoryDiscoveryResponse(rawResponse)) {
+      throw new AppException(
+        ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE,
+        'GitHub Integration devolvió una respuesta de búsqueda inválida. Reintenta más tarde.',
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-
-    const data = (await response.json()) as GithubApiUserRepository[];
-
-    const ownerId = options.personalOwnerId ?? options.organizationOwnerId;
-    const visible = ownerId ? data.filter((repo) => String(repo.owner.id) === ownerId) : data;
+    const response = rawResponse;
 
     return {
-      items: visible.map(toGitHubUserRepositoryResponse),
-      hasNextPage: data.length === perPage,
+      items: response.items.map(toGitHubUserRepositoryResponse),
+      // GitHub Integration filtra por id de propietario y calcula la marca
+      // de página sobre la respuesta ya normalizada.
+      hasNextPage: response.hasNextPage,
     };
   }
 }
 
-function toGitHubUserRepositoryResponse(repo: GithubApiUserRepository): GitHubUserRepositoryResponse {
+function toGitHubUserRepositoryResponse(
+  repo: GitHubIntegrationRepository,
+): GitHubUserRepositoryResponse {
   return {
-    repositoryId: String(repo.id),
+    repositoryId: repo.repositoryId,
     name: repo.name,
-    repositoryName: repo.full_name,
+    repositoryName: repo.repositoryName,
     owner: {
       login: repo.owner.login,
       type: repo.owner.type === 'Organization' ? 'Organization' : 'User',
-      avatarUrl: repo.owner.avatar_url ?? null,
+      avatarUrl: repo.owner.avatarUrl,
     },
     private: repo.private,
-    defaultBranch: repo.default_branch,
+    defaultBranch: repo.defaultBranch,
     permissions: {
       admin: repo.permissions?.admin ?? false,
       maintain: repo.permissions?.maintain ?? false,
@@ -114,4 +141,45 @@ function toGitHubUserRepositoryResponse(repo: GithubApiUserRepository): GitHubUs
       pull: repo.permissions?.pull ?? false,
     },
   };
+}
+
+function isGithubRepositoryDiscoveryResponse(
+  value: unknown,
+): value is GithubRepositoryDiscoveryResponse {
+  return (
+    isRecord(value) &&
+    typeof value.hasNextPage === 'boolean' &&
+    Array.isArray(value.items) &&
+    value.items.every(
+      (repo) =>
+        isRecord(repo) &&
+        isNonEmptyString(repo.repositoryId) &&
+        isNonEmptyString(repo.name) &&
+        isNonEmptyString(repo.repositoryName) &&
+        isRecord(repo.owner) &&
+        isNonEmptyString(repo.owner.login) &&
+        (repo.owner.type === 'Organization' || repo.owner.type === 'User') &&
+        (repo.owner.avatarUrl === null || typeof repo.owner.avatarUrl === 'string') &&
+        typeof repo.private === 'boolean' &&
+        isNonEmptyString(repo.defaultBranch) &&
+        (repo.permissions === undefined || isRepositoryPermissions(repo.permissions)),
+    )
+  );
+}
+
+function isRepositoryPermissions(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    ['admin', 'maintain', 'push', 'pull'].every(
+      (key) => value[key] === undefined || typeof value[key] === 'boolean',
+    )
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
 }

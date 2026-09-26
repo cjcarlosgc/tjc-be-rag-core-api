@@ -25,7 +25,7 @@ El prefijo identifica el dueño del estado. Los nombres son ingleses en todos lo
 - Subtarea: `T-BACKLOGGED → T-READY → T-IN_PROGRESS → T-DONE`; `T-CANCELLED` para trabajo descartado. `T-DONE` referencia evidencia y WI terminado.
 - WI: `W-PLANNED → W-READY → W-SELECTED → W-SPEC_VERIFIED → W-AWAITING_APPROVAL → W-IN_PROGRESS → W-IN_REVIEW → W-DONE`; `W-BLOCKED`, `W-DECISION_REQUIRED` y `W-CANCELLED` son salidas explícitas. No se salta la aprobación humana para cambios funcionales.
 - Decisión: `D-PROPOSED`, `D-PENDING`, `D-APPROVED`, `D-REJECTED`; el ID sigue siendo `DEC-...` y su `Blocks` determina alcance.
-- Contract Sync: `C-PENDING`, `C-ACKNOWLEDGED`, `C-RESOLVED`, `C-REJECTED`; el ID es `CS-AAAAMMDD-NNN`.
+- Contract Sync: `C-PENDING` (sin revisar), `C-ACKNOWLEDGED` (consumidor revisó, acepta y asignó WI; aún no implementado), `C-RESOLVED` (acción terminada con evidencia), `C-REJECTED` (incompatibilidad/rechazo). `start` admite ACK; `implementation-delivery`, `before-review` y `before-done` exigen RESOLVED para eventos relevantes. Los IDs nuevos son `CS-CORE-YYYYMMDD-NNN`, `CS-CONSOLE-YYYYMMDD-NNN`, `CS-SANDBOX-YYYYMMDD-NNN` o `CS-GH-YYYYMMDD-NNN` y registran `sourceWorkItem`. Los IDs simples anteriores al corte 2026-09-25 se leen como históricos y no se reescriben. Sandbox conserva su Harness local hasta la homologación.
 - Gate: `G-NOT_RUN`, `G-PASSED`, `G-FAILED`, `G-NOT_APPLICABLE`. El gate es una comprobación con evidencia, no una fase ni un rol.
 
 ## De una idea a una implementación

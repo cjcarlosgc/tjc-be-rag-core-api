@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AccessReverifyService } from '../access-sync/access-reverify.service.js';
+import { toGithubId } from '../access-sync/access-reverify.scope.js';
 import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
 import { RepositoryBindingsRepository, type BindingWithWorkspace } from '../repository-bindings/repository-bindings.repository.js';
 import type { GithubRepositoryWebhookPayload } from './dto/repository-webhook.payload.js';
@@ -32,11 +33,12 @@ export class RepositoryEventsService {
   ) {}
 
   async handle(payload: GithubRepositoryWebhookPayload): Promise<void> {
-    if (!HANDLED_ACTIONS.has(payload.action) || typeof payload.repository?.id !== 'number') {
+    const repositoryId = toGithubId(payload.repository?.id);
+    if (!HANDLED_ACTIONS.has(payload.action) || repositoryId === null) {
       return;
     }
 
-    const binding = await this.bindings.findByRepositoryIdWithWorkspace(String(payload.repository.id));
+    const binding = await this.bindings.findByRepositoryIdWithWorkspace(repositoryId);
 
     if (!binding) {
       return;
@@ -64,9 +66,9 @@ export class RepositoryEventsService {
   }
 
   private async handleTransfer(binding: BindingWithWorkspace, payload: GithubRepositoryWebhookPayload): Promise<void> {
-    const newOwnerId = payload.repository.owner?.id;
+    const newOwnerId = toGithubId(payload.repository.owner?.id);
 
-    if (newOwnerId === undefined) {
+    if (newOwnerId === null) {
       this.logger.warn(`repository.transferred sin propietario para el binding "${binding.id}": lo corrige la reconciliación.`);
       return;
     }
@@ -74,7 +76,7 @@ export class RepositoryEventsService {
     const expectedOwnerId = await this.lifecycle.expectedOwnerId(binding.project);
 
     // Sin propietario esperado (Project personal sin identidad persistida) no se infiere una transferencia.
-    if (expectedOwnerId !== null && String(newOwnerId) !== expectedOwnerId) {
+    if (expectedOwnerId !== null && newOwnerId !== expectedOwnerId) {
       await this.lifecycle.revokeBinding(binding);
       return;
     }

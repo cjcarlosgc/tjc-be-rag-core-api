@@ -5,9 +5,7 @@ import { TestPublicationsRepository } from './test-publications.repository.js';
 import { GeneratedTestProposalsRepository } from '../validation/generated-test-proposals.repository.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
-import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
-import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
-import { GithubGitDataService, type TreeEntryInput } from '../github-app/github-git-data.service.js';
+import { GithubGitDataService } from '../github-app/github-git-data.service.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type { AnalysisRun, RepositoryBinding, TestPublication } from '../generated/prisma/client.js';
 
@@ -16,10 +14,7 @@ export interface TestPublicationJobPayload {
 }
 
 export const TEST_PUBLICATION_JOB_TYPE = 'test-publication';
-
-function shortSha(sha: string): string {
-  return sha.slice(0, 7);
-}
+const MAX_GITHUB_BLOB_BYTES = 100_000_000;
 
 /**
  * HU40 (§6.12): publica un companion PR con las propuestas AVAILABLE
@@ -42,8 +37,6 @@ export class TestPublicationJobHandler implements JobHandler<TestPublicationJobP
     private readonly generatedTestProposalsRepository: GeneratedTestProposalsRepository,
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly repositoryBindingsRepository: RepositoryBindingsRepository,
-    private readonly githubAppAuthService: GithubAppAuthService,
-    private readonly githubRepositoryContentService: GithubRepositoryContentService,
     private readonly githubGitDataService: GithubGitDataService,
     private readonly objectStorageService: ObjectStorageService,
   ) {}
@@ -76,19 +69,7 @@ export class TestPublicationJobHandler implements JobHandler<TestPublicationJobP
         return;
       }
 
-      const token = await this.githubAppAuthService.getInstallationToken(binding.installationId);
-      const livePr = await this.githubRepositoryContentService.getPullRequestHead(
-        binding.repositoryName,
-        run.prNumber,
-        token,
-      );
-
-      if (livePr.headSha !== publication.sourceHeadSha) {
-        await this.testPublicationsRepository.update(publication.id, { status: 'STALE' });
-        return;
-      }
-
-      await this.publish(publication, run, binding, token);
+      await this.publish(publication, run, binding);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido publicando el companion PR.';
       this.logger.error(`TestPublication ${publication.id} falló: ${message}`);
@@ -101,78 +82,75 @@ export class TestPublicationJobHandler implements JobHandler<TestPublicationJobP
     publication: TestPublication,
     run: AnalysisRun,
     binding: RepositoryBinding,
-    token: string,
   ): Promise<void> {
-    const repoFullName = binding.repositoryName;
-    const branchName = `rag-tests/pr-${run.prNumber}-${shortSha(run.headSha)}`;
-
-    const existingBranchSha = await this.githubGitDataService.getBranchHeadSha(repoFullName, branchName, token);
-    const baseCommitSha = existingBranchSha ?? run.headSha;
-
-    if (!existingBranchSha) {
-      await this.githubGitDataService.createBranch(repoFullName, branchName, run.headSha, token);
+    const request = {
+      installationId: binding.installationId,
+      repositoryName: binding.repositoryName,
+      pullRequestNumber: run.prNumber,
+      sourceHeadSha: publication.sourceHeadSha,
+    };
+    const preflight = await this.githubGitDataService.preflight(request);
+    if (preflight.status === 'STALE') {
+      await this.testPublicationsRepository.update(publication.id, { status: 'STALE' });
+      return;
+    }
+    if (preflight.status === 'EXISTING_PR_CLOSED') {
+      await this.fail(publication, `Ya existe un companion PR cerrado (#${preflight.number}); no se reabre.`);
+      return;
     }
 
     const proposals = await this.generatedTestProposalsRepository.findByIdsForRun(
       publication.analysisRunId,
       publication.proposalIds,
     );
-    const entries: TreeEntryInput[] = await Promise.all(
-      proposals.map(async (proposal) => ({
+    const uploadedFiles: Array<{ path: string; blobSha: string }> = [];
+    for (const proposal of proposals) {
+      const content = await this.objectStorageService.get(proposal.storageKey);
+      if (content.byteLength > MAX_GITHUB_BLOB_BYTES) {
+        await this.fail(
+          publication,
+          'Una propuesta supera el límite de GitHub de 100 MB y no se envió.',
+        );
+        return;
+      }
+      const uploaded = await this.githubGitDataService.uploadProposalBlob({
+        ...request,
         path: proposal.relativePath,
-        content: (await this.objectStorageService.get(proposal.storageKey)).toString('utf8'),
-      })),
-    );
+        contentBase64: content.toString('base64'),
+      });
+      if (uploaded.status === 'STALE') {
+        await this.testPublicationsRepository.update(publication.id, { status: 'STALE' });
+        return;
+      }
+      if (uploaded.status === 'EXISTING_PR_CLOSED') {
+        await this.fail(publication, `Ya existe un companion PR cerrado (#${uploaded.number}); no se reabre.`);
+        return;
+      }
+      uploadedFiles.push({ path: uploaded.path, blobSha: uploaded.blobSha });
+    }
 
-    const baseTreeSha = await this.githubGitDataService.getCommitTreeSha(repoFullName, baseCommitSha, token);
-    const newTreeSha = await this.githubGitDataService.createTree(repoFullName, baseTreeSha, entries, token);
-    const commitMessage = `test: agrega ${proposals.length} prueba(s) generada(s) para PR #${run.prNumber}\n\nGenerado por RAG Core Analysis (AnalysisRun ${run.id}).`;
-    const newCommitSha = await this.githubGitDataService.createCommit(
-      repoFullName,
-      commitMessage,
-      newTreeSha,
-      baseCommitSha,
-      token,
-    );
-    await this.githubGitDataService.updateRef(repoFullName, branchName, newCommitSha, token);
-
-    const existingPr = await this.githubGitDataService.findPullRequestByHead(repoFullName, branchName, token);
-
-    if (existingPr?.state === 'closed') {
-      await this.fail(publication, `Ya existe un companion PR cerrado (#${existingPr.number}); no se reabre.`);
+    const result = await this.githubGitDataService.finalize({
+      ...request,
+      sourceHeadRef: run.headRef,
+      analysisRunId: run.id,
+      proposalFiles: uploadedFiles,
+    });
+    if (result.status === 'STALE') {
+      await this.testPublicationsRepository.update(publication.id, { status: 'STALE' });
+      return;
+    }
+    if (result.status === 'EXISTING_PR_CLOSED') {
+      await this.fail(publication, `Ya existe un companion PR cerrado (#${result.number}); no se reabre.`);
       return;
     }
 
-    const prRef =
-      existingPr ??
-      (await this.githubGitDataService.createPullRequest(
-        repoFullName,
-        {
-          title: `RAG Core: pruebas generadas para PR #${run.prNumber}`,
-          head: branchName,
-          base: run.headRef,
-          body: this.buildPrBody(run, proposals.length),
-        },
-        token,
-      ));
-
     await this.testPublicationsRepository.update(publication.id, {
       status: 'PUBLISHED',
-      branchName,
-      companionPullRequestNumber: prRef.number,
-      companionPullRequestUrl: prRef.url,
+      branchName: result.branchName,
+      companionPullRequestNumber: result.pullRequest.number,
+      companionPullRequestUrl: result.pullRequest.url,
     });
     await this.generatedTestProposalsRepository.markPublished(publication.proposalIds);
-  }
-
-  private buildPrBody(run: AnalysisRun, proposalCount: number): string {
-    return [
-      `Pruebas generadas por RAG Core para el PR #${run.prNumber} (\`${run.headSha}\`).`,
-      '',
-      `${proposalCount} archivo(s) de test propuesto(s), revisados y aprobados para publicación.`,
-      '',
-      'Este PR no se mergea automáticamente. Al mergearlo, el PR original recibirá un evento `synchronize` y se revalidará.',
-    ].join('\n');
   }
 
   private async fail(publication: TestPublication, message: string): Promise<void> {

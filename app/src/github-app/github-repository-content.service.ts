@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GithubAppUnavailableError } from './github-app-auth.service.js';
-
-const GITHUB_API_VERSION = '2022-11-28';
+import {
+  GithubIntegrationClient,
+  GithubIntegrationClientError,
+} from './github-integration.client.js';
 
 export interface CompareFile {
   filename: string;
@@ -13,33 +15,9 @@ export interface TreeEntry {
   path: string;
 }
 
-interface GithubApiCompareResponse {
-  files?: Array<{ filename: string; status: CompareFile['status']; previous_filename?: string }>;
-}
-
-interface GithubApiTreeResponse {
-  tree: Array<{ path: string; type: string }>;
-  truncated: boolean;
-}
-
-interface GithubApiContentsResponse {
-  content: string;
-  encoding: string;
-}
-
-interface GithubApiBranchResponse {
-  name: string;
-  protected: boolean;
-}
-
 export interface RepositoryBranch {
   name: string;
   protected: boolean;
-}
-
-interface GithubApiPullRequestResponse {
-  head: { sha: string };
-  state: 'open' | 'closed';
 }
 
 export interface PullRequestHead {
@@ -47,126 +25,182 @@ export interface PullRequestHead {
   state: 'open' | 'closed';
 }
 
+type GithubLookup<T> =
+  | { status: 'OK'; value: T }
+  | { status: 'NOT_FOUND' }
+  | { status: 'NOT_INSTALLED' }
+  | { status: 'UNVERIFIABLE' };
+
 /**
- * Llamadas de solo lectura a la API REST de GitHub necesarias para HU33/34.
- * `repoFullName` es `owner/repo` (`RepositoryBinding.repositoryName`).
+ * Fachada Core para lecturas GitHub. Toda comunicación con GitHub ocurre en
+ * GitHub Integration; Core solo recibe datos ligados al installationId/SHA.
  */
 @Injectable()
 export class GithubRepositoryContentService {
   private readonly logger = new Logger(GithubRepositoryContentService.name);
 
-  /**
-   * `PR CHANGESET`/`INDEX DELTA` (`spec/contracts/system-contract.md`): la
-   * API pagina `files` en bloques de 100 con un máximo de 300 por respuesta;
-   * se sigue `page` hasta agotar resultados.
-   */
-  async compare(repoFullName: string, base: string, head: string, token: string): Promise<CompareFile[]> {
-    const files: CompareFile[] = [];
-    let page = 1;
+  constructor(private readonly integration: GithubIntegrationClient) {}
 
-    for (;;) {
-      const response = await this.request(
-        `https://api.github.com/repos/${repoFullName}/compare/${base}...${head}?per_page=100&page=${page}`,
-        token,
-      );
-      const data = (await response.json()) as GithubApiCompareResponse;
-      const pageFiles = data.files ?? [];
-
-      files.push(
-        ...pageFiles.map((f) => ({
-          filename: f.filename,
-          status: f.status,
-          ...(f.previous_filename ? { previousFilename: f.previous_filename } : {}),
-        })),
-      );
-
-      if (pageFiles.length < 100) {
-        break;
-      }
-
-      page += 1;
-    }
-
-    return files;
-  }
-
-  /** Árbol recursivo del commit `sha`; solo entradas `blob` (archivos). */
-  async getTree(repoFullName: string, sha: string, token: string): Promise<TreeEntry[]> {
-    const response = await this.request(
-      `https://api.github.com/repos/${repoFullName}/git/trees/${sha}?recursive=1`,
-      token,
+  async compare(
+    installationId: string,
+    repositoryName: string,
+    baseSha: string,
+    headSha: string,
+  ): Promise<CompareFile[]> {
+    const result = await this.postLookup<{ files: CompareFile[] }>(
+      '/repositories/compare',
+      { installationId, repositoryName, baseSha, headSha },
     );
-    const data = (await response.json()) as GithubApiTreeResponse;
-
-    if (data.truncated) {
-      this.logger.warn(
-        `El árbol de "${repoFullName}"@"${sha}" viene truncado por GitHub; se procesa un subconjunto.`,
-      );
+    const value = unwrapLookup<{ files: CompareFile[] }>(result, 'No se pudo verificar el compare de GitHub.');
+    if (!Array.isArray(value.files) || !value.files.every(isCompareFile)) {
+      throw invalidLookupResponse();
     }
-
-    return data.tree.filter((entry) => entry.type === 'blob').map((entry) => ({ path: entry.path }));
+    return value.files;
   }
 
-  /** Contenido de un archivo en texto plano. Límite de la Contents API: 1MB por archivo. */
-  async getFileContent(repoFullName: string, path: string, sha: string, token: string): Promise<string> {
-    const response = await this.request(
-      `https://api.github.com/repos/${repoFullName}/contents/${path}?ref=${sha}`,
-      token,
+  async getTree(
+    installationId: string,
+    repositoryName: string,
+    commitSha: string,
+  ): Promise<TreeEntry[]> {
+    const result = await this.postLookup<{ paths: string[]; truncated: boolean }>(
+      '/repositories/tree',
+      { installationId, repositoryName, commitSha },
     );
-    const data = (await response.json()) as GithubApiContentsResponse;
-
-    return Buffer.from(data.content, data.encoding as BufferEncoding).toString('utf8');
-  }
-
-  /** Ramas del repositorio (HU30, `integrationBranch`); pagina en bloques de 100. */
-  async listBranches(repoFullName: string, token: string): Promise<RepositoryBranch[]> {
-    const branches: RepositoryBranch[] = [];
-    let page = 1;
-
-    for (;;) {
-      const response = await this.request(
-        `https://api.github.com/repos/${repoFullName}/branches?per_page=100&page=${page}`,
-        token,
-      );
-      const data = (await response.json()) as GithubApiBranchResponse[];
-
-      branches.push(...data.map((b) => ({ name: b.name, protected: b.protected })));
-
-      if (data.length < 100) {
-        break;
-      }
-
-      page += 1;
+    const tree = unwrapLookup<{ paths: string[]; truncated: boolean }>(
+      result,
+      'No se pudo verificar el árbol de GitHub.',
+    );
+    if (!Array.isArray(tree.paths) || !tree.paths.every(isNonEmptyString) || typeof tree.truncated !== 'boolean') {
+      throw invalidLookupResponse();
     }
-
-    return branches;
+    if (tree.truncated) {
+      this.logger.warn('GitHub Integration devolvió un árbol truncado; se procesa el subconjunto verificado.');
+    }
+    return tree.paths.map((path) => ({ path }));
   }
 
-  /** HU40: freshness check antes de publicar el companion PR. */
-  async getPullRequestHead(repoFullName: string, prNumber: number, token: string): Promise<PullRequestHead> {
-    const response = await this.request(`https://api.github.com/repos/${repoFullName}/pulls/${prNumber}`, token);
-    const data = (await response.json()) as GithubApiPullRequestResponse;
-
-    return { headSha: data.head.sha, state: data.state };
-  }
-
-  private async request(url: string, token: string): Promise<Response> {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': GITHUB_API_VERSION,
-      },
+  async getFileContent(
+    installationId: string,
+    repositoryName: string,
+    path: string,
+    commitSha: string,
+  ): Promise<string> {
+    const result = await this.postLookup<{
+      files: Array<{ path: string; contentBase64: string }>;
+    }>('/repositories/files:batch', {
+      installationId,
+      repositoryName,
+      commitSha,
+      paths: [path],
     });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new GithubAppUnavailableError(
-        `GitHub API ${response.status} en ${url}: ${body}`,
-        response.status,
-      );
+    const { files } = unwrapLookup<{ files: Array<{ path: string; contentBase64: string }> }>(
+      result,
+      'No se pudo verificar el contenido del repositorio.',
+    );
+    if (!Array.isArray(files) || !files.every(isRepositoryFile)) throw invalidLookupResponse();
+    const file = files.find((candidate) => candidate.path === path);
+    if (!file || typeof file.contentBase64 !== 'string') {
+      throw new GithubAppUnavailableError('GitHub Integration devolvió un contenido incompleto.', 503);
     }
-
-    return response;
+    return Buffer.from(file.contentBase64, 'base64').toString('utf8');
   }
+
+  async listBranches(
+    installationId: string,
+    repositoryName: string,
+  ): Promise<RepositoryBranch[]> {
+    const result = await this.postLookup<{ items: RepositoryBranch[] }>(
+      '/repositories/branches',
+      { installationId, repositoryName },
+    );
+    const value = unwrapLookup<{ items: RepositoryBranch[] }>(
+      result,
+      'No se pudieron verificar las ramas de GitHub.',
+    );
+    if (!Array.isArray(value.items) || !value.items.every(isRepositoryBranch)) {
+      throw invalidLookupResponse();
+    }
+    return value.items;
+  }
+
+  async getPullRequestHead(
+    installationId: string,
+    repositoryName: string,
+    pullRequestNumber: number,
+  ): Promise<PullRequestHead> {
+    const result = await this.postLookup<PullRequestHead>(
+      '/repositories/pull-request-head',
+      { installationId, repositoryName, pullRequestNumber },
+    );
+    const value = unwrapLookup<PullRequestHead>(
+      result,
+      'No se pudo verificar el pull request de GitHub.',
+    );
+    if (!isPullRequestHead(value)) throw invalidLookupResponse();
+    return value;
+  }
+
+  private async postLookup<T>(path: string, body: unknown): Promise<GithubLookup<T>> {
+    try {
+      return await this.integration.post<GithubLookup<T>>(path, body);
+    } catch (error) {
+      if (error instanceof GithubIntegrationClientError) {
+        throw new GithubAppUnavailableError('GitHub Integration no está disponible.', 503);
+      }
+      throw new GithubAppUnavailableError('No se pudo completar la operación de GitHub Integration.', 503);
+    }
+  }
+}
+
+function unwrapLookup<T>(result: unknown, message: string): T {
+  if (!isRecord(result) || typeof result.status !== 'string') throw invalidLookupResponse();
+  switch (result.status) {
+    case 'OK':
+      if (!Object.hasOwn(result, 'value')) throw invalidLookupResponse();
+      return result.value as T;
+    case 'NOT_FOUND':
+      throw new GithubAppUnavailableError(message, 404);
+    case 'NOT_INSTALLED':
+      throw new GithubAppUnavailableError(message, 403);
+    case 'UNVERIFIABLE':
+      throw new GithubAppUnavailableError(message, 503);
+    default:
+      throw invalidLookupResponse();
+  }
+}
+
+function isCompareFile(value: unknown): value is CompareFile {
+  if (!isRecord(value) || !isNonEmptyString(value.filename)) return false;
+  const statuses: CompareFile['status'][] = ['added', 'removed', 'modified', 'renamed', 'copied', 'changed', 'unchanged'];
+  return statuses.includes(value.status as CompareFile['status']) &&
+    (value.previousFilename === undefined || typeof value.previousFilename === 'string');
+}
+
+function isRepositoryFile(value: unknown): value is { path: string; contentBase64: string } {
+  return isRecord(value) && isNonEmptyString(value.path) && typeof value.contentBase64 === 'string';
+}
+
+function isRepositoryBranch(value: unknown): value is RepositoryBranch {
+  return isRecord(value) && isNonEmptyString(value.name) && typeof value.protected === 'boolean';
+}
+
+function isPullRequestHead(value: unknown): value is PullRequestHead {
+  return (
+    isRecord(value) &&
+    isNonEmptyString(value.headSha) &&
+    (value.state === 'open' || value.state === 'closed')
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function invalidLookupResponse(): GithubAppUnavailableError {
+  return new GithubAppUnavailableError('GitHub Integration devolvió una respuesta inválida.', 503);
 }

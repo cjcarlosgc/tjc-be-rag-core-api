@@ -1,8 +1,6 @@
-import { createHmac } from 'node:crypto';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GithubWebhooksService, type IncomingWebhookRequest } from './github-webhooks.service.js';
+import { GithubWebhooksService } from './github-webhooks.service.js';
 import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
@@ -13,32 +11,93 @@ import { BindingLifecycleService } from '../access-sync/binding-lifecycle.servic
 import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AccessEventsService } from './access-events.service.js';
 import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
-import { AppException } from '../common/errors/app.exception.js';
-import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisRun, RepositoryBinding } from '../generated/prisma/client.js';
+import type { NormalizedWebhookEvent, NormalizedWebhookData } from './dto/normalized-webhook-event.js';
 
-const SECRET = 'webhook-secret';
-
-function sign(body: Buffer): string {
-  return `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}`;
-}
-
-function buildRequest(payload: unknown, overrides: Partial<IncomingWebhookRequest> = {}): IncomingWebhookRequest {
-  const rawBody = Buffer.from(JSON.stringify(payload), 'utf8');
+function buildRequest(payload: any, overrides: { deliveryId?: string; eventName?: string } = {}): NormalizedWebhookEvent {
+  const eventName = overrides.eventName ?? 'pull_request';
+  const action = typeof payload?.action === 'string' ? payload.action : null;
+  let data: NormalizedWebhookData;
+  switch (eventName) {
+    case 'pull_request':
+      data = {
+        kind: 'PULL_REQUEST',
+        repository: { id: String(payload.repository.id), fullName: payload.repository.full_name },
+        installationId: payload.installation?.id == null ? null : String(payload.installation.id),
+        pullRequestNumber: payload.number,
+        pullRequest: {
+          title: payload.pull_request.title,
+          draft: payload.pull_request.draft,
+          merged: payload.pull_request.merged,
+          base: payload.pull_request.base,
+          head: payload.pull_request.head,
+          userLogin: payload.pull_request.user?.login ?? null,
+        },
+      };
+      break;
+    case 'installation':
+      data = {
+        kind: 'INSTALLATION',
+        installationId: String(payload.installation.id),
+        account: { id: payload.installation.account?.id == null ? null : String(payload.installation.account.id), type: payload.installation.account?.type ?? null },
+      };
+      break;
+    case 'installation_repositories':
+      data = {
+        kind: 'INSTALLATION_REPOSITORIES',
+        installationId: String(payload.installation.id),
+        added: (payload.repositories_added ?? []).map((repo: any) => ({ id: String(repo.id), fullName: repo.full_name })),
+        removed: (payload.repositories_removed ?? []).map((repo: any) => ({ id: String(repo.id), fullName: repo.full_name })),
+      };
+      break;
+    case 'repository':
+      data = {
+        kind: 'REPOSITORY',
+        repository: {
+          id: String(payload.repository.id),
+          fullName: payload.repository.full_name,
+          owner: payload.repository.owner ? {
+            id: String(payload.repository.owner.id),
+            login: payload.repository.owner.login ?? null,
+            type: payload.repository.owner.type ?? null,
+          } : null,
+        },
+        installationId: payload.installation?.id == null ? null : String(payload.installation.id),
+      };
+      break;
+    case 'member':
+      data = { kind: 'MEMBER', memberId: payload.member?.id == null ? null : String(payload.member.id), repositoryId: payload.repository?.id == null ? null : String(payload.repository.id) };
+      break;
+    case 'membership':
+      data = { kind: 'MEMBERSHIP', memberId: payload.member?.id == null ? null : String(payload.member.id), organizationId: payload.organization?.id == null ? null : String(payload.organization.id) };
+      break;
+    case 'organization':
+      data = {
+        kind: 'ORGANIZATION',
+        organizationId: payload.organization?.id == null ? null : String(payload.organization.id),
+        organizationLogin: payload.organization?.login ?? null,
+        membershipUserId: payload.membership?.user?.id == null ? null : String(payload.membership.user.id),
+      };
+      break;
+    case 'team':
+      data = { kind: 'TEAM', repositoryId: payload.repository?.id == null ? null : String(payload.repository.id), organizationId: payload.organization?.id == null ? null : String(payload.organization.id) };
+      break;
+    default:
+      data = { kind: 'IGNORED' };
+  }
 
   return {
-    rawBody,
-    signatureHeader: sign(rawBody),
-    deliveryId: 'delivery-1',
-    eventName: 'pull_request',
-    payload,
-    ...overrides,
+    schemaVersion: 1,
+    deliveryId: overrides.deliveryId ?? 'delivery-1',
+    eventName,
+    action,
+    receivedAt: '2026-09-25T20:00:00.000Z',
+    data,
   };
 }
 
 describe('GithubWebhooksService', () => {
   let service: GithubWebhooksService;
-  let configService: { get: ReturnType<typeof vi.fn> };
   let webhookDeliveriesRepository: {
     findByDeliveryId: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
@@ -127,7 +186,6 @@ describe('GithubWebhooksService', () => {
   }
 
   beforeEach(async () => {
-    configService = { get: vi.fn().mockReturnValue(SECRET) };
     webhookDeliveriesRepository = {
       findByDeliveryId: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue(undefined),
@@ -153,7 +211,6 @@ describe('GithubWebhooksService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GithubWebhooksService,
-        { provide: ConfigService, useValue: configService },
         { provide: WebhookDeliveriesRepository, useValue: webhookDeliveriesRepository },
         { provide: RepositoryBindingsRepository, useValue: repositoryBindingsRepository },
         { provide: AnalysisRunsRepository, useValue: analysisRunsRepository },
@@ -167,32 +224,6 @@ describe('GithubWebhooksService', () => {
     }).compile();
 
     service = module.get(GithubWebhooksService);
-  });
-
-  it('throws GITHUB_WEBHOOK_UNAVAILABLE when no secret is configured', async () => {
-    configService.get.mockReturnValue(undefined);
-
-    await expect(service.handle(buildRequest(pullRequestPayload()))).rejects.toMatchObject<
-      Partial<AppException>
-    >({
-      code: ErrorCode.GITHUB_WEBHOOK_UNAVAILABLE,
-    });
-  });
-
-  it('throws INVALID_WEBHOOK_SIGNATURE when the signature does not match', async () => {
-    const request = buildRequest(pullRequestPayload(), { signatureHeader: 'sha256=deadbeef' });
-
-    await expect(service.handle(request)).rejects.toMatchObject<Partial<AppException>>({
-      code: ErrorCode.INVALID_WEBHOOK_SIGNATURE,
-    });
-  });
-
-  it('throws INVALID_REQUEST when x-github-delivery is missing', async () => {
-    const request = buildRequest(pullRequestPayload(), { deliveryId: undefined });
-
-    await expect(service.handle(request)).rejects.toMatchObject<Partial<AppException>>({
-      code: ErrorCode.INVALID_REQUEST,
-    });
   });
 
   it('returns duplicate:true and skips processing for a redelivered delivery id', async () => {
@@ -509,20 +540,13 @@ describe('GithubWebhooksService', () => {
 
   describe('repository events (HU61)', () => {
     it('routes `repository` to the repository handler with the payload and answers accepted without recording a delivery', async () => {
-      const payload = { action: 'renamed', repository: { id: 123, full_name: 'org/renamed' } };
+      const payload = { action: 'renamed', repository: { id: '123', full_name: 'org/renamed' } };
 
       const result = await service.handle(buildRequest(payload, { eventName: 'repository' }));
 
       expect(repositoryEvents.handle).toHaveBeenCalledWith(payload);
       expect(result).toEqual({ deliveryId: 'delivery-1', accepted: true, duplicate: false, analysisRunId: null });
       expect(webhookDeliveriesRepository.create).not.toHaveBeenCalled();
-    });
-
-    it('rejects a tampered signature before touching anything', async () => {
-      const request = buildRequest({ action: 'deleted', repository: { id: 123 } }, { eventName: 'repository', signatureHeader: 'sha256=deadbeef' });
-
-      await expect(service.handle(request)).rejects.toMatchObject({ code: ErrorCode.INVALID_WEBHOOK_SIGNATURE });
-      expect(repositoryEvents.handle).not.toHaveBeenCalled();
     });
 
     it.each(['member', 'membership', 'organization', 'team'])(
@@ -532,7 +556,13 @@ describe('GithubWebhooksService', () => {
 
         const result = await service.handle(buildRequest(payload, { eventName }));
 
-        expect(accessEvents.handle).toHaveBeenCalledWith(eventName, payload);
+        const expectedPayload = {
+          action: 'added',
+          ...(['member', 'membership'].includes(eventName) ? { member: { id: '1' } } : {}),
+          ...(eventName === 'member' ? { repository: { id: '123' } } : {}),
+          ...(eventName === 'team' ? { repository: { id: '123' } } : {}),
+        };
+        expect(accessEvents.handle).toHaveBeenCalledWith(eventName, expectedPayload);
         expect(result).toEqual({ deliveryId: 'delivery-1', accepted: true, duplicate: false, analysisRunId: null });
         expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
         expect(repositoryEvents.handle).not.toHaveBeenCalled();
@@ -542,13 +572,6 @@ describe('GithubWebhooksService', () => {
       },
     );
 
-    it.each(['member', 'membership', 'organization', 'team'])('rejects a tampered `%s` signature before handling it', async (eventName) => {
-      const request = buildRequest({ action: 'removed', member: { id: 1 } }, { eventName, signatureHeader: 'sha256=deadbeef' });
-
-      await expect(service.handle(request)).rejects.toMatchObject({ code: ErrorCode.INVALID_WEBHOOK_SIGNATURE });
-      expect(accessEvents.handle).not.toHaveBeenCalled();
-    });
-
     it.each(['ping', 'star', 'push', 'workflow_run'])('still accepts the unlisted event `%s` with 202 and no effect', async (eventName) => {
       const result = await service.handle(buildRequest({ action: 'created' }, { eventName }));
 
@@ -557,13 +580,14 @@ describe('GithubWebhooksService', () => {
       expect(repositoryEvents.handle).not.toHaveBeenCalled();
     });
 
-    it('a redelivered access event (same delivery id already recorded) is answered duplicate and not reprocessed', async () => {
+    it('does not classify an access delivery as a persisted PR duplicate', async () => {
       webhookDeliveriesRepository.findByDeliveryId.mockResolvedValue({ deliveryId: 'delivery-1', analysisRunId: null });
 
       const result = await service.handle(buildRequest({ action: 'removed', member: { id: 1 }, repository: { id: 123 } }, { eventName: 'member' }));
 
-      expect(result.duplicate).toBe(true);
-      expect(accessEvents.handle).not.toHaveBeenCalled();
+      expect(result.duplicate).toBe(false);
+      expect(accessEvents.handle).toHaveBeenCalledOnce();
+      expect(webhookDeliveriesRepository.findByDeliveryId).not.toHaveBeenCalled();
     });
   });
 

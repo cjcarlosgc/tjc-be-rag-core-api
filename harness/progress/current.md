@@ -1,11 +1,11 @@
 # Progreso actual — CORE
 
-**Último corte cerrado:** `WI-CORE-001`, `W-DONE`. No hay work item activo; ver `harness/state.json` y `harness/work-items.json` para el estado operativo. El cierre no implica aceptación de las 18 HU.
+**Último corte cerrado:** `WI-CORE-010`, `W-DONE`. `WI-CORE-003` es el corte activo; ver `harness/state.json` y `harness/work-items.json` para su estado y gates. El cierre de otros WIs no implica aceptación de las 18 HU.
 
-**Hecho en este corte:** línea base SDD 3.0 de Core/Console (no homologada aún con Sandbox), catálogo fijo EP01–EP06/HU01–HU18, OC01–OC15 (P2), modelo ST↔WI, triage de checklists antiguos y validadores de cierre/Contract Sync. Core y Console se editan en `feature/jean`; Sandbox y el nuevo repositorio no se han modificado.
+**Hecho en los últimos cortes:** línea base SDD 3.0 de Core/Console (no homologada aún con Sandbox), catálogo fijo EP01–EP06/HU01–HU18, OC01–OC15 (P2), modelo ST↔WI y validadores de cierre/Contract Sync. `WI-CORE-009` hace reproducibles las puertas de dependencias externas; `WI-CORE-010` registra el gate cruzado. Core, Console y GitHub Integration API trabajan en `feature/jean`; Sandbox sigue intacto.
 
-**Último corte cerrado:** `WI-CORE-002` (retirada de flujos legacy; snapshot ZIP interno conservado). **Siguientes cortes previstos:** `WI-CORE-003` (frontera GitHub Integration) y `WI-CORE-004` (casos P2); aún no están seleccionados.
+**Migración actual:** `WI-CORE-003` adaptó los consumidores Core al servicio GitHub Integration y migró el ingress de webhooks. Implementación, suites, Contract Sync y checkpoints `implementation-delivery`/`before-review` están completos. El WI sigue `W-IN_REVIEW`: falta el visto bueno humano personal; no se hizo deploy/configuración/cutover externo.
 
-**Contract Sync heredado:** los dos eventos `ACKNOWLEDGED` se mantienen abiertos. Su irrelevancia para `WI-CORE-002` quedó clasificada con motivo y digest; las obligaciones de binding, identidad y despliegue deberán revisarse en `WI-CORE-003`/`WI-CORE-008`.
+**Contract Sync heredado:** los eventos históricos conservan su ciclo/evidencia; las clasificaciones de relevancia se limitan al WI que las registró y no cierran otras obligaciones.
 
 El progreso anterior, incluido T-004-context-traces, se conserva en `harness/reports/`, `CHANGELOG.md` y Git; no es la planificación vigente.

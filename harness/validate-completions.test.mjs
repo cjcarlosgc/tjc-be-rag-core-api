@@ -67,3 +67,24 @@ test('W-DONE is rejected when a relevant inbox event is merely acknowledged', ()
   assert.equal(result.status, 1);
   assert.match(result.stderr, /unresolved relevant CONTRACT_SYNC/);
 });
+
+test('events first imported after closure do not invalidate a historical snapshot', () => {
+  const event = 'type: CONTRACT_SYNC\nid: CS-20260924-998\nsource: external\ntargets: [core]\nstatus: C-ACKNOWLEDGED\nconsumerImportedAt: 2026-09-24T00:05:00.000Z\n';
+  assert.equal(run([completion], [event]).status, 0);
+});
+
+test('events imported at or before closure remain required to be resolved', () => {
+  for (const importedAt of ['2026-09-24T00:04:00.000Z', '2026-09-24T00:03:59.999Z']) {
+    const event = `type: CONTRACT_SYNC\nid: CS-20260924-998\nsource: external\ntargets: [core]\nstatus: C-ACKNOWLEDGED\nconsumerImportedAt: ${importedAt}\n`;
+    const result = run([completion], [event]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /unresolved relevant CONTRACT_SYNC/);
+  }
+});
+
+test('legacy or malformed import times never silently clear a pending event', () => {
+  const legacy = 'type: CONTRACT_SYNC\nid: CS-20260924-998\nsource: external\ntargets: [core]\nstatus: C-ACKNOWLEDGED\n';
+  assert.match(run([completion], [legacy]).stderr, /unresolved relevant CONTRACT_SYNC/);
+  const malformed = `${legacy}consumerImportedAt: not-a-time\n`;
+  assert.match(run([completion], [malformed]).stderr, /invalid consumerImportedAt/);
+});

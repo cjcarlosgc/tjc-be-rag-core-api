@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20260925-004
+source: github-integration
+sourceWorkItem: WI-GH-004
+targets: [core]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - Clarify GitHub maximum decoded blob size (100 MB), bearer authentication before the route-scoped 136 MB JSON/Base64 parser, request-specific 180 s GitHub upload timeout, and best-effort ref compensation; no wire DTO change.
+requiredAction:
+  - Core should confirm that its caller preserves the 100 MB per-file ceiling and configures its HTTP body limit and timeout for these internal requests before cutover; acknowledge the clarified compensation semantics.
+sourceRevision: bc392d9
+consumerImportedAt: 2026-09-25T19:02:04.000Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/contract-sync-review-wi-core-003.md
+resolutionEvidence: harness/reports/wi-core-003-implementation.md

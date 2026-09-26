@@ -6,6 +6,7 @@ import { GithubUserRepositoriesService } from './github/github-user-repositories
 import { GithubRepositoryAccessService } from './github/github-repository-access.service.js';
 import { ProjectAccessModule } from '../project-access/project-access.module.js';
 import { GithubAppModule } from '../github-app/github-app.module.js';
+import { VerifiedRepositoryBindingService } from './verified-repository-binding.service.js';
 
 @Module({
   imports: [ProjectAccessModule, GithubAppModule],
@@ -15,6 +16,7 @@ import { GithubAppModule } from '../github-app/github-app.module.js';
     RepositoryBindingsRepository,
     GithubUserRepositoriesService,
     GithubRepositoryAccessService,
+    VerifiedRepositoryBindingService,
   ],
   exports: [RepositoryBindingsService, RepositoryBindingsRepository],
 })

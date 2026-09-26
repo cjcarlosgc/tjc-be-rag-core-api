@@ -1,159 +1,115 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GithubRepositoryContentService } from './github-repository-content.service.js';
 import { GithubAppUnavailableError } from './github-app-auth.service.js';
+import {
+  GithubIntegrationClientError,
+  type GithubIntegrationClient,
+} from './github-integration.client.js';
 
-const TOKEN = 'installation-token';
-const REPO = 'org/repo';
+const INSTALLATION_ID = '999';
+const REPOSITORY_NAME = 'org/repo';
 
-function jsonResponse(body: unknown, ok = true, status = 200) {
-  return { ok, status, json: async () => body, text: async () => JSON.stringify(body) };
+function setup() {
+  const integration = { post: vi.fn() };
+  return {
+    integration,
+    service: new GithubRepositoryContentService(integration as unknown as GithubIntegrationClient),
+  };
 }
 
 describe('GithubRepositoryContentService', () => {
-  let service: GithubRepositoryContentService;
-
-  beforeEach(() => {
-    service = new GithubRepositoryContentService();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  describe('compare', () => {
-    it('returns the changed files for a base...head compare', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(
-        jsonResponse({
-          files: [
-            { filename: 'src/a.ts', status: 'modified' },
-            { filename: 'src/b.ts', status: 'added' },
-            { filename: 'src/old.ts', status: 'renamed', previous_filename: 'src/older.ts' },
-          ],
-        }),
-      );
-      vi.stubGlobal('fetch', fetchMock);
-
-      const files = await service.compare(REPO, 'base-sha', 'head-sha', TOKEN);
-
-      expect(files).toEqual([
-        { filename: 'src/a.ts', status: 'modified' },
-        { filename: 'src/b.ts', status: 'added' },
-        { filename: 'src/old.ts', status: 'renamed', previousFilename: 'src/older.ts' },
-      ]);
-      expect(fetchMock).toHaveBeenCalledWith(
-        `https://api.github.com/repos/${REPO}/compare/base-sha...head-sha?per_page=100&page=1`,
-        expect.objectContaining({ headers: expect.objectContaining({ Authorization: `Bearer ${TOKEN}` }) }),
-      );
+  it('loads the compare from GitHub Integration and preserves renamed files', async () => {
+    const { integration, service } = setup();
+    integration.post.mockResolvedValue({
+      status: 'OK',
+      value: {
+        files: [{ filename: 'src/new.ts', status: 'renamed', previousFilename: 'src/old.ts' }],
+      },
     });
 
-    it('paginates when a page comes back full (100 files)', async () => {
-      const fullPage = Array.from({ length: 100 }, (_, i) => ({ filename: `src/f${i}.ts`, status: 'modified' as const }));
-      const secondPage = [{ filename: 'src/last.ts', status: 'modified' as const }];
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(jsonResponse({ files: fullPage }))
-        .mockResolvedValueOnce(jsonResponse({ files: secondPage }));
-      vi.stubGlobal('fetch', fetchMock);
-
-      const files = await service.compare(REPO, 'base-sha', 'head-sha', TOKEN);
-
-      expect(files).toHaveLength(101);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(fetchMock.mock.calls[1][0]).toContain('page=2');
-    });
-
-    it('throws GithubAppUnavailableError on a non-ok response', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, false, 403)));
-
-      await expect(service.compare(REPO, 'base-sha', 'head-sha', TOKEN)).rejects.toBeInstanceOf(
-        GithubAppUnavailableError,
-      );
+    await expect(service.compare(INSTALLATION_ID, REPOSITORY_NAME, 'base', 'head')).resolves.toEqual([
+      { filename: 'src/new.ts', status: 'renamed', previousFilename: 'src/old.ts' },
+    ]);
+    expect(integration.post).toHaveBeenCalledWith('/repositories/compare', {
+      installationId: INSTALLATION_ID,
+      repositoryName: REPOSITORY_NAME,
+      baseSha: 'base',
+      headSha: 'head',
     });
   });
 
-  describe('getTree', () => {
-    it('returns only blob entries from a recursive tree', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(
-          jsonResponse({
-            truncated: false,
-            tree: [
-              { path: 'src', type: 'tree' },
-              { path: 'src/a.ts', type: 'blob' },
-              { path: 'src/b.ts', type: 'blob' },
-            ],
-          }),
-        ),
-      );
+  it.each([
+    ['NOT_FOUND', 404],
+    ['NOT_INSTALLED', 403],
+    ['UNVERIFIABLE', 503],
+  ] as const)('preserves lookup status %s when not OK', async (status, httpStatus) => {
+    const { integration, service } = setup();
+    integration.post.mockResolvedValue({ status });
 
-      const entries = await service.getTree(REPO, 'head-sha', TOKEN);
-
-      expect(entries).toEqual([{ path: 'src/a.ts' }, { path: 'src/b.ts' }]);
+    await expect(service.compare(INSTALLATION_ID, REPOSITORY_NAME, 'base', 'head')).rejects.toMatchObject({
+      constructor: GithubAppUnavailableError,
+      status: httpStatus,
     });
   });
 
-  describe('getFileContent', () => {
-    it('decodes base64 content from the Contents API', async () => {
-      const content = Buffer.from('export const x = 1;', 'utf8').toString('base64');
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ content, encoding: 'base64' })));
-
-      const result = await service.getFileContent(REPO, 'src/a.ts', 'head-sha', TOKEN);
-
-      expect(result).toBe('export const x = 1;');
-    });
-  });
-
-  describe('getPullRequestHead', () => {
-    it('returns the head sha and state of a pull request', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ head: { sha: 'live-sha' }, state: 'open' })));
-
-      await expect(service.getPullRequestHead(REPO, 42, TOKEN)).resolves.toEqual({
-        headSha: 'live-sha',
-        state: 'open',
+  it('maps the verified tree and decodes file bytes returned as base64', async () => {
+    const { integration, service } = setup();
+    integration.post
+      .mockResolvedValueOnce({ status: 'OK', value: { paths: ['src/a.ts'], truncated: false } })
+      .mockResolvedValueOnce({
+        status: 'OK',
+        value: { files: [{ path: 'src/a.ts', contentBase64: Buffer.from('export const a = 1;').toString('base64') }] },
       });
+
+    await expect(service.getTree(INSTALLATION_ID, REPOSITORY_NAME, 'head')).resolves.toEqual([
+      { path: 'src/a.ts' },
+    ]);
+    await expect(service.getFileContent(INSTALLATION_ID, REPOSITORY_NAME, 'src/a.ts', 'head')).resolves.toBe(
+      'export const a = 1;',
+    );
+    expect(integration.post).toHaveBeenNthCalledWith(2, '/repositories/files:batch', {
+      installationId: INSTALLATION_ID,
+      repositoryName: REPOSITORY_NAME,
+      commitSha: 'head',
+      paths: ['src/a.ts'],
     });
   });
 
-  describe('listBranches', () => {
-    it('returns name/protected for each branch', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(
-          jsonResponse([
-            { name: 'main', protected: true },
-            { name: 'feature/x', protected: false },
-          ]),
-        ),
-      );
+  it('loads branches and pull-request freshness through the internal contract', async () => {
+    const { integration, service } = setup();
+    integration.post
+      .mockResolvedValueOnce({ status: 'OK', value: { items: [{ name: 'main', protected: true }] } })
+      .mockResolvedValueOnce({ status: 'OK', value: { headSha: 'live', state: 'open' } });
 
-      const branches = await service.listBranches(REPO, TOKEN);
+    await expect(service.listBranches(INSTALLATION_ID, REPOSITORY_NAME)).resolves.toEqual([
+      { name: 'main', protected: true },
+    ]);
+    await expect(service.getPullRequestHead(INSTALLATION_ID, REPOSITORY_NAME, 42)).resolves.toEqual({
+      headSha: 'live',
+      state: 'open',
+    });
+    expect(integration.post).toHaveBeenNthCalledWith(2, '/repositories/pull-request-head', {
+      installationId: INSTALLATION_ID,
+      repositoryName: REPOSITORY_NAME,
+      pullRequestNumber: 42,
+    });
+  });
 
-      expect(branches).toEqual([
-        { name: 'main', protected: true },
-        { name: 'feature/x', protected: false },
-      ]);
+  it('maps transport and malformed response failures to a neutral unavailable error', async () => {
+    const { integration, service } = setup();
+    integration.post.mockRejectedValue(
+      new GithubIntegrationClientError('GITHUB_UPSTREAM_UNAVAILABLE', 503, true),
+    );
+    await expect(service.listBranches(INSTALLATION_ID, REPOSITORY_NAME)).rejects.toMatchObject({
+      name: 'GithubAppUnavailableError',
+      status: 503,
+      message: 'GitHub Integration no está disponible.',
     });
 
-    it('paginates when a page comes back full (100 branches)', async () => {
-      const fullPage = Array.from({ length: 100 }, (_, i) => ({ name: `b${i}`, protected: false }));
-      const secondPage = [{ name: 'last', protected: false }];
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(jsonResponse(fullPage))
-        .mockResolvedValueOnce(jsonResponse(secondPage));
-      vi.stubGlobal('fetch', fetchMock);
-
-      const branches = await service.listBranches(REPO, TOKEN);
-
-      expect(branches).toHaveLength(101);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    });
-
-    it('throws GithubAppUnavailableError with the response status on a non-ok response', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, false, 404)));
-
-      await expect(service.listBranches(REPO, TOKEN)).rejects.toMatchObject({ status: 404 });
+    integration.post.mockResolvedValue({ status: 'OK', value: { items: 'not-an-array' } });
+    await expect(service.listBranches(INSTALLATION_ID, REPOSITORY_NAME)).rejects.toMatchObject({
+      status: 503,
+      message: 'GitHub Integration devolvió una respuesta inválida.',
     });
   });
 });

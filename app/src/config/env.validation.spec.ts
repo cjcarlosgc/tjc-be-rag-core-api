@@ -51,22 +51,51 @@ describe('validateEnv', () => {
     );
   });
 
-  it('accepts GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_BASE64 both set', () => {
+  it('accepts GitHub Integration URL and both service tokens together', () => {
     expect(() =>
-      validateEnv(baseConfig({ GITHUB_APP_ID: '123', GITHUB_APP_PRIVATE_KEY_BASE64: 'a2V5' })),
+      validateEnv(baseConfig({
+        GITHUB_INTEGRATION_API_BASE_URL: 'https://github-integration.local',
+        CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+        GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+        GITHUB_BINDING_EVIDENCE_SECRET: 'test-only-github-binding-evidence-secret',
+      })),
     ).not.toThrow();
   });
 
-  it('rejects GITHUB_APP_ID set without GITHUB_APP_PRIVATE_KEY_BASE64', () => {
-    expect(() => validateEnv(baseConfig({ GITHUB_APP_ID: '123' }))).toThrow(
-      /GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64/,
+  it('rejects partial GitHub Integration configuration', () => {
+    expect(() => validateEnv(baseConfig({ CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token' }))).toThrow(
+      /GITHUB_INTEGRATION_API_BASE_URL y ambos tokens internos/,
     );
   });
 
-  it('rejects GITHUB_APP_PRIVATE_KEY_BASE64 set without GITHUB_APP_ID', () => {
-    expect(() => validateEnv(baseConfig({ GITHUB_APP_PRIVATE_KEY_BASE64: 'a2V5' }))).toThrow(
-      /GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64/,
-    );
+  it('keeps GitHub Integration optional in local configs', () => {
+    expect(() => validateEnv(baseConfig())).not.toThrow();
+  });
+
+  it('requires a scoped binding-evidence key and HTTPS for configured remote Integration', () => {
+    expect(() => validateEnv(baseConfig({
+      GITHUB_INTEGRATION_API_BASE_URL: 'https://github-integration.local',
+      CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+      GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+    }))).toThrow(/GITHUB_BINDING_EVIDENCE_SECRET es obligatorio/);
+
+    expect(() => validateEnv(baseConfig({
+      GITHUB_INTEGRATION_API_BASE_URL: 'http://integration.internal',
+      CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+      GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+      GITHUB_BINDING_EVIDENCE_SECRET: 'test-only-github-binding-evidence-secret',
+    }))).toThrow(/debe usar HTTPS/);
+  });
+
+  it('allows loopback HTTP for local Integration but rejects it in production', () => {
+    const local = baseConfig({
+      GITHUB_INTEGRATION_API_BASE_URL: 'http://localhost:3002',
+      CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+      GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+      GITHUB_BINDING_EVIDENCE_SECRET: 'test-only-github-binding-evidence-secret',
+    });
+    expect(() => validateEnv(local)).not.toThrow();
+    expect(() => validateEnv({ ...local, NODE_ENV: 'production' })).toThrow(/debe usar HTTPS/);
   });
 
   it('defaults NODE_ENV to development and AUTH_BYPASS_ENABLED to false', () => {

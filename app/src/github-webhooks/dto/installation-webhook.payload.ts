@@ -2,16 +2,16 @@
 export interface GithubInstallationWebhookPayload {
   action: 'created' | 'deleted' | 'suspend' | 'unsuspend' | 'new_permissions_accepted' | string;
   installation: {
-    id: number;
+    id: number | string;
     /** Cuenta donde está instalada la App: `type: 'Organization'` con su id numérico (HU61, ciclo de vida de la organización). */
-    account?: { id?: number; type?: string };
+    account?: { id?: number | string; type?: string };
   };
 }
 
 /** Subconjunto tipado del payload real de GitHub para `installation_repositories`. */
 export interface GithubInstallationRepositoriesWebhookPayload {
   action: 'added' | 'removed' | string;
-  installation: { id: number };
-  repositories_removed?: Array<{ id: number; full_name: string }>;
-  repositories_added?: Array<{ id: number; full_name: string }>;
+  installation: { id: number | string };
+  repositories_removed?: Array<{ id: number | string; full_name: string }>;
+  repositories_added?: Array<{ id: number | string; full_name: string }>;
 }

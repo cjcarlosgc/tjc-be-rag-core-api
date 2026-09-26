@@ -30,6 +30,8 @@ import { CurrentGithubUserId } from '../common/auth/current-github-user-id.decor
 import { OrganizationAccessResolver } from '../project-access/organization-access.resolver.js';
 import { githubVerificationUnavailable, workspaceNotFound } from '../project-access/project-access.errors.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
+import { VerifiedRepositoryBindingService } from './verified-repository-binding.service.js';
+import { CreateVerifiedRepositoryBindingDto } from './dto/create-verified-repository-binding.dto.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { Page } from '../common/dto/page.response.js';
@@ -44,6 +46,7 @@ export class RepositoryBindingsController {
     private readonly githubUserRepositoriesService: GithubUserRepositoriesService,
     private readonly githubRepositoryAccessService: GithubRepositoryAccessService,
     private readonly organizations: OrganizationAccessResolver,
+    private readonly verifiedBindings: VerifiedRepositoryBindingService,
   ) {}
 
   @Get('integrations/github/repositories')
@@ -169,6 +172,19 @@ export class RepositoryBindingsController {
     @CurrentGithubUserId() githubUserId: string,
   ): Promise<ProjectRepositoryBindingResponse> {
     const binding = await this.repositoryBindingsService.create(projectId, body, userId, githubUserId);
+    return toProjectRepositoryBindingResponse(binding);
+  }
+
+  @Post('projects/:projectId/integrations/github/verified')
+  @NoProjectRole('Verifica una evidencia breve firmada por Core, valida de nuevo el rol local y persiste sin consultar GitHub Integration.')
+  @HttpCode(HttpStatus.CREATED)
+  async createFromVerifiedEvidence(
+    @Param('projectId') projectId: string,
+    @Body() body: CreateVerifiedRepositoryBindingDto,
+    @CurrentUserId() userId: string,
+    @CurrentGithubUserId() githubUserId: string,
+  ): Promise<ProjectRepositoryBindingResponse> {
+    const binding = await this.verifiedBindings.create(projectId, body, userId, githubUserId);
     return toProjectRepositoryBindingResponse(binding);
   }
 

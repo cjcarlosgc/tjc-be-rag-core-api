@@ -171,15 +171,19 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  GITHUB_APP_WEBHOOK_SECRET?: string;
+  GITHUB_INTEGRATION_API_BASE_URL?: string;
 
   @IsOptional()
   @IsString()
-  GITHUB_APP_ID?: string;
+  CORE_TO_GITHUB_INTEGRATION_TOKEN?: string;
 
   @IsOptional()
   @IsString()
-  GITHUB_APP_PRIVATE_KEY_BASE64?: string;
+  GITHUB_INTEGRATION_TO_CORE_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
+  GITHUB_BINDING_EVIDENCE_SECRET?: string;
 
   @IsOptional()
   @IsString()
@@ -231,12 +235,36 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
     );
   }
 
-  // GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64 autentican a Core como la
-  // GitHub App real (JWT + installation access tokens, HU33-34); deben
-  // configurarse juntos o no configurarse, igual que Sandbox.
-  if (Boolean(validated.GITHUB_APP_ID) !== Boolean(validated.GITHUB_APP_PRIVATE_KEY_BASE64)) {
+  // El acceso entre Core y GitHub Integration es una configuración indivisible;
+  // los secretos de la GitHub App ya no pertenecen a este componente.
+  const githubIntegrationFields = [
+    validated.GITHUB_INTEGRATION_API_BASE_URL,
+    validated.CORE_TO_GITHUB_INTEGRATION_TOKEN,
+    validated.GITHUB_INTEGRATION_TO_CORE_TOKEN,
+  ];
+  if (githubIntegrationFields.some(Boolean) && !githubIntegrationFields.every(Boolean)) {
     throw new Error(
-      'Configuración de entorno inválida: GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64 deben configurarse juntos.',
+      'Configuración de entorno inválida: GITHUB_INTEGRATION_API_BASE_URL y ambos tokens internos deben configurarse juntos.',
+    );
+  }
+
+  if (validated.GITHUB_INTEGRATION_API_BASE_URL && !isAllowedGithubIntegrationUrl(
+    validated.GITHUB_INTEGRATION_API_BASE_URL,
+    validated.NODE_ENV !== 'production',
+  )) {
+    throw new Error(
+      'Configuración de entorno inválida: GITHUB_INTEGRATION_API_BASE_URL debe usar HTTPS; HTTP solo se permite en loopback fuera de producción.',
+    );
+  }
+
+  if (validated.GITHUB_BINDING_EVIDENCE_SECRET &&
+      (validated.GITHUB_BINDING_EVIDENCE_SECRET.length < 32 || /\s/.test(validated.GITHUB_BINDING_EVIDENCE_SECRET))) {
+    throw new Error('Configuración de entorno inválida: GITHUB_BINDING_EVIDENCE_SECRET debe tener al menos 32 caracteres sin espacios.');
+  }
+
+  if (validated.GITHUB_INTEGRATION_API_BASE_URL && !validated.GITHUB_BINDING_EVIDENCE_SECRET) {
+    throw new Error(
+      'Configuración de entorno inválida: GITHUB_BINDING_EVIDENCE_SECRET es obligatorio cuando GitHub Integration está configurado.',
     );
   }
 
@@ -250,4 +278,17 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   }
 
   return validated;
+}
+
+function isAllowedGithubIntegrationUrl(value: string, allowHttpLoopback: boolean): boolean {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password || url.search || url.hash || (url.pathname !== '' && url.pathname !== '/')) return false;
+    return url.protocol === 'https:' || (
+      url.protocol === 'http:' && allowHttpLoopback &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    );
+  } catch {
+    return false;
+  }
 }

@@ -24,7 +24,6 @@ describe('RepositoryBindingsController', () => {
   let githubUserRepositoriesService: { list: ReturnType<typeof vi.fn> };
   let githubAppAuthService: {
     findInstallationForRepository: ReturnType<typeof vi.fn>;
-    getInstallationToken: ReturnType<typeof vi.fn>;
     getAppInfo: ReturnType<typeof vi.fn>;
   };
   let githubRepositoryContentService: { listBranches: ReturnType<typeof vi.fn> };
@@ -50,7 +49,6 @@ describe('RepositoryBindingsController', () => {
     githubUserRepositoriesService = { list: vi.fn() };
     githubAppAuthService = {
       findInstallationForRepository: vi.fn(),
-      getInstallationToken: vi.fn().mockResolvedValue('installation-token'),
       getAppInfo: vi.fn().mockResolvedValue({ slug: 'tjc-core', name: 'TJC Core' }),
     };
     githubRepositoryContentService = { listBranches: vi.fn() };
@@ -248,7 +246,7 @@ describe('RepositoryBindingsController', () => {
       const result = await controller.listBranches('acme', 'widgets', GITHUB_USER_ID);
 
       expect(githubAppAuthService.findInstallationForRepository).toHaveBeenCalledWith('acme', 'widgets');
-      expect(githubRepositoryContentService.listBranches).toHaveBeenCalledWith('acme/widgets', 'installation-token');
+      expect(githubRepositoryContentService.listBranches).toHaveBeenCalledWith('123', 'acme/widgets');
       expect(result).toEqual({ items: [{ name: 'main', protected: true }] });
     });
 

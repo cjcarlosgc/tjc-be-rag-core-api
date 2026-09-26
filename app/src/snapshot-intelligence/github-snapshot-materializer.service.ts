@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
 import { isPoolFile } from '../project-versions/indexing.constants.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
@@ -19,7 +18,6 @@ const CONTENT_FETCH_CONCURRENCY = 8;
 @Injectable()
 export class GithubSnapshotMaterializerService {
   constructor(
-    private readonly githubAppAuthService: GithubAppAuthService,
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
   ) {}
 
@@ -27,11 +25,10 @@ export class GithubSnapshotMaterializerService {
     const dir = await mkdtemp(join(tmpdir(), 'rag-core-snapshot-'));
 
     try {
-      const token = await this.githubAppAuthService.getInstallationToken(binding.installationId);
       const tree = await this.githubRepositoryContentService.getTree(
+        binding.installationId,
         binding.repositoryName,
         sha,
-        token,
       );
       const allPaths = tree.map((entry) => entry.path);
       // `pnpm-lock.yaml` no es un archivo "pool" (no se indexa como fuente),
@@ -41,7 +38,7 @@ export class GithubSnapshotMaterializerService {
       // exista, sin ampliar `isPoolFile` para no afectar la indexación.
       const poolPaths = allPaths.filter((path) => isPoolFile(path) || path === 'pnpm-lock.yaml');
 
-      await this.fetchAndWriteInBatches(binding.repositoryName, sha, token, dir, poolPaths);
+      await this.fetchAndWriteInBatches(binding.installationId, binding.repositoryName, sha, dir, poolPaths);
 
       return {
         dir,
@@ -54,9 +51,9 @@ export class GithubSnapshotMaterializerService {
   }
 
   private async fetchAndWriteInBatches(
+    installationId: string,
     repoFullName: string,
     sha: string,
-    token: string,
     dir: string,
     paths: string[],
   ): Promise<void> {
@@ -65,10 +62,10 @@ export class GithubSnapshotMaterializerService {
       await Promise.all(
         batch.map(async (path) => {
           const content = await this.githubRepositoryContentService.getFileContent(
+            installationId,
             repoFullName,
             path,
             sha,
-            token,
           );
           const targetPath = join(dir, path);
           await mkdir(dirname(targetPath), { recursive: true });

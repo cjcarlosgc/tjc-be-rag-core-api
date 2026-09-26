@@ -1,11 +1,11 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.4
-**Fecha de corte:** 2026-09-20
+**Versión del contrato:** SYSTEM-2.5
+**Fecha de corte:** 2026-09-26
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
-Core y Console preparan la frontera de un cuarto componente durante `planningBaseline: 2026-09-24-core-console-transition`. Sandbox conserva por ahora la copia operativa SYSTEM-2.4 sin editarla. Una spec local no redefine rutas o DTOs; el nuevo contrato de servicio se aprobará y versionará antes de extraer código.
+Core y Console establecen la frontera de un cuarto componente durante `planningBaseline: 2026-09-24-core-console-transition`. Sandbox conserva por ahora la copia operativa SYSTEM-2.4 sin editarla. `GH-INTEROP-1.1` reemplaza el contrato anterior de extracción: Core y GitHub Integration sirven al pipeline; Console accede directamente a GitHub Integration para capacidades de GitHub propias de su interfaz, con autorización síncrona de Core. La implementación, revisión personal de los WIs y cualquier configuración, despliegue o cutover siguen pendientes.
 
 ## Arquitectura operativa vigente y transición aprobada
 
@@ -13,21 +13,25 @@ RAG Test Studio adopta un flujo PR-driven. La unidad operativa principal es un `
 
 ```text
 developer and/or coding agent
-  -> feature branch
-  -> Pull Request hacia integrationBranch
-  -> GitHub App
-  -> RAG Core
-  -> AnalysisRun + Job
+  -> feature branch -> Pull Request hacia integrationBranch
+  -> GitHub -> GitHub Integration
+  -> evento normalizado -> RAG Core -> AnalysisRun + Job
   -> contexto semántico + estructural + funcional + tests existentes
-  -> Sandbox
-  -> clasificación objetiva
-  -> GitHub Check + Console
-  -> revisión humana opcional de tests
-  -> companion PR
+  -> Sandbox -> clasificación objetiva
+  -> RAG Core -> GitHub Integration -> GitHub Check + Console
+  -> revisión humana opcional de tests -> companion PR vía GitHub Integration
+```
+
+La superficie de vinculación de repositorio tiene un camino directo separado:
+
+```text
+Developer Console ──user API──> GitHub Integration ──> GitHub
+        │                              │
+        └──persist binding──> Core <───┘ autorización síncrona
 ```
 
 - Developer Console es el control plane, workspace human-in-the-loop y superficie de revisión/trazabilidad. No es un launcher obligatorio.
-- RAG Core todavía contiene GitHub Integration junto con dominio, RAG, Functional Knowledge, generación, jobs, orquestación, métricas y publicación. Se aprobó trasladar **toda** interacción GitHub, SDK incluido, a `tjc-be-github-integration-api`, repositorio hermano. Este traslado no es todavía un contrato HTTP desplegado: `WI-CORE-003` definirá llamadas, autenticación, idempotencia y ownership antes de mover código. Core conservará dominio, decisiones de análisis y orquestación; Console seguirá consumiendo Core para dominio.
+- GitHub Integration (`tjc-be-github-integration-api`) es dueño de toda interacción GitHub, incluido SDK, GitHub App, REST/Git Data y recepción/verificación de webhooks. `GH-INTEROP-1.1` define operaciones privadas Core↔Integration y rutas de usuario Console→Integration. Console usa estas últimas solo para información de App, discovery, verificación GitHub y ramas; Core mantiene dominio, sesión, autorización, persistencia, RAG, freshness y orquestación. Core continúa usando Integration internamente para el pipeline y recibe sus webhooks normalizados. Ningún cambio implica deploy/cutover externo.
 - Test Execution Sandbox ejecuta perfiles aislados y devuelve hechos. Permanece ciego a GitHub, OAuth, usuarios, RAG, reglas funcionales, estrategia experimental y conclusiones de negocio.
 - PostgreSQL + pgvector, Supabase Storage, jobs DB-backed y containers efímeros permanecen vigentes. No se incorporan Redis, RabbitMQ o Kafka sin una decisión posterior.
 
@@ -49,19 +53,19 @@ Los permisos de la GitHub App aplican mínimo privilegio:
 
 ## Onboarding y repository binding
 
-Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console usa el token OAuth GitHub del usuario, transportado solo para ese descubrimiento, para listar repositorios visibles. Al seleccionar uno, Core se autentica como GitHub App y consulta directamente la instalación que tiene acceso al repositorio. La ausencia de acceso es `NOT_AUTHORIZED`, un resultado de producto que ofrece la URL de configuración centralizada de la App; no se enumeran instalaciones ni se infiere acceso desde OAuth.
+Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. Console llama directamente a las rutas de usuario de GitHub Integration con el JWT de sesión Supabase y, para discovery, el provider token OAuth efímero. Integration valida el JWT y los datos GitHub verificados mediante una comprobación síncrona Integration→Core; no expone credenciales de servicio al navegador. Core valida la sesión, coteja la identidad GitHub con la identidad vinculada y aplica reglas de workspace/Project a datos verificados, sin volver a consultar Integration durante esa misma comprobación. Para crear el binding, Integration obtiene de Core una evidencia firmada, reciente y limitada a usuario, acción, Project, repositorio e integration branch; Console la presenta al endpoint de persistencia de Core. Core valida firma, vigencia, usuario, Project y claims antes de escribir. El provider token no cruza a Core ni se persiste/registra. El scope actual `repo` permanece y `IDEA-005` evaluará menor privilegio por separado. Las rutas Core previas de discovery, verify-access y branches se conservan temporalmente para compatibilidad, hasta comprobar el consumo directo; retirarlas requerirá otro corte aprobado. La ausencia de acceso continúa como `NOT_AUTHORIZED` y no enumera instalaciones.
 
-El repositorio debe pertenecer al workspace del Project y el usuario debe tener permiso `maintain`/`write`/`admin` sobre él (`DEC-ORG-001`, HU02; ver "Workspaces, roles y acceso"). Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU14): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core revalida que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
+El repositorio debe pertenecer al workspace del Project y el usuario debe tener permiso `maintain`/`write`/`admin` sobre él (`DEC-ORG-001`, HU02; ver "Workspaces, roles y acceso"). GitHub Integration verifica la instalación y consulta las ramas usando credenciales que permanecen en ese componente; Core aplica la decisión de dominio y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, el `installationId` incluido en evidencia Core-firmada a partir de la verificación de Integration, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos normalizados de ciclo de vida de GitHub App (`installation`/`installation_repositories`, HU14): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core vuelve a verificar mediante GitHub Integration que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
 
 Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la API (sin restauración): el Project y todo lo que cuelga de él dejan de ser visibles, se libera su binding para que el repositorio pueda vincularse a otro Project, y los Runs y jobs en curso se cancelan u obsoletan. Runs, versiones y Functional Knowledge se conservan como evidencia, sin exposición por la API. Un webhook de un repositorio sin binding se ignora.
 
 ## Workspaces, roles y acceso
 
-Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo de rutas, DTOs, errores y eventos vive en `INTEROP-2.4` §6.13 y §6.9.
+Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo de rutas, DTOs, errores y eventos vive en `INTEROP-2.5` §6.13 y §6.14.
 
 - Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. Un Project personal solo lo ve su creador, que es siempre su Admin y no tiene registro de acceso; solo se comparte mediante organizaciones. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y, para Projects de organización, un registro de acceso `(projectId, userId, rol, verifiedAt)`.
-- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Reader (en una organización, Maintainer y Reader exigen además ser miembro activo de ella): Reader solo consulta; Maintainer opera el día a día (binding, preguntas funcionales, publicaciones, experimentos); Admin, además, crea, renombra y elimina Projects. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.4` §6.13.
-- El acceso se crea al entrar, verificando en vivo con el installation token de la App; se revoca por los eventos de webhook de la App y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
+- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Reader (en una organización, Maintainer y Reader exigen además ser miembro activo de ella): Reader solo consulta; Maintainer opera el día a día (binding, preguntas funcionales, publicaciones, experimentos); Admin, además, crea, renombra y elimina Projects. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.5` §6.13.
+- El acceso se crea al entrar mediante una verificación en vivo solicitada a GitHub Integration, donde reside el installation token de la App; se revoca por los eventos normalizados de webhook y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
 - Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente responde `403`.
 
 ## Trigger PR-driven y lifecycle
@@ -179,7 +183,7 @@ OBSOLETE
 
 - El análisis productivo nace de un `AnalysisRun` asociado a PR/HEAD. El snapshot ZIP que recupera Docker/Sandbox es un detalle interno, no una entrada manual de proyecto.
 - La comparación `RAG` vs `GENERALIST_AGENT` de HU17 usa un `AnalysisRun` y un símbolo elegible compartidos; su adaptación live sigue pendiente de aceptación.
-- Los mocks frontend implementan `INTEROP-2.4`, están señalizados como demo y permanecen detrás de adapters separados de live. No son evidencia científica ni empresarial.
+- Los mocks frontend implementan `INTEROP-2.5`, están señalizados como demo y permanecen detrás de adapters separados de live. No son evidencia científica ni empresarial.
 
 ## Decisiones compartidas
 
@@ -189,7 +193,7 @@ OBSOLETE
 
 **Blocks:** NONE
 
-**Resolución:** GitHub App, binding Project<->Repository, eventos PR-driven, webhooks, Checks API, mínimo privilegio, human-in-the-loop y companion PR aprobado por humano. No se requiere workflow YAML. GitHub OAuth mediante Supabase Auth sirve para identidad y, con un provider token efímero, para descubrir repositorios visibles; la App sigue siendo la única autoridad de automatización.
+**Resolución:** GitHub App, binding Project<->Repository, eventos PR-driven, webhooks, Checks API, mínimo privilegio, human-in-the-loop y companion PR aprobado por humano. No se requiere workflow YAML. GitHub OAuth mediante Supabase Auth sirve para identidad y, con un provider token efímero, para descubrir repositorios visibles. En la topología vigente, Console llama a GitHub Integration para discovery, verificación y ramas; Integration consulta síncronamente a Core para autorización de dominio. Core conserva la persistencia y el pipeline. La App sigue siendo la única autoridad de automatización.
 
 ### DEC-WEB-AUTH-001 — Identidad del navegador
 
@@ -247,12 +251,12 @@ OBSOLETE
 
 **Resolución:** GitHub es la fuente de verdad de la autorización y Core persiste solo lo necesario para poder revocar por evento.
 
-- **Workspaces:** el home ofrece la cuenta personal (siempre) y cada organización donde la GitHub App está instalada y el usuario es miembro; Core la obtiene listando las instalaciones de la App y verificando la membresía con el token de la App, sin depender del token del usuario ni del scope `read:org`. Una organización aparece cuando alguien instala la App en ella. El "equipo" es la organización; los Teams de GitHub no son workspace y solo aportan permisos de forma indirecta. Un Project guarda su organización (`githubOrgId`, `login`; nulo = personal) porque al crearse aún no tiene repositorio.
+- **Workspaces:** el home ofrece la cuenta personal (siempre) y cada organización donde la GitHub App está instalada y el usuario es miembro; Core obtiene la lista mediante GitHub Integration, que consulta las instalaciones de la App y verifica la membresía con credenciales propias, sin depender del token del usuario ni del scope `read:org`. Una organización aparece cuando alguien instala la App en ella. El "equipo" es la organización; los Teams de GitHub no son workspace y solo aportan permisos de forma indirecta. Un Project guarda su organización (`githubOrgId`, `login`; nulo = personal) porque al crearse aún no tiene repositorio.
 - **Login:** solo GitHub (HU01/HU02). La identidad se resuelve por el `githubUserId` numérico que Core obtiene de la Admin API de Supabase con el `sub` del token; nunca de `user_metadata`, que el propio usuario puede editar.
 - **Roles (jerarquía Admin ⊃ Maintainer ⊃ Reader):** Admin es solo el owner de la organización (en el workspace personal, quien lo creó) y es además Maintainer; solo Admin crea, renombra y elimina Projects (el borrado sigue siendo lógico). Maintainer es quien tiene permiso `maintain`, `write` o `admin` sobre el repositorio vinculado; opera el día a día (binding, preguntas funcionales, publicación, experimentos). Reader es quien tiene `triage` o `read`: solo consulta.
 - **Visibilidad:** en una organización se ve un Project si se tiene al menos `read` sobre su repositorio vinculado. Un Project sin repositorio solo lo ven los Admin (todos los owners de la organización). Un Project personal solo lo ve su creador. Un recurso no visible responde el mismo `404` que uno inexistente. *Enmienda 2026-09-20 (`DEC-ORG-002`): la versión aprobada decía "también en el workspace personal"; los Projects personales no se comparten con colaboradores, solo se comparte mediante organizaciones, y el registro de acceso existe únicamente para Projects de organización.*
 - **Binding:** un Project tiene un solo repositorio y no se revincula (para otro repositorio se elimina el Project y se crea otro). En una organización solo se ofrecen y aceptan repositorios de esa organización; en el workspace personal, solo los propios. Vincular exige permiso `maintain`/`write` (o `admin`) sobre el repositorio, porque la GitHub App publica con permisos de escritura. Vincular, pausar y reactivar lo hacen Admin y Maintainer; como el Project sin repositorio solo lo ven los Admin, el primer vínculo es de un Admin. Un renombre del repositorio actualiza el nombre; una transferencia a otra organización o su eliminación pasa el binding a `REVOKED` sin borrar evidencia.
-- **Alta y revocación:** el acceso se crea automáticamente al entrar, verificando en vivo el rol o permiso del usuario con el installation token de la App; nadie invita. La revocación no usa caché ni depende del inicio de sesión: los webhooks de la App en el ingress existente (§6.9) actualizan o borran el registro de acceso, y un job periódico de reconciliación, cada hora, sobre la cola existente corrige webhooks perdidos. Si GitHub no responde, Core conserva los accesos ya registrados (nunca revoca por un error de red), reintenta después y no concede accesos nuevos hasta poder verificarlos.
+- **Alta y revocación:** el acceso se crea automáticamente al entrar, verificando en vivo el rol o permiso del usuario mediante GitHub Integration; nadie invita. La revocación no usa caché ni depende del inicio de sesión: GitHub Integration valida y normaliza webhooks, Core procesa sus eventos en el endpoint privado (§6.9) para actualizar o borrar el registro de acceso, y un job periódico de reconciliación, cada hora, sobre la cola existente corrige webhooks perdidos. Si GitHub no responde, Core conserva los accesos ya registrados (nunca revoca por un error de red), reintenta después y no concede accesos nuevos hasta poder verificarlos.
 - **Ciclo de vida de la organización:** si la organización desaparece o se desinstala la App (una organización de GitHub no puede quedarse sin owners: una lista de owners vacía se trata como no verificable y no oculta nada), sus Projects y su evidencia se conservan pero dejan de verse (binding `REVOKED`); reaparecen si la App se reinstala o la organización vuelve. No se reasignan a otro workspace.
 - **Persistencia mínima:** el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y un registro de acceso `(projectId, userId, rol, verifiedAt)`. No hay tablas `Organization` ni `Membership`.
 - Se conserva el invariante de que ninguna identidad implica autorización de la otra: ver un Project no autoriza la automatización sobre el repositorio, que sigue autorizada solo por la GitHub App.
@@ -260,7 +264,7 @@ OBSOLETE
 **Decisiones de producto cerradas (2026-09-20):** origen de la lista de workspaces (organizaciones con la App instalada), reconciliación cada hora, comportamiento ante una caída de GitHub (conservar lo existente, negar lo nuevo) y ciclo de vida de una organización que desaparece (Projects ocultos y conservados). Límite aceptado: solo se comparte con quien tiene acceso al repositorio en GitHub.
 
 **Verificaciones técnicas contra GitHub (spike 2026-09-20):**
-- **Permiso de un colaborador (PROBADO):** el installation token lee `GET /repos/{owner}/{repo}/collaborators/{username}/permission` con solo `Metadata: read`, permiso que la App ya tiene. Se usa `role_name` (admin, maintain, write, triage, read o rol personalizado); el campo `permission` colapsa maintain a write y triage a read. Un rol personalizado se mapea por su permiso base. No se probó un colaborador que no sea owner ni el permiso heredado por Team o permiso base de la organización.
+- **Permiso de un colaborador (evidencia histórica de integración):** GitHub Integration consulta el permiso efectivo con solo `Metadata: read`, permiso que la App ya tiene. Se usa `role_name` (admin, maintain, write, triage, read o rol personalizado); el campo `permission` colapsa maintain a write y triage a read. Un rol personalizado se mapea por su permiso base. No se probó un colaborador que no sea owner ni el permiso heredado por Team o permiso base de la organización. La llamada se delega ahora mediante `GH-INTEROP-1.1`.
 - **Rol en la organización (DOCUMENTADO, no probado):** `GET /orgs/{org}/memberships/{username}` (`role` admin = owner; solo cuenta `state=active`) y `GET /orgs/{org}/members` exigen el permiso de organización `Members: read`, que la App no tiene hoy. No se probó contra una organización real porque la única instalación de la App es de una cuenta personal.
 - **Permisos y eventos nuevos de la App:** `Members: read` (lo acepta un owner en cada organización) y suscripción a `member`, `membership`, `organization`, `team` y `repository`. `installation` e `installation_repositories` llegan siempre; `Metadata: read` ya cubre `repository`. Hoy la App solo se suscribe a `pull_request`.
 - **Cobertura de eventos (DOCUMENTADO):** cubiertos los cambios de colaborador directo (`member`), alta y baja de miembro de la organización (`organization`), membresía y permisos de Team sobre un repositorio (`membership`, `team`, con la salvedad de que un cambio de permiso del Team no está garantizado) y renombre, transferencia, eliminación o privatización del repositorio (`repository`). **Sin evento fiable:** cambio de rol en la organización, cambio del permiso base de la organización y accesos heredados que cambian sin evento directo. Para esos casos la reconciliación horaria es el único mecanismo, con una ventana de hasta una hora.
@@ -299,7 +303,7 @@ OBSOLETE
 - (f) Con GitHub caído: `GET /workspaces` devuelve el workspace personal más las organizaciones con acceso ya registrado; los listados omiten lo no verificable; un acceso directo a un Project de organización no verificable responde `503` (revela solo la existencia de un UUID). Los Projects personales no dependen de GitHub para verse.
 - (g) `installation.suspend` no borra registros de acceso: una instalación suspendida se trata como GitHub no disponible.
 - (h) Los eventos de acceso se procesan aunque el binding no esté `ENABLED`.
-- (i) El payload de un webhook solo selecciona qué reverificar; el rol siempre sale de una verificación viva con el installation token.
+- (i) El payload normalizado de un webhook solo selecciona qué reverificar; el rol siempre sale de una verificación viva delegada a GitHub Integration, nunca del payload.
 - (j) No existe ruta que dispare una validación manual, así que "validación" del rol Maintainer queda como nota de la matriz de `INTEROP-2.4` §6.13.
 - (k) Un permiso o una pertenencia no verificable en `verify-app-access`, `branches` y `GET /integrations/github/repositories?workspaceId` responde `503 GITHUB_VERIFICATION_UNAVAILABLE`, nunca `NOT_AUTHORIZED` ni `404`.
 - (l) `GET /analysis-runs` y `GET /action-required` sin `projectId` cubren los Projects personales del usuario más los de organización con registro de acceso ya existente. `GET /action-required?projectId=X` con un Project no visible responde `404 PROJECT_NOT_FOUND` (cambio observable: antes una página vacía).
@@ -331,4 +335,4 @@ OBSOLETE
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.4` sigue definiendo el contrato operativo PR/HEAD de tres componentes mientras se prepara GitHub Integration. La transición de cuatro componentes no se presenta como desplegada: sus DTOs y transporte se definirán en un corte contractual propio. La carga manual ZIP y los modos manuales no son rutas de producto; el ZIP interno de snapshot para Docker/Sandbox continúa. El estado de implementación o despliegue de cada capacidad se demuestra con evidencia por componente, no se infiere del número de contrato.
+`SYSTEM-2.5` conserva las reglas operativas PR/HEAD; la topología de cuatro componentes está implementada en código fuente bajo `GH-INTEROP-1.1`, pendiente de revisión personal y sin despliegue/cutover. La carga manual ZIP y los modos manuales no son rutas de producto; el ZIP interno de snapshot para Docker/Sandbox continúa. El estado de implementación o despliegue de cada capacidad se demuestra con evidencia por componente, no se infiere del número de contrato.

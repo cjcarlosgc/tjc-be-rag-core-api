@@ -2,9 +2,9 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-**Línea base Core/Console:** SDD 3.0 / SYSTEM-2.4 / INTEROP-2.4. **Homologación global pendiente:** Sandbox permanece en SDD 2.1 bajo trabajo de otro desarrollador; `2026-09-24-core-console-transition` identifica este corte sin declarar compatibilidad global.
+**Línea base Core/Console:** SDD 3.0 / SYSTEM-2.5 / INTEROP-2.5. **Homologación global pendiente:** Sandbox permanece en SDD 2.1 bajo trabajo de otro desarrollador; `2026-09-24-core-console-transition` identifica este corte sin declarar compatibilidad global.
 
-Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> `constitution/planning-model.md` y constitución aplicable -> `backlog.md`/`operational-cases.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables -> `harness/work-items.json`.
+Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> `constitution/planning-model.md` y constitución aplicable -> `backlog.md`/`operational-cases.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables -> `harness/work-items.json`. La extracción está detallada en `features/016-github-integration/`; las dependencias entre repos y sus puertas locales, en `features/017-cross-repository-dependency-gates/`. Cada repo mantiene solo WIs locales y se coordina por Contract Sync.
 
 ## Versionado
 
@@ -33,6 +33,6 @@ No existe un registro central adicional que duplique decisiones. Cada decisión 
 
 ## Contrato entre componentes
 
-`contracts/system-contract.md` es el propietario canónico de las decisiones compartidas actuales. Las copias espejo declaran `SYSTEM-*`; no sustituyen specs internas ni cierran operaciones `PENDING`. La futura frontera de GitHub Integration se diseña en `WI-CORE-003` antes de versionar un nuevo contrato.
+`contracts/system-contract.md` es el propietario canónico de las decisiones compartidas actuales. Las copias espejo declaran `SYSTEM-*`; no sustituyen specs internas ni cierran operaciones `PENDING`. `contracts/github-integration-contract.md` es el contrato entre Core, Console y GitHub Integration: incluye rutas de usuario Console→Integration y operaciones privadas, incluida autorización síncrona Integration→Core. `GH-INTEROP-1.1` sustituye la topología limitada a Core de `GH-INTEROP-1.0`; el cutover y la configuración externa siguen pendientes.
 
-`contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte universales. Su versión `INTEROP-*` evoluciona independientemente de la línea base SDD conjunta.
+`contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte públicos vigentes. Su versión `INTEROP-*` evoluciona independientemente de la línea base SDD conjunta.

@@ -93,7 +93,6 @@ describe('SnapshotAnalysisJobHandler', () => {
     const typeScriptParserService = { parse: vi.fn().mockReturnValue([buildChunk()]) };
     const testTargetExtractorService = { extract: vi.fn().mockReturnValue([]) };
     const existingTestResolverService = { resolve: vi.fn().mockReturnValue([]) };
-    const githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
     const githubRepositoryContentService = {
       compare: vi.fn().mockResolvedValue([{ filename: 'src/a.ts', status: 'modified' }]),
     };
@@ -135,7 +134,6 @@ describe('SnapshotAnalysisJobHandler', () => {
       typeScriptParserService as never,
       testTargetExtractorService as never,
       existingTestResolverService as never,
-      githubAppAuthService as never,
       githubRepositoryContentService as never,
       githubSnapshotMaterializerService as never,
       analysisSymbolsRepository as never,
@@ -157,7 +155,6 @@ describe('SnapshotAnalysisJobHandler', () => {
       typeScriptParserService,
       testTargetExtractorService,
       existingTestResolverService,
-      githubAppAuthService,
       githubRepositoryContentService,
       githubSnapshotMaterializerService,
       analysisSymbolsRepository,
