@@ -5,7 +5,7 @@
 - Backend: NestJS + TypeScript.
 - Persistencia: PostgreSQL + pgvector en Supabase para datos de dominio, chunks, embeddings vectoriales y la cola DB-backed de jobs.
 - ORM: Prisma para relacional; TypedSQL/raw SQL para operaciones vectoriales.
-- AST/análisis estructural: adapters por lenguaje; ts-morph se conserva para TypeScript y la alternativa PHP se selecciona al implementar HU41.
+- AST/análisis estructural: adapters por lenguaje; ts-morph se conserva para TypeScript; PHP usa `web-tree-sitter` + `tree-sitter-php` (WASM) según `DEC-PHP-AST-001` (`spec/features/015-php-laravel-support/spec.md`).
 - Input objetivo: GitHub repository + commit SHA + PR CHANGESET. Los componentes reutilizables de ingestión se aplican a snapshots PR-driven; no existe una entrada de producto separada.
 - Stacks: TypeScript (`.ts`/`.tsx`) con Jest/Vitest en compatibility track; PHP/Laravel con PHPUnit como active development track. JavaScript puro no se habilita por esta decisión.
 - Distancia vectorial: cosine.

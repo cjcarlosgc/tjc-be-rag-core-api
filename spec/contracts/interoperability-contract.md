@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.4
+**Versión:** INTEROP-2.5
 **Compatible con:** SYSTEM-2.4
-**Fecha de corte:** 2026-09-20
+**Fecha de corte:** 2026-09-26
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,8 @@ Este documento define el vocabulario y los contratos HTTP compartidos por Develo
 ## 1. Compatibilidad y autoridad
 
 - Las rutas manuales de carga ZIP y generación por modos (`METHOD|CLASS|PROJECT`) anteriores a SDD 2.0 quedan retiradas; no existe compatibilidad legacy paralela. El único disparador de análisis es PR-driven (`AnalysisRun`).
-- `INTEROP-2.4` es la versión documental vigente. Hereda de `INTEROP-2.1` el lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP, de `INTEROP-2.2` el discovery OAuth user-centric y la autorización GitHub-App-centric del repository binding (§6.8), y de `INTEROP-2.3` `DELETE /projects/{projectId}` (§6.1), `POST /projects/{projectId}/integrations/github/enable` y `REPOSITORY_ALREADY_BOUND` (§6.8; HU56/HU57, implementados en Core). **`breaking: false`** a nivel de cable: agrega `GET /workspaces` y `PATCH /projects/{projectId}`, `workspaceId` opcional en `POST /projects`, `GET /projects` y `GET /integrations/github/repositories`, `workspace` y `role` en `ProjectResponse`, ocho códigos de error nuevos (§6.13), la matriz rol -> operación (§6.13) el manejo de los eventos `member`, `membership`, `organization`, `team` y `repository` (§6.9) y el acknowledgment `SubscribeAck` de `subscribe:project-version` (§6.6; la Console emite `subscribe` sin callback y por tanto lo ignora, por lo que no la afecta); ninguna ruta, DTO o código existente cambia de forma incompatible y los consumidores ya ignoran campos de respuesta desconocidos. `breaking: false` está cualificado: el cable no cambia, pero sí el comportamiento observable. (1) El login con correo y contraseña se retira y Core exige identidad GitHub en toda sesión (`401 GITHUB_IDENTITY_REQUIRED`). (2) `POST .../integrations/github`, `verify-app-access` y `branches` rechazan peticiones antes aceptadas (repositorios ajenos, permiso menor a `maintain`). (3) Un Reader no debe llamar `verify-app-access` (`403`); para conocer el estado del binding usa `GET .../integrations/github`, que sí puede. (4) Un binding `REVOKED` deja de ser visible para Maintainer y Reader (`404`); solo lo ve un Admin. (5) `GET /action-required?projectId=X` con un Project no visible responde `404 PROJECT_NOT_FOUND` (antes, una página vacía). **Orden de despliegue:** (1) la Console con login solo GitHub se publica primero: el bundle A de Core (identidad GitHub + corrección de seguridad del binding) espera a que esté publicada, porque `GITHUB_IDENTITY_REQUIRED` aplica a toda la sesión, y el proveedor de correo de Supabase se deshabilita solo cuando la Console ya no lo ofrece, nunca antes; (2) bundle A de Core; la App no debe ser instalada por terceros (idealmente privada) hasta que esté desplegado, y el bundle A solo acepta `workspaceId` (el personal) en `GET /integrations/github/repositories`; (3) bundle B (workspaces, roles, acceso y webhooks, publicado junto) y solo después de su sync de implementación la Console envía `workspaceId` a `POST /projects` y `GET /projects` y consume `workspace` y `role` de `ProjectResponse`, porque los servidores rechazan campos de request no declarados (`400`) (`spec/features/014-organizations-access/`). Cambio de HU58-HU64 por `DEC-ORG-001`: **Implementado en Core (bundle A: identidad y corrección de seguridad del binding; bundle B: workspaces, roles, acceso y webhooks); el despliegue está sujeto a las precondiciones de `DEC-ORG-001`.** `DEC-ORG-002` (`APROBADO`) cierra los casos borde: el `read` implícito de repositorios públicos no cuenta, los Projects personales no se comparten (solo su creador los ve), un binding `REVOKED` deja el Project visible solo a los Admin, en una organización se exige siempre ser miembro activo además del permiso sobre el repositorio, y `verify-app-access` y `branches` exigen permiso `maintain`/`write`/`admin` (corrección de seguridad del contrato anterior, que respondía sobre cualquier repositorio al que la App tuviera acceso).
+- `INTEROP-2.5` es la versión documental vigente. Es aditiva sobre `INTEROP-2.4` (`breaking: false`) y habilita el análisis PHP/Laravel (HU41/HU42, `DEC-PHP-AST-001`, `spec/features/015-php-laravel-support/`): `detectedFramework` admite `PHPUNIT` (§6.2) y `ProjectVersionResponse` agrega `language` (§6.2). Ninguna ruta cambia; los consumidores deben tratar `PHPUNIT` y `PHP` como valores válidos.
+- `INTEROP-2.4` fue la versión documental anterior. Hereda de `INTEROP-2.1` el lifecycle PR/HEAD, los estados de AnalysisRun y los perfiles PHP, de `INTEROP-2.2` el discovery OAuth user-centric y la autorización GitHub-App-centric del repository binding (§6.8), y de `INTEROP-2.3` `DELETE /projects/{projectId}` (§6.1), `POST /projects/{projectId}/integrations/github/enable` y `REPOSITORY_ALREADY_BOUND` (§6.8; HU56/HU57, implementados en Core). **`breaking: false`** a nivel de cable: agrega `GET /workspaces` y `PATCH /projects/{projectId}`, `workspaceId` opcional en `POST /projects`, `GET /projects` y `GET /integrations/github/repositories`, `workspace` y `role` en `ProjectResponse`, ocho códigos de error nuevos (§6.13), la matriz rol -> operación (§6.13) el manejo de los eventos `member`, `membership`, `organization`, `team` y `repository` (§6.9) y el acknowledgment `SubscribeAck` de `subscribe:project-version` (§6.6; la Console emite `subscribe` sin callback y por tanto lo ignora, por lo que no la afecta); ninguna ruta, DTO o código existente cambia de forma incompatible y los consumidores ya ignoran campos de respuesta desconocidos. `breaking: false` está cualificado: el cable no cambia, pero sí el comportamiento observable. (1) El login con correo y contraseña se retira y Core exige identidad GitHub en toda sesión (`401 GITHUB_IDENTITY_REQUIRED`). (2) `POST .../integrations/github`, `verify-app-access` y `branches` rechazan peticiones antes aceptadas (repositorios ajenos, permiso menor a `maintain`). (3) Un Reader no debe llamar `verify-app-access` (`403`); para conocer el estado del binding usa `GET .../integrations/github`, que sí puede. (4) Un binding `REVOKED` deja de ser visible para Maintainer y Reader (`404`); solo lo ve un Admin. (5) `GET /action-required?projectId=X` con un Project no visible responde `404 PROJECT_NOT_FOUND` (antes, una página vacía). **Orden de despliegue:** (1) la Console con login solo GitHub se publica primero: el bundle A de Core (identidad GitHub + corrección de seguridad del binding) espera a que esté publicada, porque `GITHUB_IDENTITY_REQUIRED` aplica a toda la sesión, y el proveedor de correo de Supabase se deshabilita solo cuando la Console ya no lo ofrece, nunca antes; (2) bundle A de Core; la App no debe ser instalada por terceros (idealmente privada) hasta que esté desplegado, y el bundle A solo acepta `workspaceId` (el personal) en `GET /integrations/github/repositories`; (3) bundle B (workspaces, roles, acceso y webhooks, publicado junto) y solo después de su sync de implementación la Console envía `workspaceId` a `POST /projects` y `GET /projects` y consume `workspace` y `role` de `ProjectResponse`, porque los servidores rechazan campos de request no declarados (`400`) (`spec/features/014-organizations-access/`). Cambio de HU58-HU64 por `DEC-ORG-001`: **Implementado en Core (bundle A: identidad y corrección de seguridad del binding; bundle B: workspaces, roles, acceso y webhooks); el despliegue está sujeto a las precondiciones de `DEC-ORG-001`.** `DEC-ORG-002` (`APROBADO`) cierra los casos borde: el `read` implícito de repositorios públicos no cuenta, los Projects personales no se comparten (solo su creador los ve), un binding `REVOKED` deja el Project visible solo a los Admin, en una organización se exige siempre ser miembro activo además del permiso sobre el repositorio, y `verify-app-access` y `branches` exigen permiso `maintain`/`write`/`admin` (corrección de seguridad del contrato anterior, que respondía sobre cualquier repositorio al que la App tuviera acceso).
 - 2026-09-15: se define contrato (sin implementar) para 4 capacidades formalizadas como historia en `spec/backlog.md` (HU48-HU55, registradas originalmente por Console) que estaban bloqueadas por falta de contrato: `CreateExperimentRequest` reapunta a `AnalysisRun`/símbolo (§6.5, HU48), historial de transiciones de `AnalysisRun` (§6.10, HU53), listado de Analysis Runs cross-proyecto (§6.10, HU55) y detección de conflicto de Functional Knowledge (§6.11, HU51). Cada bloque queda marcado **Definido, pendiente de implementación**.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -168,6 +169,7 @@ interface ProjectVersionResponse {
   completedAt: IsoDateTime | null
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
+  language: 'TYPESCRIPT' | 'PHP' | null // INTEROP-2.5; null hasta detectarlo en el snapshot
 }
 
 interface ProjectVersionResultsResponse {
@@ -176,7 +178,7 @@ interface ProjectVersionResultsResponse {
   status: 'COMPLETED'
   filesProcessed: number
   chunksCount: number
-  detectedFramework: 'JEST' | 'VITEST' | null
+  detectedFramework: 'JEST' | 'VITEST' | 'PHPUNIT' | null
   targetsTotal: number
   targetsWithTest: number
   targetsMissingTest: number
@@ -184,7 +186,7 @@ interface ProjectVersionResultsResponse {
 }
 
 interface ProjectVersionSummaryResponse extends ProjectVersionResponse {
-  detectedFramework: 'JEST' | 'VITEST' | null
+  detectedFramework: 'JEST' | 'VITEST' | 'PHPUNIT' | null
   targetsTotal: number | null
   targetsWithTest: number | null
   targetsMissingTest: number | null
@@ -205,7 +207,7 @@ interface TestTargetResponse {
 
 interface TestInventoryResponse {
   projectVersionId: Id
-  detectedFramework: 'JEST' | 'VITEST' | null
+  detectedFramework: 'JEST' | 'VITEST' | 'PHPUNIT' | null
   targetsTotal: number
   targetsWithTest: number
   targetsMissingTest: number
@@ -1077,7 +1079,7 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Las rutas manuales de generación/ZIP de la sección 6 (6.3, 6.4) quedan retiradas; ya no existen como camino de compatibilidad. 6.2 (lectura de `ProjectVersion`) y 6.5 (Experimento) permanecen vigentes según lo descrito en cada sección.
 - Las operaciones 6.8-6.13 son contrato aprobado para implementar. Su disponibilidad efectiva se declara por componente en las features y tareas correspondientes; Core construye progresivamente las capacidades PR-driven.
 - Developer Console conserva únicamente mocks alineados a INTEROP-2.2 y separados de live; no constituyen evidencia ni sustituyen endpoints de Core.
-- Test Execution Sandbox implementa actualmente el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest. `PHP_LARAVEL_PHPUNIT`, `phase` y la evidencia ampliada quedan aprobados pero pendientes de implementación.
+- Test Execution Sandbox implementa `NODE_TYPESCRIPT` con Jest/Vitest y `PHP_LARAVEL_PHPUNIT` con Composer y PHPUnit (HU43). `phase` y la evidencia ampliada quedan aprobados pero pendientes de implementación.
 - La integración Core↔Sandbox actual continúa operativa bajo el subconjunto compatible de 1.6; la adopción completa de los campos 2.0 exige migración coordinada y contract tests en ambos backends.
 - `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-ORG-001`, `DEC-ORG-002`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
 - `DEC-MET-001`, `DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` permanecen `PENDING` con los blocks acotados por `SYSTEM-2.2`.
