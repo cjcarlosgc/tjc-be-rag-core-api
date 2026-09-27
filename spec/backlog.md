@@ -53,6 +53,6 @@ Una idea nueva entra como `I-BACKLOGGED` sin alterar estas 18 HU; al seleccionar
 ## Prioridad inmediata de la reorientación
 
 1. P0: alinear SDD, Harness y contratos de Core/Console; retirar carga manual ZIP y descarga legacy de artefactos del producto, preservando snapshot ZIP interno y evidencia persistida.
-2. P1: validar y revisar la migración de toda interacción GitHub desde Core a `tjc-be-github-integration-api`; el código fuente ya está trasladado por cortes y el Contract Sync enlaza los repositorios. Quedan el cierre de gates, el visto bueno humano y cualquier cutover externo autorizado aparte.
+2. P1: migración de toda interacción GitHub a `tjc-be-github-integration-api`; el código fuente queda cerrado localmente por WIs. Deploy/cutover externo requiere autorización y secuencia coordinada por separado.
 3. P2: formalizar OC01–OC15 y sus subcasos en specs con trazabilidad a HU, comenzando por happy paths; el registro preliminar está en `spec/operational-cases.md`.
 4. Diferido: homologar Sandbox cuando el usuario recupere ese repositorio. Mutation testing está descartado para este alcance, no es un work item activo.

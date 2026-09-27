@@ -64,7 +64,46 @@ export class AnalysisRunsRepository {
   }
 
   update(id: string, data: Prisma.AnalysisRunUpdateInput): Promise<AnalysisRun> {
+    if (data.current === false || data.status === 'OBSOLETE') {
+      return this.prisma.$transaction(async (tx) => {
+        const run = await tx.analysisRun.update({ where: { id }, data });
+        await tx.functionalQuestion.updateMany({
+          where: { analysisRunId: id, status: 'PENDING' },
+          data: { status: 'OBSOLETE' },
+        });
+        return run;
+      });
+    }
+
     return this.prisma.analysisRun.update({ where: { id }, data });
+  }
+
+  /** Compare-and-set a transition only while this is still the current Run. */
+  async transitionCurrent(
+    id: string,
+    expectedStatus: AnalysisRunStatus,
+    status: AnalysisRunStatus,
+    data: Prisma.AnalysisRunUpdateInput,
+  ): Promise<AnalysisRun | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const transitioned = await tx.analysisRun.updateMany({
+        where: { id, status: expectedStatus, current: true },
+        data: { ...data, status },
+      });
+
+      if (transitioned.count === 0) {
+        return null;
+      }
+
+      if (status === 'OBSOLETE' || data.current === false) {
+        await tx.functionalQuestion.updateMany({
+          where: { analysisRunId: id, status: 'PENDING' },
+          data: { status: 'OBSOLETE' },
+        });
+      }
+
+      return tx.analysisRun.findUniqueOrThrow({ where: { id } });
+    });
   }
 
   /** HU55: Runs de todos los Projects visibles para el usuario, más recientes primero. */

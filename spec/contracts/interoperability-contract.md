@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.5
+**Versión:** INTEROP-2.6
 **Compatible con:** SYSTEM-2.5
-**Fecha de corte:** 2026-09-26
+**Fecha de corte:** 2026-09-27
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.5` es la versión documental vigente. Mantiene las rutas Core→Console y Core↔Sandbox y agrega el límite directo de UI GitHub descrito en §6.14. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.6` es la versión documental vigente. Mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -47,7 +47,7 @@ interface Page<T> {
 - En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace URL estándar y un nombre canónico de la unidad lógica, por ejemplo `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}` o `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}`. La key hija es también `requestId` y se reutiliza en cualquier retry de transporte.
 - `Authorization: Bearer <service-token>` es obligatorio en todos los endpoints `/executions`. El valor es un secreto opaco precompartido de alta entropía, configurado como `SANDBOX_SERVICE_TOKEN` en Core y Sandbox; no es JWT, no usa proveedor de identidad y nunca ingresa al frontend, logs, PostgreSQL, Storage o container. Core lo exige cuando configura `SANDBOX_URL`; Sandbox lo exige al arrancar. Los endpoints `/health/live` y `/health/ready` no requieren este header.
 - `Authorization: Bearer <user-access-token>` es obligatorio en todos los endpoints navegador→Core salvo `GET /health`. Es un JWT de sesión emitido por Supabase Auth para HU01/HU02; RAG Core valida firma, issuer, audience y expiración mediante el mecanismo compatible con las signing keys del proyecto. El token identifica a la persona (`sub`) y nunca se reenvía al Sandbox. Toda sesión debe tener identidad GitHub (HU01/HU02, `DEC-ORG-001`): Core resuelve el `githubUserId` numérico con la Admin API de Supabase (§6.13, "Identidad"); un token válido sin identidad GitHub devuelve `401 GITHUB_IDENTITY_REQUIRED`.
-- `X-GitHub-Provider-Token` es obligatorio solo para `GET /integrations/github/repositories`. Contiene el provider token OAuth GitHub de la sesión Supabase y sirve exclusivamente para discovery user-centric; nunca se persiste, registra, devuelve, reenvía al Sandbox ni se usa para automatización GitHub App.
+- `X-GitHub-Provider-Token` se exige para discovery: tanto en la ruta Core heredada `GET /integrations/github/repositories` como en la ruta directa Console→Integration. Para verificar un repositorio nuevo también se exige en la ruta directa de Integration. En la ruta Core heredada de discovery, Console lo envía a Core y Core lo reenvía temporalmente a GitHub Integration; en las rutas directas, Console lo envía solo a Integration. No se usa para bindings existentes ni para listar ramas. Nunca se persiste, registra, devuelve ni reenvía a Sandbox, y no se usa para automatización GitHub App.
 - La ausencia de credencial de usuario devuelve `401 AUTH_REQUIRED`; un token inválido o expirado devuelve `401 INVALID_ACCESS_TOKEN`. Las consultas a un recurso no visible para el usuario (de un Project que no ve, inexistente o borrado) responden `404` con el código del recurso (`PROJECT_NOT_FOUND`, `TEST_RUN_NOT_FOUND`, etc.) para no revelar su existencia; un recurso visible cuyo rol del usuario no alcanza para la operación responde `403 PROJECT_ROLE_INSUFFICIENT` (§6.13).
 
 ## 4. Errores HTTP
@@ -155,10 +155,14 @@ type ProjectVersionStatus =
   | 'PENDING' | 'EXTRACTING' | 'ANALYZING' | 'CHUNKING'
   | 'EMBEDDING' | 'PERSISTING' | 'COMPLETED' | 'FAILED'
 
+type ProjectLanguage = 'TYPESCRIPT' | 'PHP'
+type TestFramework = 'JEST' | 'VITEST' | 'PHPUNIT'
+
 interface ProjectVersionResponse {
   id: Id
   projectId: Id
   status: ProjectVersionStatus
+  language: ProjectLanguage
   originalFileName: string | null
   sizeBytes: number | null
   filesProcessed: number | null
@@ -174,9 +178,10 @@ interface ProjectVersionResultsResponse {
   id: Id
   projectId: Id
   status: 'COMPLETED'
+  language: ProjectLanguage
   filesProcessed: number
   chunksCount: number
-  detectedFramework: 'JEST' | 'VITEST' | null
+  detectedFramework: TestFramework | null
   targetsTotal: number
   targetsWithTest: number
   targetsMissingTest: number
@@ -184,7 +189,7 @@ interface ProjectVersionResultsResponse {
 }
 
 interface ProjectVersionSummaryResponse extends ProjectVersionResponse {
-  detectedFramework: 'JEST' | 'VITEST' | null
+  detectedFramework: TestFramework | null
   targetsTotal: number | null
   targetsWithTest: number | null
   targetsMissingTest: number | null
@@ -205,7 +210,8 @@ interface TestTargetResponse {
 
 interface TestInventoryResponse {
   projectVersionId: Id
-  detectedFramework: 'JEST' | 'VITEST' | null
+  language: ProjectLanguage
+  detectedFramework: TestFramework | null
   targetsTotal: number
   targetsWithTest: number
   targetsMissingTest: number
@@ -691,7 +697,7 @@ Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respue
 
 ### 6.11 Action Required y Functional Knowledge
 
-- `GET /action-required?projectId&cursor&limit` -> `200 Page<FunctionalQuestionResponse>`. Sin `projectId` cubre los Projects personales del usuario más los de organización con registro de acceso ya existente. Con `projectId` de un Project no visible responde `404 PROJECT_NOT_FOUND` (cambio observable de `INTEROP-2.4`: antes, una página vacía).
+- `GET /action-required?projectId&cursor&limit` -> `200 Page<FunctionalQuestionResponse>`. Sin `projectId` cubre los Projects personales del usuario más los de organización con registro de acceso ya existente. Con `projectId` de un Project no visible responde `404 PROJECT_NOT_FOUND` (cambio observable de `INTEROP-2.4`: antes, una página vacía). Solo incluye preguntas `PENDING` cuyo `AnalysisRun` esté en `ACTION_REQUIRED` y `current=true`; al obsoletarse el Run, sus preguntas pendientes pasan a `OBSOLETE` y dejan de ser accionables.
 - `GET /analysis-runs/{analysisRunId}/context-questions` -> `200 FunctionalQuestionSetResponse`.
 - `POST /analysis-runs/{analysisRunId}/context-questions/{questionId}/answers` -> `202 FunctionalAnswerAcceptedResponse`.
 - `GET /projects/{projectId}/functional-knowledge?status&cursor&limit` -> `200 Page<FunctionalKnowledgeResponse>`.
@@ -905,11 +911,11 @@ Este límite es exclusivo de operaciones GitHub que la interfaz necesita durante
 | `GET /v1/github/app` | `{ displayName, slug, configureUrl }`; requiere sesión y autorización Core de `VIEW_APP_INFO`. |
 | `GET /v1/github/repositories?projectId&cursor&limit` | Discovery user-centric con `X-GitHub-Provider-Token`; Core autoriza `DISCOVER_REPOSITORIES` y devuelve el owner scope permitido. GitHub Integration filtra por ese owner los resultados de GitHub antes de responder. |
 | `POST /v1/github/repositories/verify-access` | Body `{ projectId, repositoryId, repositoryName, integrationBranch? }`; comprueba App, propietario, permiso del usuario y, si se envía, existencia de la rama. Devuelve estado, metadatos de App y `authorizationEvidence` solo cuando `integrationBranch` fue verificada. |
-| `GET /v1/github/repositories/{owner}/{repo}/branches?projectId` | Comprueba Core `LIST_REPOSITORY_BRANCHES`, después devuelve `{ items: RepositoryBranch[] }`. |
+| `GET /v1/github/repositories/{owner}/{repo}/branches?projectId` | No acepta provider token. Core valida el rol del Project y devuelve la identidad GitHub vinculada y el owner scope; Integration valida instalación, propietario, permiso/membresía con la App, reautoriza los hechos en Core y devuelve `{ items: RepositoryBranch[] }`. |
 
-Las rutas de usuario son distintas de `/internal/v1/github/*`; su CORS permite solo los orígenes Console configurados. Nunca reciben ni devuelven bearer de servicio, installation token o App JWT. `X-GitHub-Provider-Token` se limita a discovery y verificación que necesite resolver identidad GitHub; se usa en memoria, no se registra ni reenvía a Core. El servidor GitHub Integration hace GitHub queries antes de consultar a Core y envía únicamente hechos allowlisted.
+Las rutas directas Console→Integration son distintas de `/internal/v1/github/*`; su CORS permite solo los orígenes Console configurados. Nunca reciben ni devuelven bearer de servicio, installation token o App JWT. En esas rutas, `X-GitHub-Provider-Token` se limita a discovery y verificación de un repositorio nuevo; se usa en memoria, no se registra ni reenvía a Core. La excepción temporal es la ruta Core heredada de discovery, que recibe el token y lo reenvía a Integration hasta retirar esa compatibilidad en un corte posterior. Binding existente y ramas no reciben OAuth: para ramas Core entrega la identidad vinculada y scope tras validar el Project, Integration obtiene hechos con la App y los vuelve a autorizar en Core. El servidor GitHub Integration envía al callback de Core únicamente la sesión Supabase y hechos allowlisted.
 
-**Autorización síncrona Integration → Core.** `POST /internal/v1/github/authorization-decisions` usa `Authorization: Bearer <GITHUB_INTEGRATION_TO_CORE_TOKEN>` y `X-Platform-User-Token: Bearer <Supabase access token>`. Core valida ese JWT mediante su verificador existente, obtiene el vínculo `PlatformUser → githubUserId`, exige que coincida con la identidad GitHub verificada e impone la política local sobre `projectId`, workspace y recurso. El JSON contiene `action`, `projectId` cuando aplica y solo hechos GitHub verificados: `githubUserId`, id/nombre/tipo de propietario, repository id/nombre, permiso efectivo, membresía activa/rol de owner, instalación activa y rama verificada opcional. La respuesta es `ALLOW`/`DENY` más el scope que Core autorizó; para un binding incluye `authorizationEvidence`. Core no llama a GitHub Integration para validar de nuevo la misma comprobación. Errores/timeout de Core fallan cerrados y no se convierten en permiso.
+**Autorización síncrona Integration → Core.** `POST /internal/v1/github/authorization-decisions` usa `Authorization: Bearer <GITHUB_INTEGRATION_TO_CORE_TOKEN>` y `X-Platform-User-Token: Bearer <Supabase access token>`. Core valida ese JWT mediante su verificador existente y obtiene el vínculo `PlatformUser → githubUserId`. Cuando el request incluye identidad —OAuth para discovery o una vinculación nueva— Core exige que coincida con el vínculo e impone la política local sobre `projectId`, workspace y recurso. En la consulta inicial de ramas, el request omite `githubUserId`; Core devuelve la identidad vinculada y owner scope solo después de validar sesión, Project y rol. Luego Integration consulta instalación/propietario/permiso/membresía con la App y hace un segundo callback con el `githubUserId` y hechos GitHub allowlisted; Core vuelve a comparar la identidad con el vínculo, valida que el repositorio pertenece al scope y autoriza la acción. El `githubUserId` nunca se anida dentro de `repositories[]`. La respuesta es `ALLOW`/`DENY` más `repositoryOwnerId`/`repositoryOwnerType`, `githubUserId` cuando aplica y `authorizationEvidence` para binding. Core no vuelve a llamar a GitHub Integration durante una misma comprobación. Errores/timeout de Core fallan cerrados y no se convierten en permiso.
 
 ```ts
 type GithubUiAction = 'VIEW_APP_INFO' | 'DISCOVER_REPOSITORIES'
@@ -918,12 +924,14 @@ type GithubUiAction = 'VIEW_APP_INFO' | 'DISCOVER_REPOSITORIES'
 interface GithubAuthorizationDecisionRequest {
   action: GithubUiAction
   projectId?: string
-  githubUserId: string
+  githubUserId?: string
+  repositoryId?: string // solo verificación de binding existente sin OAuth
+  repositoryName?: string // solo verificación de binding existente sin OAuth
   repositories?: Array<{
     repositoryId: string; repositoryName: string; ownerId: string
     ownerType: 'User' | 'Organization'
     permission: 'admin' | 'maintain' | 'write' | 'triage' | 'read' | 'none'
-    installationId: string; installationActive: boolean
+    installationId?: string; installationActive: boolean
     organizationMembership?: { state: 'active' | 'pending'; role: 'admin' | 'member' }
   }>
   integrationBranch?: string // solo si Integration comprobó que existe
@@ -931,7 +939,9 @@ interface GithubAuthorizationDecisionRequest {
 
 interface GithubAuthorizationDecisionResponse {
   decision: 'ALLOW' | 'DENY'
-  allowedRepositoryIds?: string[]
+  repositoryOwnerId?: string
+  repositoryOwnerType?: 'User' | 'Organization'
+  githubUserId?: string
   authorizationEvidence?: string | null
 }
 ```

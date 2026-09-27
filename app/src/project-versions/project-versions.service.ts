@@ -49,6 +49,7 @@ export class ProjectVersionsService {
       id: version.id,
       projectId: version.projectId,
       status: version.status,
+      language: version.language,
       filesProcessed: version.filesProcessed ?? 0,
       chunksCount: version.chunksCount ?? 0,
       detectedFramework: version.detectedFramework,
@@ -77,6 +78,7 @@ export class ProjectVersionsService {
 
     return {
       projectVersionId: version.id,
+      language: version.language,
       detectedFramework: version.detectedFramework,
       targetsTotal,
       targetsWithTest,

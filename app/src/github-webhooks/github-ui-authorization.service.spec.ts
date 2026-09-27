@@ -84,4 +84,20 @@ describe('GitHub UI authorization decisions', () => {
       repositoryId: '457', repositoryName: 'acme/other',
     } as GithubAuthorizationDecisionDto)).resolves.toEqual({ decision: 'DENY' });
   });
+
+  it('returns the linked GitHub identity and owner scope for branch lookup before a binding exists', async () => {
+    const { service } = setup(organizationProject('MAINTAINER'));
+    await expect(service.decide('jwt', {
+      action: 'LIST_REPOSITORY_BRANCHES', projectId: '10000000-0000-4000-8000-000000000001',
+    } as GithubAuthorizationDecisionDto)).resolves.toEqual({
+      decision: 'ALLOW', repositoryOwnerId: '99', repositoryOwnerType: 'Organization', githubUserId: '123',
+    });
+  });
+
+  it('does not return branch identity to readers who cannot manage a binding', async () => {
+    const { service } = setup(organizationProject('READER'));
+    await expect(service.decide('jwt', {
+      action: 'LIST_REPOSITORY_BRANCHES', projectId: '10000000-0000-4000-8000-000000000001',
+    } as GithubAuthorizationDecisionDto)).resolves.toEqual({ decision: 'DENY' });
+  });
 });

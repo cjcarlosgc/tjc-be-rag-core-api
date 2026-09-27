@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
-import { isPoolFile } from '../project-versions/indexing.constants.js';
+import { isPhpPoolFile, isTypeScriptPoolFile } from '../project-versions/indexing.constants.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
 
@@ -36,7 +36,10 @@ export class GithubSnapshotMaterializerService {
       // (`interoperability-contract.md` §7.2: NODE_TYPESCRIPT lo exige,
       // ausencia -> UNSUPPORTED_PACKAGE_MANAGER); se incluye siempre que
       // exista, sin ampliar `isPoolFile` para no afectar la indexación.
-      const poolPaths = allPaths.filter((path) => isPoolFile(path) || path === 'pnpm-lock.yaml');
+      const phpProject = allPaths.includes('composer.json');
+      const poolPaths = allPaths.filter((path) =>
+        phpProject ? isPhpPoolFile(path) : isTypeScriptPoolFile(path),
+      );
 
       await this.fetchAndWriteInBatches(binding.installationId, binding.repositoryName, sha, dir, poolPaths);
 

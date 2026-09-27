@@ -2,7 +2,7 @@
 
 **Estado:** capacidad implementada bajo la numeración anterior; su aceptación como HU01/HU02 se reaudita en los WI vigentes. Sin decisiones bloqueantes conocidas.
 **Story IDs:** HU01, HU02 (EP01); HU14 para visibilidad del AnalysisRun.
-**Contrato:** SYSTEM-2.5 / INTEROP-2.5 (§6.1, §6.8, §6.9, §6.13), `GH-INTEROP-1.1`
+**Contrato:** SYSTEM-2.5 / INTEROP-2.6 (§6.1, §6.8, §6.9, §6.13), `GH-INTEROP-1.1`
 **Decisiones:** `DEC-ORG-001` APROBADO (2026-09-20); `DEC-ORG-002` APROBADO (2026-09-20; casos borde, enmienda de visibilidad personal, membresía activa siempre y corrección de seguridad primero).
 
 **Frontera de integración vigente:** Core mantiene las reglas de workspace, acceso y autorización descritas aquí. Las consultas del pipeline y verificaciones síncronas requeridas por Console se solicitan a GitHub Integration mediante `GH-INTEROP-1.1`; firma/verificación de webhooks también pertenece a ese componente. Este feature no implica que Core posea credenciales GitHub.
@@ -13,14 +13,14 @@ Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin
 
 ## Invariantes
 
-- Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. El provider token OAuth puede apoyar discovery y verificación de identidad/repositorio desde Integration; nunca autoriza por sí solo el pipeline ni cruza a Core.
+- Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. El provider token OAuth puede apoyar discovery y verificación de identidad/repositorio; nunca autoriza por sí solo el pipeline. En las rutas directas Console→Integration no cruza a Core; la ruta Core heredada de discovery aún lo reenvía temporalmente a Integration y no lo persiste ni registra.
 - Los Projects personales no se comparten: los ve únicamente su creador, siempre como Admin y sin registro de acceso; solo se comparte mediante organizaciones (`DEC-ORG-002`). `GET /projects` nunca devuelve Projects personales de otra persona.
 - Core no administra miembros ni invitaciones. No existen tablas `Organization` ni `Membership`; la persistencia mínima es el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y el registro `(projectId, userId, rol, verifiedAt)`, que existe solo para Projects de organización.
 - El `githubUserId` sale de `identities[].id` de la Admin API de Supabase consultada por `sub`, nunca de `user_metadata`.
 - En un Project de organización se exige SIEMPRE ser miembro activo de la organización además del permiso sobre el repositorio (privado, internal o público). Un colaborador externo (no miembro) no accede aunque tenga `write`; el `read` implícito de un repositorio público no cuenta. Un binding `REVOKED` deja el Project visible solo a los Admin (reactivarlo lo hace un Admin), regla evaluada en cada petición y no solo por el borrado de registros al pasar a `REVOKED`.
 - Default-deny: toda ruta autenticada declara su rol mínimo o una excepción explícita; una ruta sin declaración falla el guard y una prueba que enumera el router.
 - Un alta de acceso nunca sobrescribe una revocación posterior al inicio de su verificación (un único advisory lock por `(projectId, userId)`, que toman también reverificaciones y revocaciones); las verificaciones contra GitHub tienen tope de concurrencia y presupuesto por petición, sin memoizar denegaciones (se acepta el riesgo residual de límite de tasa).
-- Jerarquía Admin ⊃ Maintainer ⊃ Reader. Reader solo consulta; Maintainer opera binding, preguntas funcionales, publicaciones y experimentos; solo Admin crea, renombra y elimina Projects. La matriz de `INTEROP-2.5` §6.13 clasifica cada ruta.
+- Jerarquía Admin ⊃ Maintainer ⊃ Reader. Reader solo consulta; Maintainer opera binding, preguntas funcionales, publicaciones y experimentos; solo Admin crea, renombra y elimina Projects. La matriz de `INTEROP-2.6` §6.13 clasifica cada ruta.
 - Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente, `403 PROJECT_ROLE_INSUFFICIENT`. Un rol nunca se infiere del payload de un webhook: siempre sale de una verificación viva solicitada a GitHub Integration.
 - El registro de acceso no tiene TTL ni caché: rige hasta que un evento o la reconciliación horaria lo cambia. Si GitHub no responde, Core conserva lo registrado y no concede nada nuevo (`503 GITHUB_VERIFICATION_UNAVAILABLE` en accesos directos; los listados omiten lo no verificado).
 - Un Project pertenece a un único workspace, fijado al crearlo; tiene un solo repositorio y no se revincula. En una organización solo se vinculan repositorios de esa organización; en el workspace personal, solo los propios; vincular exige `maintain`/`write`/`admin` sobre el repositorio. La corrección de seguridad de esa validación va primero (corte 4a).
@@ -60,11 +60,11 @@ Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin
 18. `POST .../enable` sobre un binding `REVOKED` de un repositorio eliminado y recreado con el mismo nombre (`repositoryId` distinto) responde `404 GITHUB_REPOSITORY_NOT_FOUND`; de un repositorio transferido fuera del workspace, `400 REPOSITORY_OUTSIDE_WORKSPACE`; el binding sigue `REVOKED`.
 19. App desinstalada de una organización: la organización deja de aparecer en `GET /workspaces` y sus Projects responden `404` (no un `503` permanente); una instalación suspendida sí es no verificable.
 20. Un binding, un Run o una pregunta de un Project no visible: `GET /action-required?projectId=X` responde `404 PROJECT_NOT_FOUND`.
-21. Matriz de autorización: cada ruta de `INTEROP-2.5` §6.13 responde `404` sin visibilidad, `403` con rol insuficiente y funciona con el rol mínimo.
+21. Matriz de autorización: cada ruta de `INTEROP-2.6` §6.13 responde `404` sin visibilidad, `403` con rol insuficiente y funciona con el rol mínimo.
 
 ## Seguridad y auditoría
 
-El provider token llega únicamente a GitHub Integration para discovery o para verificar la identidad/repositorio durante la vinculación; no se envía a Core, no se persiste ni se registra. Las verificaciones del pipeline y la reconciliación (incluida la revalidación de propietario y nombre del repositorio vinculado) se delegan a GitHub Integration, que usa el installation token de la App (`Metadata: read`, `Members: read`). Se registran (sin secretos, tokens ni payloads completos) las altas y bajas de acceso con su causa (`ENTRY`, `EVENT:<nombre>`, `RECONCILIATION`) y los resultados `no verificable`. La credencial de servicio de Supabase es solo de servidor.
+En las rutas directas Console→Integration, el provider token llega únicamente a Integration y se usa en memoria para discovery o verificación de un repositorio nuevo; no se envía en el callback a Core, ni se persiste o registra. La ruta Core heredada de discovery aún recibe el token y lo reenvía temporalmente a Integration. Las verificaciones del pipeline y la reconciliación (incluida la revalidación de propietario y nombre del repositorio vinculado) se delegan a GitHub Integration, que usa el installation token de la App (`Metadata: read`, `Members: read`). Se registran (sin secretos, tokens ni payloads completos) las altas y bajas de acceso con su causa (`ENTRY`, `EVENT:<nombre>`, `RECONCILIATION`) y los resultados `no verificable`. La credencial de servicio de Supabase es solo de servidor.
 
 ## Precondiciones de despliegue (`DEC-ORG-001`/`DEC-ORG-002`; no bloquean implementar ni probar con fakes)
 

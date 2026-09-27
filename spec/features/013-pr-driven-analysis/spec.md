@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU02, HU06-HU09, HU13-HU16
-**Contrato:** SYSTEM-2.5 / INTEROP-2.5
+**Contrato:** SYSTEM-2.5 / INTEROP-2.6
 
 ## Objetivo
 
@@ -10,7 +10,7 @@ GitHub Integration entrega a RAG Core eventos normalizados de GitHub App para re
 
 ## Invariantes
 
-- GitHub OAuth autentica personas mediante Supabase Auth y permite descubrir repositorios visibles mediante un provider token efímero reenviado a GitHub Integration; la GitHub App valida acceso, lista ramas y automatiza repositorios. Ninguna identidad implica autorización de la otra.
+- GitHub OAuth autentica personas mediante Supabase Auth; el provider token efímero permite descubrir repositorios visibles y verificar identidad/acceso de un repositorio nuevo dentro de GitHub Integration. Core autoriza el binding y la GitHub App automatiza repositorios. Ninguna identidad implica autorización de la otra.
 - Un Run representa un PR/HEAD. Attempts y continuaciones no crean Runs nuevos si el HEAD no cambia.
 - `pull_request:synchronize`, incluido force-push, obsoleta el Run previo y crea uno para el HEAD nuevo.
 - Solo `PR.base == Project.integrationBranch` activa análisis; la rama la elige el usuario entre las ramas reales autorizadas y no tiene default. No existe trigger global `push` ni workflow YAML obligatorio.
@@ -19,10 +19,17 @@ GitHub Integration entrega a RAG Core eventos normalizados de GitHub App para re
 - Desconectar es una pausa (`DISABLED`, reversible con `POST .../enable`); `REVOKED` nunca se degrada a `DISABLED` y solo sale de `REVOKED` por reactivación explícita del usuario cuando Core revalida que la App recuperó acceso. `installation.unsuspend` solo rehabilita lo que la suspensión deshabilitó, no lo pausado por el usuario.
 - Eliminar un Project es lógico: libera el binding, cancela u obsoleta Runs y jobs en curso y oculta todo por API; el Run de un Project borrado, o cuyo `repositoryId` hoy pertenece a otro Project, no se procesa ni publica (Checks, publicaciones, validación, snapshot).
 - Solo el Run vigente publica Check vigente. La merge policy pertenece al repositorio.
-- `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD.
+- `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD. La creación de la pregunta pendiente y la transición a `ACTION_REQUIRED` son atómicas y solo aplican a un Run `PROCESSING` y vigente.
+- Si un HEAD nuevo o la baja del Project obsoleta el Run, sus preguntas `PENDING` pasan a `OBSOLETE`. El inbox solo incluye preguntas pendientes cuyo Run siga `ACTION_REQUIRED` y `current=true`; un job que pierda vigencia no publica Check ni convierte el Run en fallo técnico.
 - `UNKNOWN`/No lo sé no crea `FunctionalKnowledge ACTIVE`.
 - Sandbox recibe profile, snapshot, artifacts y targets; nunca recibe GitHub, usuarios, prompts, reglas funcionales o estrategia experimental.
 - No existe autorepair semántico, modificación automática de producción, escritura directa a la feature branch ni auto-merge.
+
+## Siguiente corte aprobado — exclusión de PRs anteriores al binding (no implementado)
+
+Al conectar un repositorio, `RepositoryBinding.createdAt` delimita desde cuándo un PR es elegible para ese Project. GitHub Integration debe entregar el `pullRequest.createdAt` original en el webhook normalizado y en la metadata de recuperación del HEAD; Core compara ambas fechas y no crea Runs para PRs creados antes del binding, aunque después reciban `synchronize` u otros eventos. Fechas iguales o posteriores son elegibles.
+
+Los Runs históricos se conservan físicamente. Core clasifica como obsoletos y oculta de listas, detalles y bandejas los asociados a PRs anteriores al binding. Si no puede verificar la fecha de creación, los registros permanecen guardados pero ocultos y una recuperación durable reintenta la clasificación. No hay cambios de UI previstos ni cambios en Sandbox. La implementación está pendiente de `WI-GH-007`, `WI-CORE-011` y `WI-CONSOLE-008`.
 
 ## Pipeline
 
@@ -41,6 +48,8 @@ webhook verificado y normalizado por GitHub Integration
    -> no: ACTION_REQUIRED + Check + job finalizado
    -> yes: generate -> Sandbox -> classify -> Check
 ```
+
+La transición a `ACTION_REQUIRED` y la inserción de su pregunta se confirman en una única operación condicionada al estado vigente del Run. Si el HEAD cambia durante la evaluación, la operación no crea una pregunta ni publica un Check obsoleto.
 
 Una respuesta human persistente genera Functional Knowledge y un continuation job solo si el HEAD sigue vigente. Un HEAD nuevo conserva la respuesta como evidencia/regla potencial y la reevalúa en otro Run.
 
@@ -71,11 +80,11 @@ Propuestas de un mismatch quedan `HELD`. El companion PR no dispara el pipeline 
 
 ## Casos operativos
 
-OC01–OC15 se catalogan en `spec/operational-cases.md` con prioridad P2 de formalización. Los títulos no declaran automáticamente subcasos implementados: cada happy path, edge case y prueba se vinculará aquí o a la feature dueña mediante `WI-CORE-004`. Hasta entonces, el contrato vigente es el comportamiento explícito de esta spec y de INTEROP-2.5, no una promesa de cobertura total de los quince escenarios.
+OC01–OC15 se catalogan en `spec/operational-cases.md` con prioridad P2 de formalización. Los títulos no declaran automáticamente subcasos implementados: cada happy path, edge case y prueba se vinculará aquí o a la feature dueña mediante `WI-CORE-004`. Hasta entonces, el contrato vigente es el comportamiento explícito de esta spec y de INTEROP-2.6, no una promesa de cobertura total de los quince escenarios.
 
 ## Seguridad y auditoría
 
-GitHub Integration verifica firma sobre body crudo, estado de instalación y mínimo privilegio; Core autentica el salto privado y valida el evento normalizado. El provider token OAuth solo se transmite desde Console a GitHub Integration para discovery o verificación inicial; nunca cruza a Core, se persiste, registra o devuelve. En la ruta nueva de vinculación, Core valida evidencia firmada y de vida corta emitida tras autorización síncrona; no vuelve a llamar a Integration durante la escritura. Las rutas Core previas de discovery, verify-access, ramas y persistencia permanecen temporalmente por compatibilidad. El navegador nunca aporta instalación ni rol como autoridad. Persistir delivery, lifecycle, preguntas/respuestas, reglas creadas/superseded, generación, ejecución, clasificación, Check y publicación sin guardar secretos, tokens o URLs firmadas completas.
+GitHub Integration verifica firma sobre body crudo, estado de instalación y mínimo privilegio; Core autentica el salto privado y valida el evento normalizado. En las rutas directas Console→Integration, el provider token OAuth se usa transitoriamente para discovery o verificación inicial; el callback a Core no lo incluye. La ruta Core heredada de discovery lo recibe y reenvía temporalmente a Integration; en ningún camino se persiste, registra o devuelve al navegador, ni se envía a Sandbox. En la ruta nueva de vinculación, Core valida evidencia firmada y de vida corta emitida tras autorización síncrona; no vuelve a llamar a Integration durante la escritura. Las rutas Core previas de discovery, verify-access, ramas y persistencia permanecen temporalmente por compatibilidad. El navegador nunca aporta instalación ni rol como autoridad. Persistir delivery, lifecycle, preguntas/respuestas, reglas creadas/superseded, generación, ejecución, clasificación, Check y publicación sin guardar secretos, tokens o URLs firmadas completas.
 
 ## Fuera de alcance inicial
 

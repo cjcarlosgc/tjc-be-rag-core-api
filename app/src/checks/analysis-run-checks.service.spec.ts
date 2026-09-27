@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunChecksService } from './analysis-run-checks.service.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
+import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { GithubChecksService } from '../github-app/github-checks.service.js';
 import type { AnalysisRun, RepositoryBinding } from '../generated/prisma/client.js';
 
@@ -11,6 +12,7 @@ function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
     repositoryId: '123',
     headSha: 'head-sha',
     status: 'SUCCESS',
+    current: true,
     resultSummary: 'todo bien',
     ...overrides,
   } as AnalysisRun;
@@ -32,10 +34,12 @@ const binding: RepositoryBinding = {
 describe('AnalysisRunChecksService', () => {
   let service: AnalysisRunChecksService;
   let repositoryBindingsRepository: { findForRun: ReturnType<typeof vi.fn> };
+  let analysisRunsRepository: { findById: ReturnType<typeof vi.fn> };
   let githubChecksService: { createCheckRun: ReturnType<typeof vi.fn> };
   let configService: { get: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    analysisRunsRepository = { findById: vi.fn().mockImplementation(async (id: string) => buildRun({ id })) };
     repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
     githubChecksService = { createCheckRun: vi.fn().mockResolvedValue(undefined) };
     configService = {
@@ -46,6 +50,7 @@ describe('AnalysisRunChecksService', () => {
       }),
     };
     service = new AnalysisRunChecksService(
+      analysisRunsRepository as unknown as AnalysisRunsRepository,
       repositoryBindingsRepository as unknown as RepositoryBindingsRepository,
       githubChecksService as unknown as GithubChecksService,
       configService as never,
@@ -84,6 +89,15 @@ describe('AnalysisRunChecksService', () => {
     await service.publishForRun(buildRun({ status: 'PROCESSING' }));
 
     expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
+  });
+
+  it('does not publish a check after the run stopped being current or changed status', async () => {
+    analysisRunsRepository.findById.mockResolvedValue(buildRun({ status: 'OBSOLETE', current: false }));
+
+    await service.publishForRun(buildRun());
+
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
+    expect(githubChecksService.createCheckRun).not.toHaveBeenCalled();
   });
 
   it('does nothing when there is no repository binding', async () => {

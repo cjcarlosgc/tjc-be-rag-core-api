@@ -83,4 +83,16 @@ describe('user-scoped reads use the accessibleProject predicate (HU56, HU59)', (
     r.findByProjectForOwner('p1', 'u1', 10, undefined, undefined));
   scenario('RepositoryBindingsRepository.findByProjectForOwner', 'repositoryBinding', (p) => new RepositoryBindingsRepository(p), (r) =>
     r.findByProjectForOwner('p1', 'u1'));
+
+  it('action-required inbox excludes questions whose run is obsolete or no longer current', async () => {
+    const functionalQuestion = model();
+    const repository = new FunctionalQuestionsRepository({ functionalQuestion } as unknown as PrismaService);
+
+    await repository.findActionRequired('u1', undefined, 'PENDING', 10, undefined);
+
+    expect(functionalQuestion.findMany.mock.calls[0][0].where.analysisRun).toEqual({
+      status: 'ACTION_REQUIRED',
+      current: true,
+    });
+  });
 });

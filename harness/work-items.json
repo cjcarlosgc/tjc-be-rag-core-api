@@ -104,7 +104,7 @@
       "id": "WI-CORE-003",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "Post-transition",
       "title": "Separar GitHub Integration",
@@ -113,6 +113,7 @@
         "HU02",
         "HU03",
         "HU06",
+        "HU08",
         "HU11",
         "HU14",
         "HU16"
@@ -123,7 +124,8 @@
         "ST-CORE-012",
         "ST-CORE-013",
         "ST-CORE-014",
-        "ST-CORE-015"
+        "ST-CORE-015",
+        "ST-CORE-016"
       ],
       "caseIds": [],
       "dependsOn": [
@@ -142,7 +144,8 @@
             "WI-GH-002",
             "WI-GH-003",
             "WI-GH-004",
-            "WI-GH-005"
+            "WI-GH-005",
+            "WI-GH-006"
           ],
           "requiredStatus": "W-DONE",
           "requiredContractSync": "imported-and-acknowledged",
@@ -153,9 +156,9 @@
         "status": "G-PASSED",
         "evidenceReport": "harness/reports/external-dependency-verification-wi-core-003.json",
         "sourceRevisions": {
-          "GH": "0f275f766787a2a9e5cca3d4508a46bd1585611e"
+          "GH": "73a63539be3006fd7e93cb887391f29542abcf96"
         },
-        "verifiedAt": "2026-09-25T21:52:17.000Z",
+        "verifiedAt": "2026-09-27T03:52:57Z",
         "verifiedBy": "human-reviewer"
       },
       "acceptanceCriteria": [
@@ -165,11 +168,12 @@
         "Core conserva autorización de dominio, identidad Supabase, persistencia, jobs, RAG, freshness, materialización de snapshots y almacenamiento/ZIP interno consumido por Docker/Sandbox.",
         "Console usa rutas públicas autenticadas de GitHub Integration únicamente para App info, discovery, verificación GitHub y ramas; usa Core para Projects/workspaces, binding, RAG y análisis. Core conserva temporalmente las rutas equivalentes antiguas hasta validar compatibilidad.",
         "GitHub Integration pasa a Core el JWT Supabase y hechos GitHub allowlisted para autorización síncrona. Core valida identidad, aplica reglas workspace/Project sin volver a GitHub por esa comprobación y emite evidencia de binding firmada, breve y ligada a usuario/acción/Project/repositorio/rama; el navegador no impone installationId ni rol.",
-        "El provider token OAuth solo transita Console→GitHub Integration para discovery/verificación que lo requiera; nunca cruza a Core ni se persiste/registra. Se conserva scope repo e IDEA-005 diferida.",
+        "El provider token OAuth solo transita Console→GitHub Integration para discovery y verificación de un repositorio nuevo; ramas y verificación de binding existente no lo reenvían. Nunca cruza a Core ni se persiste/registra. Se conserva scope repo e IDEA-005 diferida.",
         "No se cambian URL/configuración pública de GitHub App, secretos externos, deploy, DNS, Supabase ni Sandbox; la versión de Core con el ingress antiguo retirado no se despliega antes del cutover coordinado autorizado.",
         "Los Contract Sync nuevos usan namespace por emisor; IDs históricos siguen intactos. Los WIs GH-002..005 y el nuevo WI-GH-006, sus reportes y Contract Sync deben estar resueltos antes de la revisión final del WI Core.",
         "Validaciones SDD/Harness, pruebas, lint y build de Core pasan con evidencia reproducible; SYSTEM/INTEROP y GH contract están sincronizados donde corresponda, Console verifica consumo directo y las rutas Core antiguas continúan compatibles.",
         "Para HU11, Core envía `executionProfile` explícito y compatible con `runnerHint`; `JEST` y `VITEST` se mapean a `NODE_TYPESCRIPT` y existen pruebas que verifican el body enviado al Sandbox.",
+        "Para HU08/HU14, un job que detecta contexto funcional faltante solo crea la pregunta pendiente y publica ACTION_REQUIRED si el Run sigue vigente; obsoletar un Run invalida atómicamente sus preguntas pendientes, y los jobs tardíos no publican Checks ni cambian el Run obsoleto a fallo técnico.",
         "Cada subtarea declara un subconjunto no vacío de HU del WI; el Harness rechaza declaraciones vacías o historias fuera del alcance agregado del WI."
       ],
       "contractSyncReview": [
@@ -196,7 +200,10 @@
         "spec/constitution/planning-model.md",
         "spec/features/006-validation-orchestration/spec.md",
         "spec/features/006-validation-orchestration/plan.md",
-        "spec/features/006-validation-orchestration/tasks.md"
+        "spec/features/006-validation-orchestration/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md"
       ]
     },
     {
@@ -455,6 +462,125 @@
         "spec/features/017-cross-repository-dependency-gates/spec.md",
         "spec/features/017-cross-repository-dependency-gates/plan.md",
         "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-011",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "Post-transition",
+      "title": "Excluir PRs anteriores al vínculo y ocultar historial ajeno",
+      "storyIds": ["HU02", "HU12", "HU14"],
+      "taskIds": ["ST-CORE-017", "ST-CORE-018"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-003"],
+      "contractImpact": true,
+      "publishesContract": true,
+      "externalDependencies": [
+        {
+          "component": "GH",
+          "repository": "tjc-be-github-integration-api",
+          "workItemIds": ["WI-GH-007"],
+          "requiredStatus": "W-DONE",
+          "requiredContractSync": "imported-and-acknowledged",
+          "verification": "manual-cross-repository"
+        }
+      ],
+      "externalDependencyGate": {
+        "status": "G-NOT_RUN",
+        "evidenceReport": null,
+        "sourceRevisions": {},
+        "verifiedAt": null,
+        "verifiedBy": null
+      },
+      "acceptanceCriteria": [
+        "Comparar la fecha original pullRequest.createdAt con RepositoryBinding.createdAt; PRs anteriores no crean ni reinician Runs aunque luego reciban synchronize.",
+        "Clasificar Runs históricos: los pre-binding quedan obsoletos y no aparecen en listados, detalles ni bandejas; sus registros y evidencia se conservan.",
+        "Cuando no se pueda verificar temporalmente la fecha, mantener el Run oculto y reintentar la recuperación de forma durable.",
+        "Sin cambio funcional de Console ni Sandbox; sincronizar el contrato Core con los consumidores mediante Contract Sync.",
+        "Cubrir PR anterior/posterior al binding, eventos posteriores del PR anterior, recuperación fallida/reintentada y conservación de registros; lint, test, build y Harness pasan."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-012",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "PHP V1",
+      "title": "Analizar e inventariar snapshots PHP",
+      "storyIds": ["HU03", "HU04"],
+      "taskIds": ["ST-CORE-019"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-001", "WI-CORE-003"],
+      "contractImpact": true,
+      "publishesContract": true,
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento histórico pide rutas de binding y baja de Project; WI-CORE-012 solo agrega el lenguaje y framework del análisis PHP.",
+          "report": "harness/reports/wi-core-012-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento histórico describe login GitHub de Console; WI-CORE-012 solo agrega análisis e inventario PHP en Core.",
+          "report": "harness/reports/wi-core-012-sync-scope-review.md"
+        }
+      ],
+      "acceptanceCriteria": [
+        "Core detecta PHP desde composer.json raíz (con precedencia acordada), descubre archivos PHP excluyendo dependencias/runtime y analiza estructura con el parser aprobado; TypeScript conserva su ruta actual.",
+        "El inventario PHP identifica clases, traits, métodos públicos y funciones y relaciona PHPUnit existente como heurística; Pest/Blade no se atribuyen como soporte V1.",
+        "ProjectVersion persiste language; las filas históricas quedan backfilleadas a TYPESCRIPT; DTOs implementan language y PHPUNIT según INTEROP-2.6.",
+        "Pruebas de parsing, discovery, framework, inventario y regresión TypeScript; Harness, lint, tests y build pasan. No se afirma ejecución real en Sandbox ni se modifica ese repositorio."
+      ],
+      "specPaths": [
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "spec/features/002-project-version-indexing/spec.md",
+        "spec/features/003-test-inventory/spec.md",
+        "spec/contracts/interoperability-contract.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-013",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "PHP V1",
+      "title": "Generar y validar pruebas PHPUnit en proyectos PHP",
+      "storyIds": ["HU10", "HU11"],
+      "taskIds": ["ST-CORE-020"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-012"],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "Generación V1 produce propuestas de pruebas PHPUnit solo cuando PHPUnit está declarado y no atribuye soporte Pest.",
+        "Core envía executionProfile PHP_LARAVEL_PHPUNIT compatible con runnerHint PHPUNIT a Sandbox y maneja evidencia validada sin auto-reparación.",
+        "Contrato Core–Sandbox coordinado con el dueño de Sandbox antes de seleccionar; Sandbox no se cambia desde este WI Core.",
+        "Pruebas del profile, generación y validación; Harness, lint, tests y build pasan antes de revisión humana."
+      ],
+      "specPaths": [
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/006-validation-orchestration/spec.md"
       ]
     }
   ]

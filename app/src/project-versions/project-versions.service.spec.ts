@@ -31,6 +31,7 @@ describe('ProjectVersionsService', () => {
     id: 'version-1',
     projectId: 'project-1',
     status: 'PENDING',
+    language: 'TYPESCRIPT',
     originalFileName: null,
     sizeBytes: null,
     snapshotKey: null,

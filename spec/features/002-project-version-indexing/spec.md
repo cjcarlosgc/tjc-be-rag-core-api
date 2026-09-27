@@ -16,7 +16,8 @@ Indexar un snapshot inmutable del commit asociado a un `AnalysisRun` para recupe
 - Validar tamaño, entradas seguras, Zip Slip e integridad del snapshot interno; limpiar siempre el workspace temporal.
 - Estados: PENDING -> EXTRACTING -> ANALYZING -> CHUNKING -> EMBEDDING -> PERSISTING -> COMPLETED; cualquier activo -> FAILED.
 - `GET /project-versions/:id`; `GET /project-versions/:id/results`; antes de completar: 409 `ANALYSIS_NOT_FINISHED`.
-- Pool V1: .ts/.tsx, package.json, tsconfig.json, jest.config.*, vitest.config.*, *.spec.ts(x), *.test.ts(x). Ignorar node_modules,.git,dist,build,coverage,.next.
+- Pool V1: `.ts/.tsx`, `package.json`, `tsconfig.json`, `jest.config.*`, `vitest.config.*`, `*.spec.ts(x)`, `*.test.ts(x)`. Ignorar `node_modules`, `.git`, `dist`, `build`, `coverage`, `.next`.
+- Pool PHP V1, definido en `018-php-laravel-support`: `.php`, `composer.json` y configuración PHPUnit; ignorar dependencias (`vendor`) y directorios generados/de runtime. Si existen `composer.json` y `package.json` en raíz, prevalece PHP para ese snapshot; no se mezclan parsers en una ProjectVersion.
 - JavaScript puro (.js/.jsx/.mjs/.cjs) no pertenece al pool V1 aunque la tesis describa el dominio como ecosistema JavaScript/TypeScript.
 - Proyecto incompatible: 422 `UNSUPPORTED_PROJECT`.
 
@@ -24,6 +25,7 @@ Indexar un snapshot inmutable del commit asociado a un `AnalysisRun` para recupe
 
 - `FileDiscoveryService` filtra primero el snapshot y entrega únicamente archivos del pool aplicable; no todos los archivos del repositorio reciben el mismo tratamiento.
 - `TypeScriptParserService` analiza con ts-morph los `.ts/.tsx` descubiertos, incluyendo archivos de producción y de pruebas.
+- `PhpParserService` analiza los `.php` descubiertos mediante la gramática PHP WASM fijada por `DEC-PHP-AST-001`; namespaces y nombres completamente cualificados se conservan. No se interpreta Blade.
 - **Granularidad jerárquica (definitiva):** una declaración top-level `CLASS` produce un chunk `CLASS` con la declaración completa (imports relevantes, propiedades, herencia, todos sus métodos) **y además** un chunk hijo `METHOD`/`CONSTRUCTOR` por cada método/constructor de la clase, con `parentSymbolName` apuntando al `symbolName` de la clase dueña. `FUNCTION`, `INTERFACE`, `TYPE_ALIAS` y `ENUM` top-level siguen produciendo un único chunk cada uno, sin cambios.
 - Si un archivo TypeScript no contiene alguna de esas declaraciones y su contenido no está vacío, se conserva un único chunk `FILE` con el archivo completo.
 - **Oversized structured chunks:** cuando una declaración individual (`CLASS`, `METHOD`, `CONSTRUCTOR`, `FUNCTION`) supera `maxChunkTokens` (parámetro configurable, default `1500`, no una constante de arquitectura), se divide en partes ordenadas `PART 1..N` (`partIndex`/`partsTotal`) por bloques lógicos/statements de alto nivel, **sin solapamiento textual entre partes**. Cada parte conserva el mismo `symbolName`/`symbolKind` que el símbolo original y su metadata de adyacencia (`partIndex`, `partsTotal`), de modo que `ContextBuilder` (`004-rag-retrieval-context`) pueda expandir dinámicamente a partes vecinas en tiempo de retrieval si lo necesita; la indexación no decide esa expansión, solo la hace posible.

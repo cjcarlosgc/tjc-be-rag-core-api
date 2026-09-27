@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ProjectVersion } from '../generated/prisma/client.js';
-import { ProjectVersionStatus, type TestFramework } from '../generated/prisma/enums.js';
+import { ProjectVersionStatus, type ProjectLanguage, type TestFramework } from '../generated/prisma/enums.js';
 import { accessibleProject } from '../common/persistence/accessible-project.filter.js';
 
 export interface CreatePendingVersionInput {
   projectId: string;
   commitSha: string;
+  language: ProjectLanguage;
 }
 
 @Injectable()
@@ -18,6 +19,7 @@ export class ProjectVersionsRepository {
       data: {
         projectId: input.projectId,
         commitSha: input.commitSha,
+        language: input.language,
         status: ProjectVersionStatus.PENDING,
       },
     });

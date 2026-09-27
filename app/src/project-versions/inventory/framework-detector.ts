@@ -1,4 +1,38 @@
-import { TestFramework } from '../../generated/prisma/enums.js';
+import { ProjectLanguage, TestFramework } from '../../generated/prisma/enums.js';
+
+export function detectProjectLanguage(discoveredFiles: string[]): ProjectLanguage {
+  return discoveredFiles.includes('composer.json') ? ProjectLanguage.PHP : ProjectLanguage.TYPESCRIPT;
+}
+
+export function detectPhpFramework(
+  composerJsonContent: string | undefined,
+  discoveredFiles: string[],
+): TestFramework | null {
+  let dependencies: Record<string, string> = {};
+
+  if (composerJsonContent) {
+    try {
+      const composer = JSON.parse(composerJsonContent) as {
+        require?: Record<string, string>;
+        'require-dev'?: Record<string, string>;
+      };
+      dependencies = { ...composer.require, ...composer['require-dev'] };
+    } catch {
+      // A malformed manifest cannot establish a framework.
+    }
+  }
+
+  if (Object.keys(dependencies).some((name) => name.toLowerCase() === 'pestphp/pest')) {
+    return null;
+  }
+
+  const hasPhpUnitDependency = Object.keys(dependencies).some(
+    (name) => name.toLowerCase() === 'phpunit/phpunit',
+  );
+  const hasPhpUnitConfig = discoveredFiles.some((path) => /(^|\/)phpunit\.xml(?:\.dist)?$/i.test(path));
+
+  return hasPhpUnitDependency || hasPhpUnitConfig ? TestFramework.PHPUNIT : null;
+}
 
 /**
  * Muchos ZIP subidos envuelven el proyecto en una carpeta contenedora

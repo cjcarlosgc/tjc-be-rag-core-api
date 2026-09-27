@@ -148,8 +148,15 @@ export class AnalysisRunsService {
     run: AnalysisRun,
     status: AnalysisRunCompletionStatus,
     patch: CompleteAnalysisRunPatch,
-  ): Promise<AnalysisRun> {
-    return this.transitionTo(run, status, { ...patch, completedAt: new Date() });
+  ): Promise<AnalysisRun | null> {
+    if (!run.current || !TRANSITIONS[run.status].includes(status)) {
+      return null;
+    }
+
+    return this.analysisRunsRepository.transitionCurrent(run.id, run.status, status, {
+      ...patch,
+      completedAt: new Date(),
+    });
   }
 
   private async startRunInternal(input: CreateAnalysisRunInput): Promise<StartRunResult> {
@@ -282,7 +289,19 @@ export class AnalysisRunsService {
       );
     }
 
-    return this.analysisRunsRepository.update(run.id, { status, ...patch });
+    const updated = await this.analysisRunsRepository.transitionCurrent(run.id, run.status, status, patch);
+
+    if (updated) {
+      return updated;
+    }
+
+    const latest = await this.analysisRunsRepository.findById(run.id);
+    const actualStatus = latest?.status ?? run.status;
+    throw new AppException(
+      ErrorCode.ANALYSIS_RUN_INVALID_TRANSITION,
+      `El AnalysisRun "${run.id}" no puede pasar de "${actualStatus}" a "${status}" porque dejó de ser vigente o cambió de estado.`,
+      HttpStatus.CONFLICT,
+    );
   }
 
   private async findProjectOrThrow(projectId: string, ownerUserId: string): Promise<void> {

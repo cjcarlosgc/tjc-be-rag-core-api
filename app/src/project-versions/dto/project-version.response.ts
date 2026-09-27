@@ -1,9 +1,11 @@
 import type { ProjectVersion } from '../../generated/prisma/client.js';
+import type { ProjectLanguage, TestFramework } from '../../generated/prisma/enums.js';
 
 export interface ProjectVersionResponse {
   id: string;
   projectId: string;
   status: string;
+  language: ProjectLanguage;
   originalFileName: string | null;
   sizeBytes: number | null;
   filesProcessed: number | null;
@@ -20,6 +22,7 @@ export function toProjectVersionResponse(version: ProjectVersion): ProjectVersio
     id: version.id,
     projectId: version.projectId,
     status: version.status,
+    language: version.language,
     originalFileName: version.originalFileName,
     sizeBytes: version.sizeBytes,
     filesProcessed: version.filesProcessed,
@@ -33,7 +36,7 @@ export function toProjectVersionResponse(version: ProjectVersion): ProjectVersio
 }
 
 export interface ProjectVersionSummaryResponse extends ProjectVersionResponse {
-  detectedFramework: 'JEST' | 'VITEST' | null;
+  detectedFramework: TestFramework | null;
   targetsTotal: number | null;
   targetsWithTest: number | null;
   targetsMissingTest: number | null;

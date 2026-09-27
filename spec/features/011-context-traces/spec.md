@@ -38,7 +38,7 @@ Persistir y exponer evidencia navegable de cómo se adquirió el contexto de una
 
 ## Transporte
 
-Las tres rutas y DTOs son los de `INTEROP-2.5`, sección 6.7: listado desde Experiments, detalle de traza y archivos descubiertos paginados. La autorización sigue el acceso Reader al Project del experimento. Una traza inexistente o no visible se responde como `CONTEXT_TRACE_NOT_FOUND`; consultar antes del estado terminal produce `CONTEXT_TRACE_NOT_FINISHED`.
+Las tres rutas y DTOs son los de `INTEROP-2.6`, sección 6.7: listado desde Experiments, detalle de traza y archivos descubiertos paginados. La autorización sigue el acceso Reader al Project del experimento. Una traza inexistente o no visible se responde como `CONTEXT_TRACE_NOT_FOUND`; consultar antes del estado terminal produce `CONTEXT_TRACE_NOT_FINISHED`.
 
 ## Fuera de alcance
 

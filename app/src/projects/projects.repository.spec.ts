@@ -8,6 +8,7 @@ describe('ProjectsRepository.softDelete (HU56)', () => {
     project: { updateMany: ReturnType<typeof vi.fn> };
     repositoryBinding: { deleteMany: ReturnType<typeof vi.fn> };
     analysisRun: { findMany: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn> };
+    functionalQuestion: { updateMany: ReturnType<typeof vi.fn> };
     testPublication: { findMany: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn> };
     $executeRaw: ReturnType<typeof vi.fn>;
   };
@@ -21,6 +22,7 @@ describe('ProjectsRepository.softDelete (HU56)', () => {
         findMany: vi.fn().mockResolvedValue([{ id: 'run-1' }, { id: 'run-2' }]),
         updateMany: vi.fn().mockResolvedValue({ count: 2 }),
       },
+      functionalQuestion: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       testPublication: {
         findMany: vi.fn().mockResolvedValue([{ id: 'pub-1' }]),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -48,6 +50,10 @@ describe('ProjectsRepository.softDelete (HU56)', () => {
       where: { id: { in: ['run-1', 'run-2'] } },
       data: { status: 'OBSOLETE', current: false, completedAt: expect.any(Date) },
     });
+    expect(tx.functionalQuestion.updateMany).toHaveBeenCalledWith({
+      where: { analysisRunId: { in: ['run-1', 'run-2'] }, status: 'PENDING' },
+      data: { status: 'OBSOLETE' },
+    });
     expect(tx.testPublication.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['pub-1'] } },
       data: { status: 'FAILED', failureMessage: 'PROJECT_DELETED' },
@@ -63,6 +69,7 @@ describe('ProjectsRepository.softDelete (HU56)', () => {
     expect(result).toBe(false);
     expect(tx.repositoryBinding.deleteMany).not.toHaveBeenCalled();
     expect(tx.analysisRun.updateMany).not.toHaveBeenCalled();
+    expect(tx.functionalQuestion.updateMany).not.toHaveBeenCalled();
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
