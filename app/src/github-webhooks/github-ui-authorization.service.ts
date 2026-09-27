@@ -42,7 +42,9 @@ export class GithubUiAuthorizationService {
     if (!request.projectId) return { decision: 'DENY' };
     const bindingVerification = request.action === 'VERIFY_REPOSITORY_ACCESS' && request.githubUserId === undefined &&
       request.repositories === undefined && !!request.repositoryId && !!request.repositoryName;
-    if (request.githubUserId !== identity.githubUserId && !bindingVerification) return { decision: 'DENY' };
+    const branchScopeLookup = request.action === 'LIST_REPOSITORY_BRANCHES' && request.githubUserId === undefined &&
+      request.repositories === undefined;
+    if (request.githubUserId !== identity.githubUserId && !bindingVerification && !branchScopeLookup) return { decision: 'DENY' };
 
     const project = await this.projects.findLiveForGithubAuthorization(request.projectId, identity.userId);
     if (!project) {
@@ -69,6 +71,9 @@ export class GithubUiAuthorizationService {
       if (bindingVerification) {
         const binding = project.repositoryBinding;
         if (!binding || binding.repositoryId !== request.repositoryId || binding.repositoryName !== request.repositoryName) return { decision: 'DENY' };
+        return { decision: 'ALLOW', repositoryOwnerId, repositoryOwnerType, githubUserId: identity.githubUserId };
+      }
+      if (branchScopeLookup) {
         return { decision: 'ALLOW', repositoryOwnerId, repositoryOwnerType, githubUserId: identity.githubUserId };
       }
       return { decision: 'ALLOW', repositoryOwnerId, repositoryOwnerType };

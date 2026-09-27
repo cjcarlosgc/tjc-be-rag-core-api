@@ -13,7 +13,7 @@ Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin
 
 ## Invariantes
 
-- Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. El provider token OAuth puede apoyar discovery y verificación de identidad/repositorio desde Integration; nunca autoriza por sí solo el pipeline ni cruza a Core.
+- Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. El provider token OAuth puede apoyar discovery y verificación de identidad/repositorio; nunca autoriza por sí solo el pipeline. En las rutas directas Console→Integration no cruza a Core; la ruta Core heredada de discovery aún lo reenvía temporalmente a Integration y no lo persiste ni registra.
 - Los Projects personales no se comparten: los ve únicamente su creador, siempre como Admin y sin registro de acceso; solo se comparte mediante organizaciones (`DEC-ORG-002`). `GET /projects` nunca devuelve Projects personales de otra persona.
 - Core no administra miembros ni invitaciones. No existen tablas `Organization` ni `Membership`; la persistencia mínima es el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y el registro `(projectId, userId, rol, verifiedAt)`, que existe solo para Projects de organización.
 - El `githubUserId` sale de `identities[].id` de la Admin API de Supabase consultada por `sub`, nunca de `user_metadata`.
@@ -64,7 +64,7 @@ Permitir que un equipo (una organización) trabaje sobre los mismos Projects sin
 
 ## Seguridad y auditoría
 
-El provider token llega únicamente a GitHub Integration para discovery o para verificar la identidad/repositorio durante la vinculación; no se envía a Core, no se persiste ni se registra. Las verificaciones del pipeline y la reconciliación (incluida la revalidación de propietario y nombre del repositorio vinculado) se delegan a GitHub Integration, que usa el installation token de la App (`Metadata: read`, `Members: read`). Se registran (sin secretos, tokens ni payloads completos) las altas y bajas de acceso con su causa (`ENTRY`, `EVENT:<nombre>`, `RECONCILIATION`) y los resultados `no verificable`. La credencial de servicio de Supabase es solo de servidor.
+En las rutas directas Console→Integration, el provider token llega únicamente a Integration y se usa en memoria para discovery o verificación de un repositorio nuevo; no se envía en el callback a Core, ni se persiste o registra. La ruta Core heredada de discovery aún recibe el token y lo reenvía temporalmente a Integration. Las verificaciones del pipeline y la reconciliación (incluida la revalidación de propietario y nombre del repositorio vinculado) se delegan a GitHub Integration, que usa el installation token de la App (`Metadata: read`, `Members: read`). Se registran (sin secretos, tokens ni payloads completos) las altas y bajas de acceso con su causa (`ENTRY`, `EVENT:<nombre>`, `RECONCILIATION`) y los resultados `no verificable`. La credencial de servicio de Supabase es solo de servidor.
 
 ## Precondiciones de despliegue (`DEC-ORG-001`/`DEC-ORG-002`; no bloquean implementar ni probar con fakes)
 

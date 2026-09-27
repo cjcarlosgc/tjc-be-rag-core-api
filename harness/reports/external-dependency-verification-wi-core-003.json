@@ -4,10 +4,10 @@
     {
       "component": "GH",
       "repository": "tjc-be-github-integration-api",
-      "sourceRevision": "0f275f766787a2a9e5cca3d4508a46bd1585611e"
+      "sourceRevision": "73a63539be3006fd7e93cb887391f29542abcf96"
     }
   ],
-  "verifiedAt": "2026-09-25T21:52:17.000Z",
+  "verifiedAt": "2026-09-27T03:52:57Z",
   "verifiedBy": "human-reviewer",
   "upstreamWorkItems": [
     {
@@ -20,7 +20,9 @@
           "source": "github-integration",
           "sourceWorkItem": "WI-GH-002",
           "sourceRevision": "29aedbe112958e0024004ff3ea8bb4270999db62",
-          "targets": ["core"],
+          "targets": [
+            "core"
+          ],
           "status": "C-ACKNOWLEDGED",
           "payloadSha256": "f63a8e0c341ee0364751889d819628a5a736d7dd715f14ecba5c1fdc9770fed8"
         }
@@ -36,7 +38,9 @@
           "source": "github-integration",
           "sourceWorkItem": "WI-GH-003",
           "sourceRevision": "6122ab7",
-          "targets": ["core"],
+          "targets": [
+            "core"
+          ],
           "status": "C-ACKNOWLEDGED",
           "payloadSha256": "bf49b5cb6955037990483c7cfa9b432cc3d295e1065e6c0ad6d23bba677fb0a3"
         }
@@ -52,7 +56,9 @@
           "source": "github-integration",
           "sourceWorkItem": "WI-GH-004",
           "sourceRevision": "65e102f9a8414e42d371ca4a44626b0f32faf7cb",
-          "targets": ["core"],
+          "targets": [
+            "core"
+          ],
           "status": "C-ACKNOWLEDGED",
           "payloadSha256": "4314d12318d894992d6995e96889dbcf4b56c8f1201665de1f365386072a1d1a"
         },
@@ -61,7 +67,9 @@
           "source": "github-integration",
           "sourceWorkItem": "WI-GH-004",
           "sourceRevision": "bc392d9",
-          "targets": ["core"],
+          "targets": [
+            "core"
+          ],
           "status": "C-ACKNOWLEDGED",
           "payloadSha256": "f4a6e260967da801908eef9efab5563bd78d4e492de6f07fb9065de08c990029"
         }
@@ -77,9 +85,30 @@
           "source": "github-integration",
           "sourceWorkItem": "WI-GH-005",
           "sourceRevision": "3ff7e1b",
-          "targets": ["core"],
+          "targets": [
+            "core"
+          ],
           "status": "C-ACKNOWLEDGED",
           "payloadSha256": "ebf14e04300efe6cb3e5616d4b060734259a5ef67217c9b58eea8849ffc37754"
+        }
+      ]
+    },
+    {
+      "workItemId": "WI-GH-006",
+      "status": "W-DONE",
+      "completionEvidence": "harness/reports/wi-gh-006-closure.md",
+      "contractSyncs": [
+        {
+          "id": "CS-GH-20260926-001",
+          "source": "github-integration",
+          "sourceWorkItem": "WI-GH-006",
+          "sourceRevision": "feature/jean@working-tree",
+          "targets": [
+            "core",
+            "console"
+          ],
+          "status": "C-RESOLVED",
+          "payloadSha256": "0ef9ce52a9c4e571f0387ecf303b494d5f1725dac0f9a99d1e15f3a14652d409"
         }
       ]
     }

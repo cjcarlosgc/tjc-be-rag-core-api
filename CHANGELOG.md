@@ -4,6 +4,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **Cierre local de la migración a cuatro componentes (2026-09-26):** `WI-CORE-003`, `WI-CONSOLE-003` y `WI-GH-006` quedaron revisados y cerrados con Contract Sync, pruebas y gates registrados. El corte aprobado de PRs anteriores al vínculo se planifica por separado en `WI-GH-007`, `WI-CORE-011` y `WI-CONSOLE-008`; no hay deploy/cutover y Sandbox no se tocó.
 - **HU08/HU14 — vigencia de preguntas funcionales:** la transición de un Run actual a `ACTION_REQUIRED` y la creación de su pregunta ahora son atómicas. Un HEAD nuevo o la baja del Project invalida preguntas pendientes; el inbox solo expone preguntas de Runs actuales en `ACTION_REQUIRED`. Transiciones de jobs usan compare-and-set y no publican Check ni sobrescriben un Run obsoleto como fallo técnico. Sin cambio de DTO ni migración de base de datos.
 - **HU11 / ST-CORE-015:** Core envía `executionProfile: NODE_TYPESCRIPT` junto a `runnerHint` para las ejecuciones Jest/Vitest; antes omitía el campo requerido por el contrato y el DTO del Sandbox. El validador permite que cada subtarea declare su subconjunto no vacío de HU dentro del WI. Sin cambio de contrato ni de runtime Sandbox.
 - **Evidencia PHP del PR #6:** se preservó el benchmark preliminar de parser como insumo para futuros WIs, rotulado como no reproducido ni decisorio. No se importaron sus fases, IDs, cambio contractual ni selección de parser.

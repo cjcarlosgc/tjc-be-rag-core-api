@@ -1,6 +1,6 @@
 # 016 — Frontera GitHub Integration
 
-**Estado:** migración reorientada en implementación; `WI-CORE-003`, `WI-CONSOLE-003` y `WI-GH-006` siguen abiertos y requieren revisión personal. Los WIs cerrados previamente de GH preservan sus snapshots. Ningún servicio se despliega ni se corta a producción en este alcance.
+**Estado:** código fuente de la migración revisado y cerrado localmente en `WI-CORE-003`, `WI-CONSOLE-003` y `WI-GH-006`; esto no declara deploy ni cutover. La exclusión de PRs anteriores al binding se trata en cortes nuevos separados.
 
 ## Valor y alcance
 
@@ -12,7 +12,7 @@ No se agregan épicas ni HU. Esta feature implementa cortes técnicos enlazados 
 
 `DEC-GHI-001` aprobó la primera extracción; `DEC-GHI-002` define la topología vigente y `GH-INTEROP-1.1` la formaliza. Console llama a Integration para información de App, discovery, verificación GitHub y ramas; mantiene en Core workspaces/Projects, persistencia de bindings, RAG y análisis. Para cada operación directa Integration llama sincrónicamente a Core con el JWT Supabase del usuario y hechos GitHub allowlisted. Core valida la sesión/identidad, aplica reglas de workspace/Project y responde permitir/denegar sin volver a llamar a Integration durante esa comprobación.
 
-Supabase Auth conserva el login humano. El JWT de plataforma se envía a Integration para su validación síncrona en Core; el provider token GitHub se usa transitoriamente dentro de Integration para discovery y verificación/repositorio, pero nunca cruza a Core. La evaluación del scope `repo` queda en `IDEA-005`. Para crear un binding, Core recibe y valida una evidencia firmada de vida corta y ligada a usuario, acción, Project, repositorio e integration branch. Las rutas Core anteriores de discovery, verify-access y branches permanecen temporalmente como compatibilidad y no se retiran en este WI. El ZIP interno de snapshot para Docker/Sandbox se conserva; no vuelve la carga manual de ZIP ni la descarga agrupada de artefactos. Sandbox no cambia.
+Supabase Auth conserva el login humano. En la topología directa Console→Integration, el JWT de plataforma se envía a Integration para su validación síncrona en Core y el provider token GitHub se usa dentro de Integration para discovery o verificación de repositorio nuevo; el callback solo incluye sesión y hechos allowlisted, no ese token. La ruta Core heredada de discovery aún recibe y reenvía el provider token a Integration hasta retirarse en otro corte; nunca se persiste ni registra. La verificación informativa de un binding existente y la consulta de ramas no reenvían OAuth: Core entrega identidad vinculada y scope permitido, Integration verifica hechos con la App y Core vuelve a autorizarlos. La evaluación del scope `repo` queda en `IDEA-005`. Para crear un binding, Core recibe y valida una evidencia firmada de vida corta y ligada a usuario, acción, Project, repositorio e integration branch. Las rutas Core anteriores de discovery, verify-access y branches permanecen temporalmente como compatibilidad y no se retiran en este WI. El ZIP interno de snapshot para Docker/Sandbox se conserva; no vuelve la carga manual de ZIP ni la descarga agrupada de artefactos. Sandbox no cambia.
 
 ## Requisitos transversales
 
