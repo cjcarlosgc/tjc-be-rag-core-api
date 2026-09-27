@@ -75,7 +75,6 @@ describe('SnapshotAnalysisJobHandler', () => {
       startProcessing: vi.fn(),
       recordSnapshot: vi.fn(),
       completeRunFromSystem: vi.fn(),
-      markActionRequiredFromSystem: vi.fn(),
     };
     const repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
     const projectVersionsRepository = {
@@ -116,10 +115,6 @@ describe('SnapshotAnalysisJobHandler', () => {
     analysisRunsService.completeRunFromSystem.mockImplementation(async (run: AnalysisRun, status: string) => ({
       ...run,
       status,
-    }));
-    analysisRunsService.markActionRequiredFromSystem.mockImplementation(async (run: AnalysisRun) => ({
-      ...run,
-      status: 'ACTION_REQUIRED',
     }));
 
     const handler = new SnapshotAnalysisJobHandler(
@@ -327,27 +322,22 @@ describe('SnapshotAnalysisJobHandler', () => {
     );
     expect(jobsService.enqueue).toHaveBeenCalledWith(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: 'run-1' });
     expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
-    expect(analysisRunsService.markActionRequiredFromSystem).not.toHaveBeenCalled();
   });
 
   it('marks ACTION_REQUIRED when the functional context evaluator says a question is needed', async () => {
     const { handler, analysisRunsService, analysisRunChecksService, functionalContextEvaluatorService, jobsService } =
       setup();
-    functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true });
+    const actionRequiredRun = buildRun({ status: 'ACTION_REQUIRED', actionRequiredCount: 1 });
+    functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true, analysisRun: actionRequiredRun });
 
     await handler.handle({ analysisRunId: 'run-1' });
 
-    expect(analysisRunsService.markActionRequiredFromSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'PROCESSING' }),
-    );
     expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
     expect(jobsService.enqueue).not.toHaveBeenCalledWith(
       ANALYSIS_RUN_VALIDATION_JOB_TYPE,
       expect.anything(),
     );
-    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'ACTION_REQUIRED' }),
-    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(actionRequiredRun);
   });
 
   it('does not evaluate functional context when the CHANGESET does not touch source', async () => {
@@ -373,6 +363,16 @@ describe('SnapshotAnalysisJobHandler', () => {
       expect.objectContaining({ resultSummary: 'GitHub API 503' }),
     );
     expect(workspaceCleanup).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite or publish a late failure when the run became obsolete', async () => {
+    const { handler, githubRepositoryContentService, analysisRunsService, analysisRunChecksService } = setup();
+    githubRepositoryContentService.compare.mockRejectedValue(new Error('GitHub API 503'));
+    analysisRunsService.completeRunFromSystem.mockResolvedValue(null);
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+    expect(analysisRunChecksService.publishForRun).not.toHaveBeenCalled();
   });
 
   it('cleans up the materialized workspace even when a later step fails', async () => {

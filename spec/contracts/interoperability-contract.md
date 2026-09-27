@@ -691,7 +691,7 @@ Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respue
 
 ### 6.11 Action Required y Functional Knowledge
 
-- `GET /action-required?projectId&cursor&limit` -> `200 Page<FunctionalQuestionResponse>`. Sin `projectId` cubre los Projects personales del usuario más los de organización con registro de acceso ya existente. Con `projectId` de un Project no visible responde `404 PROJECT_NOT_FOUND` (cambio observable de `INTEROP-2.4`: antes, una página vacía).
+- `GET /action-required?projectId&cursor&limit` -> `200 Page<FunctionalQuestionResponse>`. Sin `projectId` cubre los Projects personales del usuario más los de organización con registro de acceso ya existente. Con `projectId` de un Project no visible responde `404 PROJECT_NOT_FOUND` (cambio observable de `INTEROP-2.4`: antes, una página vacía). Solo incluye preguntas `PENDING` cuyo `AnalysisRun` esté en `ACTION_REQUIRED` y `current=true`; al obsoletarse el Run, sus preguntas pendientes pasan a `OBSOLETE` y dejan de ser accionables.
 - `GET /analysis-runs/{analysisRunId}/context-questions` -> `200 FunctionalQuestionSetResponse`.
 - `POST /analysis-runs/{analysisRunId}/context-questions/{questionId}/answers` -> `202 FunctionalAnswerAcceptedResponse`.
 - `GET /projects/{projectId}/functional-knowledge?status&cursor&limit` -> `200 Page<FunctionalKnowledgeResponse>`.

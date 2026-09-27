@@ -5,9 +5,9 @@ import { AnalysisSymbolsRepository } from '../analysis-runs/persistence/analysis
 import type { AnalysisRun, AnalysisSymbol } from '../generated/prisma/client.js';
 import type { FunctionalScope } from '../generated/prisma/client.js';
 
-export interface EvaluateFunctionalContextResult {
-  actionRequired: boolean;
-}
+export type EvaluateFunctionalContextResult =
+  | { actionRequired: false }
+  | { actionRequired: true; analysisRun: AnalysisRun };
 
 function symbolTargetRef(symbol: Pick<AnalysisSymbol, 'filePath' | 'qualifiedName'>): string {
   return `${symbol.filePath}::${symbol.qualifiedName}`;
@@ -82,7 +82,7 @@ export class FunctionalContextEvaluatorService {
         continue;
       }
 
-      await this.functionalQuestionsRepository.create({
+      const result = await this.functionalQuestionsRepository.createForCurrentRun({
         analysisRunId: run.id,
         projectId: run.projectId,
         symbolLanguage: symbol.language,
@@ -91,9 +91,13 @@ export class FunctionalContextEvaluatorService {
         filePath: symbol.filePath,
         question: buildQuestion(symbol),
         rationale: buildRationale(symbol),
-      });
+      }, run.status);
 
-      return { actionRequired: true };
+      if (!result) {
+        return { actionRequired: false };
+      }
+
+      return { actionRequired: true, analysisRun: result.analysisRun };
     }
 
     return { actionRequired: false };

@@ -5,7 +5,7 @@ import { FunctionalQuestionsRepository } from './functional-questions.repository
 import { FunctionalKnowledgeRepository } from './functional-knowledge.repository.js';
 import type { AnalysisRun, AnalysisSymbol, FunctionalQuestion } from '../generated/prisma/client.js';
 
-const RUN = { id: 'run-1', projectId: 'project-1' } as AnalysisRun;
+const RUN = { id: 'run-1', projectId: 'project-1', status: 'PROCESSING', current: true } as AnalysisRun;
 
 function buildSymbol(overrides: Partial<AnalysisSymbol> = {}): AnalysisSymbol {
   return {
@@ -26,7 +26,7 @@ describe('FunctionalContextEvaluatorService', () => {
   let analysisSymbolsRepository: { findByAnalysisRun: ReturnType<typeof vi.fn> };
   let functionalQuestionsRepository: {
     findByAnalysisRun: ReturnType<typeof vi.fn>;
-    create: ReturnType<typeof vi.fn>;
+    createForCurrentRun: ReturnType<typeof vi.fn>;
   };
   let functionalKnowledgeRepository: { findActive: ReturnType<typeof vi.fn> };
 
@@ -34,7 +34,10 @@ describe('FunctionalContextEvaluatorService', () => {
     analysisSymbolsRepository = { findByAnalysisRun: vi.fn().mockResolvedValue([]) };
     functionalQuestionsRepository = {
       findByAnalysisRun: vi.fn().mockResolvedValue([] as FunctionalQuestion[]),
-      create: vi.fn(),
+      createForCurrentRun: vi.fn().mockResolvedValue({
+        question: {} as FunctionalQuestion,
+        analysisRun: { ...RUN, status: 'ACTION_REQUIRED' },
+      }),
     };
     functionalKnowledgeRepository = { findActive: vi.fn().mockResolvedValue(null) };
     service = new FunctionalContextEvaluatorService(
@@ -53,7 +56,7 @@ describe('FunctionalContextEvaluatorService', () => {
     const result = await service.evaluate(RUN);
 
     expect(result).toEqual({ actionRequired: false });
-    expect(functionalQuestionsRepository.create).not.toHaveBeenCalled();
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
   });
 
   it('creates one question and stops at the first uncovered symbol', async () => {
@@ -64,10 +67,11 @@ describe('FunctionalContextEvaluatorService', () => {
 
     const result = await service.evaluate(RUN);
 
-    expect(result).toEqual({ actionRequired: true });
-    expect(functionalQuestionsRepository.create).toHaveBeenCalledTimes(1);
-    expect(functionalQuestionsRepository.create).toHaveBeenCalledWith(
+    expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
       expect.objectContaining({ analysisRunId: 'run-1', projectId: 'project-1', qualifiedName: 'Thing.first' }),
+      'PROCESSING',
     );
   });
 
@@ -78,7 +82,7 @@ describe('FunctionalContextEvaluatorService', () => {
     const result = await service.evaluate(RUN);
 
     expect(result).toEqual({ actionRequired: false });
-    expect(functionalQuestionsRepository.create).not.toHaveBeenCalled();
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
   });
 
   it('does not create a question for a symbol that already has a tracked (non-obsolete) question', async () => {
@@ -90,7 +94,7 @@ describe('FunctionalContextEvaluatorService', () => {
     const result = await service.evaluate(RUN);
 
     expect(result).toEqual({ actionRequired: false });
-    expect(functionalQuestionsRepository.create).not.toHaveBeenCalled();
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
   });
 
   it('re-considers a symbol whose previous question is OBSOLETE', async () => {
@@ -101,8 +105,8 @@ describe('FunctionalContextEvaluatorService', () => {
 
     const result = await service.evaluate(RUN);
 
-    expect(result).toEqual({ actionRequired: true });
-    expect(functionalQuestionsRepository.create).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
   });
 
   it('uses SYMBOL scope (not METHOD) for a FUNCTION kind symbol', async () => {
@@ -117,5 +121,12 @@ describe('FunctionalContextEvaluatorService', () => {
       'SYMBOL',
       'src/thing.ts::standaloneFn',
     );
+  });
+
+  it('does not report ACTION_REQUIRED when the run became obsolete before the atomic write', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol()]);
+    functionalQuestionsRepository.createForCurrentRun.mockResolvedValue(null);
+
+    await expect(service.evaluate(RUN)).resolves.toEqual({ actionRequired: false });
   });
 });

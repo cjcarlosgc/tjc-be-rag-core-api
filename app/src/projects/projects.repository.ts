@@ -76,7 +76,7 @@ export class ProjectsRepository {
   /**
    * HU56: borrado lógico en una única transacción. Marca `deletedAt`, borra el
    * binding (libera el `repositoryId`) y cierra lo que estaba en curso: Runs
-   * no terminales -> OBSOLETE, publicaciones pendientes -> FAILED y jobs
+   * no terminales -> OBSOLETE, preguntas pendientes -> OBSOLETE, publicaciones pendientes -> FAILED y jobs
    * PENDING de esos Runs/publicaciones/experimentos -> FAILED. Runs, versiones
    * y Functional Knowledge se conservan como evidencia. Devuelve `false` si el
    * Project no existe, no es visible para el usuario como Admin o ya estaba borrado
@@ -105,6 +105,10 @@ export class ProjectsRepository {
         await tx.analysisRun.updateMany({
           where: { id: { in: runIds } },
           data: { status: 'OBSOLETE', current: false, completedAt: new Date() },
+        });
+        await tx.functionalQuestion.updateMany({
+          where: { analysisRunId: { in: runIds }, status: 'PENDING' },
+          data: { status: 'OBSOLETE' },
         });
       }
 

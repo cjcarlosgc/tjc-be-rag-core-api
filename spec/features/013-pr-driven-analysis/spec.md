@@ -19,7 +19,8 @@ GitHub Integration entrega a RAG Core eventos normalizados de GitHub App para re
 - Desconectar es una pausa (`DISABLED`, reversible con `POST .../enable`); `REVOKED` nunca se degrada a `DISABLED` y solo sale de `REVOKED` por reactivación explícita del usuario cuando Core revalida que la App recuperó acceso. `installation.unsuspend` solo rehabilita lo que la suspensión deshabilitó, no lo pausado por el usuario.
 - Eliminar un Project es lógico: libera el binding, cancela u obsoleta Runs y jobs en curso y oculta todo por API; el Run de un Project borrado, o cuyo `repositoryId` hoy pertenece a otro Project, no se procesa ni publica (Checks, publicaciones, validación, snapshot).
 - Solo el Run vigente publica Check vigente. La merge policy pertenece al repositorio.
-- `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD.
+- `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD. La creación de la pregunta pendiente y la transición a `ACTION_REQUIRED` son atómicas y solo aplican a un Run `PROCESSING` y vigente.
+- Si un HEAD nuevo o la baja del Project obsoleta el Run, sus preguntas `PENDING` pasan a `OBSOLETE`. El inbox solo incluye preguntas pendientes cuyo Run siga `ACTION_REQUIRED` y `current=true`; un job que pierda vigencia no publica Check ni convierte el Run en fallo técnico.
 - `UNKNOWN`/No lo sé no crea `FunctionalKnowledge ACTIVE`.
 - Sandbox recibe profile, snapshot, artifacts y targets; nunca recibe GitHub, usuarios, prompts, reglas funcionales o estrategia experimental.
 - No existe autorepair semántico, modificación automática de producción, escritura directa a la feature branch ni auto-merge.
@@ -41,6 +42,8 @@ webhook verificado y normalizado por GitHub Integration
    -> no: ACTION_REQUIRED + Check + job finalizado
    -> yes: generate -> Sandbox -> classify -> Check
 ```
+
+La transición a `ACTION_REQUIRED` y la inserción de su pregunta se confirman en una única operación condicionada al estado vigente del Run. Si el HEAD cambia durante la evaluación, la operación no crea una pregunta ni publica un Check obsoleto.
 
 Una respuesta human persistente genera Functional Knowledge y un continuation job solo si el HEAD sigue vigente. Un HEAD nuevo conserva la respuesta como evidencia/regla potencial y la reevalúa en otro Run.
 

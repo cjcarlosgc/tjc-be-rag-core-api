@@ -104,7 +104,9 @@ export class AnalysisRunValidationJobHandler
       const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: `No se encontró el repository binding para "${run.repositoryId}".`,
       });
-      await this.analysisRunChecksService.publishForRun(failed);
+      if (failed) {
+        await this.analysisRunChecksService.publishForRun(failed);
+      }
       return;
     }
 
@@ -121,7 +123,9 @@ export class AnalysisRunValidationJobHandler
         const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
           resultSummary: `El ProjectVersion "${run.projectVersionId}" no existe.`,
         });
-        await this.analysisRunChecksService.publishForRun(failed);
+        if (failed) {
+          await this.analysisRunChecksService.publishForRun(failed);
+        }
         return;
       }
 
@@ -176,15 +180,21 @@ export class AnalysisRunValidationJobHandler
         generatedTestsCount: availableCount,
         functionalBehaviorValidated: finalStatus === 'SUCCESS' || finalStatus === 'NO_ADDITIONAL_TESTS_REQUIRED',
       });
-      await this.analysisRunChecksService.publishForRun(completed);
+      if (completed) {
+        await this.analysisRunChecksService.publishForRun(completed);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido en Validation.';
       this.logger.error(`AnalysisRun ${run.id} falló en Validation: ${message}`);
       const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: message,
       });
-      await this.analysisRunChecksService.publishForRun(failed);
-      throw error;
+      if (failed) {
+        await this.analysisRunChecksService.publishForRun(failed);
+        throw error;
+      }
+
+      this.logger.debug(`Se omite el fallo tardío del AnalysisRun ${run.id}: el Run ya no admite esa transición.`);
     } finally {
       await workspace?.cleanup();
     }

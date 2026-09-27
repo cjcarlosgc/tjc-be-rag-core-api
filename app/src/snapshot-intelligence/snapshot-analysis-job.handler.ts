@@ -131,7 +131,9 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       const failed = await this.analysisRunsService.completeRunFromSystem(initialRun, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: `No se encontró el repository binding para "${initialRun.repositoryId}".`,
       });
-      await this.analysisRunChecksService.publishForRun(failed);
+      if (failed) {
+        await this.analysisRunChecksService.publishForRun(failed);
+      }
       return;
     }
 
@@ -211,7 +213,9 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         const completed = await this.analysisRunsService.completeRunFromSystem(run, 'NO_TEST_RELEVANT_CHANGES', {
           resultSummary: 'El CHANGESET no incluye cambios en archivos fuente (solo docs/config/formato).',
         });
-        await this.analysisRunChecksService.publishForRun(completed);
+        if (completed) {
+          await this.analysisRunChecksService.publishForRun(completed);
+        }
       } else {
         // HU35/36: si falta conocimiento funcional para algún símbolo
         // DIRECTLY_CHANGED, el Run termina en ACTION_REQUIRED aquí. Si hay
@@ -220,8 +224,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         const evaluation = await this.functionalContextEvaluatorService.evaluate(run);
 
         if (evaluation.actionRequired) {
-          const actionRequired = await this.analysisRunsService.markActionRequiredFromSystem(run);
-          await this.analysisRunChecksService.publishForRun(actionRequired);
+          await this.analysisRunChecksService.publishForRun(evaluation.analysisRun);
         } else {
           await this.jobsService.enqueue(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: run.id });
         }
@@ -232,8 +235,12 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
         resultSummary: message,
       });
-      await this.analysisRunChecksService.publishForRun(failed);
-      throw error;
+      if (failed) {
+        await this.analysisRunChecksService.publishForRun(failed);
+        throw error;
+      }
+
+      this.logger.debug(`Se omite el fallo tardío del AnalysisRun ${run.id}: el Run ya no admite esa transición.`);
     } finally {
       await workspace?.cleanup();
     }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   AnalysisRun,
+  AnalysisRunStatus,
   FunctionalAnswerChoice,
   FunctionalQuestion,
   FunctionalQuestionStatus,
@@ -21,6 +22,11 @@ export interface CreateFunctionalQuestionInput {
   rationale: string;
 }
 
+export interface CurrentRunQuestionResult {
+  question: FunctionalQuestion;
+  analysisRun: AnalysisRun;
+}
+
 export interface AnswerFunctionalQuestionInput {
   answerChoice: FunctionalAnswerChoice;
   answerText: string | null;
@@ -33,6 +39,49 @@ export class FunctionalQuestionsRepository {
 
   create(input: CreateFunctionalQuestionInput): Promise<FunctionalQuestion> {
     return this.prisma.functionalQuestion.create({ data: input });
+  }
+
+  /**
+   * Guarda una pregunta solo si el Run sigue en el estado que observó el
+   * evaluador. Para PROCESSING, la transición a ACTION_REQUIRED y la pregunta
+   * se confirman juntas; para una continuación, exige que el Run siga siendo
+   * el ACTION_REQUIRED vigente. El update condicional serializa evaluaciones
+   * concurrentes sobre el mismo Run.
+   */
+  async createForCurrentRun(
+    input: CreateFunctionalQuestionInput,
+    expectedStatus: AnalysisRunStatus,
+  ): Promise<CurrentRunQuestionResult | null> {
+    if (expectedStatus !== 'PROCESSING' && expectedStatus !== 'ACTION_REQUIRED') {
+      return null;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const runUpdate = await tx.analysisRun.updateMany({
+        where: { id: input.analysisRunId, status: expectedStatus, current: true },
+        data:
+          expectedStatus === 'PROCESSING'
+            ? { status: 'ACTION_REQUIRED', actionRequiredCount: { increment: 1 } }
+            : { updatedAt: new Date() },
+      });
+
+      if (runUpdate.count === 0) {
+        return null;
+      }
+
+      const existing = await tx.functionalQuestion.findFirst({
+        where: {
+          analysisRunId: input.analysisRunId,
+          filePath: input.filePath,
+          qualifiedName: input.qualifiedName,
+          status: { not: 'OBSOLETE' },
+        },
+      });
+      const question = existing ?? (await tx.functionalQuestion.create({ data: input }));
+      const analysisRun = await tx.analysisRun.findUniqueOrThrow({ where: { id: input.analysisRunId } });
+
+      return { question, analysisRun };
+    });
   }
 
   findByAnalysisRun(analysisRunId: string): Promise<FunctionalQuestion[]> {
@@ -74,6 +123,7 @@ export class FunctionalQuestionsRepository {
       where: {
         status,
         project: accessibleProject(userId),
+        analysisRun: { status: 'ACTION_REQUIRED', current: true },
         ...(projectId ? { projectId } : {}),
       },
       include: { analysisRun: true },

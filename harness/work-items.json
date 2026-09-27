@@ -113,6 +113,7 @@
         "HU02",
         "HU03",
         "HU06",
+        "HU08",
         "HU11",
         "HU14",
         "HU16"
@@ -123,7 +124,8 @@
         "ST-CORE-012",
         "ST-CORE-013",
         "ST-CORE-014",
-        "ST-CORE-015"
+        "ST-CORE-015",
+        "ST-CORE-016"
       ],
       "caseIds": [],
       "dependsOn": [
@@ -170,6 +172,7 @@
         "Los Contract Sync nuevos usan namespace por emisor; IDs históricos siguen intactos. Los WIs GH-002..005 y el nuevo WI-GH-006, sus reportes y Contract Sync deben estar resueltos antes de la revisión final del WI Core.",
         "Validaciones SDD/Harness, pruebas, lint y build de Core pasan con evidencia reproducible; SYSTEM/INTEROP y GH contract están sincronizados donde corresponda, Console verifica consumo directo y las rutas Core antiguas continúan compatibles.",
         "Para HU11, Core envía `executionProfile` explícito y compatible con `runnerHint`; `JEST` y `VITEST` se mapean a `NODE_TYPESCRIPT` y existen pruebas que verifican el body enviado al Sandbox.",
+        "Para HU08/HU14, un job que detecta contexto funcional faltante solo crea la pregunta pendiente y publica ACTION_REQUIRED si el Run sigue vigente; obsoletar un Run invalida atómicamente sus preguntas pendientes, y los jobs tardíos no publican Checks ni cambian el Run obsoleto a fallo técnico.",
         "Cada subtarea declara un subconjunto no vacío de HU del WI; el Harness rechaza declaraciones vacías o historias fuera del alcance agregado del WI."
       ],
       "contractSyncReview": [
@@ -196,7 +199,10 @@
         "spec/constitution/planning-model.md",
         "spec/features/006-validation-orchestration/spec.md",
         "spec/features/006-validation-orchestration/plan.md",
-        "spec/features/006-validation-orchestration/tasks.md"
+        "spec/features/006-validation-orchestration/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md"
       ]
     },
     {
