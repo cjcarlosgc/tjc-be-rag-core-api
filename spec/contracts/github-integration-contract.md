@@ -1,6 +1,6 @@
-# GH-INTEROP-1.1 — Contrato de GitHub Integration
+# GH-INTEROP-1.2 — Contrato de GitHub Integration
 
-**Estado:** contrato ampliado aprobado; WIs GH-002–GH-006 y sus WIs consumidores Core/Console están cerrados localmente con evidencia. No hay despliegue ni cutover declarados.
+**Estado:** la extensión de fecha original del PR está aprobada en alcance y en revisión dentro de `WI-CORE-014`; su implementación queda pendiente de `WI-GH-007`. La topología y capacidades de `WI-GH-002`–`WI-GH-006` y sus consumidores Core/Console están cerradas localmente con evidencia. No hay despliegue ni cutover declarados.
 **Línea base:** SDD 3.0 para Core/Console; Sandbox sigue en 2.1 y su homologación está pendiente.
 **Autoridad:** RAG Core mantiene el original en este archivo; `tjc-be-github-integration-api` y Console espejan esta versión byte por byte.
 
@@ -49,7 +49,7 @@ Todas las operaciones internas requieren el bearer Core→GH. Discovery además 
 | Compare | `POST /internal/v1/github/repositories/compare` | `{ installationId, repositoryName, baseSha, headSha }` → `GithubLookup<{ files: CompareFile[] }>`. GitHub expone como máximo 300 archivos cambiados en la primera página de compare; alcanzar ese límite es `UNVERIFIABLE`, nunca un `OK` parcial. |
 | Árbol | `POST /internal/v1/github/repositories/tree` | `{ installationId, repositoryName, commitSha }` → `GithubLookup<{ paths: string[], truncated: boolean }>`. |
 | Contenido por lote | `POST /internal/v1/github/repositories/files:batch` | `{ installationId, repositoryName, commitSha, paths[] }` → `GithubLookup<{ files: [{ path, contentBase64 }] }>`, máximo 8 paths por llamada; todos los datos quedan ligados al SHA solicitado. |
-| Head de PR | `POST /internal/v1/github/repositories/pull-request-head` | `{ installationId, repositoryName, pullRequestNumber }` → `GithubLookup<PullRequestHead>`, para que Core aplique freshness. |
+| Head de PR | `POST /internal/v1/github/repositories/pull-request-head` | `{ installationId, repositoryName, pullRequestNumber }` → `GithubLookup<PullRequestHead>` con la fecha original verificable de creación, para que Core aplique freshness y elegibilidad. |
 | Check | `POST /internal/v1/github/checks` | `{ installationId, repositoryName, name, headSha, conclusion, title, summary, detailsUrl? }`; Core determina contenido, conclusión y vigencia; el servicio crea el Check y responde `204`. |
 | Preflight de publicación | `POST /internal/v1/github/publications/companion-pull-request/preflight` | `{ installationId, repositoryName, pullRequestNumber, sourceHeadSha }` → `{ status: 'READY' }`, `{ status: 'STALE' }`, o `{ status: 'EXISTING_PR_CLOSED', number }`. Comprueba internamente branch/base, freshness y PR cerrado antes de iniciar escrituras; no añade branch/base a la respuesta `READY`. |
 | Blob de propuesta | `POST /internal/v1/github/publications/companion-pull-request/proposal-blobs` | Una propuesta por llamada: `{ installationId, repositoryName, pullRequestNumber, sourceHeadSha, path, contentBase64 }` → `UPLOADED` con `blobSha`, `STALE`, o `EXISTING_PR_CLOSED`. El contenido admite hasta 100 MB por blob ([límite del endpoint de GitHub](https://docs.github.com/en/rest/git/blobs#create-a-blob)); solo la ruta privada autenticada acepta el cuerpo JSON/Base64 ampliado de hasta 136 MB, suficiente para Base64 más envoltorio JSON. Es un límite local a esa ruta, previo al parser JSON general de 100 KB; no eleva el límite global de Express. La operación usa deadline extendido de hasta 180 s. No añade límite agregado de cantidad distinto al del proveedor. |
@@ -86,7 +86,7 @@ type CompareFile = {
   status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
   previousFilename?: string;
 };
-type PullRequestHead = { headSha: string; state: 'open' | 'closed' };
+type PullRequestHead = { headSha: string; state: 'open' | 'closed'; createdAt: string };
 type CompanionPullRequestRef = { number: number; url: string };
 type PublicationPreflight =
   | { status: 'READY' }
@@ -120,7 +120,7 @@ Route request/response schemas:
 | `POST /repositories/compare` | `{ installationId: string, repositoryName: string, baseSha: string, headSha: string }` | `GithubLookup<{ files: CompareFile[] }>`; all pages are combined before responding. |
 | `POST /repositories/tree` | `{ installationId: string, repositoryName: string, commitSha: string }` | `GithubLookup<{ paths: string[], truncated: boolean }>`; `paths` contains blob paths only. |
 | `POST /repositories/files:batch` | `{ installationId: string, repositoryName: string, commitSha: string, paths: string[] }` | `GithubLookup<{ files: [{ path: string, contentBase64: string }] }>`; max 8 paths per call, all pinned to `commitSha`, all-or-error. |
-| `POST /repositories/pull-request-head` | `{ installationId: string, repositoryName: string, pullRequestNumber: integer }` | `GithubLookup<{ headSha: string, state: 'open' \| 'closed' }>` |
+| `POST /repositories/pull-request-head` | `{ installationId: string, repositoryName: string, pullRequestNumber: integer }` | `GithubLookup<{ headSha: string, state: 'open' \| 'closed', createdAt: string }>`; `OK` solo con fecha original verificable; si no puede verificarse, `UNVERIFIABLE` sin `value`. |
 | `POST /checks` | `{ installationId: string, repositoryName: string, name: string, headSha: string, conclusion: 'success' \| 'failure' \| 'neutral' \| 'cancelled' \| 'action_required', title: string, summary: string, detailsUrl?: string }` | `204 No Content` |
 | `POST /publications/companion-pull-request/preflight` | `{ installationId: string, repositoryName: string, pullRequestNumber: integer, sourceHeadSha: string }` | `PublicationPreflight` |
 | `POST /publications/companion-pull-request/proposal-blobs` | `{ installationId: string, repositoryName: string, pullRequestNumber: integer, sourceHeadSha: string, path: string, contentBase64: string }` | `{ status: 'UPLOADED', path: string, blobSha: string } \| { status: 'STALE' } \| { status: 'EXISTING_PR_CLOSED', number: integer }`; one file per request, max 100 MB decoded UTF-8 content per GitHub's blob API; no app-defined aggregate file/count cap. |
@@ -224,7 +224,7 @@ type NormalizedWebhookEvent = {
   receivedAt: string;
   data:
     | { kind: 'PULL_REQUEST'; repository: { id: string; fullName: string }; installationId: string | null;
-        pullRequestNumber: number; pullRequest: { title: string; draft: boolean; merged: boolean;
+        pullRequestNumber: number; pullRequest: { title: string; draft: boolean; merged: boolean; createdAt: string | null;
           base: { ref: string; sha: string }; head: { ref: string; sha: string }; userLogin: string | null } }
     | { kind: 'INSTALLATION'; installationId: string; account: { id: string | null; type: string | null } }
     | { kind: 'INSTALLATION_REPOSITORIES'; installationId: string;
@@ -239,7 +239,9 @@ type NormalizedWebhookEvent = {
 };
 ```
 
-Para `pull_request`, el servicio solo normaliza los campos enumerados. `installation` conserva `id` y `account.id/type`; `installation_repositories` conserva installation id y los arrays `repositories_added/removed`; `repository` conserva id, `full_name`, `owner.id/login/type` e installation id si existe. `member` usa `member.id` + `repository.id`; `membership` usa `member.id` + `organization.id`; `organization` usa `organization.id/login` + `membership.user.id`; `team` usa `repository.id` y `organization.id`. Campos ausentes se convierten a `null`; el evento no se descarta solo por carecer de un id opcional, pues Core conserva la política vigente de ignorar/reconciliar lo que no pueda verificar. Para eventos no listados, `data.kind` es `IGNORED`; no se comparte ningún campo raw.
+Para `pull_request`, el servicio solo normaliza los campos enumerados. `pullRequest.createdAt` siempre está presente: se obtiene exclusivamente de `pull_request.created_at`, se valida como instante inequívoco y se serializa en ISO-8601 UTC; si falta o es inválido/ambiguo, su valor es `null`. Esa fecha no se sustituye por `receivedAt`, que representa cuándo Integration recibió el evento. La falta o invalidez de `created_at` no convierte por sí sola el webhook en payload malformado ni impide aceptarlo para recuperación; Core no crea ni reinicia un Run elegible mientras `createdAt` sea `null`, mantiene ocultos los Runs afectados y reintenta la clasificación mediante recuperación durable. Para la lectura histórica `pull-request-head`, solo se devuelve `OK` con `createdAt` verificable; ante una fecha ausente, inválida o ambigua se devuelve `UNVERIFIABLE` sin `value`, sin alterar los demás estados de lookup.
+
+`installation` conserva `id` y `account.id/type`; `installation_repositories` conserva installation id y los arrays `repositories_added/removed`; `repository` conserva id, `full_name`, `owner.id/login/type` e installation id si existe. `member` usa `member.id` + `repository.id`; `membership` usa `member.id` + `organization.id`; `organization` usa `organization.id/login` + `membership.user.id`; `team` usa `repository.id` y `organization.id`. Campos ausentes de los campos normalizados que admiten nulabilidad se convierten a `null`; el evento no se descarta solo por carecer de un id opcional, pues Core conserva la política vigente de ignorar/reconciliar lo que no pueda verificar. Para eventos no listados, `data.kind` es `IGNORED`; no se comparte ningún campo raw.
 
 - Core valida bearer, versión, forma y `deliveryId` antes de procesar; responde con el `GitHubWebhookAcceptedResponse` actual `{ deliveryId, accepted, duplicate, analysisRunId }`. PR duplicado ya persistido responde `200` y `duplicate: true`; toda aceptación nueva/no-op responde `202`. La integración devuelve ese resultado a GitHub solo tras la confirmación de Core dentro de 8 s; timeout, respuesta inválida o fallo de Core produce `503 CORE_WEBHOOK_UNAVAILABLE` para habilitar el reintento.
 - Core ejecuta la lógica actual: crea/cierra AnalysisRuns y jobs, actualiza/revoca bindings, renombra/oculta organizaciones y encola reverificación. El rol nunca se deriva del payload. Core conserva la idempotencia durable de PR por delivery id y el dedupe de jobs; handlers de acceso/repositorio/instalación conservan su semántica idempotente.
@@ -249,6 +251,6 @@ Para `pull_request`, el servicio solo normaliza los campos enumerados. `installa
 
 - `GET /health` expone liveness/readiness; readiness valida configuración local requerida, no depende de que GitHub esté disponible.
 - El servicio mapea límites de tasa, fallos de red y errores GitHub no verificables sin convertirlos en `NOT_FOUND`. Core traduce esos resultados a la conducta pública ya establecida (`GITHUB_VERIFICATION_UNAVAILABLE`, `NOT_AUTHORIZED`, etc.).
-- La migración conserva las respuestas y reglas de `SYSTEM-2.5` / `INTEROP-2.6` para rutas Core públicas. `GH-INTEROP-1.1` añade rutas de usuario Console→Integration y el callback privado Integration→Core sin retirar durante este corte las rutas equivalentes de Core; cualquier cambio de rutas/DTOs compartidos requiere Contract Sync.
+- La migración conserva las respuestas y reglas de `SYSTEM-2.5` / `INTEROP-2.6` para rutas Core públicas. `GH-INTEROP-1.2` añade rutas de usuario Console→Integration, el callback privado Integration→Core y la fecha original verificable de creación del PR; no retira durante este corte las rutas equivalentes de Core. Cualquier cambio de rutas/DTOs compartidos requiere Contract Sync.
 - Los nuevos IDs de Contract Sync usan un namespace de origen inequívoco (`CORE`, `CONSOLE`, `SANDBOX`, `GH`) y `sourceWorkItem` antes de que el servicio importe/publique eventos. Los IDs simples anteriores al corte 2026-09-25 siguen siendo legibles; no se reescriben. Esto no modifica el Harness local de Sandbox.
 - Ninguna actualización de URL/configuración de la GitHub App, secretos externos, deploy, DNS, Supabase o Sandbox está autorizada por este contrato. Esas acciones requieren solicitud explícita.
