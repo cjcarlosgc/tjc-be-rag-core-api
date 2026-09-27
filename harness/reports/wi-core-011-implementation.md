@@ -1,6 +1,6 @@
 # WI-CORE-011 — Evidencia de implementación
 
-**Estado:** corte implementado; queda pendiente la revisión independiente humana. El WI permanece `W-IN_PROGRESS`; no se solicita ni se registra `W-DONE`.
+**Estado:** corte implementado y revisión independiente humana aprobada. El cierre `W-DONE` queda registrado en `wi-core-011-closure.md`.
 
 ## Alcance
 
@@ -30,4 +30,4 @@ Implementa `ST-CORE-017` y `ST-CORE-018` para `HU02`, `HU12` y `HU14`, con la de
 
 ## Límites y siguiente paso
 
-La verificación local no aplica la migración ni valida contra una instancia PostgreSQL real. La revisión contractual especializada indicó que el espejo de Console necesita Contract Sync dirigido; no requiere cambios de UI. El usuario sigue siendo el reviewer independiente: revisar el diff, la migración y los resultados funcionales antes de permitir `W-DONE` o cualquier publicación.
+La verificación local no aplica la migración ni valida contra una instancia PostgreSQL real. El Contract Sync dirigido a Console solicita espejar INTEROP-2.6 en WI-CONSOLE-008, sin cambio funcional de UI. El usuario aprobó WI-CORE-011; esto no autoriza push, PR, despliegue ni cutover.

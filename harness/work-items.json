@@ -468,7 +468,7 @@
       "id": "WI-CORE-011",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "Post-transition",
       "title": "Excluir PRs anteriores al vínculo y ocultar historial ajeno",

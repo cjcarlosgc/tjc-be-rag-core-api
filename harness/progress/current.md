@@ -1,6 +1,6 @@
 # Progreso actual — CORE
 
-**Último corte cerrado:** `WI-CORE-003`, `W-DONE`. No hay WI activo; `WI-CORE-011` queda planificado después de `WI-GH-007` para excluir y ocultar Runs de PRs anteriores al binding. El cierre no implica aceptación de las 18 HU ni despliegue/cutover. Ver `harness/state.json` y `harness/work-items.json`.
+**Cierre registrado:** `WI-CORE-011`, `W-DONE`; no hay WI activo. Core excluye PRs anteriores al binding, reclasifica y oculta el historial relacionado, y recupera durablemente las fechas no verificables. `CS-CORE-20260927-003` solicita a Console espejar INTEROP-2.6 en su WI consumidor; esa implementación no bloquea el cierre local de Core. No se hizo push, PR, despliegue ni cutover. Ver `harness/state.json`, `harness/work-items.json` y `harness/reports/wi-core-011-closure.md`.
 
 **Hecho en los últimos cortes:** línea base SDD 3.0 de Core/Console (no homologada aún con Sandbox), catálogo fijo EP01–EP06/HU01–HU18, OC01–OC15 (P2), modelo ST↔WI y validadores de cierre/Contract Sync. `WI-CORE-009` hace reproducibles las puertas de dependencias externas; `WI-CORE-010` registra el gate cruzado. Core, Console y GitHub Integration API trabajan en `feature/jean`; Sandbox sigue intacto.
 
