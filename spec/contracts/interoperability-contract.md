@@ -2,7 +2,7 @@
 
 **Versión:** INTEROP-2.6
 **Compatible con:** SYSTEM-2.5
-**Fecha de corte:** 2026-09-26
+**Fecha de corte:** 2026-09-27
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 

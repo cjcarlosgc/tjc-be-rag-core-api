@@ -514,7 +514,7 @@
       "id": "WI-CORE-012",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "PHP V1",
       "title": "Analizar e inventariar snapshots PHP",

@@ -1087,132 +1087,247 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-09-27T03:47:26Z"
-    }
-  ],
-  "activeWorkItem": {
-    "id": "WI-CORE-012",
-    "component": "CORE",
-    "workItemType": "PRODUCT",
-    "storyIds": [
-      "HU03",
-      "HU04"
-    ],
-    "taskIds": [
-      "ST-CORE-019"
-    ],
-    "caseIds": [],
-    "sprint": "PHP V1",
-    "priority": "P1",
-    "status": "W-IN_PROGRESS",
-    "specPaths": [
-      "spec/features/018-php-laravel-support/spec.md",
-      "spec/features/018-php-laravel-support/plan.md",
-      "spec/features/018-php-laravel-support/tasks.md",
-      "spec/features/002-project-version-indexing/spec.md",
-      "spec/features/003-test-inventory/spec.md",
-      "spec/contracts/interoperability-contract.md"
-    ],
-    "transversalPaths": [
-      "spec/backlog.md",
-      "spec/constitution/planning-model.md"
-    ],
-    "approved": true,
-    "contractReview": null,
-    "contractSyncReview": [
-      {
-        "eventId": "CS-20260920-001",
-        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento histórico pide rutas de binding y baja de Project; WI-CORE-012 solo agrega el lenguaje y framework del análisis PHP.",
-        "report": "harness/reports/wi-core-012-sync-scope-review.md"
-      },
-      {
-        "eventId": "CS-20260921-003",
-        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento histórico describe login GitHub de Console; WI-CORE-012 solo agrega análisis e inventario PHP en Core.",
-        "report": "harness/reports/wi-core-012-sync-scope-review.md"
-      }
-    ],
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-PHP-AST-001"
-      ],
-      "checkedAt": "2026-09-27T04:46:52Z"
     },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer",
-      "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": "human-reviewer",
-      "handoffs": [],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-PASSED",
-      "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
-    },
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-012-spec-verification.md"
+    {
+      "id": "WI-CORE-012",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU03",
+        "HU04"
       ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-012-implementation.md"
+      "taskIds": [
+        "ST-CORE-019"
       ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-012-implementation.md"
+      "caseIds": [],
+      "sprint": "PHP V1",
+      "priority": "P1",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "spec/features/002-project-version-indexing/spec.md",
+        "spec/features/003-test-inventory/spec.md",
+        "spec/contracts/interoperability-contract.md"
       ],
-      "contractSyncPublished": [
-        "harness/reports/contract-sync-publish-cs-core-20260927-001.md"
+      "transversalPaths": [
+        "spec/backlog.md",
+        "spec/constitution/planning-model.md"
       ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-012-spec-verification.md"
-      ]
-    },
-    "coordination": {
-      "contractImpact": true,
-      "publishesContract": true,
-      "pullCheckpoints": [
+      "approved": true,
+      "contractReview": null,
+      "contractSyncReview": [
         {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-012",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-09-27T04:47:51.211Z"
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento histórico pide rutas de binding y baja de Project; WI-CORE-012 solo agrega el lenguaje y framework del análisis PHP.",
+          "report": "harness/reports/wi-core-012-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento histórico describe login GitHub de Console; WI-CORE-012 solo agrega análisis e inventario PHP en Core.",
+          "report": "harness/reports/wi-core-012-sync-scope-review.md"
         }
       ],
-      "publishedSyncIds": [
-        "CS-CORE-20260927-001"
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-PHP-AST-001"
+        ],
+        "checkedAt": "2026-09-27T04:46:52Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "El delta PHP de INTEROP-2.6 es aditivo; Console sincronizó el espejo y sus DTOs."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/interoperability-contract.md",
+              "harness/contract-sync/outbox/CS-CORE-20260927-001.yaml"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-012-contract-review.md",
+              "harness/reports/wi-core-012-contract-sync-resolution.md"
+            ],
+            "recommendedNextStep": "Cerrar WI-CORE-012; dejar WI-CONSOLE-009 abierto para revisión humana."
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "El usuario aprobó el alcance y la revisión independiente de WI-CORE-012; el Contract Sync consumidor quedó resuelto."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/",
+              "spec/features/018-php-laravel-support/",
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-012-user-review.md"
+            ],
+            "recommendedNextStep": "Registrar before-done y cerrar el WI con snapshot verificable."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-012-spec-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-012-implementation.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-012-user-review.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-012-implementation.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-012-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-012-contract-sync-resolution.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/contract-sync-publish-cs-core-20260927-001.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-012-contract-sync-resolution.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-012-spec-verification.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-012-contract-sync-resolution.md"
+        ]
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-012",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-09-27T04:47:51.211Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-012",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-09-27T20:07:17.801Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-012",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-09-27T20:07:51.049Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-012",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-09-27T20:08:49.255Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20260927-001"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-012-approval.md",
+        "harness/reports/wi-core-012-spec-verification.md",
+        "harness/reports/wi-core-012-sync-scope-review.md",
+        "harness/reports/wi-core-012-contract-sync-resolution.md",
+        "harness/reports/wi-core-012-user-review.md",
+        "harness/reports/wi-core-012-closure.md"
       ],
-      "pendingRelevantSyncIds": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-012-approval.md",
-      "harness/reports/wi-core-012-spec-verification.md",
-      "harness/reports/wi-core-012-sync-scope-review.md"
-    ],
-    "blockedReason": null
-  }
+      "blockedReason": null,
+      "closedAt": "2026-09-27T20:10:48.833Z"
+    }
+  ],
+  "activeWorkItem": null
 }
