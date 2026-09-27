@@ -1159,7 +1159,7 @@
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_RUN",
       "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
+      "contractSyncPublished": "G-PASSED",
       "interopSyncChecked": "G-NOT_RUN",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
@@ -1173,6 +1173,9 @@
       ],
       "technicalChecksPassed": [
         "harness/reports/wi-core-012-implementation.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20260927-001.md"
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-012-spec-verification.md"
@@ -1200,7 +1203,9 @@
           "checkedAt": "2026-09-27T04:47:51.211Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20260927-001"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [

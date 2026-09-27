@@ -1,6 +1,6 @@
 # Evidencia de implementación — WI-CORE-012
 
-**Estado:** implementación local verificada; WI permanece `W-IN_PROGRESS` para Contract Sync, revisión contractual y visto bueno humano.  
+**Estado:** implementación local verificada; WI permanece `W-IN_PROGRESS` a la espera de Contract Sync con Console, revisión contractual y visto bueno humano.
 **Alcance:** análisis estructural e inventario heurístico de snapshots PHP en Core (HU03/HU04). No incluye generación/ejecución PHPUnit ni cambios en Sandbox.
 
 ## Entregado
@@ -24,5 +24,5 @@
 
 ## Pendiente antes de revisión/cierre
 
-- Publicar Contract Sync de `INTEROP-2.6` hacia Console y resolver su espejo/impacto local.
+- Resolver el Contract Sync `CS-CORE-20260927-001` del lado Console; la publicación productora está en `harness/contract-sync/outbox/`.
 - Revisión contractual y revisión/visto bueno humano del WI. No se cierra la subtarea ni el work item en este reporte.
