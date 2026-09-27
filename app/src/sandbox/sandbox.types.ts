@@ -63,6 +63,8 @@ export interface SandboxArtifactInput {
   content: Buffer;
 }
 
+export type ExecutionProfile = 'NODE_TYPESCRIPT' | 'PHP_LARAVEL_PHPUNIT';
+
 export interface SandboxExecutionRequest {
   requestId: string;
   testRunId: string;

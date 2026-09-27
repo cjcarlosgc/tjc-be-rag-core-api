@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { externalDependencyIssues } from './external-dependency-gate.mjs';
 import { contractSyncLocalEvidenceIssue, stableContractSyncPayload } from './contract-sync-lifecycle.mjs';
 import { localDependencyIssues } from './work-item-dependencies.mjs';
+import { taskStoriesFitWorkItem } from './work-item-story-scope.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -143,7 +144,7 @@ for (const line of tasks.split('\n')) {
   if (taskStatus !== 'T-DONE' && /^- \[x\]/.test(line)) fail(`${taskId} is checked before T-DONE`);
   const declared = declaredStories(header);
   const registered = new Set(itemById.get(wiId)?.storyIds ?? []);
-  if (declared.size !== registered.size || [...declared].some((id) => !registered.has(id))) fail(`${taskId} HU declaration differs from ${wiId}`);
+  if (!taskStoriesFitWorkItem(declared, registered)) fail(`${taskId} HU declaration must be a non-empty subset of ${wiId}`);
 }
 if (failures.length) {
   console.error(`Work item validation failed:\n- ${failures.join('\n- ')}`);

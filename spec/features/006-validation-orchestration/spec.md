@@ -15,6 +15,7 @@ Orquestar la validación mediante el endpoint configurable del Sandbox —local 
 - FailureType: NONE, COMPILATION, TEST_ASSERTION, TEST_RUNTIME, DEPENDENCY, CONFIGURATION, INFRASTRUCTURE, UNKNOWN.
 - 503 solo cuando la plataforma no puede iniciar/usar dependencia; fallos luego del 202 se persisten.
 - La integración usa el contrato asíncrono Core↔Sandbox `INTEROP-2.5`. Core genera una `EphemeralDownloadRef` de vida corta para el snapshot interno y las pruebas candidatas; el Sandbox devuelve hechos y Core calcula la clasificación y persiste el resultado del producto.
+- Core siempre envía el `executionProfile` obligatorio de `INTEROP-2.5` §7.2, compatible con `runnerHint`; los runners actuales `JEST` y `VITEST` usan `NODE_TYPESCRIPT`.
 - Core envía `Authorization: Bearer` con `SANDBOX_SERVICE_TOKEN` en POST y GET de `/executions`. Si `SANDBOX_URL` existe, el token también debe existir y validarse al arranque; jamás se entrega al frontend ni al container.
 - Cada subejecución usa un `requestId`/`Idempotency-Key` UUID v5 estable conforme a `DEC-IDEMP-001`, derivado del job durable y la unidad lógica. Un retry HTTP reutiliza esa identidad; nunca genera una key aleatoria nueva.
 - V1 solo envía al Sandbox proyectos con `pnpm-lock.yaml`; una incompatibilidad se expone como `UNSUPPORTED_PACKAGE_MANAGER`.

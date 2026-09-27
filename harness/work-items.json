@@ -113,6 +113,7 @@
         "HU02",
         "HU03",
         "HU06",
+        "HU11",
         "HU14",
         "HU16"
       ],
@@ -121,7 +122,8 @@
         "ST-CORE-011",
         "ST-CORE-012",
         "ST-CORE-013",
-        "ST-CORE-014"
+        "ST-CORE-014",
+        "ST-CORE-015"
       ],
       "caseIds": [],
       "dependsOn": [
@@ -166,7 +168,9 @@
         "El provider token OAuth solo transita Console→GitHub Integration para discovery/verificación que lo requiera; nunca cruza a Core ni se persiste/registra. Se conserva scope repo e IDEA-005 diferida.",
         "No se cambian URL/configuración pública de GitHub App, secretos externos, deploy, DNS, Supabase ni Sandbox; la versión de Core con el ingress antiguo retirado no se despliega antes del cutover coordinado autorizado.",
         "Los Contract Sync nuevos usan namespace por emisor; IDs históricos siguen intactos. Los WIs GH-002..005 y el nuevo WI-GH-006, sus reportes y Contract Sync deben estar resueltos antes de la revisión final del WI Core.",
-        "Validaciones SDD/Harness, pruebas, lint y build de Core pasan con evidencia reproducible; SYSTEM/INTEROP y GH contract están sincronizados donde corresponda, Console verifica consumo directo y las rutas Core antiguas continúan compatibles."
+        "Validaciones SDD/Harness, pruebas, lint y build de Core pasan con evidencia reproducible; SYSTEM/INTEROP y GH contract están sincronizados donde corresponda, Console verifica consumo directo y las rutas Core antiguas continúan compatibles.",
+        "Para HU11, Core envía `executionProfile` explícito y compatible con `runnerHint`; `JEST` y `VITEST` se mapean a `NODE_TYPESCRIPT` y existen pruebas que verifican el body enviado al Sandbox.",
+        "Cada subtarea declara un subconjunto no vacío de HU del WI; el Harness rechaza declaraciones vacías o historias fuera del alcance agregado del WI."
       ],
       "contractSyncReview": [
         {
@@ -188,7 +192,11 @@
         "spec/features/016-github-integration/spec.md",
         "spec/features/016-github-integration/plan.md",
         "spec/features/016-github-integration/tasks.md",
-        "spec/contracts/github-integration-contract.md"
+        "spec/contracts/github-integration-contract.md",
+        "spec/constitution/planning-model.md",
+        "spec/features/006-validation-orchestration/spec.md",
+        "spec/features/006-validation-orchestration/plan.md",
+        "spec/features/006-validation-orchestration/tasks.md"
       ]
     },
     {

@@ -15,6 +15,8 @@
 
 `COMP` es `CORE`, `CONSOLE`, `SANDBOX` o `GH`. El prefijo numérico no marca el orden de ejecución ni divide la HU en “parte 01”; solo evita colisiones. Los work items pertenecen al repositorio que cambia: Core no crea un WI de Sandbox. Cada subtarea corresponde a un WI local; si el trabajo necesita varios cortes, se divide en subtareas distintas. Un WI puede agrupar subtareas afines. Cada WI declara `component`, `storyIds`, `taskIds`, `caseIds`, dependencias, `contractImpact` y `publishesContract`. Este último solo es verdadero si el componente dueño publica un evento Contract Sync, no si solo consume el contrato. Historias, casos y subtareas son Markdown, no JSON paralelo; el JSON existe solo para el estado ejecutable del Harness.
 
+Una subtarea declara únicamente las HU que afecta directamente; esa lista debe ser no vacía y un subconjunto de las HU agregadas por su WI. Así, un WI transversal puede reunir subtareas de historias distintas sin atribuir todas las historias a cada corte técnico.
+
 ## Estados visibles
 
 El prefijo identifica el dueño del estado. Los nombres son ingleses en todos los componentes nuevos; los valores históricos sin prefijo se migran al registrarse en el nuevo flujo.
