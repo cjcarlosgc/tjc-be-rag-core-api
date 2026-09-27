@@ -23,6 +23,7 @@ export interface RepositoryBranch {
 export interface PullRequestHead {
   headSha: string;
   state: 'open' | 'closed';
+  createdAt: string;
 }
 
 type GithubLookup<T> =
@@ -189,8 +190,17 @@ function isPullRequestHead(value: unknown): value is PullRequestHead {
   return (
     isRecord(value) &&
     isNonEmptyString(value.headSha) &&
-    (value.state === 'open' || value.state === 'closed')
+    (value.state === 'open' || value.state === 'closed') &&
+    isIsoDateTime(value.createdAt)
   );
+}
+
+function isIsoDateTime(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value)) {
+    return false;
+  }
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 19) === value.slice(0, 19);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

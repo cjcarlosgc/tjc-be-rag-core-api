@@ -11,6 +11,10 @@ import { BindingLifecycleService } from '../access-sync/binding-lifecycle.servic
 import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AccessEventsService } from './access-events.service.js';
 import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
+import {
+  PULL_REQUEST_METADATA_BACKFILL_JOB_TYPE,
+  pullRequestMetadataBackfillDedupeKey,
+} from '../analysis-runs/pull-request-metadata-backfill.job.handler.js';
 import type { AnalysisRun, RepositoryBinding } from '../generated/prisma/client.js';
 import type { NormalizedWebhookEvent, NormalizedWebhookData } from './dto/normalized-webhook-event.js';
 
@@ -29,6 +33,7 @@ function buildRequest(payload: any, overrides: { deliveryId?: string; eventName?
           title: payload.pull_request.title,
           draft: payload.pull_request.draft,
           merged: payload.pull_request.merged,
+          createdAt: payload.pull_request.created_at ?? null,
           base: payload.pull_request.base,
           head: payload.pull_request.head,
           userLogin: payload.pull_request.user?.login ?? null,
@@ -109,12 +114,20 @@ describe('GithubWebhooksService', () => {
     suspendByInstallation: ReturnType<typeof vi.fn>;
     unsuspendByInstallation: ReturnType<typeof vi.fn>;
   };
-  let analysisRunsRepository: { findCurrentByPullRequest: ReturnType<typeof vi.fn> };
+  let analysisRunsRepository: {
+    findCurrentByPullRequest: ReturnType<typeof vi.fn>;
+    classifyPullRequest: ReturnType<typeof vi.fn>;
+  };
   let analysisRunsService: {
     startRunFromWebhook: ReturnType<typeof vi.fn>;
     closeRun: ReturnType<typeof vi.fn>;
   };
-  let jobsService: { enqueue: ReturnType<typeof vi.fn> };
+  let jobsService: {
+    enqueue: ReturnType<typeof vi.fn>;
+    enqueueDeduped: ReturnType<typeof vi.fn>;
+    updatePendingPayload: ReturnType<typeof vi.fn>;
+    expediteDeduped: ReturnType<typeof vi.fn>;
+  };
   let repositoryEvents: { handle: ReturnType<typeof vi.fn> };
   let bindingLifecycle: { revokeBinding: ReturnType<typeof vi.fn> };
   let organizationLifecycle: { hide: ReturnType<typeof vi.fn> };
@@ -156,6 +169,8 @@ describe('GithubWebhooksService', () => {
       changesetHeadSha: 'head-sha',
       indexDeltaBaseSha: null,
       projectVersionId: null,
+      pullRequestCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      repositoryBindingEligible: true,
       functionalBehaviorValidated: false,
       actionRequiredCount: 0,
       generatedTestsCount: 0,
@@ -175,6 +190,7 @@ describe('GithubWebhooksService', () => {
         title: 'Add feature',
         draft: false,
         merged: false,
+        created_at: '2026-01-01T00:00:00.000Z',
         base: { ref: 'develop', sha: 'base-sha' },
         head: { ref: 'feature/x', sha: 'head-sha' },
         user: { login: 'octocat' },
@@ -197,12 +213,20 @@ describe('GithubWebhooksService', () => {
       suspendByInstallation: vi.fn().mockResolvedValue(undefined),
       unsuspendByInstallation: vi.fn().mockResolvedValue(undefined),
     };
-    analysisRunsRepository = { findCurrentByPullRequest: vi.fn().mockResolvedValue(null) };
+    analysisRunsRepository = {
+      findCurrentByPullRequest: vi.fn().mockResolvedValue(null),
+      classifyPullRequest: vi.fn().mockResolvedValue(undefined),
+    };
     analysisRunsService = {
       startRunFromWebhook: vi.fn().mockResolvedValue({ run: buildRun(), isNew: true }),
       closeRun: vi.fn().mockResolvedValue(buildRun({ status: 'OBSOLETE', current: false })),
     };
-    jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
+    jobsService = {
+      enqueue: vi.fn().mockResolvedValue('job-1'),
+      enqueueDeduped: vi.fn().mockResolvedValue({ created: true, jobId: 'job-2' }),
+      updatePendingPayload: vi.fn().mockResolvedValue(undefined),
+      expediteDeduped: vi.fn().mockResolvedValue(1),
+    };
     repositoryEvents = { handle: vi.fn().mockResolvedValue(undefined) };
     bindingLifecycle = { revokeBinding: vi.fn().mockResolvedValue(undefined) };
     organizationLifecycle = { hide: vi.fn().mockResolvedValue(1) };
@@ -279,6 +303,8 @@ describe('GithubWebhooksService', () => {
       headSha: 'head-sha',
       draft: false,
       actorLogin: 'octocat',
+      pullRequestCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      repositoryBindingEligible: true,
     });
     expect(jobsService.enqueue).toHaveBeenCalledWith(SNAPSHOT_ANALYSIS_JOB_TYPE, {
       analysisRunId: run.id,
@@ -287,6 +313,115 @@ describe('GithubWebhooksService', () => {
       expect.objectContaining({ deliveryId: 'delivery-1', analysisRunId: run.id }),
     );
     expect(result.analysisRunId).toBe(run.id);
+  });
+
+  it('does not start a run for a pre-binding PR, even on a later synchronize', async () => {
+    for (const action of ['opened', 'synchronize']) {
+      const result = await service.handle(buildRequest(pullRequestPayload({
+        action,
+        pull_request: { ...pullRequestPayload().pull_request, created_at: '2025-12-31T23:59:59.999Z' },
+      }), { deliveryId: `old-pr-${action}` }));
+
+      expect(result.analysisRunId).toBeNull();
+    }
+
+    expect(analysisRunsRepository.classifyPullRequest).toHaveBeenCalledWith(
+      '123', 42, new Date('2025-12-31T23:59:59.999Z'), binding.createdAt,
+    );
+    expect(analysisRunsService.startRunFromWebhook).not.toHaveBeenCalled();
+    expect(jobsService.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('treats a PR created at binding time as eligible', async () => {
+    const result = await service.handle(buildRequest(pullRequestPayload({
+      pull_request: { ...pullRequestPayload().pull_request, created_at: binding.createdAt.toISOString() },
+    })));
+
+    expect(result.analysisRunId).toBe('run-1');
+    expect(analysisRunsRepository.classifyPullRequest).toHaveBeenCalledWith(
+      '123', 42, binding.createdAt, binding.createdAt,
+    );
+    expect(analysisRunsService.startRunFromWebhook).toHaveBeenCalledWith(expect.objectContaining({
+      pullRequestCreatedAt: binding.createdAt,
+      repositoryBindingEligible: true,
+    }));
+  });
+
+  it('does not start a run for an unverified creation time and enqueues durable recovery', async () => {
+    const result = await service.handle(buildRequest(pullRequestPayload({
+      pull_request: { ...pullRequestPayload().pull_request, created_at: null },
+    })));
+
+    expect(result.analysisRunId).toBeNull();
+    expect(analysisRunsRepository.classifyPullRequest).toHaveBeenCalledWith('123', 42, null, binding.createdAt);
+    expect(jobsService.enqueueDeduped).toHaveBeenCalledWith(
+      PULL_REQUEST_METADATA_BACKFILL_JOB_TYPE,
+      expect.objectContaining({
+        repositoryId: '123',
+        pullRequestNumber: 42,
+        pendingEvent: expect.objectContaining({
+          deliveryId: 'delivery-1',
+          receivedAt: '2026-09-25T20:00:00.000Z',
+          action: 'opened',
+          number: 42,
+          repositoryName: 'org/repo',
+          pull_request: expect.objectContaining({
+            created_at: null,
+            base: { ref: 'develop', sha: 'base-sha' },
+            head: { ref: 'feature/x', sha: 'head-sha' },
+          }),
+        }),
+      }),
+      { dedupeKey: pullRequestMetadataBackfillDedupeKey('123', 42) },
+    );
+    expect(analysisRunsService.startRunFromWebhook).not.toHaveBeenCalled();
+    expect(webhookDeliveriesRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ deliveryId: 'delivery-1', analysisRunId: null }),
+    );
+  });
+
+  it('closes an existing run immediately when a closed event has no verified creation time', async () => {
+    const current = buildRun({ status: 'PROCESSING' });
+    analysisRunsRepository.findCurrentByPullRequest.mockResolvedValue(current);
+
+    const result = await service.handle(buildRequest(pullRequestPayload({
+      action: 'closed',
+      pull_request: { ...pullRequestPayload().pull_request, created_at: null },
+    })));
+
+    expect(analysisRunsService.closeRun).toHaveBeenCalledWith(current, 'CLOSED');
+    expect(result.analysisRunId).toBe(current.id);
+    expect(jobsService.enqueueDeduped).toHaveBeenCalledWith(
+      PULL_REQUEST_METADATA_BACKFILL_JOB_TYPE,
+      expect.objectContaining({
+        pendingEvent: expect.objectContaining({
+          action: 'closed',
+          pull_request: expect.objectContaining({ created_at: null }),
+        }),
+      }),
+      { dedupeKey: pullRequestMetadataBackfillDedupeKey('123', 42) },
+    );
+    expect(analysisRunsService.startRunFromWebhook).not.toHaveBeenCalled();
+  });
+
+  it('replaces a pending recovery payload with the latest normalized event', async () => {
+    jobsService.enqueueDeduped.mockResolvedValueOnce({ created: false, jobId: 'pending' });
+
+    await service.handle(buildRequest(pullRequestPayload({
+      action: 'synchronize',
+      pull_request: { ...pullRequestPayload().pull_request, created_at: null },
+    }), {
+      deliveryId: 'delivery-new',
+    }));
+
+    expect(jobsService.updatePendingPayload).toHaveBeenCalledWith(
+      pullRequestMetadataBackfillDedupeKey('123', 42),
+      expect.objectContaining({
+        pendingEvent: expect.objectContaining({ deliveryId: 'delivery-new', action: 'synchronize' }),
+      }),
+    );
+    expect(jobsService.expediteDeduped).toHaveBeenCalledWith(pullRequestMetadataBackfillDedupeKey('123', 42));
+    expect(jobsService.enqueueDeduped).toHaveBeenCalledTimes(2);
   });
 
   it('does not enqueue the snapshot job when the run already existed (idempotent redelivery)', async () => {

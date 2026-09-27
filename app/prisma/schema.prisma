@@ -295,6 +295,10 @@ model AnalysisRun {
   repositoryId                String
   repositoryName              String
   prNumber                    Int
+  /// Fecha original de creación en GitHub; null mientras no se pueda verificar.
+  pullRequestCreatedAt         DateTime?
+  /// null = sin clasificar; false = anterior al binding; true = elegible.
+  repositoryBindingEligible    Boolean?
   prTitle                     String
   baseRef                     String
   headRef                     String
@@ -326,6 +330,7 @@ model AnalysisRun {
 
   @@index([projectId])
   @@index([repositoryId, prNumber, current])
+  @@index([repositoryId, prNumber, repositoryBindingEligible], map: "analysis_runs_pr_metadata_eligibility_idx")
   @@map("analysis_runs")
 }
 

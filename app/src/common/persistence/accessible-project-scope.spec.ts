@@ -93,6 +93,8 @@ describe('user-scoped reads use the accessibleProject predicate (HU56, HU59)', (
     expect(functionalQuestion.findMany.mock.calls[0][0].where.analysisRun).toEqual({
       status: 'ACTION_REQUIRED',
       current: true,
+      pullRequestCreatedAt: { not: null },
+      repositoryBindingEligible: true,
     });
   });
 });

@@ -88,6 +88,8 @@ También se procesan `closed`, `edited` y `converted_to_draft` para mantener lif
 - cierre sin merge cancela/obsoleta trabajo no terminal sin borrar historial;
 - merge cierra el lifecycle y resultados tardíos no pueden publicarse como vigentes.
 
+Solo son elegibles los PR cuya fecha original de creación sea igual o posterior a `RepositoryBinding.createdAt`; un PR anterior no inicia ni reinicia análisis aunque después reciba eventos. Si la fecha no puede verificarse temporalmente, Core acepta el webhook y conserva de forma durable el evento normalizado necesario para reanudarlo, sin crear un Run provisional ni sustituir la fecha con `receivedAt`. Al recuperar la metadata, Core reanuda solo con binding habilitado y HEAD aún vigente. Los Runs históricos anteriores al binding se conservan como evidencia y se ocultan de listas, detalles y bandejas; los eventos de cierre mantienen el lifecycle aunque falte la fecha.
+
 Fork PR se distingue de same-repository PR. Su publicación queda fuera del primer incremento hasta resolver permisos de escritura específicos.
 
 ## AnalysisRun, Job y Check

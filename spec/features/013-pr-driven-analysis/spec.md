@@ -31,6 +31,8 @@ Al conectar un repositorio, `RepositoryBinding.createdAt` delimita desde cuándo
 
 La falta o invalidez de `createdAt` no rechaza el webhook: Core no inicia ni reinicia un Run elegible, mantiene ocultos los Runs afectados y programa recuperación durable. La lectura histórica `pull-request-head` solo devuelve `OK` con una fecha original verificable; si falta o no es inequívoca, devuelve `UNVERIFIABLE` sin valor parcial. Core reintenta la clasificación durablemente y no usa `receivedAt` como sustituto.
 
+Para un evento nuevo sin fecha verificable, la recuperación durable conserva únicamente el evento normalizado allowlisted necesario para retomarlo; no crea un Run provisional. Cuando GitHub Integration verifica la fecha, Core crea el Run solo si el PR es elegible, el binding sigue habilitado y el HEAD del evento aún coincide con el HEAD consultado. Una fecha anterior descarta el inicio. Los eventos de cierre, conversión a borrador o salida de la rama de integración actualizan el lifecycle aunque falte la fecha, sin iniciar análisis.
+
 Los Runs históricos se conservan físicamente. Core clasifica como obsoletos y oculta de listas, detalles y bandejas los asociados a PRs anteriores al binding. No hay cambios de UI previstos ni cambios en Sandbox. La implementación está pendiente de `WI-GH-007`, `WI-CORE-011` y `WI-CONSOLE-008`.
 
 ## Pipeline

@@ -79,3 +79,47 @@ describe('FunctionalQuestionsRepository.createForCurrentRun', () => {
     expect(tx.functionalQuestion.create).not.toHaveBeenCalled();
   });
 });
+
+describe('FunctionalQuestionsRepository classified runs', () => {
+  it('hides direct pending-question reads for unclassified or pre-binding runs', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const repository = new FunctionalQuestionsRepository({
+      functionalQuestion: { findFirst },
+    } as unknown as PrismaService);
+
+    await repository.findPendingByAnalysisRun('run-1');
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        analysisRunId: 'run-1',
+        status: 'PENDING',
+        analysisRun: {
+          pullRequestCreatedAt: { not: null },
+          repositoryBindingEligible: true,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  it('filters the cross-project inbox before pagination', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const repository = new FunctionalQuestionsRepository({
+      functionalQuestion: { findMany },
+    } as unknown as PrismaService);
+
+    await repository.findActionRequired('user-1', undefined, 'PENDING', 20, undefined);
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        analysisRun: {
+          status: 'ACTION_REQUIRED',
+          current: true,
+          pullRequestCreatedAt: { not: null },
+          repositoryBindingEligible: true,
+        },
+      }),
+      take: 21,
+    }));
+  });
+});
