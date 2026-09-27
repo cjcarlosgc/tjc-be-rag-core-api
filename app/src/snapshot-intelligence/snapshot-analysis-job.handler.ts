@@ -11,10 +11,21 @@ import { CodeChunksRepository, type ChunkToPersist } from '../project-versions/p
 import { TestTargetsRepository } from '../project-versions/persistence/test-targets.repository.js';
 import { FileDiscoveryService } from '../project-versions/discovery/file-discovery.service.js';
 import { TypeScriptParserService, type ParsedChunk } from '../project-versions/parsing/typescript-parser.service.js';
+import { PhpParserService } from '../project-versions/parsing/php-parser.service.js';
 import { TestTargetExtractorService } from '../project-versions/inventory/test-target-extractor.service.js';
 import { ExistingTestResolverService } from '../project-versions/inventory/existing-test-resolver.service.js';
-import { findPackageJsonPath, detectFramework } from '../project-versions/inventory/framework-detector.js';
-import { isSourceFile, isTestFile } from '../project-versions/indexing.constants.js';
+import { PhpExistingTestResolverService } from '../project-versions/inventory/php-existing-test-resolver.service.js';
+import {
+  detectFramework,
+  detectPhpFramework,
+  detectProjectLanguage,
+  findPackageJsonPath,
+} from '../project-versions/inventory/framework-detector.js';
+import {
+  isPhpSourceFile,
+  isTestFile,
+  isTypeScriptSourceFile,
+} from '../project-versions/indexing.constants.js';
 import { GithubRepositoryContentService, type CompareFile } from '../github-app/github-repository-content.service.js';
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
@@ -25,6 +36,8 @@ import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
 import type { EmbeddingProvider } from '../providers/embedding-provider.interface.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
 import type { AnalysisIndexMode, CodeChunk } from '../generated/prisma/client.js';
+import { ProjectLanguage, type TestFramework } from '../generated/prisma/enums.js';
+import type { ResolvedTestTarget } from '../project-versions/inventory/existing-test-resolver.service.js';
 
 export interface SnapshotAnalysisJobPayload {
   analysisRunId: string;
@@ -38,6 +51,7 @@ const CHUNK_SYMBOL_TO_ANALYSIS_KIND: Record<ParsedChunk['symbolKind'], AnalysisS
   CONSTRUCTOR: 'METHOD',
   FUNCTION: 'FUNCTION',
   INTERFACE: 'INTERFACE',
+  TRAIT: 'TRAIT',
   TYPE_ALIAS: 'TYPE',
   ENUM: 'ENUM',
   FILE: null,
@@ -104,8 +118,10 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     private readonly testTargetsRepository: TestTargetsRepository,
     private readonly fileDiscoveryService: FileDiscoveryService,
     private readonly typeScriptParserService: TypeScriptParserService,
+    private readonly phpParserService: PhpParserService,
     private readonly testTargetExtractorService: TestTargetExtractorService,
     private readonly existingTestResolverService: ExistingTestResolverService,
+    private readonly phpExistingTestResolverService: PhpExistingTestResolverService,
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
     private readonly githubSnapshotMaterializerService: GithubSnapshotMaterializerService,
     private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
@@ -157,19 +173,38 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       workspace = await this.githubSnapshotMaterializerService.materialize(binding, run.headSha);
 
       const discovered = await this.fileDiscoveryService.discover(workspace.dir);
-      const sourceFiles = discovered.filter((path) => isSourceFile(path));
+      const language = detectProjectLanguage(discovered);
+      const isPhp = language === ProjectLanguage.PHP;
+      const sourceFiles = discovered.filter((path) =>
+        isPhp ? isPhpSourceFile(path) : isTypeScriptSourceFile(path),
+      );
       const testFiles = sourceFiles.filter((path) => isTestFile(path));
       const productionFiles = sourceFiles.filter((path) => !isTestFile(path));
 
-      const chunks = this.typeScriptParserService.parse(workspace.dir, sourceFiles);
-      const candidates = this.testTargetExtractorService.extract(workspace.dir, productionFiles);
-      const resolvedTargets = this.existingTestResolverService.resolve(workspace.dir, testFiles, candidates);
+      let chunks: ParsedChunk[];
+      let resolvedTargets: ResolvedTestTarget[];
+      let detectedFramework: TestFramework | null;
 
-      const packageJsonPath = findPackageJsonPath(discovered);
-      const packageJsonContent = packageJsonPath
-        ? await readFile(join(workspace.dir, packageJsonPath), 'utf8').catch(() => undefined)
-        : undefined;
-      const detectedFramework = detectFramework(packageJsonContent, discovered);
+      if (isPhp) {
+        const analysis = await this.phpParserService.analyze(workspace.dir, sourceFiles);
+        chunks = analysis.chunks;
+        resolvedTargets = await this.phpExistingTestResolverService.resolve(
+          workspace.dir,
+          testFiles,
+          analysis.candidates.filter((candidate) => !testFiles.includes(candidate.filePath)),
+        );
+        const composerJson = await readFile(join(workspace.dir, 'composer.json'), 'utf8').catch(() => undefined);
+        detectedFramework = detectPhpFramework(composerJson, discovered);
+      } else {
+        chunks = this.typeScriptParserService.parse(workspace.dir, sourceFiles);
+        const candidates = this.testTargetExtractorService.extract(workspace.dir, productionFiles);
+        resolvedTargets = this.existingTestResolverService.resolve(workspace.dir, testFiles, candidates);
+        const packageJsonPath = findPackageJsonPath(discovered);
+        const packageJsonContent = packageJsonPath
+          ? await readFile(join(workspace.dir, packageJsonPath), 'utf8').catch(() => undefined)
+          : undefined;
+        detectedFramework = detectFramework(packageJsonContent, discovered);
+      }
 
       const embeddings =
         chunks.length > 0 ? await this.embeddingProvider.embedMany(chunks.map((c) => c.content)) : [];
@@ -181,6 +216,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       const version = await this.projectVersionsRepository.createPending({
         projectId: run.projectId,
         commitSha: run.headSha,
+        language,
       });
       await this.projectVersionsRepository.markStarted(version.id);
       await this.codeChunksRepository.insertMany(version.id, chunksToPersist);
@@ -198,6 +234,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         changesetFiles,
         indexMode,
         previousVersion?.id,
+        language,
       );
       await this.analysisSymbolsRepository.insertMany(run.id, symbols);
 
@@ -207,7 +244,9 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         projectVersionId: version.id,
       });
 
-      const changesetTouchesSource = changesetFiles.some((file) => isSourceFile(file.filename));
+      const changesetTouchesSource = changesetFiles.some((file) =>
+        isPhp ? isPhpSourceFile(file.filename) : isTypeScriptSourceFile(file.filename),
+      );
 
       if (!changesetTouchesSource) {
         const completed = await this.analysisRunsService.completeRunFromSystem(run, 'NO_TEST_RELEVANT_CHANGES', {
@@ -251,10 +290,11 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     changesetFiles: CompareFile[],
     indexMode: AnalysisIndexMode,
     previousVersionId: string | undefined,
+    language: ProjectLanguage,
   ): Promise<AnalysisSymbolToPersist[]> {
     const changedFilePaths = new Set(changesetFiles.map((file) => file.filename));
     const changedFilePathsWithoutExt = new Set(
-      changesetFiles.map((file) => file.filename.replace(/\.tsx?$/, '')),
+      changesetFiles.map((file) => file.filename.replace(/\.(?:tsx?|php)$/i, '')),
     );
 
     let previousByIdentity: Map<string, string> | null = null;
@@ -279,7 +319,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
 
         if (!previousByIdentity || previousContent === undefined || previousContent !== chunk.content) {
           directlyChanged.push({
-            language: 'TYPESCRIPT',
+            language: language === ProjectLanguage.PHP ? 'PHP' : 'TYPESCRIPT',
             kind,
             qualifiedName: qualifiedNameOf(chunk),
             filePath: chunk.filePath,
@@ -296,7 +336,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
 
       if (isImpacted) {
         potentiallyImpacted.push({
-          language: 'TYPESCRIPT',
+          language: language === ProjectLanguage.PHP ? 'PHP' : 'TYPESCRIPT',
           kind,
           qualifiedName: qualifiedNameOf(chunk),
           filePath: chunk.filePath,

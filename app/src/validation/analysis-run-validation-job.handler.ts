@@ -129,6 +129,20 @@ export class AnalysisRunValidationJobHandler
         return;
       }
 
+      if (version.language === 'PHP' || version.detectedFramework === 'PHPUNIT') {
+        const unsupported = await this.analysisRunsService.completeRunFromSystem(
+          run,
+          'TECHNICAL_GENERATION_FAILURE',
+          {
+            resultSummary: 'El snapshot PHP fue indexado, pero la generación y ejecución PHPUnit siguen pendientes de WI-CORE-013.',
+          },
+        );
+        if (unsupported) {
+          await this.analysisRunChecksService.publishForRun(unsupported);
+        }
+        return;
+      }
+
       const candidates = symbols.filter(
         (symbol) =>
           symbol.changeKind === 'DIRECTLY_CHANGED' && (symbol.kind === 'METHOD' || symbol.kind === 'FUNCTION'),

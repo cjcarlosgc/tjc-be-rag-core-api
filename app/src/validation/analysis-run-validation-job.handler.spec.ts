@@ -168,6 +168,23 @@ describe('AnalysisRunValidationJobHandler', () => {
     expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
+  it('does not send PHP snapshots to the TypeScript generation/Sandbox flow before WI-CORE-013', async () => {
+    const context = await setup();
+    context.projectVersionsRepository.findById.mockResolvedValue(
+      buildVersion({ language: 'PHP', detectedFramework: 'PHPUNIT' }),
+    );
+
+    await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    expect(context.analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'run-1' }),
+      'TECHNICAL_GENERATION_FAILURE',
+      expect.objectContaining({ resultSummary: expect.stringContaining('WI-CORE-013') }),
+    );
+    expect(context.githubSnapshotMaterializerService.materialize).not.toHaveBeenCalled();
+    expect(context.sandboxExecutionService.execute).not.toHaveBeenCalled();
+  });
+
   it('is a no-op when the run is not PROCESSING', async () => {
     const { handler, analysisRunsRepository, repositoryBindingsRepository } = await setup();
     analysisRunsRepository.findById.mockResolvedValue(buildRun({ status: 'SUCCESS' }));

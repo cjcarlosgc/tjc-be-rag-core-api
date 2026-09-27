@@ -11,7 +11,7 @@ Este reporte conserva la interpretación de IDs anteriores a la línea base de s
 | Functional Knowledge, Focus Mode, conflictos, Action Required | HU07–HU09; la UI de respuesta apoya HU08. No inferir aceptación live desde mocks. |
 | Generación/validación y clasificación | HU10–HU13; la evidencia histórica de un flujo manual no acepta por sí sola las HU PR-driven. |
 | Experimento RAG/GENERALIST_AGENT sobre AnalysisRun y captura del próximo PR | HU17/HU18. Se preservan trials, métricas y comparabilidad aprobadas; el contrato de captura sigue pendiente. |
-| PHP/Laravel/PHPUnit y Sandbox remoto | Habilitadores de HU03/HU10/HU11; trabajo de Sandbox queda diferido mientras lo mantiene otro desarrollador. |
+| PHP/Laravel/PHPUnit y Sandbox remoto | HU41 histórica se reubica en HU03/HU04 (EP02) para análisis/inventario; HU42 histórica se reubica en HU10/HU11 (EP04) para generación/validación. WIs Core: WI-CORE-012 y WI-CORE-013; Sandbox se coordina después y no se modifica en este corte. |
 | Mutation testing | Idea declinada, no WI ni criterio de aceptación actual. |
 
 **Pendientes de WI-CORE-001/WI-CONSOLE-001:** eliminar referencias a IDs anteriores en contratos y specs activas sin perder reglas; reconciliar estados de aceptación por criterio, no por número. Cualquier capacidad que no quepa honestamente en HU01–HU18 se devuelve a decisión de alcance.

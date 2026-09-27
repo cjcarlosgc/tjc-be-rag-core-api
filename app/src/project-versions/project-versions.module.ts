@@ -6,8 +6,10 @@ import { ProjectVersionsRepository } from './project-versions.repository.js';
 import { ZipExtractionService } from './zip/zip-extraction.service.js';
 import { FileDiscoveryService } from './discovery/file-discovery.service.js';
 import { TypeScriptParserService } from './parsing/typescript-parser.service.js';
+import { PhpParserService } from './parsing/php-parser.service.js';
 import { TestTargetExtractorService } from './inventory/test-target-extractor.service.js';
 import { ExistingTestResolverService } from './inventory/existing-test-resolver.service.js';
+import { PhpExistingTestResolverService } from './inventory/php-existing-test-resolver.service.js';
 import { CodeChunksRepository } from './persistence/code-chunks.repository.js';
 import { TestTargetsRepository } from './persistence/test-targets.repository.js';
 
@@ -20,8 +22,10 @@ import { TestTargetsRepository } from './persistence/test-targets.repository.js'
     ZipExtractionService,
     FileDiscoveryService,
     TypeScriptParserService,
+    PhpParserService,
     TestTargetExtractorService,
     ExistingTestResolverService,
+    PhpExistingTestResolverService,
     CodeChunksRepository,
     TestTargetsRepository,
   ],
@@ -32,8 +36,10 @@ import { TestTargetsRepository } from './persistence/test-targets.repository.js'
     ZipExtractionService,
     FileDiscoveryService,
     TypeScriptParserService,
+    PhpParserService,
     TestTargetExtractorService,
     ExistingTestResolverService,
+    PhpExistingTestResolverService,
   ],
 })
 export class ProjectVersionsModule {}

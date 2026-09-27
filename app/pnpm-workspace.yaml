@@ -7,3 +7,5 @@ allowBuilds:
   '@prisma/engines': true
   esbuild: true
   prisma: true
+  # Core loads the package's bundled WASM grammar; the native addon is unused.
+  tree-sitter-php: false

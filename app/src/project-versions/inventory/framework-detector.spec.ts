@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectFramework, findPackageJsonPath } from './framework-detector.js';
+import { detectFramework, detectPhpFramework, detectProjectLanguage, findPackageJsonPath } from './framework-detector.js';
 
 describe('detectFramework', () => {
   it('detects Vitest from a config file', () => {
@@ -54,5 +54,24 @@ describe('findPackageJsonPath', () => {
     expect(
       findPackageJsonPath(['my-project/package.json', 'my-project/packages/lib/package.json']),
     ).toBe('my-project/package.json');
+  });
+});
+
+describe('PHP framework and project language detection', () => {
+  it('gives a root composer.json precedence over package.json', () => {
+    expect(detectProjectLanguage(['composer.json', 'package.json', 'src/index.ts'])).toBe('PHP');
+    expect(detectProjectLanguage(['package.json', 'src/index.ts'])).toBe('TYPESCRIPT');
+  });
+
+  it('detects directly declared PHPUnit and does not infer it from Pest', () => {
+    expect(detectPhpFramework(JSON.stringify({ 'require-dev': { 'phpunit/phpunit': '^12' } }), ['composer.json']))
+      .toBe('PHPUNIT');
+    expect(detectPhpFramework(JSON.stringify({ 'require-dev': { 'pestphp/pest': '^3', 'phpunit/phpunit': '^12' } }), ['composer.json']))
+      .toBeNull();
+  });
+
+  it('uses an explicit PHPUnit config and returns null when evidence is ambiguous', () => {
+    expect(detectPhpFramework(undefined, ['phpunit.xml.dist'])).toBe('PHPUNIT');
+    expect(detectPhpFramework('{invalid', ['composer.json'])).toBeNull();
   });
 });

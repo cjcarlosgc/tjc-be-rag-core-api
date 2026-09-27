@@ -10,7 +10,7 @@ Garantizar que indexación, generación, validación y experimentos ligados a `A
 ## Reglas y comportamiento
 
 - Indexación, generación, experimento y validación sobreviven al request HTTP mediante la cola DB-backed aprobada.
-- Las operaciones asíncronas expuestas responden según `INTEROP-2.5`, con identidad estable y `pollAfterMs` cuando el contrato lo declara.
+- Las operaciones asíncronas expuestas responden según `INTEROP-2.6`, con identidad estable y `pollAfterMs` cuando el contrato lo declara.
 - Los handlers son idempotentes frente a reintentos y los estados terminales permanecen consultables.
 - `POST /experiments` y las demás operaciones que el contrato vigente declara idempotentes reservan `Idempotency-Key` y huella canónica bajo unicidad; recurso y job se crean atómicamente o de modo recuperable. Un replay equivalente no agenda trabajo adicional.
 - Los jobs que hacen fan-out derivan UUID v5 por unidad lógica para Sandbox y los conservan durante cualquier retry.

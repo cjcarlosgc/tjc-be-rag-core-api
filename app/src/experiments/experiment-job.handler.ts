@@ -176,6 +176,14 @@ export class ExperimentJobHandler
         throw new Error(`No existe el target ${payload.targetId}.`);
       }
 
+      const framework = version.detectedFramework;
+      if (
+        version.language === 'PHP'
+        || framework === 'PHPUNIT'
+      ) {
+        throw new Error('Los experimentos PHP/PHPUnit requieren WI-CORE-013 y aún no están habilitados.');
+      }
+
       const snapshotKey = version.snapshotKey;
       const snapshotBuffer = await this.objectStorageService.get(snapshotKey);
       const runs = STRATEGIES.flatMap((strategy) =>
@@ -200,7 +208,7 @@ export class ExperimentJobHandler
             projectVersionId: payload.projectVersionId,
             snapshotKey,
             snapshotBuffer,
-            framework: version.detectedFramework,
+            framework,
             target,
             strategy,
             repetition,

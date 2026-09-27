@@ -1,6 +1,6 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.5
+**Versión:** INTEROP-2.6
 **Compatible con:** SYSTEM-2.5
 **Fecha de corte:** 2026-09-26
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.5` es la versión documental vigente. Mantiene las rutas Core→Console y Core↔Sandbox y agrega el límite directo de UI GitHub descrito en §6.14. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.6` es la versión documental vigente. Mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -155,10 +155,14 @@ type ProjectVersionStatus =
   | 'PENDING' | 'EXTRACTING' | 'ANALYZING' | 'CHUNKING'
   | 'EMBEDDING' | 'PERSISTING' | 'COMPLETED' | 'FAILED'
 
+type ProjectLanguage = 'TYPESCRIPT' | 'PHP'
+type TestFramework = 'JEST' | 'VITEST' | 'PHPUNIT'
+
 interface ProjectVersionResponse {
   id: Id
   projectId: Id
   status: ProjectVersionStatus
+  language: ProjectLanguage
   originalFileName: string | null
   sizeBytes: number | null
   filesProcessed: number | null
@@ -174,9 +178,10 @@ interface ProjectVersionResultsResponse {
   id: Id
   projectId: Id
   status: 'COMPLETED'
+  language: ProjectLanguage
   filesProcessed: number
   chunksCount: number
-  detectedFramework: 'JEST' | 'VITEST' | null
+  detectedFramework: TestFramework | null
   targetsTotal: number
   targetsWithTest: number
   targetsMissingTest: number
@@ -184,7 +189,7 @@ interface ProjectVersionResultsResponse {
 }
 
 interface ProjectVersionSummaryResponse extends ProjectVersionResponse {
-  detectedFramework: 'JEST' | 'VITEST' | null
+  detectedFramework: TestFramework | null
   targetsTotal: number | null
   targetsWithTest: number | null
   targetsMissingTest: number | null
@@ -205,7 +210,8 @@ interface TestTargetResponse {
 
 interface TestInventoryResponse {
   projectVersionId: Id
-  detectedFramework: 'JEST' | 'VITEST' | null
+  language: ProjectLanguage
+  detectedFramework: TestFramework | null
   targetsTotal: number
   targetsWithTest: number
   targetsMissingTest: number

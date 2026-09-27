@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU02, HU06-HU09, HU13-HU16
-**Contrato:** SYSTEM-2.5 / INTEROP-2.5
+**Contrato:** SYSTEM-2.5 / INTEROP-2.6
 
 ## Objetivo
 
@@ -80,7 +80,7 @@ Propuestas de un mismatch quedan `HELD`. El companion PR no dispara el pipeline 
 
 ## Casos operativos
 
-OC01–OC15 se catalogan en `spec/operational-cases.md` con prioridad P2 de formalización. Los títulos no declaran automáticamente subcasos implementados: cada happy path, edge case y prueba se vinculará aquí o a la feature dueña mediante `WI-CORE-004`. Hasta entonces, el contrato vigente es el comportamiento explícito de esta spec y de INTEROP-2.5, no una promesa de cobertura total de los quince escenarios.
+OC01–OC15 se catalogan en `spec/operational-cases.md` con prioridad P2 de formalización. Los títulos no declaran automáticamente subcasos implementados: cada happy path, edge case y prueba se vinculará aquí o a la feature dueña mediante `WI-CORE-004`. Hasta entonces, el contrato vigente es el comportamiento explícito de esta spec y de INTEROP-2.6, no una promesa de cobertura total de los quince escenarios.
 
 ## Seguridad y auditoría
 

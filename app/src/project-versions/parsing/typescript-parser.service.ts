@@ -10,6 +10,7 @@ export type ChunkSymbolKind =
   | 'CONSTRUCTOR'
   | 'FUNCTION'
   | 'INTERFACE'
+  | 'TRAIT'
   | 'TYPE_ALIAS'
   | 'ENUM'
   | 'FILE';

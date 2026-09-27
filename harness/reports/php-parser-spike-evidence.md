@@ -1,7 +1,7 @@
-# Evidencia informativa: spike de parser PHP
+# Evidencia técnica de decisión: parser PHP
 
 **Procedencia:** PR [#6](https://github.com/cjcarlosgc/tjc-be-rag-core-api/pull/6), head `cfce98d77170a48ee4ab57e13ee4d721576a6e36`, originalmente `harness/reports/T-005-php-ast-spike.md`.
-**Estado:** resultados reportados por el autor del PR; no reproducidos independientemente en este corte. Este informe conserva evidencia para un futuro WI de PHP: no aprueba una dependencia ni modifica el contrato o la arquitectura vigentes.
+**Estado Harness vigente:** insumo asociado a `DEC-PHP-AST-001`, decisión aprobada por el usuario para el trabajo actual de PHP. Los resultados numéricos del benchmark siguen siendo reportados por el autor del PR y no se reproducen independientemente aquí; no se usan como criterio de rendimiento ni como evidencia de aceptación del producto.
 
 ## Método reportado
 
@@ -18,8 +18,8 @@
 
 El reporte atribuye los errores restantes de tree-sitter a casos aislados de interpolación, constantes tipadas y sintaxis en dependencias; ambos parsers extrajeron las construcciones principales de los fixtures. Para un archivo roto, tree-sitter conservó más símbolos posteriores al error. El repo de prueba reportó cero errores en sus 29 archivos propios.
 
-## Límites para reutilizarlo
+## Límites y uso en el Harness vigente
 
-- El corpus, versiones, comandos y resultados deben reproducirse antes de cerrar una decisión de parser para Core.
+- La aprobación fija parser y gramática, no afirma que el benchmark haya sido reproducido. La aceptación del WI se basa en pruebas de comportamiento de Core (sintaxis, recuperación parcial, símbolos y regresión), no en repetir esos tiempos/cifras.
 - El reporte también advierte que locks resueltos con PHP más nuevo pueden ser incompatibles con el runtime PHP 8.3 del Sandbox. Es una observación para el dueño de Sandbox; no autoriza cambios desde este WI.
-- No importar IDs `T-005`/`HU41`/`HU42`, decisiones ni fases del PR como estado vigente del Harness. El soporte PHP de Core permanece para trabajo futuro.
+- `T-005`, `HU41`/`HU42` y las fases del PR se conservan únicamente como procedencia histórica; el trabajo vigente se planifica mediante `ST-CORE-019`/`WI-CORE-012` y `ST-CORE-020`/`WI-CORE-013`, ligados a HU03/HU04 y HU10/HU11.

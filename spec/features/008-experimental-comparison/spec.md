@@ -3,7 +3,7 @@
 **Estado:** comparación aprobada como objetivo; entrada live por AnalysisRun y aceptación por evidencia pendientes.
 **Historias:** HU17, HU18
 
-El experimento productivo parte de un `AnalysisRun` real y un símbolo elegible del changeset, según INTEROP-2.5 §6.5. El código que aún dependa de selección manual de `TestTarget` es deuda de adaptación, no otra ruta de producto.
+El experimento productivo parte de un `AnalysisRun` real y un símbolo elegible del changeset, según INTEROP-2.6 §6.5. El código que aún dependa de selección manual de `TestTarget` es deuda de adaptación, no otra ruta de producto.
 
 ## Objetivo
 

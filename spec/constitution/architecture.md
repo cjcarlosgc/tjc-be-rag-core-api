@@ -1,6 +1,6 @@
 # Arquitectura objetivo de cuatro componentes
 
-**Contratos compartidos:** SYSTEM-2.5 / INTEROP-2.5 / GH-INTEROP-1.1
+**Contratos compartidos:** SYSTEM-2.5 / INTEROP-2.6 / GH-INTEROP-1.1
 **Estado:** aprobado con decisiones `PENDING` explícitas
 
 ## Topología
@@ -53,4 +53,4 @@ Core usa adapters de lenguaje y framework de tests. `NODE_TYPESCRIPT` preserva t
 
 ## Compatibilidad
 
-Los componentes de ingestión, indexación, generación y validación se conservan solo como capacidades reutilizables dentro del flujo PR-driven. No hay ruta de carga manual ZIP ni descarga agrupada de artefactos; el snapshot ZIP interno que Docker/Sandbox recupera permanece. La experiencia mock GitHub de login/importación está retirada. INTEROP-2.5 rige Core↔Console↔Sandbox; GH-INTEROP-1.1 rige Console→Integration y las operaciones privadas entre Core e Integration.
+Los componentes de ingestión, indexación, generación y validación se conservan solo como capacidades reutilizables dentro del flujo PR-driven. No hay ruta de carga manual ZIP ni descarga agrupada de artefactos; el snapshot ZIP interno que Docker/Sandbox recupera permanece. La experiencia mock GitHub de login/importación está retirada. INTEROP-2.6 rige Core↔Console↔Sandbox; GH-INTEROP-1.1 rige Console→Integration y las operaciones privadas entre Core e Integration.

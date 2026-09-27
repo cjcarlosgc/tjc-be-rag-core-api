@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-SYSTEM-2.5/INTEROP-2.5, Project/binding, jobs durables, snapshots, índice, retrieval, Functional Knowledge, generación, Sandbox y propuestas. `GH-INTEROP-1.1` gobierna las operaciones privadas del pipeline y las rutas autenticadas de usuario Console→GitHub Integration, y se describe en `016-github-integration`; este plan no crea otro contrato.
+SYSTEM-2.5/INTEROP-2.6, Project/binding, jobs durables, snapshots, índice, retrieval, Functional Knowledge, generación, Sandbox y propuestas. `GH-INTEROP-1.1` gobierna las operaciones privadas del pipeline y las rutas autenticadas de usuario Console→GitHub Integration, y se describe en `016-github-integration`; este plan no crea otro contrato.
 
 ## Cortes
 

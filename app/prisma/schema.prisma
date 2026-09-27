@@ -35,6 +35,12 @@ enum TestTargetType {
 enum TestFramework {
   JEST
   VITEST
+  PHPUNIT
+}
+
+enum ProjectLanguage {
+  TYPESCRIPT
+  PHP
 }
 
 enum GenerationMode {
@@ -484,6 +490,7 @@ model ProjectVersion {
   project           Project              @relation("ProjectVersions", fields: [projectId], references: [id])
   currentFor        Project?             @relation("ProjectCurrentVersion")
   status            ProjectVersionStatus @default(PENDING)
+  language          ProjectLanguage      @default(TYPESCRIPT)
   originalFileName  String?
   sizeBytes         Int?
   snapshotKey       String?

@@ -6,7 +6,7 @@
 
 ## Propósito y límites
 
-Este contrato gobierna tres saltos: operaciones privadas Core↔GitHub Integration, rutas autenticadas de usuario Console→GitHub Integration para la interfaz GitHub, y autorización privada síncrona GitHub Integration→Core. No reemplaza `INTEROP-2.5`, que gobierna APIs de Core y Sandbox.
+Este contrato gobierna tres saltos: operaciones privadas Core↔GitHub Integration, rutas autenticadas de usuario Console→GitHub Integration para la interfaz GitHub, y autorización privada síncrona GitHub Integration→Core. No reemplaza `INTEROP-2.6`, que gobierna APIs de Core y Sandbox.
 
 ```text
 Developer Console ──dominio/RAG──> RAG Core ──private API──> GitHub Integration ──> GitHub
@@ -249,6 +249,6 @@ Para `pull_request`, el servicio solo normaliza los campos enumerados. `installa
 
 - `GET /health` expone liveness/readiness; readiness valida configuración local requerida, no depende de que GitHub esté disponible.
 - El servicio mapea límites de tasa, fallos de red y errores GitHub no verificables sin convertirlos en `NOT_FOUND`. Core traduce esos resultados a la conducta pública ya establecida (`GITHUB_VERIFICATION_UNAVAILABLE`, `NOT_AUTHORIZED`, etc.).
-- La migración conserva las respuestas y reglas de `SYSTEM-2.5` / `INTEROP-2.5` para rutas Core públicas. `GH-INTEROP-1.1` añade rutas de usuario Console→Integration y el callback privado Integration→Core sin retirar durante este corte las rutas equivalentes de Core; cualquier cambio de rutas/DTOs compartidos requiere Contract Sync.
+- La migración conserva las respuestas y reglas de `SYSTEM-2.5` / `INTEROP-2.6` para rutas Core públicas. `GH-INTEROP-1.1` añade rutas de usuario Console→Integration y el callback privado Integration→Core sin retirar durante este corte las rutas equivalentes de Core; cualquier cambio de rutas/DTOs compartidos requiere Contract Sync.
 - Los nuevos IDs de Contract Sync usan un namespace de origen inequívoco (`CORE`, `CONSOLE`, `SANDBOX`, `GH`) y `sourceWorkItem` antes de que el servicio importe/publique eventos. Los IDs simples anteriores al corte 2026-09-25 siguen siendo legibles; no se reescriben. Esto no modifica el Harness local de Sandbox.
 - Ninguna actualización de URL/configuración de la GitHub App, secretos externos, deploy, DNS, Supabase o Sandbox está autorizada por este contrato. Esas acciones requieren solicitud explícita.

@@ -90,8 +90,10 @@ describe('SnapshotAnalysisJobHandler', () => {
     const testTargetsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
     const fileDiscoveryService = { discover: vi.fn().mockResolvedValue(['src/a.ts', 'package.json']) };
     const typeScriptParserService = { parse: vi.fn().mockReturnValue([buildChunk()]) };
+    const phpParserService = { analyze: vi.fn().mockResolvedValue({ chunks: [], candidates: [] }) };
     const testTargetExtractorService = { extract: vi.fn().mockReturnValue([]) };
     const existingTestResolverService = { resolve: vi.fn().mockReturnValue([]) };
+    const phpExistingTestResolverService = { resolve: vi.fn().mockResolvedValue([]) };
     const githubRepositoryContentService = {
       compare: vi.fn().mockResolvedValue([{ filename: 'src/a.ts', status: 'modified' }]),
     };
@@ -127,8 +129,10 @@ describe('SnapshotAnalysisJobHandler', () => {
       testTargetsRepository as never,
       fileDiscoveryService as never,
       typeScriptParserService as never,
+      phpParserService as never,
       testTargetExtractorService as never,
       existingTestResolverService as never,
+      phpExistingTestResolverService as never,
       githubRepositoryContentService as never,
       githubSnapshotMaterializerService as never,
       analysisSymbolsRepository as never,
@@ -148,8 +152,10 @@ describe('SnapshotAnalysisJobHandler', () => {
       testTargetsRepository,
       fileDiscoveryService,
       typeScriptParserService,
+      phpParserService,
       testTargetExtractorService,
       existingTestResolverService,
+      phpExistingTestResolverService,
       githubRepositoryContentService,
       githubSnapshotMaterializerService,
       analysisSymbolsRepository,
@@ -209,12 +215,68 @@ describe('SnapshotAnalysisJobHandler', () => {
     expect(projectVersionsRepository.createPending).toHaveBeenCalledWith({
       projectId: 'project-1',
       commitSha: 'head-sha',
+      language: 'TYPESCRIPT',
     });
     expect(analysisRunsService.recordSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'PROCESSING' }),
       { indexMode: 'BOOTSTRAP', indexDeltaBaseSha: null, projectVersionId: 'version-1' },
     );
     expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('indexes a PHP snapshot with the PHP parser, PHPUnit inventory and PHP symbol language', async () => {
+    const {
+      handler,
+      fileDiscoveryService,
+      typeScriptParserService,
+      phpParserService,
+      phpExistingTestResolverService,
+      githubRepositoryContentService,
+      projectVersionsRepository,
+      analysisSymbolsRepository,
+    } = setup();
+    const phpChunk = buildChunk({
+      filePath: 'app/Service.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Service',
+    });
+    const candidate = {
+      filePath: 'app/Service.php',
+      symbolName: 'App\\Service',
+      methodName: 'run',
+      targetType: 'METHOD',
+      startLine: 4,
+      endLine: 6,
+    };
+    fileDiscoveryService.discover.mockResolvedValue([
+      'composer.json', 'phpunit.xml', 'app/Service.php', 'tests/ServiceTest.php',
+    ]);
+    githubRepositoryContentService.compare.mockResolvedValue([
+      { filename: 'app/Service.php', status: 'modified' },
+    ]);
+    phpParserService.analyze.mockResolvedValue({ chunks: [phpChunk], candidates: [candidate] });
+    phpExistingTestResolverService.resolve.mockResolvedValue([
+      { ...candidate, hasTest: true, testFilePaths: ['tests/ServiceTest.php'] },
+    ]);
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(phpParserService.analyze).toHaveBeenCalledWith(
+      '/tmp/fake-workspace', ['app/Service.php', 'tests/ServiceTest.php'],
+    );
+    expect(phpExistingTestResolverService.resolve).toHaveBeenCalledWith(
+      '/tmp/fake-workspace', ['tests/ServiceTest.php'], [candidate],
+    );
+    expect(projectVersionsRepository.createPending).toHaveBeenCalledWith({
+      projectId: 'project-1', commitSha: 'head-sha', language: 'PHP',
+    });
+    expect(projectVersionsRepository.completeAndPromote).toHaveBeenCalledWith(
+      'project-1', 'version-1', expect.objectContaining({ detectedFramework: 'PHPUNIT' }),
+    );
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith(
+      'run-1', [expect.objectContaining({ language: 'PHP', kind: 'CLASS' })],
+    );
   });
 
   it('marks INCREMENTAL with the previous commit as indexDeltaBaseSha when a previous version exists', async () => {
