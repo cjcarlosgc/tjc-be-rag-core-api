@@ -1,5 +1,5 @@
 # 006-validation-orchestration — Subtareas vigentes
 
-No hay una subtarea técnica seleccionable en este archivo para SDD 3.0. El comportamiento vigente está en `spec.md` y `plan.md`; la ejecución futura requiere una ST local y un WI registrado antes de comenzar.
+- [ ] **ST-CORE-015 · T-IN_PROGRESS · WI-CORE-003 · HU11:** enviar el `executionProfile` obligatorio y compatible con `runnerHint` al Sandbox; cubrir `JEST` y `VITEST` como `NODE_TYPESCRIPT`, sin modificar el runtime de Sandbox.
 
 Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

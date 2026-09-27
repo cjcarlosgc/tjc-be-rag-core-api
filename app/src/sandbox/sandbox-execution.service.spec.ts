@@ -135,6 +135,8 @@ describe('SandboxExecutionService', () => {
     expect(postCall[0]).toBe('http://sandbox.local/executions');
     const postedBody = JSON.parse(postCall[1].body);
     expect(postedBody.snapshot.role).toBe('PROJECT_SNAPSHOT');
+    expect(postedBody.executionProfile).toBe('NODE_TYPESCRIPT');
+    expect(postedBody.runnerHint).toBe('VITEST');
     expect(postedBody.artifacts[0].download.role).toBe('GENERATED_ARTIFACT');
     expect(postedBody.artifacts[0].download.sha256).toHaveLength(64);
     expect(postCall[1].headers['idempotency-key']).toBe('request-1');
@@ -150,6 +152,34 @@ describe('SandboxExecutionService', () => {
       { stage: 'COMPILING', durationMs: 120 },
       { stage: 'RUNNING_TESTS', durationMs: 340 },
     ]);
+  });
+
+  it('sends the NODE_TYPESCRIPT profile for Jest executions', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-jest', pollAfterMs: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'COMPLETED', facts: null, failure: null, stageDurations: [] }),
+      );
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    await service.execute({
+      requestId: 'request-jest',
+      testRunId: 'run-jest',
+      projectVersionId: 'version-jest',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip-bytes'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'JEST',
+    });
+
+    const postedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(postedBody.executionProfile).toBe('NODE_TYPESCRIPT');
+    expect(postedBody.runnerHint).toBe('JEST');
   });
 
   it('never leaks the signed download URL into a thrown error message (redaction)', async () => {

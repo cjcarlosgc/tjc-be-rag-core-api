@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
+  ExecutionProfile,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFailureFact,
@@ -11,6 +12,12 @@ import type {
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_POLL_ATTEMPTS = 120;
+
+// Keep the mapping exhaustive: adding a runner requires selecting its profile.
+const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {
+  JEST: 'NODE_TYPESCRIPT',
+  VITEST: 'NODE_TYPESCRIPT',
+};
 
 interface EphemeralDownloadRef {
   role: 'PROJECT_SNAPSHOT' | 'GENERATED_ARTIFACT';
@@ -69,6 +76,7 @@ export class SandboxExecutionService {
       artifacts,
       scope: request.scope,
       targetIds: request.targetIds,
+      executionProfile: EXECUTION_PROFILE_BY_RUNNER[request.runnerHint],
       runnerHint: request.runnerHint,
     };
 

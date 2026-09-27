@@ -768,6 +768,7 @@
       "HU02",
       "HU03",
       "HU06",
+      "HU11",
       "HU14",
       "HU16"
     ],
@@ -776,7 +777,8 @@
       "ST-CORE-011",
       "ST-CORE-012",
       "ST-CORE-013",
-      "ST-CORE-014"
+      "ST-CORE-014",
+      "ST-CORE-015"
     ],
     "caseIds": [],
     "sprint": "Post-transition",
@@ -786,7 +788,11 @@
       "spec/features/016-github-integration/spec.md",
       "spec/features/016-github-integration/plan.md",
       "spec/features/016-github-integration/tasks.md",
-      "spec/contracts/github-integration-contract.md"
+      "spec/contracts/github-integration-contract.md",
+      "spec/constitution/planning-model.md",
+      "spec/features/006-validation-orchestration/spec.md",
+      "spec/features/006-validation-orchestration/plan.md",
+      "spec/features/006-validation-orchestration/tasks.md"
     ],
     "transversalPaths": [],
     "approved": true,
