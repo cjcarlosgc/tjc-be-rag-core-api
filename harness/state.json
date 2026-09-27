@@ -1327,225 +1327,254 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-09-27T20:10:48.833Z"
+    },
+    {
+      "id": "WI-CORE-014",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU02",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-021"
+      ],
+      "caseIds": [],
+      "sprint": "Post-transition",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/contracts/github-integration-contract.md",
+        "spec/README.md",
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/constitution/architecture.md",
+        "spec/constitution/project-context.md",
+        "spec/constitution/roadmap.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md"
+      ],
+      "transversalPaths": [],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento histórico requiere cambios de lifecycle de binding/Project; WI-CORE-014 solo cambia el contrato GitHub para comunicar la fecha original del PR.",
+          "report": "harness/reports/wi-core-014-contract-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento histórico trata login GitHub de Console; WI-CORE-014 no cambia autenticación ni rutas de login.",
+          "report": "harness/reports/wi-core-014-contract-scope-review.md"
+        }
+      ],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-09-27T20:59:45.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "implementer",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "El webhook debe aceptar created_at ausente/inválido como createdAt:null sin rechazar la entrega.",
+              "La lectura histórica debe responder UNVERIFIABLE sin value para fechas no verificables.",
+              "El productor Core define la secuencia y el evento; no se debe crear un ciclo con Console-008."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/github-integration-contract.md",
+              "spec/features/013-pr-driven-analysis/spec.md",
+              "spec/features/013-pr-driven-analysis/plan.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-014-contract-review.md"
+            ],
+            "recommendedNextStep": "Publicar el evento canónico a GitHub Integration y Console; mantener la implementación posterior bajo sus WIs."
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/github-integration-contract.md",
+              "spec/features/013-pr-driven-analysis/spec.md",
+              "spec/features/013-pr-driven-analysis/plan.md",
+              "spec/constitution/roadmap.md",
+              "CHANGELOG.md",
+              "harness/work-items.json"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-014-user-review-final.md"
+            ],
+            "recommendedNextStep": "Publicar Contract Sync y completar before-done; después continuar con WI-GH-007."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-014-spec-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-014-spec-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-014-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-014-implementation.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-014-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-014-canonical-sync.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-014-user-review-final.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-014-contract-sync-checkpoints.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-014-contract-review.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/contract-sync-publish-cs-core-20260927-002.md"
+        ]
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-014",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-09-27T21:00:07.750Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-014",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-09-27T21:31:47.228Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-014",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-09-27T21:31:47.414Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-014",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-09-27T21:33:50.479Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20260927-002"
+        ],
+        "pendingRelevantSyncIds": [],
+        "knownIncompatibilities": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-014-spec-verification.md",
+        "harness/reports/wi-core-014-approval.md",
+        "harness/reports/wi-core-014-contract-scope-review.md",
+        "harness/reports/wi-core-014-implementation.md",
+        "harness/reports/wi-core-014-contract-review.md",
+        "harness/reports/wi-core-014-user-review-final.md",
+        "harness/reports/wi-core-014-canonical-sync.md",
+        "harness/reports/contract-sync-publish-cs-core-20260927-002.md",
+        "harness/reports/wi-core-014-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-09-27T21:34:36.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-014",
-    "component": "CORE",
-    "workItemType": "PRODUCT",
-    "storyIds": [
-      "HU02",
-      "HU14"
-    ],
-    "taskIds": [
-      "ST-CORE-021"
-    ],
-    "caseIds": [],
-    "sprint": "Post-transition",
-    "status": "W-IN_REVIEW",
-    "specPaths": [
-      "spec/contracts/github-integration-contract.md",
-      "spec/README.md",
-      "spec/contracts/system-contract.md",
-      "spec/contracts/interoperability-contract.md",
-      "spec/constitution/architecture.md",
-      "spec/constitution/project-context.md",
-      "spec/constitution/roadmap.md",
-      "spec/features/013-pr-driven-analysis/spec.md",
-      "spec/features/013-pr-driven-analysis/plan.md",
-      "spec/features/013-pr-driven-analysis/tasks.md"
-    ],
-    "transversalPaths": [],
-    "contractSyncReview": [
-      {
-        "eventId": "CS-20260920-001",
-        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento histórico requiere cambios de lifecycle de binding/Project; WI-CORE-014 solo cambia el contrato GitHub para comunicar la fecha original del PR.",
-        "report": "harness/reports/wi-core-014-contract-scope-review.md"
-      },
-      {
-        "eventId": "CS-20260921-003",
-        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento histórico trata login GitHub de Console; WI-CORE-014 no cambia autenticación ni rutas de login.",
-        "report": "harness/reports/wi-core-014-contract-scope-review.md"
-      }
-    ],
-    "approved": true,
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": "2026-09-27T20:59:45.000Z"
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": null,
-      "implementationAgent": "implementer",
-      "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": "human-reviewer",
-      "handoffs": [
-        {
-          "agent": "contract-reviewer",
-          "status": "APPROVED",
-          "findings": [
-            "El webhook debe aceptar created_at ausente/inválido como createdAt:null sin rechazar la entrega.",
-            "La lectura histórica debe responder UNVERIFIABLE sin value para fechas no verificables.",
-            "El productor Core define la secuencia y el evento; no se debe crear un ciclo con Console-008."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "spec/contracts/github-integration-contract.md",
-            "spec/features/013-pr-driven-analysis/spec.md",
-            "spec/features/013-pr-driven-analysis/plan.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-014-contract-review.md"
-          ],
-          "recommendedNextStep": "Publicar el evento canónico a GitHub Integration y Console; mantener la implementación posterior bajo sus WIs."
-        },
-        {
-          "agent": "human-reviewer",
-          "status": "APPROVED",
-          "findings": [],
-          "blockers": [],
-          "filesAffected": [
-            "spec/contracts/github-integration-contract.md",
-            "spec/features/013-pr-driven-analysis/spec.md",
-            "spec/features/013-pr-driven-analysis/plan.md",
-            "spec/constitution/roadmap.md",
-            "CHANGELOG.md",
-            "harness/work-items.json"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-014-user-review-final.md"
-          ],
-          "recommendedNextStep": "Publicar Contract Sync y completar before-done; después continuar con WI-GH-007."
-        }
-      ],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-PASSED",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-PASSED",
-      "canonicalContractSynced": "G-PASSED",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-PASSED",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-PASSED"
-    },
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-014-spec-verification.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-014-spec-verification.md"
-      ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-014-implementation.md"
-      ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-014-implementation.md"
-      ],
-      "contractReviewed": [
-        "harness/reports/wi-core-014-contract-review.md"
-      ],
-      "canonicalContractSynced": [
-        "harness/reports/wi-core-014-canonical-sync.md"
-      ],
-      "independentReviewPassed": [
-        "harness/reports/wi-core-014-user-review-final.md"
-      ],
-      "interopSyncChecked": [
-        "harness/reports/wi-core-014-contract-sync-checkpoints.md"
-      ],
-      "retryLimitRespected": [
-        "harness/reports/wi-core-014-contract-review.md"
-      ]
-    },
-    "coordination": {
-      "contractImpact": true,
-      "publishesContract": true,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-014",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-09-27T21:00:07.750Z"
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "workItem": "WI-CORE-014",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-09-27T21:31:47.228Z"
-        },
-        {
-          "checkpoint": "before-review",
-          "workItem": "WI-CORE-014",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-09-27T21:31:47.414Z"
-        }
-      ],
-      "publishedSyncIds": [],
-      "pendingRelevantSyncIds": [],
-      "knownIncompatibilities": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-014-spec-verification.md",
-      "harness/reports/wi-core-014-approval.md",
-      "harness/reports/wi-core-014-contract-scope-review.md",
-      "harness/reports/wi-core-014-implementation.md",
-      "harness/reports/wi-core-014-contract-review.md",
-      "harness/reports/wi-core-014-user-review-final.md",
-      "harness/reports/wi-core-014-canonical-sync.md"
-    ],
-    "blockedReason": null
-  }
+  "activeWorkItem": null
 }

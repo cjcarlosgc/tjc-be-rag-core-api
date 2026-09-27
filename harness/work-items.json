@@ -613,7 +613,7 @@
       "id": "WI-CORE-014",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "Post-transition",
       "title": "Publicar GH-INTEROP-1.2 para fechas originales de PR",

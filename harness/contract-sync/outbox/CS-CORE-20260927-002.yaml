@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20260927-002
+source: core
+sourceWorkItem: WI-CORE-014
+targets: [github-integration, console]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GH-INTEROP-1.2 define createdAt del PR en webhook y lectura histórica; falta o invalidez produce null/UNVERIFIABLE y Core no sustituye receivedAt.
+requiredAction:
+  - Importar el contrato canónico completo byte por byte y acusar la sincronización en un WI local antes de implementar o declarar disponibilidad.
+sourceRevision: 40a93bead66e7eac15f515065ec204e3526b78df
+status: C-PENDING

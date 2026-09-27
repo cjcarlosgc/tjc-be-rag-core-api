@@ -20,4 +20,4 @@
 - `git diff --check` — PASS.
 - No se ejecutaron lint, tests ni build de aplicación: este corte solo modifica SDD y Harness, no hay código de producto que compilar o probar.
 
-El Contract Sync saliente a GitHub Integration y Console se publica tras registrar el commit que contiene esta versión canónica. No implica importación/ACK de los consumidores, implementación del servicio ni despliegue.
+El Contract Sync saliente quedó publicado como `CS-CORE-20260927-002`, con `sourceRevision` `40a93bead66e7eac15f515065ec204e3526b78df`. No implica importación/ACK de los consumidores, implementación del servicio ni despliegue.
