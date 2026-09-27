@@ -1580,7 +1580,7 @@
     "id": "WI-CORE-011",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "storyIds": [
       "HU02",
       "HU12",
@@ -1708,8 +1708,8 @@
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-PASSED",
       "canonicalContractSynced": "G-PASSED",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -1732,6 +1732,12 @@
       "canonicalContractSynced": [
         "spec/contracts/interoperability-contract.md",
         "spec/contracts/system-contract.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20260927-003.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/contract-sync-publish-cs-core-20260927-003.md"
       ]
     },
     "coordination": {
@@ -1779,9 +1785,32 @@
             "CS-20260921-003"
           ],
           "checkedAt": "2026-09-27T22:49:26.118Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-011",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-09-27T22:51:59.839Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20260927-003"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
@@ -1789,7 +1818,8 @@
       "harness/reports/external-dependency-verification-wi-core-011.json",
       "harness/reports/wi-core-011-approval.md",
       "harness/reports/wi-core-011-implementation.md",
-      "harness/reports/wi-core-011-contract-review.md"
+      "harness/reports/wi-core-011-contract-review.md",
+      "harness/reports/contract-sync-publish-cs-core-20260927-003.md"
     ],
     "blockedReason": null,
     "contractSyncReview": [

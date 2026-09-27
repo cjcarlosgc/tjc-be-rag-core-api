@@ -13,7 +13,7 @@ Implementa `ST-CORE-017` y `ST-CORE-018` para `HU02`, `HU12` y `HU14`, con la de
 - Listas, detalles/deep links e inbox filtran Runs sin clasificar y pre-binding antes de paginar.
 - Fechas ausentes o no verificables se reintentan con un job deduplicado y backoff durable. Para un evento nuevo, el job conserva solo los campos normalizados allowlisted, no un Run provisional, y retoma el análisis solo tras verificar elegibilidad, binding habilitado y PR abierto con el mismo HEAD.
 - Los eventos de cierre, conversión a borrador y cambio de base fuera de la rama de integración actualizan lifecycle aun cuando falte la fecha.
-- `INTEROP-2.6`, SYSTEM-2.5, la feature 013 y el changelog registran la regla y su recuperación. El Contract Sync dirigido a Console queda pendiente de publicación tras este commit, con este commit como `sourceRevision`.
+- `INTEROP-2.6`, SYSTEM-2.5, la feature 013 y el changelog registran la regla y su recuperación. El commit de implementación es `a99b3c315738966d956e9cb08833b2c42a7c85e5`; después se publicó `CS-CORE-20260927-003` a Console usando ese SHA como `sourceRevision` (evidencia: `harness/reports/contract-sync-publish-cs-core-20260927-003.md`).
 
 ## Verificaciones ejecutadas
 
