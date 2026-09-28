@@ -1,6 +1,6 @@
 # Implementación — WI-CORE-015
 
-**Estado del corte:** `W-IN_REVIEW`; pendiente de revisión independiente humana.
+**Estado del corte:** `W-DONE`; revisión independiente humana aprobada.
 
 ## Cambios
 
@@ -34,4 +34,4 @@ Checks locales aprobados:
 - `git diff --check` — pasó.
 - `node harness/contract-sync.mjs check --checkpoint before-review --work-item WI-CORE-015` — cero eventos entrantes relevantes pendientes.
 
-No ejecuté lint, test ni build de la aplicación porque el WI no cambia código de producto. La revisión contractual está aprobada; la revisión independiente humana sigue pendiente.
+No ejecuté lint, test ni build de la aplicación porque el WI no cambia código de producto. La revisión contractual y la revisión independiente humana están aprobadas; sus evidencias constan en `wi-core-015-contract-review.md` y `wi-core-015-user-review.md`.

@@ -686,7 +686,7 @@
       "id": "WI-CORE-015",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "Post-transition",
       "title": "Alinear estado canónico y espejos GH-INTEROP-1.2",
