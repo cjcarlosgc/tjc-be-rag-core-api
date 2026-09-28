@@ -1905,7 +1905,7 @@
     ],
     "caseIds": [],
     "sprint": "Post-transition",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
@@ -1962,7 +1962,7 @@
       "analysisAgent": null,
       "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
+      "reviewAgent": "human-reviewer",
       "handoffs": [],
       "reviewCycles": 0,
       "maxReviewCycles": 2
@@ -1974,8 +1974,8 @@
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_RUN",
       "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -1991,12 +1991,20 @@
       ],
       "technicalChecksPassed": [
         "harness/reports/wi-core-015-implementation.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20260927-004.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-015-contract-sync-checkpoints.md"
       ]
     },
     "evidence": [
       "harness/reports/wi-core-015-sdd-verification.md",
       "harness/reports/wi-core-015-scope-approval.md",
-      "harness/reports/wi-core-015-implementation.md"
+      "harness/reports/wi-core-015-implementation.md",
+      "harness/reports/contract-sync-publish-cs-core-20260927-004.md",
+      "harness/reports/wi-core-015-contract-sync-checkpoints.md"
     ],
     "coordination": {
       "contractImpact": true,
@@ -2043,9 +2051,32 @@
             "CS-20260921-003"
           ],
           "checkedAt": "2026-09-28T02:05:40.722Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-015",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-09-28T02:06:54.160Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20260927-004"
+      ],
       "pendingRelevantSyncIds": [],
       "knownIncompatibilities": []
     },

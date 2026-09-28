@@ -20,7 +20,7 @@ SHA-256 en el working tree al completar las correcciones narrativas:
 - `spec/contracts/interoperability-contract.md`: `1f5cc04a7fc73388a49d1c1de4f79f873d0e95edec7db6e102b5f828f6a2f852` (sin cambios)
 - `spec/contracts/github-integration-contract.md`: `8a80c056359af74dc8b3b704f47efb232eaafb250bd4efb1d923450435a9e9f9`
 
-El `INTEROP-2.6` de Core/Console es la fuente canónica; GitHub Integration requiere sincronizar su espejo desde `INTEROP-2.5`. El evento Contract Sync dirigido a ambos consumidores se documentará junto al SHA de commit que contiene las fuentes.
+El `INTEROP-2.6` de Core/Console es la fuente canónica; GitHub Integration requiere sincronizar su espejo desde `INTEROP-2.5`. `CS-CORE-20260927-004` se publicó a ambos consumidores con `sourceRevision: 606006b44c23c0515c73dc21518102bb49edcb8c`, el commit que contiene estas fuentes.
 
 ## Verificación
 
@@ -32,4 +32,4 @@ Checks locales aprobados:
 - `node harness/validate-completions.mjs` — pasó (8 WIs cerrados).
 - `git diff --check` — pasó.
 
-No ejecuté lint, test ni build de la aplicación porque el WI no cambia código de producto. `before-review`, Contract Sync de salida y revisión contractual quedan registrados tras el commit de las fuentes canónicas.
+No ejecuté lint, test ni build de la aplicación porque el WI no cambia código de producto. `before-review` y la revisión contractual se registran por separado; la importación de los consumidores aún debe verificarse.
