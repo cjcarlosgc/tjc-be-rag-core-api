@@ -25,7 +25,7 @@ GitHub Integration entrega a RAG Core eventos normalizados de GitHub App para re
 - Sandbox recibe profile, snapshot, artifacts y targets; nunca recibe GitHub, usuarios, prompts, reglas funcionales o estrategia experimental.
 - No existe autorepair semántico, modificación automática de producción, escritura directa a la feature branch ni auto-merge.
 
-## Siguiente corte aprobado — exclusión de PRs anteriores al binding (no implementado)
+## Corte implementado — exclusión de PRs anteriores al binding
 
 Al conectar un repositorio, `RepositoryBinding.createdAt` delimita desde cuándo un PR es elegible para ese Project. GitHub Integration entrega en `pullRequest.createdAt` el instante de `pull_request.created_at`, validado y serializado en ISO-8601 UTC; el campo siempre está presente y vale `null` si falta o no puede verificarse. `receivedAt` conserva la hora de recepción y nunca sustituye la fecha de creación. Core compara la fecha verificable con `RepositoryBinding.createdAt`: fechas iguales o posteriores son elegibles; PRs anteriores no crean ni reinician Runs aunque luego reciban `synchronize` u otros eventos.
 
@@ -33,7 +33,7 @@ La falta o invalidez de `createdAt` no rechaza el webhook: Core no inicia ni rei
 
 Para un evento nuevo sin fecha verificable, la recuperación durable conserva únicamente el evento normalizado allowlisted necesario para retomarlo; no crea un Run provisional. Cuando GitHub Integration verifica la fecha, Core crea el Run solo si el PR es elegible, el binding sigue habilitado y el HEAD del evento aún coincide con el HEAD consultado. Una fecha anterior descarta el inicio. Los eventos de cierre, conversión a borrador o salida de la rama de integración actualizan el lifecycle aunque falte la fecha, sin iniciar análisis.
 
-Los Runs históricos se conservan físicamente. Core clasifica como obsoletos y oculta de listas, detalles y bandejas los asociados a PRs anteriores al binding. No hay cambios de UI previstos ni cambios en Sandbox. La implementación está pendiente de `WI-GH-007`, `WI-CORE-011` y `WI-CONSOLE-008`.
+Los Runs históricos se conservan físicamente. Core clasifica como obsoletos y oculta de listas, detalles y bandejas los asociados a PRs anteriores al binding. No hay cambios de UI previstos ni cambios en Sandbox. El contrato y la fecha original quedaron implementados/cerrados localmente en `WI-GH-007`, `WI-CORE-014` y `WI-CORE-011`; `WI-CONSOLE-008` cerró la sincronización/validación del corte previo. La corrección narrativa se vuelve a distribuir por Contract Sync. Los cierres locales no implican despliegue ni cutover.
 
 ## Pipeline
 
