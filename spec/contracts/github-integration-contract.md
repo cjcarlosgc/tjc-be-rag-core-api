@@ -1,6 +1,6 @@
 # GH-INTEROP-1.2 — Contrato de GitHub Integration
 
-**Estado:** `GH-INTEROP-1.2` está implementado y cerrado localmente. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consume en `WI-CORE-011`; Console completó la sincronización y validación del corte previo en `WI-CONSOLE-008`. Esta corrección narrativa se distribuye a los espejos de Console y GitHub Integration por Contract Sync. Los cierres no declaran despliegue ni cutover; la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
+**Estado:** `GH-INTEROP-1.2` está implementado y cerrado localmente. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consume en `WI-CORE-011`; Console completó la sincronización y validación del corte previo en `WI-CONSOLE-008`. Los cierres no declaran despliegue ni cutover; la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
 **Línea base:** SDD 3.0 para Core/Console; Sandbox sigue en 2.1 y su homologación está pendiente.
 **Autoridad:** RAG Core mantiene el original en este archivo; `tjc-be-github-integration-api` y Console espejan esta versión byte por byte.
 
