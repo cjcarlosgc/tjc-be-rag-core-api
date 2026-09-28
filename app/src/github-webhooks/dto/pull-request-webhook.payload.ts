@@ -15,6 +15,7 @@ export interface GithubPullRequestWebhookPayload {
     title: string;
     draft: boolean;
     merged: boolean;
+    created_at: string | null;
     base: { ref: string; sha: string };
     head: { ref: string; sha: string };
     user: { login: string } | null;

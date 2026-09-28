@@ -19,6 +19,10 @@ import { RepositoryBindingsRepository } from '../repository-bindings/repository-
 import type { RepositoryBinding } from '../generated/prisma/client.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
+import {
+  PULL_REQUEST_METADATA_BACKFILL_JOB_TYPE,
+  pullRequestMetadataBackfillDedupeKey,
+} from '../analysis-runs/pull-request-metadata-backfill.job.handler.js';
 import type { NormalizedWebhookEvent } from './dto/normalized-webhook-event.js';
 
 /**
@@ -92,7 +96,9 @@ export class GithubWebhooksService {
       binding.status === 'ENABLED' &&
       (!payload.installation || String(payload.installation.id) === binding.installationId);
 
-    const analysisRunId = actionable ? await this.handlePullRequestEvent(payload, binding!) : null;
+    const analysisRunId = actionable
+      ? await this.handlePullRequestEvent(payload, binding!, event.deliveryId, event.receivedAt)
+      : null;
 
     await this.webhookDeliveriesRepository.create({
       deliveryId,
@@ -115,9 +121,54 @@ export class GithubWebhooksService {
   private async handlePullRequestEvent(
     payload: GithubPullRequestWebhookPayload,
     binding: RepositoryBinding,
+    deliveryId: string,
+    receivedAt: string,
   ): Promise<string | null> {
     const pr = payload.pull_request;
+    const createdAt = pr.created_at === null ? null : new Date(pr.created_at);
+    const createdAtVerified = createdAt !== null && Number.isFinite(createdAt.getTime());
     const onIntegrationBranch = pr.base.ref === binding.integrationBranch;
+    let lifecycleHandled = false;
+    let lifecycleRunId: string | null = null;
+
+    // Lifecycle actions do not start analysis and must still be honored when the
+    // original creation time is temporarily unavailable.
+    if (payload.action === 'closed') {
+      lifecycleHandled = true;
+      lifecycleRunId = await this.closeCurrentIfAny(binding, payload.number, pr.merged ? 'MERGED' : 'CLOSED');
+    } else if (payload.action === 'converted_to_draft') {
+      lifecycleHandled = true;
+      lifecycleRunId = await this.closeCurrentIfAny(binding, payload.number);
+    } else if ((payload.action === 'synchronize' || payload.action === 'edited') && !onIntegrationBranch) {
+      lifecycleHandled = true;
+      lifecycleRunId = await this.closeCurrentIfAny(binding, payload.number);
+    }
+
+    if (!createdAtVerified) {
+      await this.analysisRunsRepository.classifyPullRequest(
+        String(payload.repository.id),
+        payload.number,
+        null,
+        binding.createdAt,
+      );
+      await this.enqueuePullRequestMetadataRecovery(payload, binding, deliveryId, receivedAt);
+      return lifecycleRunId;
+    }
+
+    await this.analysisRunsRepository.classifyPullRequest(
+      String(payload.repository.id),
+      payload.number,
+      createdAt!,
+      binding.createdAt,
+    );
+
+    if (createdAt!.getTime() < binding.createdAt.getTime()) {
+      return null;
+    }
+
+    if (lifecycleHandled) {
+      return lifecycleRunId;
+    }
 
     switch (payload.action) {
       case 'opened':
@@ -126,7 +177,7 @@ export class GithubWebhooksService {
         if (!onIntegrationBranch || pr.draft) {
           return null;
         }
-        return (await this.startRun(payload, binding)).id;
+        return (await this.startRun(payload, binding, createdAt!)).id;
 
       case 'synchronize':
         if (!onIntegrationBranch) {
@@ -135,7 +186,7 @@ export class GithubWebhooksService {
         if (pr.draft) {
           return null;
         }
-        return (await this.startRun(payload, binding)).id;
+        return (await this.startRun(payload, binding, createdAt!)).id;
 
       case 'edited':
         if (!onIntegrationBranch) {
@@ -144,22 +195,67 @@ export class GithubWebhooksService {
         if (pr.draft) {
           return null;
         }
-        return (await this.startRun(payload, binding)).id;
-
-      case 'converted_to_draft':
-        return this.closeCurrentIfAny(binding, payload.number);
-
-      case 'closed':
-        return this.closeCurrentIfAny(binding, payload.number, pr.merged ? 'MERGED' : 'CLOSED');
+        return (await this.startRun(payload, binding, createdAt!)).id;
 
       default:
         return null;
     }
   }
 
+  /** Persiste solo el subconjunto normalizado necesario para reanudar un evento aceptado. */
+  private async enqueuePullRequestMetadataRecovery(
+    payload: GithubPullRequestWebhookPayload,
+    binding: RepositoryBinding,
+    deliveryId: string,
+    receivedAt: string,
+  ): Promise<void> {
+    const repositoryId = String(payload.repository.id);
+    const dedupeKey = pullRequestMetadataBackfillDedupeKey(repositoryId, payload.number);
+    const recoveryPayload = {
+      repositoryId,
+      pullRequestNumber: payload.number,
+      pendingEvent: {
+        deliveryId,
+        receivedAt,
+        action: payload.action,
+        number: payload.number,
+        repositoryName: binding.repositoryName,
+        pull_request: {
+          title: payload.pull_request.title,
+          draft: payload.pull_request.draft,
+          merged: payload.pull_request.merged,
+          created_at: null,
+          base: payload.pull_request.base,
+          head: payload.pull_request.head,
+          user: payload.pull_request.user,
+        },
+      },
+    };
+    const options = { dedupeKey };
+    const queued = await this.jobsService.enqueueDeduped(
+      PULL_REQUEST_METADATA_BACKFILL_JOB_TYPE,
+      recoveryPayload,
+      options,
+    );
+
+    if (!queued.created) {
+      // A newer event supersedes the normalized snapshot already waiting in backoff.
+      // Enqueue once more after updating to cover the race where the pending job was
+      // claimed between the first dedupe and the payload update.
+      await this.jobsService.updatePendingPayload(dedupeKey, recoveryPayload);
+      await this.jobsService.expediteDeduped(dedupeKey);
+      await this.jobsService.enqueueDeduped(
+        PULL_REQUEST_METADATA_BACKFILL_JOB_TYPE,
+        recoveryPayload,
+        options,
+      );
+    }
+  }
+
   private async startRun(
     payload: GithubPullRequestWebhookPayload,
     binding: RepositoryBinding,
+    createdAt: Date,
   ): Promise<{ id: string }> {
     const input: CreateAnalysisRunInput = {
       projectId: binding.projectId,
@@ -173,6 +269,8 @@ export class GithubWebhooksService {
       headSha: payload.pull_request.head.sha,
       draft: payload.pull_request.draft,
       actorLogin: payload.pull_request.user?.login ?? null,
+      pullRequestCreatedAt: createdAt,
+      repositoryBindingEligible: true,
     };
 
     const { run, isNew } = await this.analysisRunsService.startRunFromWebhook(input);
@@ -310,6 +408,7 @@ function toPullRequestPayload(event: NormalizedWebhookEvent): GithubPullRequestW
       title: data.pullRequest.title,
       draft: data.pullRequest.draft,
       merged: data.pullRequest.merged,
+      created_at: data.pullRequest.createdAt,
       base: data.pullRequest.base,
       head: data.pullRequest.head,
       user: data.pullRequest.userLogin === null ? null : { login: data.pullRequest.userLogin },

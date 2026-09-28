@@ -1,6 +1,6 @@
 # Arquitectura objetivo de cuatro componentes
 
-**Contratos compartidos:** SYSTEM-2.5 / INTEROP-2.6 / GH-INTEROP-1.1
+**Contratos compartidos:** SYSTEM-2.5 / INTEROP-2.6 / GH-INTEROP-1.2
 **Estado:** aprobado con decisiones `PENDING` explícitas
 
 ## Topología
@@ -14,7 +14,7 @@ GitHub ──webhook──> GitHub Integration ──evento normalizado──> R
                                  Supabase Auth
 ```
 
-- GitHub Integration API (`tjc-be-github-integration-api`) posee toda interacción con GitHub: App, SDK, REST/Git Data, webhooks, discovery, repositorios, ramas, Checks y companion PR. Conserva el SDK y código extraído de Core. `GH-INTEROP-1.1` define tanto operaciones privadas de pipeline como rutas autenticadas Console→Integration; la migración está en código fuente y sigue sin deploy/cutover.
+- GitHub Integration API (`tjc-be-github-integration-api`) posee toda interacción con GitHub: App, SDK, REST/Git Data, webhooks, discovery, repositorios, ramas, Checks y companion PR. Conserva el SDK y código extraído de Core. `GH-INTEROP-1.2` define las operaciones privadas de pipeline, las rutas autenticadas Console→Integration y la fecha original de creación del PR. La topología fue implementada localmente bajo `GH-INTEROP-1.1`; la extensión de fecha sigue pendiente de implementación y no hay deploy/cutover.
 - Console usa GitHub Integration directamente solo para App info, discovery, verificación GitHub y ramas; para workspaces/Projects, persistencia de bindings, RAG y análisis sigue usando Core. Supabase Auth conserva la identidad humana.
 - Core persiste dominio/conocimiento, construye contexto, genera, orquesta y clasifica; mantiene un cliente privado para delegar operaciones GitHub y valida/procesa los webhooks normalizados recibidos desde GitHub Integration.
 - Sandbox materializa snapshots/artifacts, ejecuta el profile solicitado y devuelve evidencia neutral.
@@ -33,7 +33,7 @@ PR event -> binding -> AnalysisRun(PR, HEAD) -> PR_ANALYSIS job
 
 ## Fronteras de Core
 
-- Frontera GitHub Integration: Core mantiene Project, autorización de dominio, AnalysisRun y decisiones del pipeline; delega operaciones GitHub mediante `GH-INTEROP-1.1`, recibe los webhooks normalizados y autoriza sincrónicamente las operaciones directas de Console. Core no contiene SDK ni credenciales de GitHub App.
+- Frontera GitHub Integration: Core mantiene Project, autorización de dominio, AnalysisRun y decisiones del pipeline; delega operaciones GitHub mediante `GH-INTEROP-1.2`, recibe los webhooks normalizados y autoriza sincrónicamente las operaciones directas de Console. Core no contiene SDK ni credenciales de GitHub App.
 - Analysis domain: PR/HEAD lifecycle, Run vs Attempt, states y auditoría.
 - Snapshot/changeset: bootstrap/incremental, CHANGESET vs INDEX DELTA, changed/impacted symbols.
 - Knowledge: retrieval semántico/estructural, Functional Knowledge versionado, existing test context y Context Builder.
@@ -53,4 +53,4 @@ Core usa adapters de lenguaje y framework de tests. `NODE_TYPESCRIPT` preserva t
 
 ## Compatibilidad
 
-Los componentes de ingestión, indexación, generación y validación se conservan solo como capacidades reutilizables dentro del flujo PR-driven. No hay ruta de carga manual ZIP ni descarga agrupada de artefactos; el snapshot ZIP interno que Docker/Sandbox recupera permanece. La experiencia mock GitHub de login/importación está retirada. INTEROP-2.6 rige Core↔Console↔Sandbox; GH-INTEROP-1.1 rige Console→Integration y las operaciones privadas entre Core e Integration.
+Los componentes de ingestión, indexación, generación y validación se conservan solo como capacidades reutilizables dentro del flujo PR-driven. No hay ruta de carga manual ZIP ni descarga agrupada de artefactos; el snapshot ZIP interno que Docker/Sandbox recupera permanece. La experiencia mock GitHub de login/importación está retirada. INTEROP-2.6 rige Core↔Console↔Sandbox; GH-INTEROP-1.2 rige Console→Integration y las operaciones privadas entre Core e Integration.

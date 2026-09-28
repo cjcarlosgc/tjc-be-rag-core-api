@@ -5,7 +5,7 @@
 
 ## Identidad
 
-`tjc-be-rag-core-api` es el backend de dominio de RAG Test Studio. Coordina conocimiento de código/funcional, generación, validación, jobs y métricas; el código fuente vive exclusivamente en `app/`. `tjc-be-github-integration-api` posee el SDK, GitHub App, webhooks, discovery, repositorios, Checks y publicación. Bajo `GH-INTEROP-1.1`, Console lo llama directamente para App info, discovery, verificación GitHub y ramas; Core lo llama para el pipeline y recibe sus eventos normalizados. Core conserva identidad de dominio, autorización de Projects, persistencia, RAG, freshness y efectos de negocio. El WI de migración y el cutover externo permanecen pendientes de revisión/configuración autorizada.
+`tjc-be-rag-core-api` es el backend de dominio de RAG Test Studio. Coordina conocimiento de código/funcional, generación, validación, jobs y métricas; el código fuente vive exclusivamente en `app/`. `tjc-be-github-integration-api` posee el SDK, GitHub App, webhooks, discovery, repositorios, Checks y publicación. Bajo `GH-INTEROP-1.2`, Console lo llama directamente para App info, discovery, verificación GitHub y ramas; Core lo llama para el pipeline y recibe sus eventos normalizados. Core conserva identidad de dominio, autorización de Projects, persistencia, RAG, freshness y efectos de negocio. La migración de código fuente se cerró localmente; la extensión de fecha original del PR espera implementación y el cutover externo espera configuración autorizada.
 
 ## Núcleo del producto
 

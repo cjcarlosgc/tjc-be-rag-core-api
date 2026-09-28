@@ -2,7 +2,7 @@
 
 ## Dependencias
 
-SYSTEM-2.5/INTEROP-2.6, Project/binding, jobs durables, snapshots, índice, retrieval, Functional Knowledge, generación, Sandbox y propuestas. `GH-INTEROP-1.1` gobierna las operaciones privadas del pipeline y las rutas autenticadas de usuario Console→GitHub Integration, y se describe en `016-github-integration`; este plan no crea otro contrato.
+SYSTEM-2.5/INTEROP-2.6, Project/binding, jobs durables, snapshots, índice, retrieval, Functional Knowledge, generación, Sandbox y propuestas. `GH-INTEROP-1.2` gobierna las operaciones privadas del pipeline y las rutas autenticadas de usuario Console→GitHub Integration, y se describe en `016-github-integration`; este plan no crea otro contrato.
 
 ## Cortes
 
@@ -11,7 +11,7 @@ SYSTEM-2.5/INTEROP-2.6, Project/binding, jobs durables, snapshots, índice, retr
 3. La separación definida en `spec/features/016-github-integration/` está implementada y cerrada localmente: `WI-GH-*` posee SDK/App/webhooks/discovery/repositorios/Checks/publicación; `WI-CORE-003` adapta consumidores y recibe eventos normalizados. Core retiene estado de dominio, decisiones RAG y orquestación; deploy/cutover siguen pendientes.
 4. En `WI-CORE-004`, especificar happy paths OC01–OC15 y luego subcasos elegidos; cada uno con entrada, resultado, invariantes, evidencia y pruebas.
 5. `WI-CORE-003` incluye la corrección del lifecycle de `ACTION_REQUIRED` (HU08/HU14): evaluación concurrente con un HEAD nuevo no puede dejar preguntas pendientes ni intentar reabrir como fallo un Run ya obsoleto.
-6. El corte planificado `WI-CORE-011` depende de `WI-GH-007`: comparar `pullRequest.createdAt` contra `RepositoryBinding.createdAt`, excluir PRs anteriores incluso ante eventos posteriores y clasificar el historial existente sin borrarlo. Las fechas no verificables quedan ocultas y se reintenta su recuperación. `WI-CONSOLE-008` sincroniza/valida el contrato resultante sin cambio funcional de UI.
+6. `WI-CORE-014` publica `GH-INTEROP-1.2` como contrato canónico y solicita a GitHub Integration y Console importar y reconocer el espejo. `WI-GH-007` sincroniza el archivo canónico completo, implementa la fecha original en webhook y lectura histórica y publica la entrega implementada. Después, `WI-CORE-011` compara `pullRequest.createdAt` con `RepositoryBinding.createdAt`, excluye PRs anteriores incluso ante eventos posteriores y clasifica el historial sin borrarlo; fechas no verificables quedan ocultas y se reintenta su recuperación durable. `WI-CONSOLE-008` completa su sincronización/validación después de `WI-CORE-011`, sin cambio funcional de UI. `WI-CORE-014` cierra al publicar el contrato; no espera la implementación posterior ni `WI-CONSOLE-008`.
 
 ## Verificación
 

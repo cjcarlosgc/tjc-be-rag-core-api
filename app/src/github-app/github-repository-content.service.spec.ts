@@ -79,7 +79,7 @@ describe('GithubRepositoryContentService', () => {
     const { integration, service } = setup();
     integration.post
       .mockResolvedValueOnce({ status: 'OK', value: { items: [{ name: 'main', protected: true }] } })
-      .mockResolvedValueOnce({ status: 'OK', value: { headSha: 'live', state: 'open' } });
+      .mockResolvedValueOnce({ status: 'OK', value: { headSha: 'live', state: 'open', createdAt: '2026-01-01T00:00:00.000Z' } });
 
     await expect(service.listBranches(INSTALLATION_ID, REPOSITORY_NAME)).resolves.toEqual([
       { name: 'main', protected: true },
@@ -87,6 +87,7 @@ describe('GithubRepositoryContentService', () => {
     await expect(service.getPullRequestHead(INSTALLATION_ID, REPOSITORY_NAME, 42)).resolves.toEqual({
       headSha: 'live',
       state: 'open',
+      createdAt: '2026-01-01T00:00:00.000Z',
     });
     expect(integration.post).toHaveBeenNthCalledWith(2, '/repositories/pull-request-head', {
       installationId: INSTALLATION_ID,
@@ -110,6 +111,29 @@ describe('GithubRepositoryContentService', () => {
     await expect(service.listBranches(INSTALLATION_ID, REPOSITORY_NAME)).rejects.toMatchObject({
       status: 503,
       message: 'GitHub Integration devolvió una respuesta inválida.',
+    });
+  });
+
+  it.each([
+    ['missing creation date', { headSha: 'live', state: 'open' }],
+    ['non-UTC creation date', { headSha: 'live', state: 'open', createdAt: '2026-01-01T00:00:00+01:00' }],
+  ])('rejects a pull request head with %s', async (_label, value) => {
+    const { integration, service } = setup();
+    integration.post.mockResolvedValue({ status: 'OK', value });
+
+    await expect(service.getPullRequestHead(INSTALLATION_ID, REPOSITORY_NAME, 42)).rejects.toMatchObject({
+      status: 503,
+      message: 'GitHub Integration devolvió una respuesta inválida.',
+    });
+  });
+
+  it('keeps a historical pull request head UNVERIFIABLE without a partial value', async () => {
+    const { integration, service } = setup();
+    integration.post.mockResolvedValue({ status: 'UNVERIFIABLE' });
+
+    await expect(service.getPullRequestHead(INSTALLATION_ID, REPOSITORY_NAME, 42)).rejects.toMatchObject({
+      status: 503,
+      message: 'No se pudo verificar el pull request de GitHub.',
     });
   });
 });

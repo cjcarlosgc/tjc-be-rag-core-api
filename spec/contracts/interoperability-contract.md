@@ -6,7 +6,7 @@
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
-Este documento define el contrato HTTP operativo entre Developer Console, RAG Core y Test Execution Sandbox. Core y Console conservan una copia espejo byte por byte; Sandbox mantiene la línea base anterior mientras otro desarrollador trabaja allí. `GH-INTEROP-1.1` especifica además la superficie autenticada Console→GitHub Integration y el callback privado Integration→Core. Las rutas actuales Core de discovery, verificación y ramas se mantienen durante la compatibilidad; no se retiran en este corte.
+Este documento define el contrato HTTP operativo entre Developer Console, RAG Core y Test Execution Sandbox. Core y Console conservan una copia espejo byte por byte; Sandbox mantiene la línea base anterior mientras otro desarrollador trabaja allí. `GH-INTEROP-1.2` especifica además la superficie autenticada Console→GitHub Integration y el callback privado Integration→Core. Las rutas actuales Core de discovery, verificación y ramas se mantienen durante la compatibilidad; no se retiran en este corte.
 
 ## 1. Compatibilidad y autoridad
 
@@ -554,7 +554,7 @@ Errores de dominio: `GITHUB_ACCOUNT_REQUIRED` (401), `GITHUB_USER_TOKEN_INVALID`
 
 - `POST /internal/v1/github/webhook-events` -> `202 GitHubWebhookAcceptedResponse` para una aceptación nueva/no-op y `200` solo para un PR cuya entrega ya está persistida. Es un endpoint privado GH Integration→Core; no pertenece a la API pública de Console ni acepta sesiones de usuario.
 
-GitHub envía `x-github-delivery`, `x-github-event` y `x-hub-signature-256` al host de GitHub Integration. Ese componente verifica la firma sobre el body crudo, normaliza el evento y reenvía a Core solo los campos allowlisted. Core autentica ese salto con un bearer GH→Core independiente y valida `schemaVersion` y la forma estricta del evento antes de procesarlo; el detalle del DTO y sus reglas está en `GH-INTEROP-1.1` (`spec/contracts/github-integration-contract.md`, §Webhooks). Core no recibe ni verifica firmas GitHub ni expone un ingress público de webhooks. Solo instalaciones y bindings `ENABLED` producen trabajo de análisis; los eventos de acceso de "Eventos de acceso" (abajo) se procesan aunque el binding no esté `ENABLED`, porque mantienen los registros de acceso de todo Project vivo.
+GitHub envía `x-github-delivery`, `x-github-event` y `x-hub-signature-256` al host de GitHub Integration. Ese componente verifica la firma sobre el body crudo, normaliza el evento y reenvía a Core solo los campos allowlisted. Core autentica ese salto con un bearer GH→Core independiente y valida `schemaVersion` y la forma estricta del evento antes de procesarlo; el detalle del DTO y sus reglas está en `GH-INTEROP-1.2` (`spec/contracts/github-integration-contract.md`, §Webhooks). Core no recibe ni verifica firmas GitHub ni expone un ingress público de webhooks. Solo instalaciones y bindings `ENABLED` producen trabajo de análisis; los eventos de acceso de "Eventos de acceso" (abajo) se procesan aunque el binding no esté `ENABLED`, porque mantienen los registros de acceso de todo Project vivo.
 
 ```ts
 type PullRequestAction =
@@ -575,6 +575,8 @@ interface GitHubWebhookAcceptedResponse {
 ```
 
 La identidad durable combina delivery id, repository id, PR number, head SHA, event y action. `opened|reopened|ready_for_review|synchronize` crean o actualizan lifecycle solo cuando el PR está ready y `baseRef == integrationBranch`. `synchronize`, incluido force-push, obsoleta el Run del HEAD previo y crea el del HEAD nuevo. `closed|edited|converted_to_draft` no crean análisis ciego; actualizan vigencia y cancelación/obsolescencia. Un resultado tardío de un Run no vigente no publica Check actual.
+
+Core solo crea o reinicia Runs cuando `pullRequest.createdAt >= RepositoryBinding.createdAt`. Un PR anterior al binding no se vuelve elegible por un evento posterior. Si `createdAt` es `null` o no verificable, el webhook se acepta, no se crea un Run provisional y Core conserva el evento normalizado en un job durable; tras verificar la fecha, el job reanuda el análisis únicamente si el binding sigue habilitado y el PR permanece abierto con el mismo HEAD. No se usa `receivedAt` como sustituto. Las acciones que cierran o desactivan un PR se aplican aun sin fecha verificable.
 
 #### Eventos de acceso (`DEC-ORG-001`, HU01/HU02)
 
@@ -608,6 +610,8 @@ Sin evento fiable (ventana de hasta una hora, solo la reconciliación los corrig
 - `GET /projects/{projectId}/analysis-runs?status&cursor&limit` -> `200 Page<AnalysisRunSummaryResponse>`.
 - `GET /analysis-runs?status&cursor&limit` -> `200 Page<AnalysisRunSummaryResponse>` (HU14, sin `projectId`: Runs de todos los Projects visibles para el usuario autenticado (cualquier rol), mismo shape — no es una vista global sin dueño; cubre los Projects personales del usuario más los de organización con registro de acceso ya existente). **Implementado (HU14, bundle B).**
 - `GET /analysis-runs/{analysisRunId}` -> `200 AnalysisRunDetailResponse`.
+
+Las listas y los detalles omiten Runs cuyo `pullRequest.createdAt` aún no se verificó o cuya fecha precede al binding; un deep link a uno de esos Runs responde como inexistente. Los Runs y su evidencia se conservan físicamente. La elegibilidad se filtra antes de paginar, por lo que un cursor no expone ni salta entre filas ocultas.
 
 ```ts
 type AnalysisRunStatus =
@@ -701,6 +705,8 @@ Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respue
 - `GET /analysis-runs/{analysisRunId}/context-questions` -> `200 FunctionalQuestionSetResponse`.
 - `POST /analysis-runs/{analysisRunId}/context-questions/{questionId}/answers` -> `202 FunctionalAnswerAcceptedResponse`.
 - `GET /projects/{projectId}/functional-knowledge?status&cursor&limit` -> `200 Page<FunctionalKnowledgeResponse>`.
+
+El inbox de preguntas también omite cualquier pregunta cuyo Run esté sin clasificar o corresponda a un PR anterior al binding. Al clasificarlo como anterior, las preguntas `PENDING` se obsoletan junto al Run.
 
 ```ts
 type FunctionalScope = 'PROJECT' | 'MODULE' | 'CLASS' | 'METHOD' | 'SYMBOL'
@@ -893,7 +899,7 @@ Un recurso no visible conserva el `404` de su recurso (`PROJECT_NOT_FOUND`, etc.
 
 | Rol mínimo | Operaciones |
 |---|---|
-| Sin rol de Project (solo sesión GitHub válida) | `GET /workspaces`; `GET /integrations/github/repositories` (con `workspaceId`: pertenencia al workspace); `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` (exigen permiso `maintain`/`write`/`admin` sobre el repositorio); `POST /projects` (personal: cualquiera; organización: Admin de la organización). Sin sesión de usuario: `GET /health`. El receptor privado normalizado GH Integration→Core se rige por `GH-INTEROP-1.0` (§6.9), no es una operación pública sujeta a rol de Project ni de Console. |
+| Sin rol de Project (solo sesión GitHub válida) | `GET /workspaces`; `GET /integrations/github/repositories` (con `workspaceId`: pertenencia al workspace); `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` (exigen permiso `maintain`/`write`/`admin` sobre el repositorio); `POST /projects` (personal: cualquiera; organización: Admin de la organización). Sin sesión de usuario: `GET /health`. El receptor privado normalizado GH Integration→Core se rige por `GH-INTEROP-1.2` (§6.9), no es una operación pública sujeta a rol de Project ni de Console. |
 | Reader | `GET /projects`, `GET /projects/{projectId}`; `GET /projects/{projectId}/versions`; `GET /project-versions/{id}`, `.../results`, `.../test-inventory`; `GET /projects/{projectId}/integrations/github`; `GET /projects/{projectId}/analysis-runs`, `GET /analysis-runs`, `GET /analysis-runs/{id}`; `GET /action-required`, `GET /analysis-runs/{id}/context-questions`, `GET /projects/{projectId}/functional-knowledge`; `GET /analysis-runs/{id}/test-proposals`, `GET /test-publications/{id}`; `GET /experiments/{id}`, `.../results`, `GET /analysis-runs/{id}/experiments`; `GET /experiments/{id}/context-traces`, `GET /context-traces/{id}`, `.../discovered-files`; suscripción WebSocket `subscribe:project-version`. |
 | Maintainer | `POST /projects/{projectId}/integrations/github`, `POST .../enable`, `DELETE .../integrations/github` (pausa) (con la salvedad de que un Project sin repositorio, y uno con binding `REVOKED`, lo ve solo un Admin: reactivar un binding `REVOKED` lo hace un Admin); `POST /analysis-runs/{id}/context-questions/{questionId}/answers`; `POST /analysis-runs/{id}/test-publications`; `POST /experiments`. |
 | Admin | `PATCH /projects/{projectId}`; `DELETE /projects/{projectId}`; `POST /projects` en una organización. |

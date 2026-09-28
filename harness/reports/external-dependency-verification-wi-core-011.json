@@ -1,0 +1,43 @@
+{
+  "consumerWorkItem": "WI-CORE-011",
+  "sourceRepositories": [
+    {
+      "component": "GH",
+      "repository": "tjc-be-github-integration-api",
+      "sourceRevision": "3b67577ad4019041fada34a8b84677943b6ed59e"
+    }
+  ],
+  "verifiedAt": "2026-09-27T22:25:27.000Z",
+  "verifiedBy": "human-reviewer",
+  "verificationEvidence": [
+    "Aprobaci\u00f3n humana de WI-GH-007 documentada en tjc-be-github-integration-api:harness/reports/wi-gh-007-user-review.md",
+    "Core leader cotej\u00f3 en lectura la rama feature/jean, el HEAD actual, WI-GH-007 W-DONE y sus artefactos de cierre",
+    "Core leader cotej\u00f3 el outbox CS-GH-20260927-001, sourceRevision y payload sha con el inbox importado/acknowledged de Core",
+    "tjc-be-github-integration-api:harness/work-items.json WI-GH-007 W-DONE",
+    "tjc-be-github-integration-api:harness/reports/wi-gh-007-closure.md",
+    "tjc-be-github-integration-api/harness/contract-sync/outbox/CS-GH-20260927-001.yaml",
+    "tjc-be-github-integration-api HEAD 3b67577ad4019041fada34a8b84677943b6ed59e"
+  ],
+  "upstreamWorkItems": [
+    {
+      "workItemId": "WI-GH-007",
+      "status": "W-DONE",
+      "completionEvidence": "harness/reports/wi-gh-007-closure.md",
+      "contractSyncs": [
+        {
+          "id": "CS-GH-20260927-001",
+          "source": "github-integration",
+          "sourceWorkItem": "WI-GH-007",
+          "sourceRevision": "35bd9f2006240ebcd12ce0c3353d3a43bb1c1d0c",
+          "targets": [
+            "core",
+            "console"
+          ],
+          "status": "C-ACKNOWLEDGED",
+          "payloadSha256": "1e71c76e76df8b4dfa68a504c968d74e061af8848d32a823f6cb6f964ef8462e"
+        }
+      ]
+    }
+  ],
+  "verificationExecutedBy": "core-leader-agent"
+}

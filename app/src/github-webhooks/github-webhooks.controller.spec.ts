@@ -29,6 +29,7 @@ function pullRequestEvent() {
         title: 'Add feature',
         draft: false,
         merged: false,
+        createdAt: '2026-01-01T00:00:00.000Z',
         base: { ref: 'develop', sha: 'base-sha' },
         head: { ref: 'feature', sha: 'head-sha' },
         userLogin: 'octocat',
@@ -98,6 +99,13 @@ describe('Core internal GitHub webhook receiver', () => {
     expect(service.handle).toHaveBeenCalledWith(event);
   });
 
+  it('accepts a PR whose creation time is unverified as null', async () => {
+    const event = pullRequestEvent();
+    event.data.pullRequest.createdAt = null;
+    await send(event, TOKEN).expect(202);
+    expect(service.handle).toHaveBeenCalledWith(event);
+  });
+
   it('returns 200 only when the persisted PR delivery is a duplicate', async () => {
     const event = pullRequestEvent();
     service.handle.mockResolvedValueOnce({
@@ -133,6 +141,9 @@ describe('Core internal GitHub webhook receiver', () => {
   it.each([
     ['invalid schema version', { ...pullRequestEvent(), schemaVersion: 2 }],
     ['missing delivery metadata', { ...pullRequestEvent(), deliveryId: '' }],
+    ['missing PR creation time', { ...pullRequestEvent(), data: { ...pullRequestEvent().data, pullRequest: { ...pullRequestEvent().data.pullRequest, createdAt: undefined } } }],
+    ['invalid PR creation time', { ...pullRequestEvent(), data: { ...pullRequestEvent().data, pullRequest: { ...pullRequestEvent().data.pullRequest, createdAt: 'not-a-date' } } }],
+    ['non-UTC PR creation time', { ...pullRequestEvent(), data: { ...pullRequestEvent().data, pullRequest: { ...pullRequestEvent().data.pullRequest, createdAt: '2026-01-01T00:00:00+01:00' } } }],
     ['unallowlisted envelope field', { ...pullRequestEvent(), payload: { secret: true } }],
     ['unallowlisted nested payload field', { ...pullRequestEvent(), data: { ...pullRequestEvent().data, pullRequest: { ...pullRequestEvent().data.pullRequest, user: { role: 'admin' } } } }],
     ['kind/event mismatch', { ...pullRequestEvent(), eventName: 'repository' }],

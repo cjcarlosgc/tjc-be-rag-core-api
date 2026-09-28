@@ -8,6 +8,8 @@ export interface CreateAnalysisRunInput {
   repositoryId: string;
   repositoryName: string;
   prNumber: number;
+  pullRequestCreatedAt?: Date | null;
+  repositoryBindingEligible?: boolean | null;
   prTitle: string;
   baseRef: string;
   headRef: string;
@@ -15,6 +17,11 @@ export interface CreateAnalysisRunInput {
   headSha: string;
   draft: boolean;
   actorLogin: string | null;
+}
+
+export interface PullRequestRunGroup {
+  repositoryId: string;
+  prNumber: number;
 }
 
 @Injectable()
@@ -28,6 +35,8 @@ export class AnalysisRunsRepository {
         repositoryId: input.repositoryId,
         repositoryName: input.repositoryName,
         prNumber: input.prNumber,
+        pullRequestCreatedAt: input.pullRequestCreatedAt ?? null,
+        repositoryBindingEligible: input.repositoryBindingEligible ?? null,
         prTitle: input.prTitle,
         baseRef: input.baseRef,
         headRef: input.headRef,
@@ -52,7 +61,14 @@ export class AnalysisRunsRepository {
   }
 
   findByIdForOwner(id: string, userId: string): Promise<AnalysisRun | null> {
-    return this.prisma.analysisRun.findFirst({ where: { id, project: accessibleProject(userId) } });
+    return this.prisma.analysisRun.findFirst({
+      where: {
+        id,
+        pullRequestCreatedAt: { not: null },
+        repositoryBindingEligible: true,
+        project: accessibleProject(userId),
+      },
+    });
   }
 
   /**
@@ -60,7 +76,13 @@ export class AnalysisRunsRepository {
    * plano (mismo patrón que `ProjectVersionsRepository.findById`).
    */
   findById(id: string): Promise<AnalysisRun | null> {
-    return this.prisma.analysisRun.findUnique({ where: { id } });
+    return this.prisma.analysisRun.findFirst({
+      where: {
+        id,
+        pullRequestCreatedAt: { not: null },
+        repositoryBindingEligible: true,
+      },
+    });
   }
 
   update(id: string, data: Prisma.AnalysisRunUpdateInput): Promise<AnalysisRun> {
@@ -114,7 +136,12 @@ export class AnalysisRunsRepository {
     cursor: string | undefined,
   ): Promise<AnalysisRun[]> {
     return this.prisma.analysisRun.findMany({
-      where: { project: accessibleProject(userId), ...(status ? { status } : {}) },
+      where: {
+        pullRequestCreatedAt: { not: null },
+        repositoryBindingEligible: true,
+        project: accessibleProject(userId),
+        ...(status ? { status } : {}),
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -129,10 +156,87 @@ export class AnalysisRunsRepository {
     cursor: string | undefined,
   ): Promise<AnalysisRun[]> {
     return this.prisma.analysisRun.findMany({
-      where: { projectId, project: accessibleProject(userId), ...(status ? { status } : {}) },
+      where: {
+        projectId,
+        pullRequestCreatedAt: { not: null },
+        repositoryBindingEligible: true,
+        project: accessibleProject(userId),
+        ...(status ? { status } : {}),
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
+  }
+
+  /** Identidades PR con Runs sin clasificar, para sembrar de nuevo jobs tras reinicios. */
+  findUnclassifiedPullRequestGroups(): Promise<PullRequestRunGroup[]> {
+    return this.prisma.analysisRun.findMany({
+      where: {
+        OR: [{ pullRequestCreatedAt: null }, { repositoryBindingEligible: null }],
+      },
+      select: { repositoryId: true, prNumber: true },
+      distinct: ['repositoryId', 'prNumber'],
+      orderBy: [{ repositoryId: 'asc' }, { prNumber: 'asc' }],
+    });
+  }
+
+  hasUnclassifiedPullRequest(repositoryId: string, prNumber: number): Promise<boolean> {
+    return this.prisma.analysisRun.findFirst({
+      where: {
+        repositoryId,
+        prNumber,
+        OR: [{ pullRequestCreatedAt: null }, { repositoryBindingEligible: null }],
+      },
+      select: { id: true },
+    }).then((run) => run !== null);
+  }
+
+  /**
+   * Clasifica idempotentemente todos los Runs históricos de un PR respecto del
+   * binding actual. Los pre-binding quedan OBSOLETE y sus preguntas pendientes
+   * se obsoletan en la misma transacción.
+   */
+  async classifyPullRequest(
+    repositoryId: string,
+    prNumber: number,
+    pullRequestCreatedAt: Date | null,
+    bindingCreatedAt: Date,
+  ): Promise<{ classifiedCount: number; eligible: boolean }> {
+    if (pullRequestCreatedAt === null) {
+      return { classifiedCount: 0, eligible: false };
+    }
+
+    if (!Number.isFinite(pullRequestCreatedAt.getTime())) {
+      throw new RangeError('pullRequestCreatedAt debe ser una fecha válida.');
+    }
+
+    const eligible = pullRequestCreatedAt.getTime() >= bindingCreatedAt.getTime();
+
+    const classifiedCount = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.analysisRun.updateMany({
+        where: {
+          repositoryId,
+          prNumber,
+          OR: [{ pullRequestCreatedAt: null }, { repositoryBindingEligible: null }],
+        },
+        data: {
+          pullRequestCreatedAt,
+          repositoryBindingEligible: eligible,
+          ...(eligible ? {} : { status: 'OBSOLETE', current: false }),
+        },
+      });
+
+      if (!eligible) {
+        await tx.functionalQuestion.updateMany({
+          where: { status: 'PENDING', analysisRun: { repositoryId, prNumber } },
+          data: { status: 'OBSOLETE' },
+        });
+      }
+
+      return result.count;
+    });
+
+    return { classifiedCount, eligible };
   }
 }

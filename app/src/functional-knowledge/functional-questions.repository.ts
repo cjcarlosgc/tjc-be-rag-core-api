@@ -91,7 +91,14 @@ export class FunctionalQuestionsRepository {
   /** Debe existir a lo sumo una PENDING por Run (`FunctionalContextEvaluatorService` genera de a una). */
   findPendingByAnalysisRun(analysisRunId: string): Promise<FunctionalQuestion | null> {
     return this.prisma.functionalQuestion.findFirst({
-      where: { analysisRunId, status: 'PENDING' },
+      where: {
+        analysisRunId,
+        status: 'PENDING',
+        analysisRun: {
+          pullRequestCreatedAt: { not: null },
+          repositoryBindingEligible: true,
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -123,7 +130,12 @@ export class FunctionalQuestionsRepository {
       where: {
         status,
         project: accessibleProject(userId),
-        analysisRun: { status: 'ACTION_REQUIRED', current: true },
+        analysisRun: {
+          status: 'ACTION_REQUIRED',
+          current: true,
+          pullRequestCreatedAt: { not: null },
+          repositoryBindingEligible: true,
+        },
         ...(projectId ? { projectId } : {}),
       },
       include: { analysisRun: true },

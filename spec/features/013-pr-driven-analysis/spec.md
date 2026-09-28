@@ -27,9 +27,13 @@ GitHub Integration entrega a RAG Core eventos normalizados de GitHub App para re
 
 ## Siguiente corte aprobado — exclusión de PRs anteriores al binding (no implementado)
 
-Al conectar un repositorio, `RepositoryBinding.createdAt` delimita desde cuándo un PR es elegible para ese Project. GitHub Integration debe entregar el `pullRequest.createdAt` original en el webhook normalizado y en la metadata de recuperación del HEAD; Core compara ambas fechas y no crea Runs para PRs creados antes del binding, aunque después reciban `synchronize` u otros eventos. Fechas iguales o posteriores son elegibles.
+Al conectar un repositorio, `RepositoryBinding.createdAt` delimita desde cuándo un PR es elegible para ese Project. GitHub Integration entrega en `pullRequest.createdAt` el instante de `pull_request.created_at`, validado y serializado en ISO-8601 UTC; el campo siempre está presente y vale `null` si falta o no puede verificarse. `receivedAt` conserva la hora de recepción y nunca sustituye la fecha de creación. Core compara la fecha verificable con `RepositoryBinding.createdAt`: fechas iguales o posteriores son elegibles; PRs anteriores no crean ni reinician Runs aunque luego reciban `synchronize` u otros eventos.
 
-Los Runs históricos se conservan físicamente. Core clasifica como obsoletos y oculta de listas, detalles y bandejas los asociados a PRs anteriores al binding. Si no puede verificar la fecha de creación, los registros permanecen guardados pero ocultos y una recuperación durable reintenta la clasificación. No hay cambios de UI previstos ni cambios en Sandbox. La implementación está pendiente de `WI-GH-007`, `WI-CORE-011` y `WI-CONSOLE-008`.
+La falta o invalidez de `createdAt` no rechaza el webhook: Core no inicia ni reinicia un Run elegible, mantiene ocultos los Runs afectados y programa recuperación durable. La lectura histórica `pull-request-head` solo devuelve `OK` con una fecha original verificable; si falta o no es inequívoca, devuelve `UNVERIFIABLE` sin valor parcial. Core reintenta la clasificación durablemente y no usa `receivedAt` como sustituto.
+
+Para un evento nuevo sin fecha verificable, la recuperación durable conserva únicamente el evento normalizado allowlisted necesario para retomarlo; no crea un Run provisional. Cuando GitHub Integration verifica la fecha, Core crea el Run solo si el PR es elegible, el binding sigue habilitado y el HEAD del evento aún coincide con el HEAD consultado. Una fecha anterior descarta el inicio. Los eventos de cierre, conversión a borrador o salida de la rama de integración actualizan el lifecycle aunque falte la fecha, sin iniciar análisis.
+
+Los Runs históricos se conservan físicamente. Core clasifica como obsoletos y oculta de listas, detalles y bandejas los asociados a PRs anteriores al binding. No hay cambios de UI previstos ni cambios en Sandbox. La implementación está pendiente de `WI-GH-007`, `WI-CORE-011` y `WI-CONSOLE-008`.
 
 ## Pipeline
 

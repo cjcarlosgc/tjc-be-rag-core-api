@@ -14,9 +14,9 @@ La planificación de producto conserva las seis épicas y 18 HU fijas de `spec/b
 1. `WI-CORE-001` (P0, cerrado localmente): reordenar SDD/Harness, IDs, estados, gates y contratos sin asumir aceptación de HU antiguas.
 2. `WI-CORE-002` (P0, después del 001): retirar carga manual de código ZIP y descarga legacy de artefactos. Conservar snapshot ZIP interno y datos activos; migración/purga solo con inventario y respaldo.
 3. `WI-GH-001`–`WI-GH-006`, `WI-CORE-003` y `WI-CONSOLE-003` están cerrados localmente con gates y revisión registrados: la interacción GitHub se separa por cortes verificables. El despliegue, configuración externa, retiro de rutas Core compatibles y cutover siguen pendientes de autorización/corte coordinado.
-4. `WI-GH-007` → `WI-CORE-011` (P1): entregar `pullRequest.createdAt`, excluir PRs anteriores al binding y ocultar sin borrar su historial. Ambos quedan planificados; Console tiene `WI-CONSOLE-008` para sincronización contractual sin cambios de UI.
+4. `WI-CORE-014` (P1): publicar GH-INTEROP-1.2 con `pullRequest.createdAt` y Contract Sync a GH/Console; luego `WI-GH-007` entrega la fecha por webhook y lectura histórica, y `WI-CORE-011` aplica elegibilidad y clasificación del historial. `WI-CONSOLE-008` sincroniza el contrato tras ambos WIs, sin cambios de UI.
 5. `WI-CORE-004` (P2): formalizar OC01–OC15, happy paths primero y subcasos después. El catálogo de nombres no equivale a cobertura validada.
-6. `WI-CORE-012` (P1, activo): análisis estructural e inventario PHP Core (HU03/HU04, EP02); `WI-CORE-013` (P1, planificado y dependiente): generación/validación PHPUnit (HU10/HU11, EP04) tras coordinar con el dueño de Sandbox.
+6. `WI-CORE-012` (P1, W-DONE): análisis estructural e inventario PHP Core (HU03/HU04, EP02); `WI-CORE-013` (P1, planificado y dependiente): generación/validación PHPUnit (HU10/HU11, EP04) tras coordinar con el dueño de Sandbox.
 
 ## Backlog técnico P2, no seleccionado
 

@@ -21,6 +21,7 @@ export type NormalizedWebhookData =
         title: string;
         draft: boolean;
         merged: boolean;
+        createdAt: string | null;
         base: { ref: string; sha: string };
         head: { ref: string; sha: string };
         userLogin: string | null;
@@ -104,8 +105,9 @@ function parseData(value: unknown): NormalizedWebhookData | null {
         !isRecord(repository) || !hasExactKeys(repository, ['id', 'fullName']) || !githubId(repository.id) || !nonEmptyString(repository.fullName) ||
         !(value.installationId === null || githubId(value.installationId)) ||
         !Number.isSafeInteger(value.pullRequestNumber) || (value.pullRequestNumber as number) < 1 ||
-        !isRecord(pr) || !hasExactKeys(pr, ['title', 'draft', 'merged', 'base', 'head', 'userLogin']) ||
+        !isRecord(pr) || !hasExactKeys(pr, ['title', 'draft', 'merged', 'createdAt', 'base', 'head', 'userLogin']) ||
         typeof pr.title !== 'string' || typeof pr.draft !== 'boolean' || typeof pr.merged !== 'boolean' ||
+        !(pr.createdAt === null || isIsoUtcDateTime(pr.createdAt)) ||
         !(pr.userLogin === null || typeof pr.userLogin === 'string') ||
         !validRefAndSha(pr.base) || !validRefAndSha(pr.head)
       ) return null;
@@ -118,6 +120,7 @@ function parseData(value: unknown): NormalizedWebhookData | null {
           title: pr.title,
           draft: pr.draft,
           merged: pr.merged,
+          createdAt: pr.createdAt,
           base: { ref: (pr.base as Record<string, string>).ref, sha: (pr.base as Record<string, string>).sha },
           head: { ref: (pr.head as Record<string, string>).ref, sha: (pr.head as Record<string, string>).sha },
           userLogin: pr.userLogin,
@@ -209,6 +212,14 @@ function optionalGithubId(value: unknown): value is string | null {
 
 function isIsoDateTime(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+}
+
+function isIsoUtcDateTime(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value)) {
+    return false;
+  }
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 19) === value.slice(0, 19);
 }
 
 const KNOWN_EVENT_NAMES = new Set(Object.values(EVENT_FOR_KIND));
