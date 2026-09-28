@@ -681,6 +681,71 @@
           "report": "harness/reports/wi-core-014-contract-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-015",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "Post-transition",
+      "title": "Alinear estado canónico y espejos GH-INTEROP-1.2",
+      "storyIds": [
+        "HU02",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-022"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-011",
+        "WI-CORE-014"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "SYSTEM-2.5 y GH-INTEROP-1.2 describen correctamente la fecha original del PR y las capacidades compartidas como implementadas/cerradas localmente, citando WI-GH-007, WI-CORE-011 y WI-CORE-014; Console-008 queda registrado como sincronización/consumo local cuando corresponde.",
+        "Toda documentación activa de Core que presente esos WIs o la extensión de fecha como futuros/pedientes se alinea al estado cerrado local; CHANGELOG conserva la historia y no se reescriben reportes ni snapshots W-DONE.",
+        "Los textos dejan explícito que el cierre local no implica despliegue/cutover; no se cambia semántica ni versión de contratos.",
+        "Se publican Contract Sync namespaced a GitHub Integration y Console para importar los tres contratos canónicos byte a byte, sin cambios de comportamiento.",
+        "Validadores de Harness, work-items, SDD y completions pasan; el corte queda en W-IN_REVIEW a la espera de revisión independiente humana."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/constitution/project-context.md",
+        "spec/constitution/architecture.md",
+        "spec/constitution/roadmap.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/016-github-integration/spec.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "CHANGELOG.md",
+        "spec/features/016-github-integration/plan.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata lifecycle de RepositoryBinding/Project; este WI solo corrige el estado narrativo GH-INTEROP-1.2 y sincroniza espejos.",
+          "report": "harness/reports/wi-core-015-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata login de GitHub y configuración de despliegue; este WI no cambia auth ni configura o despliega servicios.",
+          "report": "harness/reports/wi-core-015-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20260927-006
+source: core
+sourceWorkItem: WI-CORE-015
+targets: [console, github-integration]
+scopePaths: [spec/contracts/system-contract.md]
+breaking: false
+changed:
+  - Elimina una referencia transitoria al proceso de distribución documental; sin cambio de comportamiento ni versiones.
+requiredAction:
+  - Console y GitHub Integration deben importar byte a byte SYSTEM-2.5 desde esta revisión y resolver el evento con evidencia.
+sourceRevision: c96e9ad3c58a65914e234974f342b83415a50286
+status: C-PENDING
