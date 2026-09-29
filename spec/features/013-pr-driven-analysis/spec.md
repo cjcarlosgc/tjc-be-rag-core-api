@@ -60,8 +60,8 @@ Una respuesta human persistente genera Functional Knowledge y un continuation jo
 ## Clasificación
 
 - `SUCCESS`: baseline y propuesta generada se validan.
-- `NO_ADDITIONAL_TESTS_REQUIRED`: tests existentes cubren suficientemente los targets.
-- `NO_TEST_RELEVANT_CHANGES`: no existen cambios relevantes para pruebas.
+- `NO_ADDITIONAL_TESTS_REQUIRED`: uno o más targets `METHOD`/`FUNCTION` directamente cambiados se evaluaron y todos se omitieron porque sus tests existentes los cubren. Un conjunto vacío de targets no demuestra cobertura.
+- `NO_TEST_RELEVANT_CHANGES`: no hay targets `METHOD`/`FUNCTION` directamente cambiados dentro del alcance de validación vigente.
 - `ACTION_REQUIRED`: falta conocimiento funcional relevante.
 - `BEHAVIORAL_MISMATCH`: test técnicamente válido evidencia diferencia expected/observed.
 - `TECHNICAL_GENERATION_FAILURE`: la prueba propuesta es técnicamente inválida.

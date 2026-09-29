@@ -244,7 +244,7 @@ describe('AnalysisRunValidationJobHandler', () => {
     );
   });
 
-  it('completes NO_ADDITIONAL_TESTS_REQUIRED when there are no DIRECTLY_CHANGED METHOD/FUNCTION candidates', async () => {
+  it('completes NO_TEST_RELEVANT_CHANGES without claiming coverage when there are no DIRECTLY_CHANGED METHOD/FUNCTION candidates', async () => {
     const { handler, analysisSymbolsRepository, analysisRunsService } = await setup();
     analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol({ kind: 'CLASS' })]);
 
@@ -252,8 +252,12 @@ describe('AnalysisRunValidationJobHandler', () => {
 
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
-      'NO_ADDITIONAL_TESTS_REQUIRED',
-      expect.anything(),
+      'NO_TEST_RELEVANT_CHANGES',
+      expect.objectContaining({
+        generatedTestsCount: 0,
+        functionalBehaviorValidated: false,
+        resultSummary: expect.stringContaining('cobertura existente no evaluada'),
+      }),
     );
   });
 

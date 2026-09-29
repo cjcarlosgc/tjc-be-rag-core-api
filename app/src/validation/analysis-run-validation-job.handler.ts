@@ -311,6 +311,9 @@ export class AnalysisRunValidationJobHandler
     if (outcomes.some((o) => o.kind === 'AVAILABLE')) {
       return 'SUCCESS';
     }
+    if (outcomes.length === 0) {
+      return 'NO_TEST_RELEVANT_CHANGES';
+    }
     return 'NO_ADDITIONAL_TESTS_REQUIRED';
   }
 
@@ -319,6 +322,10 @@ export class AnalysisRunValidationJobHandler
     const skipped = outcomes.filter((o) => o.kind === 'SKIPPED_HAS_TEST').length;
     const mismatched = outcomes.filter((o) => o.kind === 'BEHAVIORAL_MISMATCH').length;
     const failed = outcomes.filter((o) => o.kind === 'TECHNICAL_GENERATION_FAILURE').length;
+
+    if (status === 'NO_TEST_RELEVANT_CHANGES' && outcomes.length === 0) {
+      return `${status}: 0 candidato(s) METHOD/FUNCTION directamente cambiado(s), 0 propuesta(s) disponible(s); cobertura existente no evaluada.`;
+    }
 
     return `${status}: ${available} propuesta(s) disponible(s), ${skipped} símbolo(s) ya cubiertos por tests existentes, ${mismatched} behavioral mismatch, ${failed} fallo(s) técnico(s) de generación.`;
   }
