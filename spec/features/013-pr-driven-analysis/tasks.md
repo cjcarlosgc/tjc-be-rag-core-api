@@ -1,5 +1,6 @@
 # 013 — Subtareas actuales
 
+- [ ] **ST-CORE-023 · T-IN_PROGRESS · WI-CORE-016 · HU06, HU10, HU11, HU14 · OC12:** clasificar como `NO_TEST_RELEVANT_CHANGES` el Run sin targets `METHOD`/`FUNCTION` directamente cambiados; reservar `NO_ADDITIONAL_TESTS_REQUIRED` para targets que sí se omitieron por tests existentes.
 - [ ] **ST-CORE-004 · T-BACKLOGGED · WI-CORE-004 · HU03–HU16:** formalizar OC01–OC15 desde happy paths; agregar subcasos aprobados, pruebas y trazabilidad sin asumir cobertura por el catálogo.
 - [x] **ST-CORE-016 [T-DONE] · WI-CORE-003 · HU08, HU14:** hacer atómica la creación de preguntas y la transición a `ACTION_REQUIRED`; ocultar/obsoletar preguntas de Runs obsoletos y evitar que jobs tardíos publiquen Checks o sobrescriban su estado.
 - [x] **ST-CORE-021 · T-DONE · WI-CORE-014 · HU02, HU14:** publicar GH-INTEROP-1.2 como contrato canónico de Core para createdAt del PR en webhooks y lectura histórica; definir el manejo de fechas no verificables y emitir Contract Sync a GitHub Integration y Console. Evidencia: `harness/reports/wi-core-014-closure.md`.

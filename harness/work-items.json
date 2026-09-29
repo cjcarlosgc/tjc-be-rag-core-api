@@ -746,6 +746,57 @@
           "report": "harness/reports/wi-core-015-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-016",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_REVIEW",
+      "priority": "P1",
+      "sprint": "Post-transition",
+      "title": "Evitar declarar cobertura sin targets elegibles",
+      "storyIds": [
+        "HU06",
+        "HU10",
+        "HU11",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-023"
+      ],
+      "caseIds": [
+        "OC12"
+      ],
+      "dependsOn": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Un Run sin targets METHOD/FUNCTION directamente cambiados termina como NO_TEST_RELEVANT_CHANGES y no se marca como cobertura existente suficiente.",
+        "NO_ADDITIONAL_TESTS_REQUIRED requiere al menos un target elegible omitido por un test existente asociado.",
+        "El resumen del Run vacío aclara que no hubo targets y que no se evaluó cobertura.",
+        "Pruebas de regresión cubren el conjunto vacío y el conjunto con targets cubiertos; no se cambia el contrato HTTP ni el estado persistido permitido."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "CHANGELOG.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata rutas y lifecycle de Project/RepositoryBinding; este WI solo cambia la clasificación de resultados de Validation.",
+          "report": "harness/reports/wi-core-016-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni comportamiento de publicación.",
+          "report": "harness/reports/wi-core-016-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }
