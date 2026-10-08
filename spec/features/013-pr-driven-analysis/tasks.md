@@ -1,7 +1,7 @@
 # 013 — Subtareas actuales
 
 - [x] **ST-CORE-023 · T-DONE · WI-CORE-016 · HU06, HU10, HU11, HU14 · OC12:** clasificar como `NO_TEST_RELEVANT_CHANGES` el Run sin targets `METHOD`/`FUNCTION` directamente cambiados; reservar `NO_ADDITIONAL_TESTS_REQUIRED` para targets que sí se omitieron por tests existentes.
-- [ ] **ST-CORE-025 · T-IN_PROGRESS · WI-CORE-018 · HU07, HU08, HU14:** `UNKNOWN` como abstención auditada que mantiene la pregunta `PENDING` y el Run en `ACTION_REQUIRED` sin continuación, y activación exacta de `ACTION_REQUIRED` según `DEC-FK-002` e INTEROP-2.7 §6.11; pruebas de no continuación y de causas no válidas de pregunta.
+- [x] **ST-CORE-025 · T-DONE · WI-CORE-018 · HU07, HU08, HU14:** `UNKNOWN` como abstención auditada que mantiene la pregunta `PENDING` y el Run en `ACTION_REQUIRED` sin continuación, y activación exacta de `ACTION_REQUIRED` según `DEC-FK-002` e INTEROP-2.7 §6.11; pruebas de no continuación y de causas no válidas de pregunta. Evidencia: `harness/reports/wi-core-018-closure.md`.
 - [ ] **ST-CORE-027 · T-BACKLOGGED · WI-CORE-020 · HU07, HU09:** varias reglas `ACTIVE` por target diferenciadas por `scenarioKey` derivado por Core (`DEC-FK-001`); conflicto y `SUPERSEDE` solo entre reglas con el mismo `scenarioKey`; migración reversible de reglas históricas.
 - [ ] **ST-CORE-004 · T-BACKLOGGED · WI-CORE-004 · HU03–HU16:** formalizar OC01–OC15 desde happy paths; agregar subcasos aprobados, pruebas y trazabilidad sin asumir cobertura por el catálogo.
 - [x] **ST-CORE-016 [T-DONE] · WI-CORE-003 · HU08, HU14:** hacer atómica la creación de preguntas y la transición a `ACTION_REQUIRED`; ocultar/obsoletar preguntas de Runs obsoletos y evitar que jobs tardíos publiquen Checks o sobrescriban su estado.
