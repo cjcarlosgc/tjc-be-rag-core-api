@@ -17,3 +17,7 @@
 - Pruebas automatizadas para reglas determinísticas y contratos.
 - Casos positivos, negativos y estados terminales relevantes.
 - `lint`, `test` y `build` antes de cierre.
+
+## Cortes SMART V3
+
+Orden: `WI-CORE-021` (`functionalRules`, depende de `WI-CORE-020`), `WI-CORE-022` (OE2, depende solo de la SDD) y, diferido, `WI-CORE-028` (PHP estructural). `WI-CORE-006` (decisiones de candidatos RAG) comparte `RetrievalService` con OE2: se ejecutan en serie y el contrato de candidatos de §6.15 reutiliza el vocabulario de señales de §6.7.

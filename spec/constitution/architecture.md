@@ -1,6 +1,6 @@
 # Arquitectura objetivo de cuatro componentes
 
-**Contratos compartidos:** SYSTEM-2.5 / INTEROP-2.6 / GH-INTEROP-1.2
+**Contratos compartidos:** SYSTEM-2.6 / INTEROP-2.7 / GH-INTEROP-1.2
 **Estado:** aprobado con decisiones `PENDING` explícitas
 
 ## Topología

@@ -23,3 +23,7 @@
 - Pruebas de retry: historial conservado y último intento por defecto.
 - Pruebas de aislamiento entre ProjectVersion y Project autorizado, redacción de secretos y ausencia de chain-of-thought.
 - `lint`, `test`, `build` y SDD check antes de cierre.
+
+## Corte SMART V3
+
+`WI-CORE-026` depende de `WI-CORE-021` (el `context_id` incluye `functionalRules`) y precede a `WI-CORE-027`.
