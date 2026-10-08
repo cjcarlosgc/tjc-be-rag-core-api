@@ -3225,7 +3225,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/features/014-organizations-access/spec.md",
       "spec/features/014-organizations-access/plan.md",
@@ -3255,10 +3255,15 @@
     "transversalPaths": [],
     "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-ORG-001",
+        "DEC-ORG-002",
+        "DEC-ORG-003",
+        "DEC-FK-002"
+      ],
+      "checkedAt": "2026-10-08T20:10:00.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
@@ -3266,12 +3271,34 @@
       "implementationAgent": "implementer-high",
       "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "Ninguna decisión con Blocks alcanza el WI.",
+            "ACCESS_REVERIFY no tiene alcance completo: el WI añade el alcance ALL.",
+            "Ambigüedades 4.1-4.7 resueltas como detalle técnico en plan.md de 014."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-019-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar por cortes A, B, C y D con implementer-high y revisar contrato después.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -3279,7 +3306,7 @@
       "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -3308,8 +3335,18 @@
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
-    "evidence": [],
+    "evidence": [
+      "harness/reports/wi-core-019-sdd-verification.md",
+      "harness/reports/smart-v3-scope-approval.md"
+    ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-019-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-019-sdd-verification.md"
+      ]
+    }
   }
 }
