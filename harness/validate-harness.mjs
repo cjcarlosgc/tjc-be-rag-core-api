@@ -22,7 +22,7 @@ if (contractSyncLifecycleTests.status !== 0) failures.push(contractSyncLifecycle
 if (contractSyncCliTests.status !== 0) failures.push(contractSyncCliTests.stderr.trim() || contractSyncCliTests.stdout.trim() || contractSyncCliTests.error?.message || 'Contract Sync CLI tests failed');
 const assignmentTests = spawnSync(process.execPath, ['--test', path.join(root, 'harness/agent-assignment.test.mjs')], { cwd: root, encoding: 'utf8' });
 if (assignmentTests.status !== 0) failures.push(assignmentTests.stderr.trim() || assignmentTests.stdout.trim() || assignmentTests.error?.message || 'agent assignment tests failed');
-const requiredRoles = ['leader.md', 'sdd-analyst.md', 'implementer.md', 'contract-reviewer.md', 'reviewer.md'];
+const requiredRoles = ['leader.md', 'sdd-analyst.md', 'implementer.md', 'contract-reviewer.md', 'human-reviewer.md', 'reviewer.md'];
 const gateValues = new Set(['G-PASSED', 'G-FAILED', 'G-NOT_APPLICABLE', 'G-NOT_RUN']);
 const requiredGates = [
   'sddVerified', 'implementationCompleted', 'independentReviewPassed',
@@ -47,6 +47,14 @@ for (const role of requiredRoles) {
   assert(fs.existsSync(path.join(root, 'harness/roles', role)), `missing role: ${role}`);
 }
 assert(!fs.existsSync(path.join(root, 'harness/roles/analyst.md')), 'deprecated role analyst.md still exists');
+
+for (const agent of ['leader', 'sdd-analyst', 'implementer', 'implementer-high', 'contract-reviewer']) {
+  assert(fs.existsSync(path.join(root, '.claude/agents', `${agent}.md`)), `missing Claude agent profile: ${agent}`);
+}
+const agentProfiles = fs.readFileSync(path.join(root, 'harness/agent-profiles.yaml'), 'utf8');
+for (const modelId of ['claude-sonnet-5-5', 'claude-haiku-5-5']) {
+  assert(agentProfiles.includes(modelId), `agent-profiles.yaml missing exactModelId: ${modelId}`);
+}
 
 const state = readJson('harness/state.json');
 const registry = readJson('harness/work-items.json');

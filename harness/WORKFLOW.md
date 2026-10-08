@@ -34,3 +34,5 @@ node harness/contract-sync.mjs check --checkpoint start --work-item WI-CORE-001
 ```
 
 También se ejecutan lint, tests y build del componente antes de cerrar. Los archivos históricos en `harness/reports/` son evidencia, no reglas vigentes. No se hace push, PR, merge ni cambios de infraestructura externa sin solicitud explícita del usuario.
+
+**Perfiles y escalamiento:** los perfiles de agentes viven en `harness/agent-profiles.yaml` y se materializan en `.claude/agents/`. El leader puede escalar `implementer` a `implementer-high` (Haiku Low → High) sin permiso, con motivo trazado; nunca Haiku → Sonnet automáticamente (`BLOCKED`/`DECISION_REQUIRED`). El reviewer independiente por defecto es el `human-reviewer` (usuario).

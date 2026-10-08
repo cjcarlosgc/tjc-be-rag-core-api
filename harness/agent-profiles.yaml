@@ -1,21 +1,39 @@
-# Los nombres son aliases solicitados para el proyecto.
-# exactModelId permanece pendiente hasta mapear cada alias al identificador aceptado por la herramienta usada.
+# Política aprobada de agentes y modelos. `.claude/agents/` materializa estos perfiles; no redefine la verdad funcional.
+# Techo automático: Sonnet 5.5 / medium. Escalamiento automático permitido solo implementer low -> implementer-high
+# (sin permiso del usuario, con motivo breve trazado). Nunca Haiku -> Sonnet automático: si Haiku high no basta,
+# el leader registra BLOCKED o DECISION_REQUIRED.
+# implementer e implementer-high son el mismo rol lógico (harness/roles/implementer.md); cambia solo el esfuerzo.
 claude:
   leader:
-    modelAlias: "Sonnet 5"
-    exactModelId: null
-    reasoningEffort: "max"
-  workers:
-    modelAlias: "Sonnet 5"
-    exactModelId: null
-openai:
-  leader:
-    modelAlias: "Sol"
-    exactModelId: null
-    reasoningEffort: "max"
-  workers:
-    modelAlias: "Terra"
-    exactModelId: null
+    role: leader
+    modelAlias: "Sonnet 5.5"
+    exactModelId: "claude-sonnet-5-5"
+    reasoningEffort: "medium"
+  sdd-analyst:
+    role: sdd-analyst
+    modelAlias: "Sonnet 5.5"
+    exactModelId: "claude-sonnet-5-5"
+    reasoningEffort: "low"
+  implementer:
+    role: implementer
+    modelAlias: "Haiku 5.5"
+    exactModelId: "claude-haiku-5-5"
+    reasoningEffort: "low"
+    escalatesTo: implementer-high
+  implementer-high:
+    role: implementer
+    modelAlias: "Haiku 5.5"
+    exactModelId: "claude-haiku-5-5"
+    reasoningEffort: "high"
+  contract-reviewer:
+    role: contract-reviewer
+    modelAlias: "Sonnet 5.5"
+    exactModelId: "claude-sonnet-5-5"
+    reasoningEffort: "low"
+  human-reviewer:
+    role: human-reviewer
+    actor: user
 
-# Roles permanentes: leader, sdd-analyst, implementer, contract-reviewer y reviewer.
-# contract-reviewer se activa solo para impacto contractual; reviewer es independiente.
+# Roles permanentes: leader, sdd-analyst, implementer, contract-reviewer y human-reviewer.
+# contract-reviewer se activa solo para impacto contractual. human-reviewer (el usuario) es el reviewer independiente
+# por defecto; un agente `reviewer` solo existe si el usuario delega explícitamente la revisión.
