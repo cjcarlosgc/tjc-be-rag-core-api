@@ -63,3 +63,10 @@
 ## Corte SMART V3 — rol Writer
 
 `WI-CORE-019` incorpora `WRITER` al enum, a la derivación desde los permisos GitHub, al registro de acceso `(projectId, userId, rol, verifiedAt)`, a la reconciliación y reverificación existentes y a la matriz de rutas (default-deny). Los registros existentes se reclasifican por la reverificación vigente, sin degradación silenciosa en la migración. Depende de `WI-CORE-018` porque ambos tocan la autorización de las preguntas funcionales.
+
+## Diseño técnico SMART V3 (WI-CORE-019)
+
+- **Migración.** `ADD VALUE 'WRITER'` al enum `ProjectRole`; los registros existentes no se reescriben en SQL. Al desplegar se encola un `ACCESS_REVERIFY` de alcance completo que reclasifica por verificación viva (`write` → Writer); mientras tanto se conserva el rol registrado y no hay degradación silenciosa. La jerarquía (`rolesAtLeast` en `accessible-project.filter.ts`) y los guards incorporan Writer entre Maintainer y Reader.
+- **Rutas que pasan de Maintainer a Writer** (matriz de INTEROP-2.7 §6.13): `test-publications.controller`, `experiments.controller`, `repository-bindings.controller`, `verified-repository-binding.service` y `github-ui-authorization.service`. La ruta de respuestas y `UNKNOWN` permanece en Maintainer. `POST /retrieval-comparisons` nace con Writer en `WI-CORE-022`.
+- **Procedencia.** `confirmedRole` usa el enum `ConfirmingRole` (`ADMIN`, `MAINTAINER`); `originHeadSha` es el `headSha` del `AnalysisRun` de la pregunta respondida; `sourceRef` solo existe para `APPROVED_IMPORT`; todos son nulos en reglas históricas.
+- **Pruebas a actualizar:** `accessible-project.filter.spec.ts`, `accessible-project-scope.spec.ts`, `default-deny.spec.ts`, `project-role.guard.spec.ts`, `project-access.service.spec.ts`, `project-access.repository.spec.ts`, `organization-access.resolver.spec.ts`, `github-ui-authorization.service.spec.ts` y los specs de proyectos, realtime y binding.

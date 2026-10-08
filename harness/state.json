@@ -2637,7 +2637,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_REVIEW",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
@@ -2743,7 +2743,7 @@
           }
         }
       ],
-      "reviewCycles": 0,
+      "reviewCycles": 1,
       "maxReviewCycles": 2
     },
     "gates": {
@@ -2751,8 +2751,8 @@
       "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-PASSED",
-      "canonicalContractSynced": "G-PASSED",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-PASSED",
       "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
@@ -2773,12 +2773,6 @@
       ],
       "contractSyncPublished": [
         "harness/reports/contract-sync-publish-cs-core-20261008-001.md"
-      ],
-      "contractReviewed": [
-        "harness/reports/wi-core-017-contract-review.md"
-      ],
-      "canonicalContractSynced": [
-        "harness/reports/wi-core-017-final-contract-sync.md"
       ],
       "interopSyncChecked": [
         "harness/reports/wi-core-017-contract-sync-checkpoints.md"

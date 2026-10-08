@@ -27,3 +27,7 @@
 ## Corte SMART V3
 
 `WI-CORE-026` depende de `WI-CORE-021` (el `context_id` incluye `functionalRules`) y precede a `WI-CORE-027`.
+
+## Diseño técnico SMART V3 (WI-CORE-026)
+
+`retrieval_id` y `context_id` son UUID generados por Core y persistidos en tablas aditivas `analysis_retrievals` y `analysis_contexts`, ligadas a `AnalysisSymbol` (target) y a `AnalysisRun`; `GeneratedTestProposal` referencia `contextId`. Core captura el `executionId` que devuelve el Sandbox y lo guarda con `proposalId`, `attempt`, `executionProfile` y `outcome` en una tabla de ejecuciones del Run. `checkId` es el identificador del Check devuelto por GitHub Integration al publicar (si Core no lo persiste hoy, este WI añade la columna) y `freshness` es `STALE` si la publicación consta `STALE`, `CURRENT` si consta publicada y `null` sin publicación. Persistir el trace no altera el contexto entregado al LLM; migración reversible y sin backfill de Runs anteriores. Reglas de estado: `changeset` es `NOT_APPLICABLE` si no hay targets; `retrieval` y `context`, si el Run terminó antes de recuperar; `generation`, si quedó en `ACTION_REQUIRED` antes de generar; `executions`, si no hubo propuesta ejecutada; `publication`, mientras no exista `TestPublication`. Pruebas a tocar: `analysis-run-validation-job.handler.spec.ts` y `context-traces.service.spec.ts`; se crea la del endpoint `trace`.

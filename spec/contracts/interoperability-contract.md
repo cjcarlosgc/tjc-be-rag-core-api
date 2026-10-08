@@ -327,9 +327,9 @@ El contrato HTTP queda definido. `DEC-EXP-002` queda `APROBADO` (herramientas, l
 
 ### 6.5.1 Extensiones de OE5 (INTEROP-2.7)
 
-**Definido, pendiente de implementar y verificar** (`WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`). Bajo `DEC-EXP-FK-001` y `DEC-EXP-003`, OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información.
+**Definido, pendiente de implementar y verificar** (`WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`). Bajo `DEC-EXP-FK-001`, `DEC-EXP-003` y `DEC-EXP-004`, OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información.
 
-- Ambos brazos comparten repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable. Core no degrada el razonamiento en silencio: si el proveedor no admite el esfuerzo pedido, el experimento falla al crearse en lugar de ejecutarse con otro. El esfuerzo y los parámetros efectivos se persisten.
+- Ambos brazos comparten repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable. Por `DEC-EXP-004` el modelo es `gpt-6-luna` vía la API de OpenAI y el esfuerzo es el máximo soportado por el modelo y el runtime, idénticos en ambos brazos y registrados en la evidencia; el flujo de producto conserva su configuración actual. Core no degrada el razonamiento en silencio: si el proveedor no admite el esfuerzo pedido, el experimento falla al crearse en lugar de ejecutarse con otro. El esfuerzo y los parámetros efectivos se persisten.
 - RAG usa recuperación SE, `ContextBuilder` y el conocimiento funcional `ACTIVE` aplicable. El agente generalista explora en modo solo lectura, sin retriever RAG, sin `ContextBuilder` y sin conocimiento funcional persistente. Ninguno recibe el oráculo. El agente puede descubrir y leer las pruebas existentes; no se le entregan directamente ni se ocultan.
 - Herramientas permitidas del agente: `list_files`, `read_file`, `search_text` e `inspect_symbol`/referencias. Prohibidos: shell, Composer/PHPUnit/Jest/Vitest, escritura, Internet y GitHub API. Se persisten el tope de tool calls, el presupuesto de contexto, tokens, archivos y duración, y la secuencia observable de herramientas.
 - Diseño pareado: 3 repeticiones RAG y 3 GA forman 3 pares, cada repetición en sesión fresca. El orden dentro de cada par es aleatorio y reproducible a partir de `randomizationSeed`, que se persiste por experimento.
@@ -789,8 +789,8 @@ interface FunctionalQuestionResponse {
   rationale: string
   status: FunctionalQuestionStatus
   visualAid: VisualAidResponse | null
-  scenarioKind: ScenarioKind // INTEROP-2.7 (pendiente, WI-CORE-020): un escenario por pregunta atómica
-  scenarioKey: string // derivado por Core de forma determinista; nunca lo escribe una persona
+  scenarioKind: ScenarioKind // INTEROP-2.7 (pendiente, WI-CORE-018): un escenario por pregunta atómica
+  scenarioKey: string // derivado por Core de forma determinista (DEC-FK-004, WI-CORE-018); nunca lo escribe una persona
   abstention: FunctionalAbstentionSummary | null // INTEROP-2.7 (pendiente, WI-CORE-018): abstenciones UNKNOWN auditadas
   createdAt: IsoDateTime
 }
@@ -1127,7 +1127,7 @@ interface RetrievalComparisonResultsResponse {
 - `GET /analysis-runs/{analysisRunId}/trace` → `200 AnalysisRunTraceResponse` (Reader).
 - `GET /analysis-runs/{analysisRunId}/evidence`, `GET /experiments/{experimentId}/evidence`, `GET /retrieval-comparisons/{retrievalComparisonId}/evidence` → `200 EvidenceBundleResponse` (Reader). Antes de un estado terminal, `409 EVIDENCE_NOT_FINISHED`; un `AnalysisRun`, experimento o comparación inexistente o no visible responde el `404` de su ruta de estado; rol insuficiente: `403 PROJECT_ROLE_INSUFFICIENT`.
 
-Un enlace es `NOT_APPLICABLE` solo cuando el flujo termina legítimamente antes (por ejemplo, un Run sin targets no tiene retrieval). La evidencia no incluye chain-of-thought ni credenciales, y los fragmentos de código se tratan como datos potencialmente confidenciales (§6.7).
+Los nueve enlaces se mapean a los DTO así: (1) repositorio/PR/HEAD → `repositoryName`, `pullRequestNumber`, `headSha`; (2) `AnalysisRun` → `analysisRunId`; (3) changeset/targets → `changeset` y `targets[].symbol`; (4) retrieval → `targets[].retrieval`; (5) contexto → `targets[].context`; (6) generación → `targets[].generation`; (7) Sandbox y (8) resultados → `targets[].executions` (`executionId` y `outcome`); (9) publicación → `publication`. Un enlace es `NOT_APPLICABLE` solo cuando el flujo termina legítimamente antes (por ejemplo, un Run sin targets no tiene retrieval). La traza y la evidencia de un `AnalysisRun` están disponibles en cualquier estado salvo `QUEUED` y `PROCESSING` (`409 EVIDENCE_NOT_FINISHED`), incluido `ACTION_REQUIRED`, donde los enlaces posteriores constan `NOT_APPLICABLE`; un experimento o una comparación de retrieval son terminales en `COMPLETED` y `FAILED`. La traza responde ese mismo `409`. La evidencia no incluye chain-of-thought ni credenciales, y los fragmentos de código se tratan como datos potencialmente confidenciales (§6.7).
 
 ```ts
 type TraceLinkStatus = 'PRESENT' | 'NOT_APPLICABLE'
@@ -1180,7 +1180,7 @@ interface EvidenceBundleResponse {
   context: { contextId: Id; selectedChunkIds: Id[]; discardedChunkIds: Id[]; tokenCounts: { selected: number; budget: number | null }; functionalRuleIds: Id[] }[]
   generation: { strategy: ExperimentStrategy | 'PRODUCT'; provider: string; model: string; modelVersion: string | null; reasoningEffort: string | null; inputTokens: number | null; outputTokens: number | null; durationMs: number; artifactHash: Sha256 }[]
   agentExploration: { toolCallCap: number; steps: { step: number; toolName: string; status: string }[]; filesInspected: number | null; contextTokenBudget: number }[]
-  sandbox: { executionId: string; executionProfile: string; runnerHint: string; attempt: number; facts: Record<string, string | number | boolean | null> /* lista saneada, sin logs ni URLs; los campos exactos se fijan en WI-CORE-027 */; durationMs: number; requestId: string; correlationId: string }[]
+  sandbox: { executionId: string; executionProfile: string; runnerHint: string; attempt: number; facts: Record<string, string | number | boolean | null> /* claves cerradas: executionProfile, runner, compiled, executed, passed, totalTests, passedTests, failedTests, skippedTests, testCasesTruncated, failureStage, failureCategory, failureCode, failureMessage; sin logs, evidencias ni URLs y con failureMessage saneado */; durationMs: number; requestId: string; correlationId: string }[]
   experimental: { experimentId: Id; strategy: ExperimentStrategy; repetition: number; pairId: Id; pairPosition: 1 | 2; attempt: number; randomizationSeed: string }[]
   publication: TracePublicationResponse | null
 }

@@ -353,8 +353,8 @@
       "dependsOn": [
         "WI-CORE-001"
       ],
-      "contractImpact": true,
-      "publishesContract": true,
+      "contractImpact": false,
+      "publishesContract": false,
       "specPaths": [
         "spec/features/008-experimental-comparison/spec.md",
         "spec/features/008-experimental-comparison/plan.md",
@@ -362,9 +362,9 @@
         "spec/transversal/persistence/spec.md"
       ],
       "acceptanceCriteria": [
-        "El detalle diagnóstico de SandboxFailureFact se persiste por repetición experimental y, si corresponde, por resultado de target, con una migración diseñada y revisada antes de modificar almacenamiento.",
-        "Las lecturas exponen el detalle sin secretos y con null (nunca cero) para lo no observable; el contrato se actualiza mediante Contract Sync.",
-        "Pruebas de persistencia y lectura. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "El detalle de SandboxFailureFact (stage, category, code, message) se persiste como JSONB nulo `failure` en ExperimentRepetition, con message saneado de secretos y sin backfill, mediante una migración diseñada y revisada. Solo experimentos: no se toca TargetRunResult.",
+        "El detalle no cambia ExperimentRepetitionResponse; se expone únicamente en la evidencia de WI-CORE-027 y los valores no observables son null, nunca cero.",
+        "Se actualizan experiment-job.handler y el repositorio de experimentos y sus pruebas de lectura sin secretos. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ]
     },
     {
@@ -822,7 +822,7 @@
     {
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-IN_PROGRESS",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -927,11 +927,13 @@
         "WI-CORE-017"
       ],
       "acceptanceCriteria": [
-        "`UNKNOWN` registrado por Maintainer o Admin deja la pregunta PENDING, no crea ni modifica Functional Knowledge, no encola continuación y no genera; el Run sigue ACTION_REQUIRED. La respuesta es 202 con outcome ABSTAINED, continuationAttemptId null y knowledgeId null.",
-        "Cada abstención persiste userId, rol efectivo y marca de tiempo y se expone como `abstention` (count, lastAt, lastByUserId, lastByRole) en FunctionalQuestionResponse, con migración no destructiva.",
-        "Una respuesta posterior distinta de UNKNOWN por una persona autorizada sigue el flujo normal; un HEAD nuevo obsoleta la pregunta como hoy.",
-        "ACTION_REQUIRED solo se activa por falta de comportamiento esperado sin conocimiento funcional autorizado aplicable; no se activa por cambio de método, ausencia de regla, complejidad o dependencias, ni se pregunta por naming, refactor, calidad, performance, patrones, aprobación del PR, tooling o configuración de PHPUnit. La elegibilidad es determinista y la pregunta atómica.",
-        "Pruebas específicas: UNKNOWN no continúa el Run, UNKNOWN repetido audita sin duplicar efectos, y cada causa no válida de pregunta. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "Un módulo determinista extrae del AST TypeScript de un símbolo sus construcciones de comportamiento (ramificaciones, throw, escrituras o transiciones de estado), calcula su forma normalizada y su huella (DEC-FK-004) y compara el conjunto entre la base y el HEAD; los cambios cosméticos, el renombrado de locales y el reformateo no alteran la huella.",
+        "Solo se crea una pregunta cuando el target es METHOD/FUNCTION DIRECTLY_CHANGED, no existe una regla ACTIVE para el target (la aplicabilidad se refina a scenarioKey en WI-CORE-020) y hay una construcción nueva o modificada (DEC-FK-003). No se crea por getters, delegaciones puras, refactors sin cambio conductual, naming, calidad, performance, patrones, aprobación del PR, tooling ni configuración de PHPUnit; si ninguna construcción califica, el Run continúa sin preguntar. Una pregunta por construcción, de una en una.",
+        "La pregunta persiste scenarioKind y scenarioKey (columnas aditivas, nulas en preguntas históricas) y los expone en FunctionalQuestionResponse.",
+        "`UNKNOWN` registrado por Maintainer o Admin deja la pregunta PENDING, no crea ni modifica Functional Knowledge, no encola continuación ni generación y el Run sigue ACTION_REQUIRED; responde 202 con outcome ABSTAINED, continuationAttemptId null y knowledgeId null. El orden en submitAnswer es 404, pregunta obsoleta, rol, rama UNKNOWN, rama normal, y la rama UNKNOWN no llama a answer().",
+        "Cada abstención inserta una fila en la tabla aditiva functional_question_abstentions(id, questionId, userId, role, createdAt) con el rol efectivo del AccessGrant; `abstention` es {count, lastAt, lastByUserId, lastByRole} calculado de ella, o null sin filas; un UNKNOWN repetido audita sin duplicar efectos y el conteo es atómico bajo concurrencia.",
+        "Una respuesta no-UNKNOWN de una persona autorizada sigue el flujo normal y un HEAD nuevo obsoleta la pregunta como hoy.",
+        "Pruebas: UNKNOWN no continúa el Run, UNKNOWN repetido y concurrente, cada causa no válida de pregunta, cada construcción calificante y huella estable ante cambios cosméticos. Se actualizan functional-knowledge.service.spec.ts, functional-context-evaluator.service.spec.ts, functional-questions.repository.spec.ts y functional-continuation-job.handler.spec.ts. Contract Sync de implementación a Console (ABSTAINED, abstention, scenarioKind y scenarioKey de la pregunta). Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/013-pr-driven-analysis/spec.md",
@@ -965,11 +967,11 @@
         "WI-CORE-018"
       ],
       "acceptanceCriteria": [
-        "ProjectRole incorpora WRITER y Core deriva el rol de los permisos GitHub: owner o creador personal Admin, admin/maintain Maintainer, write Writer, triage/read Reader, con membresía activa en organizaciones; el navegador nunca aporta el rol.",
-        "La matriz de INTEROP-2.7 §6.13 se aplica con default-deny: Writer ejecuta binding, publicaciones, experimentos y comparaciones de retrieval; responder preguntas y UNKNOWN exigen Maintainer o Admin y Writer/Reader reciben 403 PROJECT_ROLE_INSUFFICIENT con details.",
-        "El registro de acceso, la reconciliación y la reverificación manejan WRITER; los registros existentes se reclasifican por la reverificación vigente, con plan de migración documentado y sin degradación silenciosa. Se actualizan las pruebas que enumeran roles (por ejemplo `accessible-project.filter.spec.ts`).",
-        "Las reglas nuevas persisten confirmedByUserId, confirmedRole, originHeadSha y, para APPROVED_IMPORT, sourceRef; las reglas históricas quedan con esos campos null. originHeadSha no vence la regla.",
-        "Pruebas de derivación de rol, matriz 403/404 y procedencia; Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "ProjectRole incorpora WRITER con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader mediante ADD VALUE al enum, y rolesAtLeast y los guards la incluyen; Core deriva el rol de los permisos GitHub: owner o creador personal Admin, admin/maintain Maintainer, write Writer, triage/read Reader, con membresía activa en organizaciones; el navegador nunca aporta el rol.",
+        "Pasan de Maintainer a Writer test-publications.controller, experiments.controller, repository-bindings.controller, verified-repository-binding.service y github-ui-authorization.service; responder preguntas y UNKNOWN permanecen en Maintainer y Writer/Reader reciben 403 PROJECT_ROLE_INSUFFICIENT con details; la prueba default-deny sigue enumerando el router.",
+        "Los registros existentes no se reescriben en SQL: al desplegar se encola un ACCESS_REVERIFY de alcance completo que los reclasifica por verificación viva y, mientras tanto, se conserva el rol registrado sin degradación silenciosa; la reconciliación, la reverificación y la revocación manejan WRITER.",
+        "Las reglas nuevas persisten confirmedByUserId, confirmedRole (enum ConfirmingRole ADMIN|MAINTAINER), originHeadSha (el headSha del AnalysisRun de la pregunta respondida) y, solo para APPROVED_IMPORT, sourceRef; las reglas históricas quedan con esos campos null y originHeadSha no vence la regla.",
+        "Se actualizan las pruebas que enumeran roles (accessible-project.filter.spec.ts, accessible-project-scope.spec.ts, default-deny.spec.ts, project-role.guard.spec.ts, project-access.service.spec.ts, project-access.repository.spec.ts, organization-access.resolver.spec.ts, github-ui-authorization.service.spec.ts y los de proyectos, realtime y binding). Contract Sync de implementación a Console (WRITER y procedencia). Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/014-organizations-access/spec.md",
@@ -1005,11 +1007,11 @@
         "WI-CORE-019"
       ],
       "acceptanceCriteria": [
-        "Core deriva scenarioKind y scenarioKey de forma determinista desde la pregunta atómica: la misma entrada normalizada produce la misma clave y ninguna persona la escribe.",
-        "La búsqueda de regla activa y la detección de conflicto usan Project + scope + targetRef + scenarioKey; reglas con distinto scenarioKey coexisten como ACTIVE y SUPERSEDE solo afecta a la del mismo scenarioKey.",
-        "El listado y la recuperación de reglas de un target devuelven todas las ACTIVE aplicables; el 409 FUNCTIONAL_KNOWLEDGE_CONFLICT conserva su forma.",
-        "Las reglas históricas reciben un scenarioKey mediante una migración documentada y reversible que conserva la historia.",
-        "Pruebas de determinismo, coexistencia, conflicto y supersede por escenario. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "scenarioKind y scenarioKey de una regla se heredan de la pregunta que la originó (DEC-FK-004) y nunca los calcula ni los escribe la respuesta ni una persona; la misma construcción normalizada produce la misma clave.",
+        "La búsqueda de regla activa y la detección de conflicto usan Project + scope + targetRef + scenarioKey, respaldadas por un índice único parcial ACTIVE sobre (projectId, scope, targetRef, scenarioKey); reglas con distinto scenarioKey coexisten como ACTIVE y SUPERSEDE solo afecta a la del mismo scenarioKey; una carrera entre dos respuestas con la misma clave la resuelve el índice y la segunda recibe el conflicto.",
+        "El listado y la recuperación devuelven todas las ACTIVE del target; el 409 FUNCTIONAL_KNOWLEDGE_CONFLICT conserva su forma. La aplicabilidad de WI-CORE-018 se refina de «existe una regla para el target» a «misma scenarioKey».",
+        "Las reglas históricas reciben scenarioKind EXPECTED_RESULT y scenarioKey LEGACY mediante una migración reversible (DROP COLUMN) que conserva la historia.",
+        "Pruebas de determinismo, coexistencia, conflicto, supersede y carrera por escenario; se actualizan functional-knowledge.service.spec.ts y los specs del repositorio. Contract Sync de implementación a Console (scenarioKind y scenarioKey en las reglas, lista por target). Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/013-pr-driven-analysis/spec.md",
@@ -1043,10 +1045,10 @@
         "WI-CORE-020"
       ],
       "acceptanceCriteria": [
-        "GenerationContext es { target, relatedChunks, functionalRules, metadata }; functionalRules va separado del contexto de código y cada regla trae knowledgeId, scenarioKey, normalizedRule, scope, targetRef y procedencia.",
-        "La recuperación es determinista (Project + target + ACTIVE + aplicabilidad) y no usa embeddings, chunks ni pgvector; comentarios, nombres y retornos del código no se inyectan como reglas.",
-        "El presupuesto de tokens contabiliza las reglas y el prompt las presenta separadas; Sandbox nunca recibe reglas funcionales (se prueba).",
-        "Pruebas de recuperación, separación y presupuesto. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "GenerationContext es { target, relatedChunks, functionalRules, metadata }; un FunctionalRulesRetriever determinista devuelve las reglas ACTIVE del Project cuyo targetRef coincide exactamente con filePath::qualifiedName del target (todos los escenarios, sin herencia PROJECT/MODULE/CLASS) y ContextBuilder.build las recibe ya recuperadas.",
+        "Cada regla trae knowledgeId, scenarioKey, normalizedRule, scope, targetRef, source y procedencia; no se usan embeddings, chunks ni pgvector y comentarios, nombres y retornos del código no se inyectan como reglas.",
+        "El prompt las presenta en un bloque «Reglas funcionales» separado del código. Se ordenan por createdAt y knowledgeId, se cuentan con el mismo tokenizador que los chunks y se descuentan de maxContextTokens antes de los relatedChunks; si no caben todas entran las que quepan y la omisión consta en audit. El ContextTrace experimental no cambia.",
+        "Sandbox nunca recibe reglas funcionales (prueba a nivel de payload). Se actualizan context-builder.service.spec.ts, prompt-builder.service.spec.ts y los specs de experimentos y retrieval. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/004-rag-retrieval-context/spec.md",
@@ -1080,12 +1082,12 @@
         "WI-CORE-017"
       ],
       "acceptanceCriteria": [
-        "RETRIEVAL_MODE=SE|SEM existe como parámetro interno; el producto sigue usando SE sin cambios. SEM es solo semántico (coseno, top 10, sin refuerzo estructural); SE une los 20 semánticos con los estructurales, pondera 0.7/0.3 configurable y selecciona 10.",
-        "Ambos modos comparten Project/ProjectVersion, snapshot, target, chunks, embeddings, query anchor, top-20 semántico y exclusiones generales.",
-        "Los endpoints de INTEROP-2.7 §6.15 existen: creación asíncrona con Idempotency-Key y rol Writer, estado, resultados, listado por Run, y los errores 404/409/422 definidos.",
-        "Los resultados traen por modo retrieval_id, configuración y candidatos con semanticScore, structuralRelation, combinedScore, rank y selección; P@5/R@5/P@10/R@10 solo con groundTruth y null sin ella; no hay ganador.",
-        "Pruebas demuestran que la operación no invoca LLM, Functional Knowledge, ACTION_REQUIRED, generación, Sandbox ni publicación, y que no altera el AnalysisRun. Alcance TypeScript; PHP queda en WI-CORE-028.",
-        "Migración revisada y Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "RETRIEVAL_MODE=SE|SEM se pasa como argumento a RetrievalService y el flujo del producto no lo recibe y sigue usando SE; el top semántico es 20. SEM es solo semántico (coseno, top 10, sin refuerzo estructural). SE une y deduplica los 20 semánticos con los estructurales (IMPORTS o IMPORTED_BY) y calcula combinedScore = semanticWeight·semanticScore (0 si es nulo) + structuralWeight·(1 si hay relación, 0 si no), con los pesos por defecto de ContextBuilder.",
+        "El orden es combinedScore descendente (SEM usa semanticScore), luego semanticScore descendente y luego chunkId ascendente; rank es 1..N sobre ese orden y selected es verdadero para rank ≤ 10. Ambos modos comparten Project/ProjectVersion, snapshot, target, chunks, embeddings, query anchor, top-20 semántico y exclusiones generales.",
+        "Existen las tablas aditivas retrieval_comparisons y retrieval_comparison_results (con retrievalId = id del resultado) con una migración revisada; la operación corre como job asíncrono RETRIEVAL_COMPARISON con estados PENDING→RUNNING→COMPLETED/FAILED y failureCode, y la Idempotency-Key usa el scope RETRIEVAL_COMPARISON_CREATE.",
+        "Los endpoints de INTEROP-2.7 §6.15 existen con rol Writer para crear y Reader para leer y con los errores 404/409/422/403 definidos; los resultados traen por modo retrieval_id, configuración y candidatos con semanticScore, structuralRelation, combinedScore, rank y selected, y no hay ganador.",
+        "P@k = |top-k ∩ groundTruth| / k y R@k = |top-k ∩ groundTruth| / |groundTruth| con coincidencia exacta por (filePath, symbolQualifiedName); sin groundTruth o con lista vacía, metrics es null.",
+        "Pruebas demuestran que la operación no invoca LLM, Functional Knowledge, ACTION_REQUIRED, generación, Sandbox ni publicación y que no altera el AnalysisRun; alcance TypeScript, PHP en WI-CORE-028. Se actualizan retrieval.service.spec.ts y context-builder.service.spec.ts. Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/004-rag-retrieval-context/spec.md",
@@ -1119,10 +1121,10 @@
         "WI-CORE-017"
       ],
       "acceptanceCriteria": [
-        "RAG y GENERALIST_AGENT invocan al LLM únicamente mediante la abstracción LLMProvider; el SDK de OpenAI y sus tipos quedan confinados al adaptador y a la configuración permitidos.",
-        "Cada experimento resuelve una única configuración efectiva (proveedor, modelo y versión, esfuerzo de razonamiento y parámetros comunes) que usan ambos brazos; un esfuerzo no soportado hace fallar la creación y nunca se degrada en silencio.",
-        "Cambiar de proveedor no altera retrieval, Sandbox ni contratos HTTP; no se añade selector en la interfaz ni se inventa un segundo proveedor concreto; los embeddings quedan fuera.",
-        "Evidencia M1 = 0 archivos fuera del adaptador/configuración, M2 = 0 cambios de contrato, M3 = 100 % de pruebas aplicables en verde. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "RAG y GENERALIST_AGENT invocan al LLM solo mediante LLMProvider, que agrega generateWithTools(messages, tools, config) además de generate; el SDK de OpenAI y sus tipos quedan confinados al adaptador y a la configuración, y el código de generalist-agent.service.ts que importa OpenAI, lee reasoning_effort y fuerza none con herramientas se mueve al adaptador.",
+        "Cada experimento resuelve una única LLMEffectiveConfig {provider, model, modelVersion, reasoningEffort, temperature, maxOutputTokens} que usan ambos brazos y se persiste en ExperimentRun.modelConfig. Por DEC-EXP-004 el experimento usa gpt-6-luna vía OpenAI con el esfuerzo máximo soportado por el modelo y el runtime, idéntico en ambos brazos; la configuración del flujo de producto no cambia.",
+        "El adaptador mantiene una lista configurable de combinaciones modelo/esfuerzo soportadas, también con herramientas; si la configuración no es compatible con algún brazo lanza un error tipado de configuración y nunca fuerza none ni cambia modelo o esfuerzo en silencio. El identificador del modelo se confirma contra la API en ejecución y un modelo no disponible impide crear el experimento. El mapeo a 422 REASONING_EFFORT_UNSUPPORTED lo implementa WI-CORE-025.",
+        "Cambiar de proveedor no altera retrieval, Sandbox ni contratos HTTP; no se añade selector en la interfaz, no se inventa un segundo proveedor y los embeddings quedan fuera. Evidencia M1 = 0 archivos fuera del adaptador y la configuración, M2 = 0 cambios de contrato, M3 = 100 % de pruebas aplicables; se actualizan openai-llm.provider.spec.ts y generalist-agent.service.spec.ts. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/transversal/providers/spec.md",
@@ -1155,10 +1157,10 @@
         "WI-CORE-023"
       ],
       "acceptanceCriteria": [
-        "El agente dispone exactamente de list_files, read_file, search_text e inspect_symbol/referencias; no existe shell, ejecución de Composer/PHPUnit/Jest/Vitest, escritura, Internet ni GitHub API (prueba que enumera las herramientas).",
-        "Las pruebas existentes pueden descubrirse y leerse con esas herramientas, no se entregan directamente ni se ocultan (DEC-EXP-003).",
-        "El tope de tool calls y el presupuesto de contexto se aplican, se persisten junto con filesInspected y la secuencia observable, y no se persiste chain-of-thought. El agente no recibe Functional Knowledge ni el oráculo.",
-        "Pruebas de herramientas, límites y trayectoria. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "El agente dispone exactamente de list_files, read_file, search_text e inspect_symbol (definición y referencias en una sola herramienta); no existe shell, ejecución de Composer/PHPUnit/Jest/Vitest, escritura, Internet ni GitHub API (prueba que enumera las herramientas).",
+        "Se retiran los filtros de WorkspaceAgentTools que ocultan las pruebas que cubren el target (workspace-agent-tools.ts) y las pruebas existentes pueden descubrirse y leerse, sin entregarse directamente (DEC-EXP-003); se mantiene la exclusión de rutas fuera del snapshot como node_modules y .git.",
+        "toolCallCap es 20, configurable por entorno; al alcanzarlo se hace una última llamada sin herramientas para generar la prueba. Cada resultado de herramienta se trunca para no superar contextTokenBudget (= maxContextTokens de RAG) y lo truncado consta en la trayectoria. El tope, el presupuesto, filesInspected y la secuencia observable se persisten sin chain-of-thought.",
+        "El agente no recibe Functional Knowledge ni el oráculo. Se actualizan workspace-agent-tools.spec.ts, generalist-agent.service.spec.ts, los specs de context-traces y experiment-job.handler.spec.ts. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/008-experimental-comparison/spec.md",
@@ -1192,12 +1194,11 @@
         "WI-CORE-024"
       ],
       "acceptanceCriteria": [
-        "Un experimento ejecuta 3 pares (3 repeticiones RAG y 3 GA), cada repetición en sesión fresca, y persiste pairId, pairPosition, attempt y randomizationSeed.",
-        "El orden dentro de cada par es aleatorio y reproducible: la misma semilla produce el mismo orden.",
-        "ExperimentStatusResponse expone model, budget, executionProfile, runnerHint y randomizationSeed, y ExperimentRepetitionResponse expone pairId, pairPosition, attempt y technicallyEvaluable según INTEROP-2.7 §6.5.1; los valores no observables son null y nunca cero.",
-        "Un fallo de la estrategia no se reintenta por calidad; un fallo externo demostrado admite como máximo un reintento; un segundo fallo de infraestructura deja technicallyEvaluable false. No existe campo de ganador.",
-        "RAG usa SE, ContextBuilder y las reglas ACTIVE aplicables (DEC-EXP-FK-001); el agente no recibe Functional Knowledge; PHP queda excluido hasta WI-CORE-029.",
-        "Migración revisada y Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "Un experimento ejecuta 3 pares (3 repeticiones RAG y 3 GA), cada repetición en sesión fresca. Core genera randomizationSeed (32 bytes aleatorios en hexadecimal) y el orden del par i lo decide un PRNG determinista sembrado con SHA-256(seed + \":\" + i): la misma semilla produce el mismo orden. pairId es un UUID de Core por par, compartido por ambas estrategias de la repetición, y el intento 2 reutiliza pairId y pairPosition.",
+        "ExperimentRun y ExperimentRepetition agregan columnas aditivas (randomizationSeed, modelConfig, budget, executionProfile, runnerHint; pairId, pairPosition, technicallyEvaluable) con una migración revisada; executionProfile y runnerHint son los valores que Core envía al Sandbox; ExperimentStatusResponse y ExperimentRepetitionResponse los exponen según INTEROP-2.7 §6.5.1 y los valores no observables son null, nunca cero.",
+        "Un fallo de la estrategia no se reintenta por calidad. Un fallo externo demostrado (error del proveedor LLM 5xx, 429 o timeout de red, o failureType INFRASTRUCTURE del Sandbox) admite como máximo un reintento; el segundo fallo externo deja technicallyEvaluable false. El intento 1 conserva la identidad Sandbox experiment:{jobId}:{strategy}:{repetition} y el intento 2 usa el sufijo :2. No existe campo de ganador.",
+        "POST /experiments mapea el error de configuración del adaptador (WI-CORE-023) a 422 REASONING_EFFORT_UNSUPPORTED y no crea el experimento. RAG usa SE, ContextBuilder y las reglas ACTIVE aplicables (DEC-EXP-FK-001); el agente no recibe Functional Knowledge; PHP queda excluido hasta WI-CORE-029.",
+        "Se actualizan experiments.service.spec.ts, experiment-job.handler.spec.ts, context-traces.repository.spec.ts y los DTO de experiments. Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/008-experimental-comparison/spec.md",
@@ -1232,11 +1233,10 @@
         "WI-CORE-021"
       ],
       "acceptanceCriteria": [
-        "Core persiste un retrieval_id por ejecución de retrieval y por target, un context_id por contexto construido y vincula el execution_id del Sandbox; no crea changeset_id, test_candidate_id ni otros identificadores.",
-        "GET /analysis-runs/{id}/trace devuelve la cadena AnalysisRun → target → retrieval_id → context_id → proposal → execution_id → resultado → Check/companion PR según INTEROP-2.7 §6.16, con rol Reader.",
-        "Un enlace es NOT_APPLICABLE solo cuando el flujo termina legítimamente antes; se prueban un Run sin targets y un Run detenido en ACTION_REQUIRED antes de generar.",
-        "El trace es distinto del ContextTrace experimental, no incluye chain-of-thought ni secretos y no cambia el contexto entregado al LLM.",
-        "Migración revisada y Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "Core persiste un retrieval_id (UUID) por ejecución de retrieval y target y un context_id por contexto construido en las tablas aditivas analysis_retrievals y analysis_contexts, ligadas a AnalysisSymbol y AnalysisRun; GeneratedTestProposal referencia contextId. Core captura el executionId del Sandbox y lo guarda con proposalId, attempt, executionProfile y outcome; no crea changeset_id, test_candidate_id ni otros identificadores.",
+        "GET /analysis-runs/{id}/trace devuelve la cadena de INTEROP-2.7 §6.16 con rol Reader; checkId es el identificador del Check devuelto por GitHub Integration (se añade la columna si no existe) y freshness es STALE, CURRENT o null.",
+        "Un enlace es NOT_APPLICABLE solo cuando el flujo termina legítimamente antes: changeset sin targets; retrieval y context si el Run terminó antes de recuperar; generation si quedó en ACTION_REQUIRED antes de generar; executions sin propuesta ejecutada; publication sin TestPublication. Se prueban un Run sin targets y un Run detenido en ACTION_REQUIRED. La traza responde 409 EVIDENCE_NOT_FINISHED en QUEUED y PROCESSING.",
+        "El trace es distinto del ContextTrace experimental, no incluye chain-of-thought ni secretos, no cambia el contexto entregado al LLM y no hay backfill de Runs anteriores. Se actualizan analysis-run-validation-job.handler.spec.ts y context-traces.service.spec.ts y se crea la prueba del endpoint. Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/features/011-context-traces/spec.md",
@@ -1274,10 +1274,11 @@
         "WI-CORE-026"
       ],
       "acceptanceCriteria": [
-        "GET /analysis-runs/{id}/evidence, /experiments/{id}/evidence y /retrieval-comparisons/{id}/evidence devuelven un EvidenceBundleResponse con schemaVersion \"1\" y las secciones de INTEROP-2.7 §6.16; antes de un estado terminal responden 409 EVIDENCE_NOT_FINISHED.",
-        "La evidencia no contiene chain-of-thought, credenciales ni identificadores EV-OE*; una prueba de esquema estable detecta cambios no versionados.",
-        "Los DTO y agregados respetan la jerarquía CF/CO/VT: CF y CO se documentan como externos y no se derivan de valid/passed; no hay ganador ni significancia estadística; los valores no observables son null.",
-        "Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "GET /analysis-runs/{id}/evidence, /experiments/{id}/evidence y /retrieval-comparisons/{id}/evidence devuelven un EvidenceBundleResponse con schemaVersion \"1\" y las secciones por kind definidas en el plan de experimental-metrics (analysisRun nulo en EXPERIMENT y RETRIEVAL_COMPARISON); un AnalysisRun responde 409 EVIDENCE_NOT_FINISHED en QUEUED y PROCESSING y un experimento o comparación antes de COMPLETED o FAILED.",
+        "sandbox.facts se limita a la lista cerrada executionProfile, runner, compiled, executed, passed, totalTests, passedTests, failedTests, skippedTests, testCasesTruncated, failureStage, failureCategory, failureCode y failureMessage saneado, nunca logs, evidencias ni URLs; snapshotRef es opaco y artifactHash es un SHA-256.",
+        "La evidencia no contiene chain-of-thought, credenciales ni identificadores EV-OE*; una prueba de esquema estable (snapshot) detecta cambios no versionados.",
+        "Los DTO y agregados respetan la jerarquía CF/CO/VT documentada en spec/transversal/experimental-metrics: CF y CO son externos y no se derivan de valid/passed, no hay ganador ni significancia estadística y los valores no observables son null.",
+        "Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],
       "specPaths": [
         "spec/transversal/experimental-metrics/spec.md",
