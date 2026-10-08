@@ -360,6 +360,11 @@
         "spec/features/008-experimental-comparison/plan.md",
         "spec/features/008-experimental-comparison/tasks.md",
         "spec/transversal/persistence/spec.md"
+      ],
+      "acceptanceCriteria": [
+        "El detalle diagnóstico de SandboxFailureFact se persiste por repetición experimental y, si corresponde, por resultado de target, con una migración diseñada y revisada antes de modificar almacenamiento.",
+        "Las lecturas exponen el detalle sin secretos y con null (nunca cero) para lo no observable; el contrato se actualiza mediante Contract Sync.",
+        "Pruebas de persistencia y lectura. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ]
     },
     {
@@ -812,6 +817,548 @@
           "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni comportamiento de publicación.",
           "report": "harness/reports/wi-core-016-contract-sync-scope-review.md"
         }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-READY",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-017",
+      "title": "Preparar el SDD SMART V3 de Core",
+      "storyIds": [
+        "HU01",
+        "HU05",
+        "HU07",
+        "HU08",
+        "HU09",
+        "HU12",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-024"
+      ],
+      "dependsOn": [
+        "WI-CORE-016"
+      ],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "SYSTEM-2.6 e INTEROP-2.7 recogen `DEC-EXP-FK-001` (cerrada), `DEC-EXP-003`, `DEC-FK-001`, `DEC-FK-002` y `DEC-ORG-003`, y marcan cada superficie nueva como definida y pendiente de implementar con su WI.",
+        "Las specs, planes y tareas de 004, 008, 011, 013, 014, providers y experimental-metrics reflejan el alcance SMART V3 y registran los hallazgos spec-código; HU17 usa «condiciones experimentales externas controladas».",
+        "WI-CORE-018 a WI-CORE-029 quedan registrados con subtarea, dependencias y criterios; PHP y Sandbox quedan diferidos y no bloquean el resto.",
+        "Se publican Contract Sync a Console y GitHub Integration para importar SYSTEM-2.6 e INTEROP-2.7 byte a byte; no se modifica ningún otro repositorio.",
+        "Validadores SDD, Harness, work-items y completions pasan, no hay cambios en `app/` y el corte queda en W-IN_REVIEW a la espera de la revisión humana."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/features/014-organizations-access/spec.md",
+        "spec/features/014-organizations-access/plan.md",
+        "spec/features/014-organizations-access/tasks.md",
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "spec/transversal/experimental-metrics/spec.md",
+        "spec/transversal/experimental-metrics/plan.md",
+        "spec/transversal/experimental-metrics/tasks.md",
+        "spec/backlog.md",
+        "CHANGELOG.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata rutas y lifecycle de Project/RepositoryBinding; este WI no cambia esa superficie y solo añade roles, FK, OE2, OE5 y trace.",
+          "report": "harness/reports/wi-core-017-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-017-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-018",
+      "title": "UNKNOWN como abstención auditada y activación exacta de ACTION_REQUIRED",
+      "storyIds": [
+        "HU07",
+        "HU08",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-025"
+      ],
+      "dependsOn": [
+        "WI-CORE-017"
+      ],
+      "acceptanceCriteria": [
+        "`UNKNOWN` registrado por Maintainer o Admin deja la pregunta PENDING, no crea ni modifica Functional Knowledge, no encola continuación y no genera; el Run sigue ACTION_REQUIRED. La respuesta es 202 con outcome ABSTAINED, continuationAttemptId null y knowledgeId null.",
+        "Cada abstención persiste userId, rol efectivo y marca de tiempo y se expone como `abstention` (count, lastAt, lastByUserId, lastByRole) en FunctionalQuestionResponse, con migración no destructiva.",
+        "Una respuesta posterior distinta de UNKNOWN por una persona autorizada sigue el flujo normal; un HEAD nuevo obsoleta la pregunta como hoy.",
+        "ACTION_REQUIRED solo se activa por falta de comportamiento esperado sin conocimiento funcional autorizado aplicable; no se activa por cambio de método, ausencia de regla, complejidad o dependencias, ni se pregunta por naming, refactor, calidad, performance, patrones, aprobación del PR, tooling o configuración de PHPUnit. La elegibilidad es determinista y la pregunta atómica.",
+        "Pruebas específicas: UNKNOWN no continúa el Run, UNKNOWN repetido audita sin duplicar efectos, y cada causa no válida de pregunta. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/system-contract.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-019",
+      "title": "Rol Writer y procedencia de Functional Knowledge",
+      "storyIds": [
+        "HU01",
+        "HU07",
+        "HU08"
+      ],
+      "taskIds": [
+        "ST-CORE-026"
+      ],
+      "dependsOn": [
+        "WI-CORE-018"
+      ],
+      "acceptanceCriteria": [
+        "ProjectRole incorpora WRITER y Core deriva el rol de los permisos GitHub: owner o creador personal Admin, admin/maintain Maintainer, write Writer, triage/read Reader, con membresía activa en organizaciones; el navegador nunca aporta el rol.",
+        "La matriz de INTEROP-2.7 §6.13 se aplica con default-deny: Writer ejecuta binding, publicaciones, experimentos y comparaciones de retrieval; responder preguntas y UNKNOWN exigen Maintainer o Admin y Writer/Reader reciben 403 PROJECT_ROLE_INSUFFICIENT con details.",
+        "El registro de acceso, la reconciliación y la reverificación manejan WRITER; los registros existentes se reclasifican por la reverificación vigente, con plan de migración documentado y sin degradación silenciosa.",
+        "Las reglas nuevas persisten confirmedByUserId, confirmedRole, originHeadSha y, para APPROVED_IMPORT, sourceRef; las reglas históricas quedan con esos campos null. originHeadSha no vence la regla.",
+        "Pruebas de derivación de rol, matriz 403/404 y procedencia; Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/014-organizations-access/spec.md",
+        "spec/features/014-organizations-access/plan.md",
+        "spec/features/014-organizations-access/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/system-contract.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-020",
+      "title": "Varias reglas ACTIVE por target con scenarioKey",
+      "storyIds": [
+        "HU07",
+        "HU09"
+      ],
+      "taskIds": [
+        "ST-CORE-027"
+      ],
+      "dependsOn": [
+        "WI-CORE-019"
+      ],
+      "acceptanceCriteria": [
+        "Core deriva scenarioKind y scenarioKey de forma determinista desde la pregunta atómica: la misma entrada normalizada produce la misma clave y ninguna persona la escribe.",
+        "La búsqueda de regla activa y la detección de conflicto usan Project + scope + targetRef + scenarioKey; reglas con distinto scenarioKey coexisten como ACTIVE y SUPERSEDE solo afecta a la del mismo scenarioKey.",
+        "El listado y la recuperación de reglas de un target devuelven todas las ACTIVE aplicables; el 409 FUNCTIONAL_KNOWLEDGE_CONFLICT conserva su forma.",
+        "Las reglas históricas reciben un scenarioKey mediante una migración documentada y reversible que conserva la historia.",
+        "Pruebas de determinismo, coexistencia, conflicto y supersede por escenario. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/system-contract.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-021",
+      "title": "GenerationContext con functionalRules separadas y con procedencia",
+      "storyIds": [
+        "HU05",
+        "HU07",
+        "HU10"
+      ],
+      "taskIds": [
+        "ST-CORE-028"
+      ],
+      "dependsOn": [
+        "WI-CORE-020"
+      ],
+      "acceptanceCriteria": [
+        "GenerationContext es { target, relatedChunks, functionalRules, metadata }; functionalRules va separado del contexto de código y cada regla trae knowledgeId, scenarioKey, normalizedRule, scope, targetRef y procedencia.",
+        "La recuperación es determinista (Project + target + ACTIVE + aplicabilidad) y no usa embeddings, chunks ni pgvector; comentarios, nombres y retornos del código no se inyectan como reglas.",
+        "El presupuesto de tokens contabiliza las reglas y el prompt las presenta separadas; Sandbox nunca recibe reglas funcionales (se prueba).",
+        "Pruebas de recuperación, separación y presupuesto. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-022",
+      "title": "Comparación de retrieval OE2 (SE vs SEM)",
+      "storyIds": [
+        "HU05",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-029"
+      ],
+      "dependsOn": [
+        "WI-CORE-017"
+      ],
+      "acceptanceCriteria": [
+        "RETRIEVAL_MODE=SE|SEM existe como parámetro interno; el producto sigue usando SE sin cambios. SEM es solo semántico (coseno, top 10, sin refuerzo estructural); SE une los 20 semánticos con los estructurales, pondera 0.7/0.3 configurable y selecciona 10.",
+        "Ambos modos comparten Project/ProjectVersion, snapshot, target, chunks, embeddings, query anchor, top-20 semántico y exclusiones generales.",
+        "Los endpoints de INTEROP-2.7 §6.15 existen: creación asíncrona con Idempotency-Key y rol Writer, estado, resultados, listado por Run, y los errores 404/409/422 definidos.",
+        "Los resultados traen por modo retrieval_id, configuración y candidatos con semanticScore, structuralRelation, combinedScore, rank y selección; P@5/R@5/P@10/R@10 solo con groundTruth y null sin ella; no hay ganador.",
+        "Pruebas demuestran que la operación no invoca LLM, Functional Knowledge, ACTION_REQUIRED, generación, Sandbox ni publicación, y que no altera el AnalysisRun. Alcance TypeScript; PHP queda en WI-CORE-028.",
+        "Migración revisada y Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-023",
+      "title": "Paridad de LLMProvider entre RAG y GENERALIST_AGENT",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-030"
+      ],
+      "dependsOn": [
+        "WI-CORE-017"
+      ],
+      "acceptanceCriteria": [
+        "RAG y GENERALIST_AGENT invocan al LLM únicamente mediante la abstracción LLMProvider; el SDK de OpenAI y sus tipos quedan confinados al adaptador y a la configuración permitidos.",
+        "Cada experimento resuelve una única configuración efectiva (proveedor, modelo y versión, esfuerzo de razonamiento y parámetros comunes) que usan ambos brazos; un esfuerzo no soportado hace fallar la creación y nunca se degrada en silencio.",
+        "Cambiar de proveedor no altera retrieval, Sandbox ni contratos HTTP; no se añade selector en la interfaz ni se inventa un segundo proveedor concreto; los embeddings quedan fuera.",
+        "Evidencia M1 = 0 archivos fuera del adaptador/configuración, M2 = 0 cambios de contrato, M3 = 100 % de pruebas aplicables en verde. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-024",
+      "title": "Exploración del agente generalista con pruebas existentes visibles",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-031"
+      ],
+      "dependsOn": [
+        "WI-CORE-023"
+      ],
+      "acceptanceCriteria": [
+        "El agente dispone exactamente de list_files, read_file, search_text e inspect_symbol/referencias; no existe shell, ejecución de Composer/PHPUnit/Jest/Vitest, escritura, Internet ni GitHub API (prueba que enumera las herramientas).",
+        "Las pruebas existentes pueden descubrirse y leerse con esas herramientas, no se entregan directamente ni se ocultan (DEC-EXP-003).",
+        "El tope de tool calls y el presupuesto de contexto se aplican, se persisten junto con filesInspected y la secuencia observable, y no se persiste chain-of-thought. El agente no recibe Functional Knowledge ni el oráculo.",
+        "Pruebas de herramientas, límites y trayectoria. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-025",
+      "title": "OE5 pareado: orden, seed, presupuesto y reintentos",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-032"
+      ],
+      "dependsOn": [
+        "WI-CORE-023",
+        "WI-CORE-024"
+      ],
+      "acceptanceCriteria": [
+        "Un experimento ejecuta 3 pares (3 repeticiones RAG y 3 GA), cada repetición en sesión fresca, y persiste pairId, pairPosition, attempt y randomizationSeed.",
+        "El orden dentro de cada par es aleatorio y reproducible: la misma semilla produce el mismo orden.",
+        "ExperimentStatusResponse expone model, budget, executionProfile, runnerHint y randomizationSeed, y ExperimentRepetitionResponse expone pairId, pairPosition, attempt y technicallyEvaluable según INTEROP-2.7 §6.5.1; los valores no observables son null y nunca cero.",
+        "Un fallo de la estrategia no se reintenta por calidad; un fallo externo demostrado admite como máximo un reintento; un segundo fallo de infraestructura deja technicallyEvaluable false. No existe campo de ganador.",
+        "RAG usa SE, ContextBuilder y las reglas ACTIVE aplicables (DEC-EXP-FK-001); el agente no recibe Functional Knowledge; PHP queda excluido hasta WI-CORE-029.",
+        "Migración revisada y Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-026",
+      "title": "Trace operativo de nueve enlaces con retrieval_id y context_id",
+      "storyIds": [
+        "HU12",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-033"
+      ],
+      "dependsOn": [
+        "WI-CORE-021"
+      ],
+      "acceptanceCriteria": [
+        "Core persiste un retrieval_id por ejecución de retrieval y por target, un context_id por contexto construido y vincula el execution_id del Sandbox; no crea changeset_id, test_candidate_id ni otros identificadores.",
+        "GET /analysis-runs/{id}/trace devuelve la cadena AnalysisRun → target → retrieval_id → context_id → proposal → execution_id → resultado → Check/companion PR según INTEROP-2.7 §6.16, con rol Reader.",
+        "Un enlace es NOT_APPLICABLE solo cuando el flujo termina legítimamente antes; se prueban un Run sin targets y un Run detenido en ACTION_REQUIRED antes de generar.",
+        "El trace es distinto del ContextTrace experimental, no incluye chain-of-thought ni secretos y no cambia el contexto entregado al LLM.",
+        "Migración revisada y Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-027",
+      "title": "Exportación de evidencia versionada y jerarquía de métricas",
+      "storyIds": [
+        "HU12",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-034"
+      ],
+      "dependsOn": [
+        "WI-CORE-007",
+        "WI-CORE-025",
+        "WI-CORE-026"
+      ],
+      "acceptanceCriteria": [
+        "GET /analysis-runs/{id}/evidence, /experiments/{id}/evidence y /retrieval-comparisons/{id}/evidence devuelven un EvidenceBundleResponse con schemaVersion \"1\" y las secciones de INTEROP-2.7 §6.16; antes de un estado terminal responden 409 EVIDENCE_NOT_FINISHED.",
+        "La evidencia no contiene chain-of-thought, credenciales ni identificadores EV-OE*; una prueba de esquema estable detecta cambios no versionados.",
+        "Los DTO y agregados respetan la jerarquía CF/CO/VT: CF y CO se documentan como externos y no se derivan de valid/passed; no hay ganador ni significancia estadística; los valores no observables son null.",
+        "Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/transversal/experimental-metrics/spec.md",
+        "spec/transversal/experimental-metrics/plan.md",
+        "spec/transversal/experimental-metrics/tasks.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/contracts/interoperability-contract.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-028",
+      "title": "Relaciones estructurales PHP R-PHP1 a R-PHP5 en retrieval",
+      "storyIds": [
+        "HU05",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-035"
+      ],
+      "dependsOn": [
+        "WI-CORE-013"
+      ],
+      "acceptanceCriteria": [
+        "SE para proyectos PHP incorpora IMPORTS, IMPORTED_BY, mismo namespace, referencia fully qualified y clase declarante, con pruebas por relación.",
+        "La comparación OE2 admite PHP sin cambiar el contrato de §6.15.",
+        "Diferido hasta cerrar WI-CORE-013 y la coordinación contractual con el dueño de Sandbox. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/contracts/interoperability-contract.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-029",
+      "title": "OE5 con PHP/PHPUnit",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-036"
+      ],
+      "dependsOn": [
+        "WI-CORE-013",
+        "WI-CORE-025",
+        "WI-CORE-028"
+      ],
+      "acceptanceCriteria": [
+        "Los experimentos usan PHP_LARAVEL_PHPUNIT con runnerHint PHPUNIT y se retira el bloqueo experimental PHP solo cuando sus dependencias estén cerradas.",
+        "Diferido hasta cerrar WI-CORE-013, WI-CORE-025 y WI-CORE-028; Sandbox no se cambia desde este WI. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/018-php-laravel-support/spec.md"
       ]
     }
   ]

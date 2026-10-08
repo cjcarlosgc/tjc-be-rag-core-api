@@ -3,7 +3,7 @@
 **Estado:** capacidad implementada con evidencia histórica en Git y `harness/reports/`; la aceptación de HU15/HU17 requiere sus criterios vigentes.
 **Historias:** HU15, HU17
 
-`GET /experiments/{id}/context-traces` es la ruta vigente para HU17. La futura traza completa de `AnalysisRun` se vincula a HU15 solo cuando su contrato esté definido.
+`GET /experiments/{id}/context-traces` es la ruta vigente para HU17. El trace operativo del `AnalysisRun` (HU15) está definido en `INTEROP-2.7` §6.16 y pendiente de implementar (`WI-CORE-026`); no se confunde con el `ContextTrace` experimental de esta feature.
 
 ## Objetivo
 
@@ -39,6 +39,10 @@ Persistir y exponer evidencia navegable de cómo se adquirió el contexto de una
 ## Transporte
 
 Las tres rutas y DTOs son los de `INTEROP-2.6`, sección 6.7: listado desde Experiments, detalle de traza y archivos descubiertos paginados. La autorización sigue el acceso Reader al Project del experimento. Una traza inexistente o no visible se responde como `CONTEXT_TRACE_NOT_FOUND`; consultar antes del estado terminal produce `CONTEXT_TRACE_NOT_FINISHED`.
+
+## Alineación SMART V3 — trace operativo (SDD 2026-10-08; implementación pendiente)
+
+El trace operativo reconstruye `AnalysisRun → target → retrieval_id → context_id → proposal → execution_id → result → Check/companion PR` sobre los nueve enlaces de `SYSTEM-2.6` («Calidad, métricas y evidencia»). Core introduce `retrieval_id` y `context_id`, reutiliza el `execution_id` del Sandbox y no crea `changeset_id`, `test_candidate_id` ni identificadores de evidencia académica. Un enlace es `NOT_APPLICABLE` solo cuando el flujo termina legítimamente antes. No se persiste chain-of-thought y los fragmentos de código siguen tratándose como datos confidenciales. Contrato: `INTEROP-2.7` §6.16. Implementación: `WI-CORE-026` (trace) y `WI-CORE-027` (exportación versionada de evidencia).
 
 ## Fuera de alcance
 

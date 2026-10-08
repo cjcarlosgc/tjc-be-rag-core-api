@@ -2,10 +2,14 @@
 
 **Estado:** capacidad implementada bajo la numeración anterior; su aceptación como HU01/HU02 se reaudita en los WI vigentes. Sin decisiones bloqueantes conocidas.
 **Story IDs:** HU01, HU02 (EP01); HU14 para visibilidad del AnalysisRun.
-**Contrato:** SYSTEM-2.5 / INTEROP-2.6 (§6.1, §6.8, §6.9, §6.13), `GH-INTEROP-1.1`
-**Decisiones:** `DEC-ORG-001` APROBADO (2026-09-20); `DEC-ORG-002` APROBADO (2026-09-20; casos borde, enmienda de visibilidad personal, membresía activa siempre y corrección de seguridad primero).
+**Contrato:** SYSTEM-2.6 / INTEROP-2.7 (§6.1, §6.8, §6.9, §6.13), `GH-INTEROP-1.1`
+**Decisiones:** `DEC-ORG-001` APROBADO (2026-09-20); `DEC-ORG-002` APROBADO (2026-09-20; casos borde, enmienda de visibilidad personal, membresía activa siempre y corrección de seguridad primero); `DEC-ORG-003` APROBADO (2026-10-08; rol Writer).
 
 **Frontera de integración vigente:** Core mantiene las reglas de workspace, acceso y autorización descritas aquí. Las consultas del pipeline y verificaciones síncronas requeridas por Console se solicitan a GitHub Integration mediante `GH-INTEROP-1.1`; firma/verificación de webhooks también pertenece a ese componente. Este feature no implica que Core posea credenciales GitHub.
+
+## Enmienda SMART V3 — rol Writer (`DEC-ORG-003`, APROBADO 2026-10-08)
+
+Esta enmienda prevalece sobre cualquier frase de esta spec que mencione la jerarquía `Admin ⊃ Maintainer ⊃ Reader` o que haga de `write` un permiso Maintainer. `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER` con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader. Core deriva el rol de los hechos de permiso que entrega GitHub Integration, que ya conserva `admin`, `maintain`, `write`, `triage` y `read` sin colapsarlos: owner o creador del workspace personal → Admin; `admin`/`maintain` → Maintainer; `write` → Writer; `triage`/`read` → Reader. La membresía activa sigue siendo obligatoria en organizaciones. Writer puede lo que hoy puede un Maintainer (binding, publicaciones, experimentos y comparaciones de retrieval) salvo responder preguntas funcionales y registrar `UNKNOWN`; la restricción es la autoridad funcional persistente, no una degradación global a Reader. Es un cambio observable para quien hoy tiene solo `write`. La matriz completa está en `INTEROP-2.7` §6.13. Implementación y migración del registro de acceso: `WI-CORE-019`; el navegador nunca aporta el rol.
 
 ## Objetivo
 

@@ -1,7 +1,7 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.5
-**Fecha de corte:** 2026-09-26
+**Versión del contrato:** SYSTEM-2.6
+**Fecha de corte:** 2026-10-08
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
@@ -64,7 +64,7 @@ Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la A
 Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo de rutas, DTOs, errores y eventos vive en `INTEROP-2.6` §6.13 y §6.14.
 
 - Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. Un Project personal solo lo ve su creador, que es siempre su Admin y no tiene registro de acceso; solo se comparte mediante organizaciones. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y, para Projects de organización, un registro de acceso `(projectId, userId, rol, verifiedAt)`.
-- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Reader (en una organización, Maintainer y Reader exigen además ser miembro activo de ella): Reader solo consulta; Maintainer opera el día a día (binding, preguntas funcionales, publicaciones, experimentos); Admin, además, crea, renombra y elimina Projects. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.6` §6.13.
+- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (en una organización, Maintainer, Writer y Reader exigen además ser miembro activo de ella; `DEC-ORG-003`): Reader solo consulta; Writer opera el día a día salvo la autoridad funcional (binding, publicaciones, experimentos y comparaciones de retrieval); Maintainer, además, responde preguntas funcionales y confirma conocimiento funcional; Admin, además, crea, renombra y elimina Projects. Core deriva el rol de los hechos de permiso que entrega GitHub Integration y no acepta un rol enviado por el navegador: owner de la organización o creador del workspace personal → Admin; `admin` o `maintain` → Maintainer; `write` → Writer; `triage` o `read` → Reader. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.7` §6.13.
 - El acceso se crea al entrar mediante una verificación en vivo solicitada a GitHub Integration, donde reside el installation token de la App; se revoca por los eventos normalizados de webhook y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
 - Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente responde `403`.
 
@@ -127,12 +127,16 @@ TARGET
 
 - Una regla no se sobrescribe silenciosamente: la anterior pasa a `SUPERSEDED` y la nueva a `ACTIVE`.
 - Antes de persistir una regla nueva, Core detecta si contradice una regla `ACTIVE` vigente en scope compatible y expone el conflicto para decisión humana explícita (`SUPERSEDE` o mantener la vigente) antes de contaminar el conocimiento persistido (HU09); no se resuelve automáticamente.
-- `No lo sé` puede registrarse como evidencia de pregunta, pero no crea una regla autoritativa `ACTIVE`.
+- `No lo sé` (`UNKNOWN`) es una abstención auditada, no una respuesta (`DEC-FK-002`): no crea ni modifica Functional Knowledge, no resuelve la incertidumbre, no continúa el Run ni dispara generación. La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED` y Core registra quién se abstuvo, con qué rol y cuándo. Solo Maintainer o Admin pueden registrarla.
 - Si falta conocimiento relevante, el Run pasa a `ACTION_REQUIRED`, no `ERROR`; el job termina y no deja runners esperando.
 - Si una regla vigente contradice un cambio, Core solicita decisión humana o clasifica con evidencia; no concluye automáticamente que el código está mal.
 - La Console ofrece Focus Mode de página completa con Project/repo/PR/commit/target, pregunta, motivo, respuesta, ayuda visual técnica opcional y preguntas adaptativas; no muestra un total fijo.
 - La navegación incluye una bandeja `Action Required`; el Check enlaza al Run concreto. Tras login, `returnTo` conserva el deep link original.
-- Responde un usuario con rol Maintainer o Admin sobre el Project; el autor del PR no obtiene autoridad por ser autor.
+- Responde y confirma conocimiento funcional un usuario con rol Maintainer o Admin sobre el Project; Writer y Reader reciben `403 PROJECT_ROLE_INSUFFICIENT`. El autor del PR no obtiene autoridad por ser autor. La restricción es sobre la autoridad funcional persistente, no una degradación global del Writer a Reader.
+- Procedencia: toda regla conserva `confirmedByUserId`, `confirmedRole` (`ADMIN` o `MAINTAINER`), `originHeadSha` y, cuando la fuente es `APPROVED_IMPORT`, `sourceRef`. `originHeadSha` registra desde qué HEAD se confirmó la regla; es procedencia, no vencimiento: una regla `ACTIVE` no expira por un HEAD nuevo. Renombrar o mover un símbolo no hereda reglas automáticamente en V1.
+- Una regla `ACTIVE` por escenario (`DEC-FK-001`): un mismo target puede tener varias reglas `ACTIVE` independientes cuando describen escenarios distintos. Core deriva de forma determinista el `scenarioKey` de la pregunta atómica (un target, un escenario, una incertidumbre); nadie lo escribe a mano. El conflicto (§ HU09) solo existe entre reglas con el mismo scope, `targetRef` y `scenarioKey`.
+- V1 no usa embeddings, chunks ni pgvector para Functional Knowledge: la recuperación es determinista por Project + target + `ACTIVE` + aplicabilidad. El contexto de generación las entrega separadas del código y con procedencia: `GenerationContext = { target, relatedChunks, functionalRules, metadata }`. Comentarios, nombres y retornos del código no son verdad funcional por sí mismos.
+- `ACTION_REQUIRED` se activa solo cuando, para un target afectado, la arquitectura necesita determinar un comportamiento esperado necesario para generar o validar una prueba unitaria y no puede establecerlo con conocimiento funcional autorizado, vigente y aplicable. No se activa porque cambió un método, no existe una regla, el código es complejo o tiene muchas dependencias. Preguntas válidas: resultado esperado, borde, excepción, transición de estado, efecto observable o precondición funcional. No se pregunta por naming, refactor, calidad, performance, patrones, aprobación del PR, tooling ni configuración de PHPUnit. La elegibilidad es determinista y estructural; la pregunta es atómica.
 
 ## Baseline, generación y clasificación
 
@@ -186,6 +190,22 @@ OBSOLETE
 - El análisis productivo nace de un `AnalysisRun` asociado a PR/HEAD. El snapshot ZIP que recupera Docker/Sandbox es un detalle interno, no una entrada manual de proyecto.
 - La comparación `RAG` vs `GENERALIST_AGENT` de HU17 usa un `AnalysisRun` y un símbolo elegible compartidos; su adaptación live sigue pendiente de aceptación.
 - Los mocks frontend implementan `INTEROP-2.6`, están señalizados como demo y permanecen detrás de adapters separados de live. No son evidencia científica ni empresarial.
+
+## Calidad, métricas y evidencia
+
+Jerarquía de métricas del experimento (SMART, Bloque 0):
+
+1. `CF` — conformidad funcional con el oráculo: métrica primaria.
+2. `CO` — cobertura del oráculo: secundaria.
+3. `VT` — validez técnica: guardrail.
+4. Tokens, costo, latencia, tool calls y archivos inspeccionados: descriptivas.
+5. Compilación, ejecución, aprobación y tipo de fallo: diagnóstico técnico.
+6. `Precision@k` y `Recall@k`: exclusivamente la comparación de retrieval (OE2).
+
+El oráculo es previo a las salidas, no se entrega a RAG ni al agente generalista, no se construye a partir de la prueba generada y no existe un segundo LLM como juez final de CF/CO. La evaluación oficial de CF/CO es humana y externa a Core. Core conserva y exporta evidencia; no declara un ganador funcional ni deriva CF/CO de `valid`, `passed` o `validRate`. Se distingue conceptualmente entre técnicamente inválido, técnicamente válido y funcionalmente evaluable, y técnicamente válido pero funcionalmente no evaluable; Core no crea estados runtime nuevos para ello salvo donde tenga información para decidirlos. Mutation testing, bootstrap, Wilcoxon, Cohen κ y los identificadores `EV-OE*` quedan fuera del producto.
+
+Trace operativo (HU15): el recorrido auditable de un cambio tiene nueve enlaces: repositorio/PR/HEAD → `AnalysisRun` → changeset/targets → retrieval → contexto → generación → Sandbox → resultados → publicación/Check. Core introduce solo `retrieval_id`, `context_id` y reutiliza el `execution_id` del Sandbox; no crea otros identificadores (`changeset_id`, `test_candidate_id`). `N/A` solo cuando el flujo termina legítimamente antes. El trace operativo del `AnalysisRun` es distinto del `ContextTrace` experimental. Core exporta evidencia reproducible versionada sin chain-of-thought.
+
 
 ## Decisiones compartidas
 
@@ -329,12 +349,38 @@ OBSOLETE
 
 ### DEC-EXP-FK-001 — Paridad experimental del contexto funcional
 
-**Estado:** PENDING
+**Estado:** APROBADO (2026-10-08, por el usuario a partir del handoff V3)
 
-**Blocks:** ejecución experimental que incorpore Functional Knowledge; no bloquea el producto operativo ni experimentos sin esa fuente.
+**Resolución:** la comparación de OE5 se hace bajo condiciones experimentales externas controladas, no bajo paridad estricta de información. El brazo RAG recibe el conocimiento funcional `ACTIVE` aplicable al target; el agente generalista no recibe conocimiento funcional persistente. Ambos brazos comparten repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable. Esta decisión desbloquea la ejecución experimental con Functional Knowledge.
 
-**Pregunta:** definir si ambos brazos reciben la misma información funcional para aislar la variable de adquisición/construcción de contexto.
+### DEC-EXP-003 — Pruebas existentes visibles para el agente generalista
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Supersedes:** el punto 4 de `DEC-EXP-002`; los demás puntos de `DEC-EXP-002` siguen vigentes.
+
+**Resolución:** el agente generalista puede descubrir y leer las pruebas existentes mediante sus herramientas read-only; no se le entregan directamente ni se ocultan artificialmente. Las herramientas permitidas son listar archivos, leer archivo, buscar texto e inspeccionar símbolo/referencias; quedan prohibidos shell, ejecución de Composer/PHPUnit/Jest/Vitest, escritura e Internet o GitHub API. Se conserva el tope de tool calls y el presupuesto de contexto de `DEC-EXP-002`.
+
+### DEC-FK-001 — Varias reglas ACTIVE por target
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Resolución:** Core deriva de forma determinista un `scenarioKey` desde la pregunta atómica; el conflicto de HU09 solo se da entre reglas con el mismo scope, `targetRef` y `scenarioKey`. Reglas con distinto `scenarioKey` coexisten como `ACTIVE`. Ninguna persona escribe el `scenarioKey` a mano.
+
+### DEC-FK-002 — UNKNOWN es abstención auditada
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Supersedes:** la frase anterior de que `No lo sé` puede cerrar una pregunta.
+
+**Resolución:** `UNKNOWN` deja la pregunta `PENDING`, registra la abstención (quién, rol, cuándo) y no continúa el Run. Solo Maintainer o Admin pueden registrarla. La Console no muestra "resuelto", "continuando" ni "todas las preguntas respondidas" como consecuencia.
+
+### DEC-ORG-003 — Rol Writer
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable.
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.5` conserva las reglas operativas PR/HEAD; la topología de cuatro componentes está implementada y cerrada localmente por los WIs de migración bajo `GH-INTEROP-1.1`. `GH-INTEROP-1.2` agrega la fecha original de creación del PR, implementada y cerrada localmente en `WI-GH-007` y consumida por Core en `WI-CORE-011`, tras la publicación canónica de `WI-CORE-014`. Console validó el corte previo del espejo en `WI-CONSOLE-008`. No hay despliegue ni cutover. La carga manual ZIP y los modos manuales no son rutas de producto; el ZIP interno de snapshot para Docker/Sandbox continúa. El estado de implementación o despliegue de cada capacidad se demuestra con evidencia por componente, no se infiere del número de contrato.
+`SYSTEM-2.5` conserva las reglas operativas PR/HEAD; la topología de cuatro componentes está implementada y cerrada localmente por los WIs de migración bajo `GH-INTEROP-1.1`. `GH-INTEROP-1.2` agrega la fecha original de creación del PR, implementada y cerrada localmente en `WI-GH-007` y consumida por Core en `WI-CORE-011`, tras la publicación canónica de `WI-CORE-014`. Console validó el corte previo del espejo en `WI-CONSOLE-008`. No hay despliegue ni cutover. La carga manual ZIP y los modos manuales no son rutas de producto; el ZIP interno de snapshot para Docker/Sandbox continúa. El estado de implementación o despliegue de cada capacidad se demuestra con evidencia por componente, no se infiere del número de contrato. `SYSTEM-2.6` (preparado en `WI-CORE-017`, aún sin implementación) agrega el rol Writer, la abstención auditada de `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge, la jerarquía de métricas, el trace operativo de nueve enlaces y las decisiones `DEC-EXP-003`, `DEC-FK-001`, `DEC-FK-002` y `DEC-ORG-003`; cierra `DEC-EXP-FK-001`. Su implementación se demuestra por WI y componente, no por el número de contrato.

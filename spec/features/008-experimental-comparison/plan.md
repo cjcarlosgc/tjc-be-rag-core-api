@@ -19,3 +19,7 @@ Auditar HU15/HU17 frente a `011-context-traces` al seleccionar la adaptación li
 - Pruebas automatizadas para reglas determinísticas y contratos.
 - Casos positivos, negativos y estados terminales relevantes.
 - `lint`, `test` y `build` antes de cierre.
+
+## Cortes SMART V3
+
+Secuencia: `WI-CORE-023` (paridad `LLMProvider`) → `WI-CORE-024` (exploración del agente) → `WI-CORE-025` (pareado, orden, seed, presupuesto y reintentos). `WI-CORE-007` (diagnóstico de fallos) alimenta la evidencia de `WI-CORE-027`. `WI-CORE-029` (OE5 con PHP) queda diferido.
