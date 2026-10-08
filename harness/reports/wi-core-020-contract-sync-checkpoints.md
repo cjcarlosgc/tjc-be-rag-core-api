@@ -1,0 +1,8 @@
+# WI-CORE-020 — Checkpoints de Contract Sync
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+- `start` (2026-10-08T21:44:37.130Z): sin pendientes relevantes; no relevantes revisados: ninguno.
+- `implementation-delivery` (2026-10-08T21:59:40.212Z): sin pendientes relevantes; no relevantes revisados: CS-20260920-001, CS-20260921-003.
+- `before-review` (2026-10-08T21:59:40.390Z): sin pendientes relevantes; no relevantes revisados: CS-20260920-001, CS-20260921-003.
+
+El `before-done` se registra al cierre tras la revisión humana. `CS-CORE-20261008-005` (Console) sigue `C-PENDING`.

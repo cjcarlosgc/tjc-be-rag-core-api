@@ -3524,7 +3524,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/features/013-pr-driven-analysis/spec.md",
       "spec/features/013-pr-driven-analysis/plan.md",
@@ -3565,7 +3565,7 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer-high",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
+      "reviewAgent": "human-reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -3588,6 +3588,51 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Migración, repositorio, servicio, evaluador y DTO implementados en 27c8519; lint, test (1329), build y e2e (222) verdes.",
+            "Escalado desde el inicio por migración con índice parcial y carrera.",
+            "La migración pasa a SUPERSEDED las ACTIVE duplicadas por target donde existan."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/prisma",
+            "app/src/functional-knowledge"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-020-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión contractual y revisión humana.",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          }
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Forma del 409 intacta; campos aditivos; coherente con INTEROP-2.7 §6.11.",
+            "Contract Sync solo a Console, breaking:false (CS-CORE-20261008-005).",
+            "Notas documentales menores no bloqueantes (SYSTEM DEC-FK-003 'hasta WI-CORE-020', línea 14 de INTEROP)."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-020-contract-review.md"
+          ],
+          "recommendedNextStep": "Revisión humana del diff y la evidencia.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -3595,13 +3640,13 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -3629,14 +3674,61 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-08T21:44:37.130Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-020",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-08T21:59:40.212Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-020",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-08T21:59:40.390Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261008-005"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
       "harness/reports/wi-core-020-contract-sync-scope-review.md",
-      "harness/reports/wi-core-020-sdd-verification.md"
+      "harness/reports/wi-core-020-sdd-verification.md",
+      "harness/reports/wi-core-020-implementation.md",
+      "harness/reports/wi-core-020-contract-review.md",
+      "harness/reports/contract-sync-publish-cs-core-20261008-005.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -3645,6 +3737,24 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-020-sdd-verification.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-020-implementation.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-020-implementation.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-020-contract-review.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-020-contract-sync-checkpoints.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-020-contract-sync-checkpoints.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20261008-005.md"
       ]
     }
   }
