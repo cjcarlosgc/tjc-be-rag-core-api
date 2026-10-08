@@ -965,7 +965,7 @@ interface ProjectRoleInsufficientDetails {
 
 Un recurso no visible conserva el `404` de su recurso (`PROJECT_NOT_FOUND`, etc.).
 
-**Matriz rol -> operación.** El rol es el mínimo requerido sobre el Project del recurso; un rol mayor también satisface. Un Project no visible responde `404` antes de evaluar el rol.
+**Matriz rol -> operación.** El rol es el mínimo requerido sobre el Project del recurso; un rol mayor también satisface. **Estado de implementación (INTEROP-2.7):** hasta `WI-CORE-019` el rol efectivo de quien tiene `write` sigue siendo Maintainer; la fila Writer y la restricción de responder preguntas a Maintainer son la meta definida, no el comportamiento actual. Un Project no visible responde `404` antes de evaluar el rol.
 
 | Rol mínimo | Operaciones |
 |---|---|
