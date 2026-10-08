@@ -2343,5 +2343,139 @@
       "closedAt": "2026-10-08T10:02:01.151Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-006",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "storyIds": [
+      "HU05",
+      "HU15",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-006"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "status": "W-IN_PROGRESS",
+    "specPaths": [
+      "spec/features/004-rag-retrieval-context/spec.md",
+      "spec/features/004-rag-retrieval-context/plan.md",
+      "spec/features/004-rag-retrieval-context/tasks.md",
+      "spec/features/011-context-traces/spec.md"
+    ],
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata rutas y lifecycle de Project/RepositoryBinding; este WI solo verifica la trazabilidad de candidatos RAG ya contratada en INTEROP-2.6 §6.7.",
+        "report": "harness/reports/wi-core-006-contract-sync-scope-review.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni publicación.",
+        "report": "harness/reports/wi-core-006-contract-sync-scope-review.md"
+      }
+    ],
+    "transversalPaths": [],
+    "approved": true,
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-RAG-001"
+      ],
+      "checkedAt": "2026-10-08T10:19:20.540Z"
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "implementer",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": null,
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "Contrato §6.7 aprobado y ya implementado; faltan pruebas de trazabilidad."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-006-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar solo pruebas a-f."
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Sin brecha de DTO/semántica; sin cambio contractual ni Contract Sync nuevo."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-006-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Agregar pruebas sin tocar contrato."
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
+      "contractSyncPublished": "G-NOT_RUN",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": true,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-006",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-08T10:17:38.528Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-006-sdd-verification.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-006-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-006-sdd-verification.md"
+      ]
+    }
+  }
 }
