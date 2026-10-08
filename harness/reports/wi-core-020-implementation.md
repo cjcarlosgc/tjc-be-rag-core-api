@@ -6,7 +6,7 @@ Implementación por `implementer-high` (configurado claude-haiku-5-5, esfuerzo h
 ## Corte (commit local, sin push)
 | Commit | Refs | Contenido |
 |---|---|---|
-| `27c8519` | HU07, HU09 | Migración `20261008150000_functional_knowledge_scenarios` (columnas, backfill `EXPECTED_RESULT`/`LEGACY`, dedupe idempotente de ACTIVE duplicadas, NOT NULL, índice único parcial `ACTIVE` sobre project+scope+COALESCE(targetRef)+scenarioKey, reversión documentada); `findActive` con clave; P2002 a 409 con la regla ganadora; herencia de la pregunta; evaluador por clave; DTO con los dos campos; pruebas |
+| `5ffcdee` | HU07, HU09 | Migración `20261008150000_functional_knowledge_scenarios` (columnas, backfill `EXPECTED_RESULT`/`LEGACY`, dedupe idempotente de ACTIVE duplicadas, NOT NULL, índice único parcial `ACTIVE` sobre project+scope+COALESCE(targetRef)+scenarioKey, reversión documentada); `findActive` con clave; P2002 a 409 con la regla ganadora; herencia de la pregunta; evaluador por clave; DTO con los dos campos; pruebas |
 | `2f4ef6a` | HU07, HU09 | INTEROP-2.7 §6.11 y CHANGELOG: implementado |
 
 Desviación declarada: el evaluador pasó de saltar el target entero cuando hay regla a evaluar cada construcción por su clave (consecuencia de DEC-FK-003). El trailer del commit se corrigió a Sonnet 5.5 (amend local, sin push). El informe de implementación lo escribió el leader a partir del handoff del implementer.

@@ -3593,7 +3593,7 @@
           "agent": "implementer",
           "status": "APPROVED",
           "findings": [
-            "Migración, repositorio, servicio, evaluador y DTO implementados en 27c8519; lint, test (1329), build y e2e (222) verdes.",
+            "Migración, repositorio, servicio, evaluador y DTO implementados en 5ffcdee; lint, test (1329), build y e2e (222) verdes.",
             "Escalado desde el inicio por migración con índice parcial y carrera.",
             "La migración pasa a SUPERSEDED las ACTIVE duplicadas por target donde existan."
           ],

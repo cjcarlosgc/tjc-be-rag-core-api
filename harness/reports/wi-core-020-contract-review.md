@@ -2,7 +2,7 @@ Modelo: contract-reviewer · configurado claude-sonnet-5-5 · atendido unknown �
 
 # Revisión contractual WI-CORE-020
 
-Alcance: commit 27c8519 (código) y 2f4ef6a (spec INTEROP-2.7 §6.11) frente a INTEROP-2.7 §6.11, DEC-FK-001/003/004 y system-contract.md.
+Alcance: commit 5ffcdee (código) y 2f4ef6a (spec INTEROP-2.7 §6.11) frente a INTEROP-2.7 §6.11, DEC-FK-001/003/004 y system-contract.md.
 
 ## Resultado: APPROVED_WITH_NOTES
 
@@ -27,4 +27,4 @@ Alcance: commit 27c8519 (código) y 2f4ef6a (spec INTEROP-2.7 §6.11) frente a I
 Ninguno.
 
 ## Evidencia
-git show 27c8519, git show 2f4ef6a, interoperability-contract.md §6.11 (749-862), system-contract.md DEC-FK-001/003/004 (364-386), outbox CS-CORE-20261008-001/002.
+git show 5ffcdee, git show 2f4ef6a, interoperability-contract.md §6.11 (749-862), system-contract.md DEC-FK-001/003/004 (364-386), outbox CS-CORE-20261008-001/002.
