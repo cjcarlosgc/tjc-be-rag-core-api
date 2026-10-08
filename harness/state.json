@@ -3524,7 +3524,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/features/013-pr-driven-analysis/spec.md",
       "spec/features/013-pr-driven-analysis/plan.md",
@@ -3551,10 +3551,14 @@
     "transversalPaths": [],
     "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-FK-001",
+        "DEC-FK-003",
+        "DEC-FK-004"
+      ],
+      "checkedAt": "2026-10-08T22:05:00.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
@@ -3562,12 +3566,35 @@
       "implementationAgent": "implementer-high",
       "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "DEC-FK-001/003/004 aprobadas; ninguna PENDING/PROPOSED alcanza el WI.",
+            "Ambigüedades (históricas LEGACY, migración única con backfill+NOT NULL+índice, dedupe previo de ACTIVE duplicadas, COALESCE(targetRef,''), P2002 -> 409) cerradas como detalle técnico en plan.md de 013."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/features/013-pr-driven-analysis/plan.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-020-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar con implementer-high (migración con índice parcial y carrera) y revisar contrato después.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -3575,7 +3602,7 @@
       "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -3608,9 +3635,17 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-020-contract-sync-scope-review.md"
+      "harness/reports/wi-core-020-contract-sync-scope-review.md",
+      "harness/reports/wi-core-020-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-020-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-020-sdd-verification.md"
+      ]
+    }
   }
 }
