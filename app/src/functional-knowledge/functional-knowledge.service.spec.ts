@@ -10,7 +10,12 @@ import { ProjectAccessService } from '../project-access/project-access.service.j
 import { JobsService } from '../jobs/jobs.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
-import type { AnalysisRun, FunctionalKnowledge, FunctionalQuestion } from '../generated/prisma/client.js';
+import type {
+  AnalysisRun,
+  FunctionalKnowledge,
+  FunctionalQuestion,
+  FunctionalQuestionAbstention,
+} from '../generated/prisma/client.js';
 
 const OWNER_USER_ID = 'user-1';
 
@@ -28,7 +33,9 @@ function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
   } as AnalysisRun;
 }
 
-function buildQuestion(overrides: Partial<FunctionalQuestion> = {}): FunctionalQuestion {
+type QuestionWithAbstentions = FunctionalQuestion & { abstentions: FunctionalQuestionAbstention[] };
+
+function buildQuestion(overrides: Partial<QuestionWithAbstentions> = {}): QuestionWithAbstentions {
   return {
     id: 'question-1',
     analysisRunId: 'run-1',
@@ -43,10 +50,24 @@ function buildQuestion(overrides: Partial<FunctionalQuestion> = {}): FunctionalQ
     answerChoice: null,
     answerText: null,
     knowledgeId: null,
+    scenarioKind: null,
+    scenarioKey: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     answeredAt: null,
+    abstentions: [],
     ...overrides,
-  } as FunctionalQuestion;
+  } as QuestionWithAbstentions;
+}
+
+function buildAbstention(overrides: Partial<FunctionalQuestionAbstention> = {}): FunctionalQuestionAbstention {
+  return {
+    id: 'abstention-1',
+    questionId: 'question-1',
+    userId: 'user-1',
+    role: 'MAINTAINER',
+    createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    ...overrides,
+  } as FunctionalQuestionAbstention;
 }
 
 function buildKnowledge(overrides: Partial<FunctionalKnowledge> = {}): FunctionalKnowledge {
@@ -74,6 +95,7 @@ describe('FunctionalKnowledgeService', () => {
     findById: ReturnType<typeof vi.fn>;
     markObsolete: ReturnType<typeof vi.fn>;
     answer: ReturnType<typeof vi.fn>;
+    recordAbstention: ReturnType<typeof vi.fn>;
   };
   let functionalKnowledgeRepository: {
     findActive: ReturnType<typeof vi.fn>;
@@ -93,7 +115,8 @@ describe('FunctionalKnowledgeService', () => {
       findPendingByAnalysisRun: vi.fn(),
       findById: vi.fn(),
       markObsolete: vi.fn(),
-      answer: vi.fn(),
+      answer: vi.fn().mockResolvedValue(buildQuestion({ status: 'ANSWERED' })),
+      recordAbstention: vi.fn(),
     };
     functionalKnowledgeRepository = {
       findActive: vi.fn().mockResolvedValue(null),
@@ -155,15 +178,69 @@ describe('FunctionalKnowledgeService', () => {
     it('throws ANALYSIS_RUN_NOT_FOUND when the run does not belong to the owner', async () => {
       analysisRunsRepository.findByIdForOwner.mockResolvedValue(null);
 
-      await expect(service.getQuestionSet('run-1', OWNER_USER_ID)).rejects.toMatchObject<Partial<AppException>>({
+      await expect(service.getQuestionSet('run-1', OWNER_USER_ID)).rejects.toMatchObject({
         code: ErrorCode.ANALYSIS_RUN_NOT_FOUND,
+      });
+    });
+
+    it('exposes the abstention summary computed from the question abstentions', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findPendingByAnalysisRun.mockResolvedValue(
+        buildQuestion({
+          abstentions: [
+            buildAbstention({ id: 'a-2', userId: 'user-2', role: 'ADMIN', createdAt: new Date('2026-01-03T00:00:00.000Z') }),
+            buildAbstention({ id: 'a-1', userId: 'user-1', role: 'MAINTAINER', createdAt: new Date('2026-01-02T00:00:00.000Z') }),
+          ],
+        }),
+      );
+
+      const result = await service.getQuestionSet('run-1', OWNER_USER_ID);
+
+      expect(result.currentQuestion?.abstention).toEqual({
+        count: 2,
+        lastAt: '2026-01-03T00:00:00.000Z',
+        lastByUserId: 'user-2',
+        lastByRole: 'ADMIN',
+      });
+    });
+
+    it('reports abstention null when the question has no abstentions', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findPendingByAnalysisRun.mockResolvedValue(buildQuestion());
+
+      const result = await service.getQuestionSet('run-1', OWNER_USER_ID);
+
+      expect(result.currentQuestion?.abstention).toBeNull();
+    });
+
+    it('maps historical questions (null scenario columns) to EXPECTED_RESULT and LEGACY', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findPendingByAnalysisRun.mockResolvedValue(buildQuestion());
+
+      const result = await service.getQuestionSet('run-1', OWNER_USER_ID);
+
+      expect(result.currentQuestion).toMatchObject({ scenarioKind: 'EXPECTED_RESULT', scenarioKey: 'LEGACY' });
+    });
+
+    it('exposes the scenario of a question created with one', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findPendingByAnalysisRun.mockResolvedValue(
+        buildQuestion({ scenarioKind: 'EXCEPTION', scenarioKey: 'EXCEPTION:0123456789abcdef' }),
+      );
+
+      const result = await service.getQuestionSet('run-1', OWNER_USER_ID);
+
+      expect(result.currentQuestion).toMatchObject({
+        scenarioKind: 'EXCEPTION',
+        scenarioKey: 'EXCEPTION:0123456789abcdef',
       });
     });
   });
 
   describe('submitAnswer', () => {
-    it('answers 403 PROJECT_ROLE_INSUFFICIENT to a Reader before touching the question (HU60)', async () => {
+    it('answers 403 PROJECT_ROLE_INSUFFICIENT to a Reader on a pending question, before any write (HU60)', async () => {
       analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
       projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
 
       await expect(
@@ -171,6 +248,7 @@ describe('FunctionalKnowledgeService', () => {
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
       expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'MAINTAINER');
       expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
     });
 
     it('throws FUNCTIONAL_QUESTION_NOT_FOUND when the question does not belong to the run', async () => {
@@ -179,7 +257,7 @@ describe('FunctionalKnowledgeService', () => {
 
       await expect(
         service.submitAnswer('run-1', 'question-1', { choice: 'YES' }, OWNER_USER_ID),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
     });
 
     it('throws FUNCTIONAL_QUESTION_NOT_FOUND for an already-answered question', async () => {
@@ -188,7 +266,7 @@ describe('FunctionalKnowledgeService', () => {
 
       await expect(
         service.submitAnswer('run-1', 'question-1', { choice: 'YES' }, OWNER_USER_ID),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
     });
 
     it('obsoletes and rejects a PENDING question when the run is no longer current', async () => {
@@ -197,14 +275,77 @@ describe('FunctionalKnowledgeService', () => {
 
       await expect(
         service.submitAnswer('run-1', 'question-1', { choice: 'YES' }, OWNER_USER_ID),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      expect(functionalQuestionsRepository.markObsolete).toHaveBeenCalledWith('question-1');
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+    });
+
+    it('a HEAD change makes a pending question OBSOLETE even when the answer is UNKNOWN', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun({ current: false }));
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      expect(functionalQuestionsRepository.markObsolete).toHaveBeenCalledWith('question-1');
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
+    });
+
+    it('orders the checks as 404 run, 404 question, obsolete, then role: a missing question never reaches the role check', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(null);
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
+
+      await expect(
+        service.submitAnswer('run-1', 'missing', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      expect(projectAccess.require).not.toHaveBeenCalled();
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
+    });
+
+    it('a stale question is obsoleted and answers 404 for a Reader with UNKNOWN, without reaching the role check', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun({ current: false }));
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      expect(projectAccess.require).not.toHaveBeenCalled();
       expect(functionalQuestionsRepository.markObsolete).toHaveBeenCalledWith('question-1');
     });
 
-    it('UNKNOWN never creates knowledge and still answers the question', async () => {
+    it('rejects UNKNOWN from a Reader with 403 and records no abstention (DEC-FK-002)', async () => {
       analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
       functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
-      functionalQuestionsRepository.answer.mockResolvedValue(buildQuestion({ status: 'ANSWERED' }));
+      projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
+    });
+
+    it('rejects UNKNOWN when the effective grant role is below MAINTAINER (defensive)', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      projectAccess.require.mockResolvedValue({ project: { id: 'project-1' }, role: 'READER' });
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
+    });
+
+    it('UNKNOWN registers an abstention with the Maintainer role and touches nothing else (ABSTAINED)', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalQuestionsRepository.recordAbstention.mockResolvedValue({
+        count: 1,
+        lastAt: '2026-01-02T00:00:00.000Z',
+        lastByUserId: OWNER_USER_ID,
+        lastByRole: 'MAINTAINER',
+      });
 
       const result = await service.submitAnswer(
         'run-1',
@@ -213,13 +354,82 @@ describe('FunctionalKnowledgeService', () => {
         OWNER_USER_ID,
       );
 
+      expect(functionalQuestionsRepository.recordAbstention).toHaveBeenCalledWith('question-1', OWNER_USER_ID, 'MAINTAINER');
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+      expect(functionalKnowledgeRepository.findActive).not.toHaveBeenCalled();
       expect(functionalKnowledgeRepository.create).not.toHaveBeenCalled();
-      expect(functionalQuestionsRepository.answer).toHaveBeenCalledWith('question-1', {
-        answerChoice: 'UNKNOWN',
-        answerText: 'no lo sé',
+      expect(functionalKnowledgeRepository.supersede).not.toHaveBeenCalled();
+      expect(functionalContextEvaluatorService.evaluate).not.toHaveBeenCalled();
+      expect(analysisRunsService.requestContinuation).not.toHaveBeenCalled();
+      expect(jobsService.enqueue).not.toHaveBeenCalled();
+      expect(functionalQuestionsRepository.markObsolete).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        status: 'PENDING',
+        pollAfterMs: 1500,
+        analysisRunId: 'run-1',
+        questionId: 'question-1',
+        continuationAttemptId: null,
         knowledgeId: null,
+        outcome: 'ABSTAINED',
       });
-      expect(result.knowledgeId).toBeNull();
+    });
+
+    it('records the effective ADMIN role of the grant on an abstention', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      projectAccess.require.mockResolvedValue({ project: { id: 'project-1' }, role: 'ADMIN' });
+      functionalQuestionsRepository.recordAbstention.mockResolvedValue({
+        count: 1,
+        lastAt: '2026-01-02T00:00:00.000Z',
+        lastByUserId: OWNER_USER_ID,
+        lastByRole: 'ADMIN',
+      });
+
+      await service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID);
+
+      expect(functionalQuestionsRepository.recordAbstention).toHaveBeenCalledWith('question-1', OWNER_USER_ID, 'ADMIN');
+    });
+
+    it('UNKNOWN on a question answered or obsoleted in parallel answers 404 (no abstention recorded)', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalQuestionsRepository.recordAbstention.mockResolvedValue(null);
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+      expect(functionalContextEvaluatorService.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('UNKNOWN on an already-answered question answers 404 before recording anything', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion({ status: 'ANSWERED' }));
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
+    });
+
+    it('two concurrent UNKNOWN submissions both answer ABSTAINED and never mutate the question or the run', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalQuestionsRepository.recordAbstention
+        .mockResolvedValueOnce({ count: 1, lastAt: '2026-01-02T00:00:00.000Z', lastByUserId: 'user-1', lastByRole: 'MAINTAINER' })
+        .mockResolvedValueOnce({ count: 2, lastAt: '2026-01-02T00:00:01.000Z', lastByUserId: 'user-2', lastByRole: 'ADMIN' });
+
+      const [first, second] = await Promise.all([
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, 'user-2'),
+      ]);
+
+      expect(first.outcome).toBe('ABSTAINED');
+      expect(second.outcome).toBe('ABSTAINED');
+      expect(functionalQuestionsRepository.recordAbstention).toHaveBeenCalledTimes(2);
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+      expect(functionalQuestionsRepository.markObsolete).not.toHaveBeenCalled();
+      expect(analysisRunsService.requestContinuation).not.toHaveBeenCalled();
     });
 
     it('creates new ACTIVE knowledge when none exists yet for the scope', async () => {
@@ -243,6 +453,8 @@ describe('FunctionalKnowledgeService', () => {
         }),
       );
       expect(result.knowledgeId).toBe('knowledge-1');
+      expect(result.outcome).toBe('ANSWERED');
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
     });
 
     it('responds 409 FUNCTIONAL_KNOWLEDGE_CONFLICT when ACTIVE knowledge exists and no conflictResolution is given', async () => {
@@ -252,7 +464,7 @@ describe('FunctionalKnowledgeService', () => {
 
       await expect(
         service.submitAnswer('run-1', 'question-1', { choice: 'NO', answer: 'no, cambió' }, OWNER_USER_ID),
-      ).rejects.toMatchObject<Partial<AppException>>({
+      ).rejects.toMatchObject({
         code: ErrorCode.FUNCTIONAL_KNOWLEDGE_CONFLICT,
         details: expect.objectContaining({ conflictId: 'question-1', conflictingKnowledge: expect.objectContaining({ id: 'knowledge-1' }) }),
       });
@@ -304,6 +516,7 @@ describe('FunctionalKnowledgeService', () => {
       expect(functionalKnowledgeRepository.supersede).not.toHaveBeenCalled();
       expect(functionalKnowledgeRepository.create).not.toHaveBeenCalled();
       expect(result.knowledgeId).toBeNull();
+      expect(result.outcome).toBe('ANSWERED');
       expect(functionalQuestionsRepository.answer).toHaveBeenCalledWith(
         'question-1',
         expect.objectContaining({ knowledgeId: null }),
@@ -322,7 +535,21 @@ describe('FunctionalKnowledgeService', () => {
           { choice: 'NO', conflictResolution: { conflictId: 'stale-conflict', action: 'SUPERSEDE' } },
           OWNER_USER_ID,
         ),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+    });
+
+    it('answers 404 when the conditional answer finds the question no longer PENDING', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalKnowledgeRepository.create.mockResolvedValue(buildKnowledge());
+      functionalQuestionsRepository.answer.mockResolvedValue(null);
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'YES' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_QUESTION_NOT_FOUND });
+      expect(functionalContextEvaluatorService.evaluate).not.toHaveBeenCalled();
+      expect(analysisRunsService.requestContinuation).not.toHaveBeenCalled();
+      expect(jobsService.enqueue).not.toHaveBeenCalled();
     });
 
     it('requests continuation and enqueues the continuation job when no more context is needed', async () => {
@@ -339,6 +566,7 @@ describe('FunctionalKnowledgeService', () => {
       expect(result.continuationAttemptId).not.toBeNull();
       expect(result.status).toBe('PENDING');
       expect(result.pollAfterMs).toBe(1500);
+      expect(result.outcome).toBe('ANSWERED');
     });
 
     it('does not request continuation when more questions remain', async () => {
@@ -352,6 +580,7 @@ describe('FunctionalKnowledgeService', () => {
       expect(analysisRunsService.requestContinuation).not.toHaveBeenCalled();
       expect(jobsService.enqueue).not.toHaveBeenCalled();
       expect(result.continuationAttemptId).toBeNull();
+      expect(result.outcome).toBe('ANSWERED');
     });
   });
 
@@ -367,6 +596,34 @@ describe('FunctionalKnowledgeService', () => {
       expect(result.items[0].repositoryName).toBe('org/repo');
       expect(result.items[0].pullRequestNumber).toBe(42);
       expect(projectAccess.require).not.toHaveBeenCalled();
+    });
+
+    it('exposes the abstention summary and scenario fields of each inbox item', async () => {
+      functionalQuestionsRepository.findActionRequired.mockResolvedValue([
+        {
+          ...buildQuestion({
+            scenarioKind: 'BOUNDARY',
+            scenarioKey: 'BOUNDARY:0123456789abcdef',
+            abstentions: [
+              buildAbstention({ userId: 'user-9', role: 'ADMIN', createdAt: new Date('2026-01-05T10:00:00.000Z') }),
+            ],
+          }),
+          analysisRun: buildRun(),
+        },
+      ]);
+
+      const result = await service.listActionRequired(OWNER_USER_ID, undefined, undefined, undefined);
+
+      expect(result.items[0]).toMatchObject({
+        scenarioKind: 'BOUNDARY',
+        scenarioKey: 'BOUNDARY:0123456789abcdef',
+        abstention: {
+          count: 1,
+          lastAt: '2026-01-05T10:00:00.000Z',
+          lastByUserId: 'user-9',
+          lastByRole: 'ADMIN',
+        },
+      });
     });
 
     it('requires Reader access to the requested project and answers 404 PROJECT_NOT_FOUND when it is not visible', async () => {
@@ -400,7 +657,7 @@ describe('FunctionalKnowledgeService', () => {
 
       await expect(
         service.listKnowledge('project-1', undefined, undefined, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.PROJECT_NOT_FOUND });
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
     });
 
     it('lists knowledge scoped to the project', async () => {

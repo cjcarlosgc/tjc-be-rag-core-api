@@ -347,6 +347,9 @@ model AnalysisSymbol {
   qualifiedName String
   filePath      String
   changeKind    SymbolChangeKind
+  /// WI-CORE-018 (columna aditiva, nula): construcciones de comportamiento del símbolo
+  /// `[{scenarioKind, scenarioKey, order, snippet}]`. La escribe el job de snapshot en el corte 3.
+  behaviorConstructs Json?
   createdAt     DateTime               @default(now())
 
   @@index([analysisRunId])
@@ -438,12 +441,41 @@ model FunctionalQuestion {
   answerChoice   FunctionalAnswerChoice?
   answerText     String?
   knowledgeId    String?
+  /// WI-CORE-018: escenario de la construcción que disparó la pregunta. Nulo en preguntas históricas.
+  scenarioKind   ScenarioKind?
+  /// WI-CORE-018 (DEC-FK-004): clave derivada por Core. Nula en preguntas históricas (se expone como `LEGACY`).
+  scenarioKey    String?
   createdAt      DateTime                 @default(now())
   answeredAt     DateTime?
+  abstentions    FunctionalQuestionAbstention[]
 
   @@index([analysisRunId])
   @@index([projectId, status])
   @@map("functional_questions")
+}
+
+/// WI-CORE-018 (DEC-FK-002): abstención auditada (`UNKNOWN`). No es una respuesta: la pregunta
+/// sigue `PENDING` y el Run sigue `ACTION_REQUIRED`. Cada fila registra quién, con qué rol y cuándo.
+model FunctionalQuestionAbstention {
+  id         String             @id @default(uuid())
+  questionId String
+  question   FunctionalQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  userId     String
+  role       ProjectRole
+  createdAt  DateTime           @default(now())
+
+  @@index([questionId])
+  @@map("functional_question_abstentions")
+}
+
+/// WI-CORE-018 (DEC-FK-004): escenario de una pregunta o regla funcional.
+enum ScenarioKind {
+  EXPECTED_RESULT
+  BOUNDARY
+  EXCEPTION
+  STATE_TRANSITION
+  OBSERVABLE_SIDE_EFFECT
+  FUNCTIONAL_PRECONDITION
 }
 
 /// HU35: regla funcional versionada por Project+scope+símbolo. Nunca se

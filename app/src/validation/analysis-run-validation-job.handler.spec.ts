@@ -47,6 +47,7 @@ function buildSymbol(overrides: Partial<AnalysisSymbol> = {}): AnalysisSymbol {
     qualifiedName: 'Thing.doIt',
     filePath: 'src/thing.ts',
     changeKind: 'DIRECTLY_CHANGED',
+    behaviorConstructs: null,
     createdAt: new Date(),
     ...overrides,
   };

@@ -7,12 +7,14 @@ import { FunctionalContextEvaluatorService } from './functional-context-evaluato
 import { FUNCTIONAL_CONTINUATION_JOB_TYPE } from './functional-continuation-job.handler.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
-import { ProjectAccessService } from '../project-access/project-access.service.js';
+import { ProjectAccessService, type AccessGrant } from '../project-access/project-access.service.js';
+import { projectRoleInsufficient } from '../project-access/project-access.errors.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import {
   toFunctionalQuestionResponse,
+  type ConfirmingRole,
   type FunctionalQuestionResponse,
   type FunctionalQuestionSetResponse,
 } from './dto/functional-question.response.js';
@@ -100,8 +102,9 @@ export class FunctionalKnowledgeService {
     body: SubmitFunctionalAnswerRequestDto,
     ownerUserId: string,
   ): Promise<FunctionalAnswerAcceptedResponse> {
+    // Orden fijo (plan de WI-CORE-018): Run 404 → pregunta 404 → obsoleta 404 → no PENDING 404
+    // → rol MAINTAINER → rama UNKNOWN (abstención) → rama normal.
     const run = await this.findRunOrThrow(analysisRunId, ownerUserId);
-    await this.projectAccess.require(ownerUserId, run.projectId, 'MAINTAINER');
     const question = await this.functionalQuestionsRepository.findById(questionId);
 
     if (!question || question.analysisRunId !== run.id) {
@@ -117,12 +120,43 @@ export class FunctionalKnowledgeService {
       throw this.questionNotFound(analysisRunId, questionId);
     }
 
+    const grant = await this.projectAccess.require(ownerUserId, run.projectId, 'MAINTAINER');
+
+    if (body.choice === 'UNKNOWN') {
+      // DEC-FK-002: abstención auditada. No responde la pregunta, no crea ni toca FunctionalKnowledge,
+      // no evalúa ni encola continuación, y no hay generación.
+      const abstention = await this.functionalQuestionsRepository.recordAbstention(
+        question.id,
+        ownerUserId,
+        this.confirmingRole(grant),
+      );
+
+      if (!abstention) {
+        throw this.questionNotFound(analysisRunId, questionId);
+      }
+
+      return {
+        status: 'PENDING',
+        pollAfterMs: this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS),
+        analysisRunId: run.id,
+        questionId: question.id,
+        continuationAttemptId: null,
+        knowledgeId: null,
+        outcome: 'ABSTAINED',
+      };
+    }
+
     const knowledgeId = await this.resolveKnowledge(run, question, body);
-    await this.functionalQuestionsRepository.answer(question.id, {
+    const answered = await this.functionalQuestionsRepository.answer(question.id, {
       answerChoice: body.choice,
       answerText: body.answer ?? null,
       knowledgeId,
     });
+
+    if (!answered) {
+      // La pregunta dejó de estar PENDING entre la lectura y la escritura condicional.
+      throw this.questionNotFound(analysisRunId, questionId);
+    }
 
     const evaluation = await this.functionalContextEvaluatorService.evaluate(run);
     let continuationAttemptId: string | null = null;
@@ -140,6 +174,7 @@ export class FunctionalKnowledgeService {
       questionId: question.id,
       continuationAttemptId,
       knowledgeId,
+      outcome: 'ANSWERED',
     };
   }
 
@@ -170,11 +205,11 @@ export class FunctionalKnowledgeService {
   }
 
   /**
-   * `UNKNOWN` nunca crea/toca `FunctionalKnowledge` (invariante de
-   * `spec.md`). Sin normalización semántica vía LLM: `normalizedRule` es la
-   * respuesta cruda. "Conflicto" es conservador (match exacto de scope +
-   * targetRef, sin resolver jerarquía PROJECT⊃MODULE⊃CLASS todavía): nunca
-   * sobrescribe en silencio, a costa de pedir resolución explícita más
+   * Solo para respuestas no `UNKNOWN`: la abstención (DEC-FK-002) se resuelve antes en
+   * `submitAnswer` y nunca crea ni modifica `FunctionalKnowledge`. Sin normalización
+   * semántica vía LLM: `normalizedRule` es la respuesta cruda. "Conflicto" es conservador
+   * (match exacto de scope + targetRef, sin resolver jerarquía PROJECT⊃MODULE⊃CLASS
+   * todavía): nunca sobrescribe en silencio, a costa de pedir resolución explícita más
    * seguido de lo estrictamente necesario.
    */
   private async resolveKnowledge(
@@ -182,10 +217,6 @@ export class FunctionalKnowledgeService {
     question: FunctionalQuestion,
     body: SubmitFunctionalAnswerRequestDto,
   ): Promise<string | null> {
-    if (body.choice === 'UNKNOWN') {
-      return null;
-    }
-
     const scope = questionScope(question.symbolKind);
     const targetRef = questionTargetRef(question);
     const normalizedRule = body.answer ?? body.choice;
@@ -240,6 +271,15 @@ export class FunctionalKnowledgeService {
 
   private isRunStale(run: AnalysisRun): boolean {
     return run.status !== 'ACTION_REQUIRED' || !run.current;
+  }
+
+  /** El rol efectivo de una abstención es ADMIN o MAINTAINER; cualquier otro rol no puede registrarla. */
+  private confirmingRole(grant: AccessGrant): ConfirmingRole {
+    if (grant.role === 'ADMIN' || grant.role === 'MAINTAINER') {
+      return grant.role;
+    }
+
+    throw projectRoleInsufficient('MAINTAINER', grant.role);
   }
 
   private questionNotFound(analysisRunId: string, questionId: string): AppException {
