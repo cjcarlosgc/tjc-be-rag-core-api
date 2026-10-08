@@ -24,8 +24,8 @@ export interface CreateRepositoryBindingByOwnerInput {
  * HU64: `create` y `enable` sobre `REVOKED` validan propietario y permiso con la
  * identidad GitHub de la sesión. El propietario esperado es el workspace del Project:
  * la organización (`githubOrgId`) o, en un Project personal, la cuenta de su creador
- * (que es quien llama, el único que lo ve). HU60: vincular, pausar y reactivar exigen
- * Maintainer (que incluye a Admin); un Project sin repositorio o con binding `REVOKED`
+ * (que es quien llama, el único que lo ve). HU60 / INTEROP-2.7 §6.13: vincular, pausar y
+ * reactivar exigen Writer (que incluye a Maintainer y Admin); un Project sin repositorio o con binding `REVOKED`
  * solo lo ve un Admin, así que el primer vínculo y la reactivación de un `REVOKED` los
  * hace un Admin sin regla adicional.
  */
@@ -39,7 +39,7 @@ export class RepositoryBindingsService {
 
   /**
    * Orden de validación de `INTEROP-2.4` §6.8: Project no visible (404), rol menor que
-   * Maintainer (403), binding existente (409), App sin acceso (403), repositorio inexistente, `repositoryId`
+   * Writer (403), binding existente (409), App sin acceso (403), repositorio inexistente, `repositoryId`
    * distinto o sin ningún permiso del usuario (404, un solo paso), propietario
    * ajeno (400), permiso `read`/`triage` (403), repositorio ya vinculado (409)
    * y rama inexistente (404). Las validaciones de propietario y permiso van
@@ -51,7 +51,7 @@ export class RepositoryBindingsService {
     userId: string,
     githubUserId: string,
   ): Promise<RepositoryBinding> {
-    const { project } = await this.projectAccess.require(userId, projectId, 'MAINTAINER');
+    const { project } = await this.projectAccess.require(userId, projectId, 'WRITER');
 
     const existing = await this.repositoryBindingsRepository.findByProjectForOwner(
       projectId,
@@ -154,7 +154,7 @@ export class RepositoryBindingsService {
    * binding `REVOKED` no cambia nada: nunca se degrada a `DISABLED`.
    */
   async disable(projectId: string, userId: string): Promise<RepositoryBinding> {
-    await this.projectAccess.require(userId, projectId, 'MAINTAINER');
+    await this.projectAccess.require(userId, projectId, 'WRITER');
     const binding = await this.findBindingOrThrow(projectId, userId);
 
     if (binding.status === 'REVOKED') {
@@ -176,7 +176,7 @@ export class RepositoryBindingsService {
    * Admin (predicado de acceso), que es quien lo reactiva.
    */
   async enable(projectId: string, userId: string, githubUserId: string): Promise<RepositoryBinding> {
-    const { project } = await this.projectAccess.require(userId, projectId, 'MAINTAINER');
+    const { project } = await this.projectAccess.require(userId, projectId, 'WRITER');
     const binding = await this.findBindingOrThrow(projectId, userId);
 
     if (binding.status === 'ENABLED') {

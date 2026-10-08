@@ -554,19 +554,19 @@ describe('RepositoryBindingsService', () => {
     const MAINTAINER_GITHUB_ID = '3003';
 
     beforeEach(() => {
-      projectAccess.require.mockResolvedValue({ project: orgProject, role: 'MAINTAINER' });
+      projectAccess.require.mockResolvedValue({ project: orgProject, role: 'WRITER' });
       repository.findByProjectForOwner.mockResolvedValue(null);
       repository.create.mockResolvedValue(binding);
       github.addRepository('org/repo', ownedByOrg).setPermission('org/repo', MAINTAINER_GITHUB_ID, 'write');
     });
 
-    it('create requires the Maintainer role, before any validation against GitHub', async () => {
+    it('create requires the Writer role, before any validation against GitHub', async () => {
       projectAccess.require.mockRejectedValue(new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'no', 403));
 
       await expect(
         service.create('project-org', input, OWNER_USER_ID, MAINTAINER_GITHUB_ID),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
-      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-org', 'MAINTAINER');
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-org', 'WRITER');
       expect(github.calls).toEqual([]);
       expect(repository.create).not.toHaveBeenCalled();
     });
@@ -602,7 +602,7 @@ describe('RepositoryBindingsService', () => {
       ).rejects.toMatchObject({ code: ErrorCode.REPOSITORY_PERMISSION_INSUFFICIENT });
     });
 
-    it('get needs only Reader; disable and enable need Maintainer', async () => {
+    it('get needs only Reader; disable and enable need Writer', async () => {
       projectAccess.require.mockResolvedValue({ project: orgProject, role: 'READER' });
       repository.findByProjectForOwner.mockResolvedValue(binding);
 
@@ -611,12 +611,12 @@ describe('RepositoryBindingsService', () => {
 
       repository.updateStatus.mockResolvedValue({ ...binding, status: 'DISABLED' });
       await service.disable('project-org', OWNER_USER_ID);
-      expect(projectAccess.require).toHaveBeenLastCalledWith(OWNER_USER_ID, 'project-org', 'MAINTAINER');
+      expect(projectAccess.require).toHaveBeenLastCalledWith(OWNER_USER_ID, 'project-org', 'WRITER');
 
       repository.findByProjectForOwner.mockResolvedValue({ ...binding, status: 'DISABLED' });
       repository.reactivate.mockResolvedValue(binding);
       await service.enable('project-org', OWNER_USER_ID, MAINTAINER_GITHUB_ID);
-      expect(projectAccess.require).toHaveBeenLastCalledWith(OWNER_USER_ID, 'project-org', 'MAINTAINER');
+      expect(projectAccess.require).toHaveBeenLastCalledWith(OWNER_USER_ID, 'project-org', 'WRITER');
     });
 
     it('a Reader answers 403 on disable and enable and nothing changes', async () => {

@@ -50,8 +50,8 @@ export class ExperimentsService {
     idempotencyKey: string | undefined,
     ownerUserId: string,
   ): Promise<ExperimentAcceptedResponse> {
-    // HU60: crear un experimento exige Maintainer (Reader `403`, no visible `404`).
-    const { project } = await this.projectAccess.require(ownerUserId, dto.projectId, 'MAINTAINER');
+    // HU60 / INTEROP-2.7 §6.13: crear un experimento exige Writer (Reader `403`, no visible `404`).
+    const { project } = await this.projectAccess.require(ownerUserId, dto.projectId, 'WRITER');
 
     if (await this.projectVersionsRepository.hasActiveVersion(dto.projectId)) {
       throw new AppException(

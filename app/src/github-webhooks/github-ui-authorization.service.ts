@@ -53,7 +53,8 @@ export class GithubUiAuthorizationService {
     }
 
     const role = roleForUser(project, identity.userId);
-    const minimumRole = request.action === 'DISCOVER_REPOSITORIES' ? 'READER' : 'MAINTAINER';
+    // Descubrir repositorios exige Reader; vincular/verificar/listar ramas exige Writer (INTEROP-2.7 §6.13).
+    const minimumRole = request.action === 'DISCOVER_REPOSITORIES' ? 'READER' : 'WRITER';
     if (!role || !isRoleAtLeast(role, minimumRole)) return { decision: 'DENY' };
 
     const repositoryOwnerId = project.githubOrgId ?? identity.githubUserId;

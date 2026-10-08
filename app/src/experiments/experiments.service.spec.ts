@@ -8,7 +8,7 @@ const OWNER_USER_ID = 'user-1';
 function makeDeps(overrides: Record<string, unknown> = {}) {
   return {
     projectAccess: {
-      require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: 'version-1' }, role: 'MAINTAINER' }),
+      require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: 'version-1' }, role: 'WRITER' }),
     },
     projectVersionsRepository: {
       hasActiveVersion: vi.fn().mockResolvedValue(false),
@@ -51,7 +51,7 @@ function makeService(deps: ReturnType<typeof makeDeps>): ExperimentsService {
 
 describe('ExperimentsService', () => {
   describe('createRun', () => {
-    it('propagates PROJECT_NOT_FOUND when the project is not visible, requiring the Maintainer role (HU60)', async () => {
+    it('propagates PROJECT_NOT_FOUND when the project is not visible, requiring the Writer role (HU60, INTEROP-2.7 §6.13)', async () => {
       const deps = makeDeps({
         projectAccess: {
           require: vi.fn().mockRejectedValue(new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404)),
@@ -62,7 +62,7 @@ describe('ExperimentsService', () => {
       await expect(
         service.createRun({ projectId: 'missing', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
-      expect(deps.projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'missing', 'MAINTAINER');
+      expect(deps.projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'missing', 'WRITER');
     });
 
     it('propagates 403 PROJECT_ROLE_INSUFFICIENT for a Reader before any other validation', async () => {
@@ -98,7 +98,7 @@ describe('ExperimentsService', () => {
     it('throws PROJECT_NOT_READY when there is no current version', async () => {
       const deps = makeDeps({
         projectAccess: {
-          require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: null }, role: 'MAINTAINER' }),
+          require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: null }, role: 'WRITER' }),
         },
       });
       const service = makeService(deps);

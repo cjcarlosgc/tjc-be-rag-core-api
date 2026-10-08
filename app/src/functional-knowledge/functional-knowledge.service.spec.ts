@@ -10,6 +10,7 @@ import { ProjectAccessService } from '../project-access/project-access.service.j
 import { JobsService } from '../jobs/jobs.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { projectRoleInsufficient } from '../project-access/project-access.errors.js';
 import type {
   AnalysisRun,
   FunctionalKnowledge,
@@ -248,6 +249,57 @@ describe('FunctionalKnowledgeService', () => {
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
       expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'MAINTAINER');
       expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
+    });
+
+    // INTEROP-2.7 §6.13 (WI-CORE-019): responder y UNKNOWN siguen en Maintainer; un Writer recibe 403.
+    it('answers 403 PROJECT_ROLE_INSUFFICIENT with details to a Writer on a pending question, before any write (INTEROP-2.7)', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      projectAccess.require.mockRejectedValue(projectRoleInsufficient('MAINTAINER', 'WRITER'));
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'YES' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+        status: 403,
+        details: { requiredRole: 'MAINTAINER', currentRole: 'WRITER' },
+      });
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'MAINTAINER');
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+      expect(functionalKnowledgeRepository.create).not.toHaveBeenCalled();
+      expect(functionalKnowledgeRepository.supersede).not.toHaveBeenCalled();
+    });
+
+    it('sends UNKNOWN from a Writer with 403 PROJECT_ROLE_INSUFFICIENT and records no abstention (DEC-FK-002, INTEROP-2.7)', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      projectAccess.require.mockRejectedValue(projectRoleInsufficient('MAINTAINER', 'WRITER'));
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+        status: 403,
+        details: { requiredRole: 'MAINTAINER', currentRole: 'WRITER' },
+      });
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'MAINTAINER');
+      expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+    });
+
+    it('rejects UNKNOWN when a Writer grant reaches the service (defensive, confirmingRole): 403 with details', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      projectAccess.require.mockResolvedValue({ project: { id: 'project-1' }, role: 'WRITER' });
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+        status: 403,
+        details: { requiredRole: 'MAINTAINER', currentRole: 'WRITER' },
+      });
       expect(functionalQuestionsRepository.recordAbstention).not.toHaveBeenCalled();
     });
 

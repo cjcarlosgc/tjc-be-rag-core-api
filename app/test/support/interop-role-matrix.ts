@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
  * sin actualizar esta matriz (o al revés) falla.
  */
 export type ContractRole = 'PUBLIC' | 'NONE' | 'READER' | 'WRITER' | 'MAINTAINER' | 'ADMIN';
-export type ContractRow = 'SIN_ROL' | 'READER' | 'MAINTAINER' | 'ADMIN';
+export type ContractRow = 'SIN_ROL' | 'READER' | 'WRITER' | 'MAINTAINER' | 'ADMIN';
 
 export interface MatrixEntry {
   /** Método HTTP, o `WS` para el evento WebSocket. */
@@ -23,7 +23,7 @@ export interface MatrixEntry {
   spec: string;
   /** `false` para rutas del contrato que Core aún no implementa (no hay ruta que clasificar). */
   implemented: boolean;
-  /** Fila del contrato donde aparece (Sin rol / Reader / Maintainer / Admin). */
+  /** Fila del contrato donde aparece (Sin rol / Reader / Writer / Maintainer / Admin). */
   row: ContractRow;
 }
 
@@ -66,14 +66,24 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   entry('READER', 'GET', '/experiments/{id}/context-traces', 'GET /experiments/{id}/context-traces', 'READER'),
   entry('READER', 'GET', '/context-traces/{id}', 'GET /context-traces/{id}', 'READER'),
   entry('READER', 'GET', '/context-traces/{id}/discovered-files', '.../discovered-files', 'READER'),
+  // INTEROP-2.7 §6.15 y §6.16: definidas en el contrato y aún sin ruta en Core (no se clasifican hasta implementarlas).
+  entry('READER', 'GET', '/retrieval-comparisons/{id}', 'GET /retrieval-comparisons/{id}', 'READER', false),
+  entry('READER', 'GET', '/retrieval-comparisons/{id}/results', '.../results', 'READER', false),
+  entry('READER', 'GET', '/retrieval-comparisons/{id}/evidence', '.../evidence', 'READER', false),
+  entry('READER', 'GET', '/analysis-runs/{id}/retrieval-comparisons', 'GET /analysis-runs/{id}/retrieval-comparisons', 'READER', false),
+  entry('READER', 'GET', '/analysis-runs/{id}/trace', 'GET /analysis-runs/{id}/trace', 'READER', false),
+  entry('READER', 'GET', '/analysis-runs/{id}/evidence', 'GET /analysis-runs/{id}/evidence', 'READER', false),
+  entry('READER', 'GET', '/experiments/{id}/evidence', 'GET /experiments/{id}/evidence', 'READER', false),
   entry('READER', 'WS', 'subscribe:project-version', 'subscribe:project-version', 'READER'),
-  // Maintainer.
-  entry('MAINTAINER', 'POST', '/projects/{projectId}/integrations/github', 'POST /projects/{projectId}/integrations/github', 'MAINTAINER'),
-  entry('MAINTAINER', 'POST', '/projects/{projectId}/integrations/github/enable', 'POST .../enable', 'MAINTAINER'),
-  entry('MAINTAINER', 'DELETE', '/projects/{projectId}/integrations/github', 'DELETE .../integrations/github', 'MAINTAINER'),
+  // Writer (INTEROP-2.7 §6.13, WI-CORE-019): vincular, pausar y reactivar; publicar; crear experimentos.
+  entry('WRITER', 'POST', '/projects/{projectId}/integrations/github', 'POST /projects/{projectId}/integrations/github', 'WRITER'),
+  entry('WRITER', 'POST', '/projects/{projectId}/integrations/github/enable', 'POST .../enable', 'WRITER'),
+  entry('WRITER', 'DELETE', '/projects/{projectId}/integrations/github', 'DELETE .../integrations/github', 'WRITER'),
+  entry('WRITER', 'POST', '/analysis-runs/{id}/test-publications', 'POST /analysis-runs/{id}/test-publications', 'WRITER'),
+  entry('WRITER', 'POST', '/experiments', 'POST /experiments', 'WRITER'),
+  entry('WRITER', 'POST', '/retrieval-comparisons', 'POST /retrieval-comparisons', 'WRITER', false),
+  // Maintainer: responder preguntas funcionales y registrar UNKNOWN (DEC-FK-002) siguen en Maintainer.
   entry('MAINTAINER', 'POST', '/analysis-runs/{id}/context-questions/{questionId}/answers', 'POST /analysis-runs/{id}/context-questions/{questionId}/answers', 'MAINTAINER'),
-  entry('MAINTAINER', 'POST', '/analysis-runs/{id}/test-publications', 'POST /analysis-runs/{id}/test-publications', 'MAINTAINER'),
-  entry('MAINTAINER', 'POST', '/experiments', 'POST /experiments', 'MAINTAINER'),
   // Admin.
   entry('ADMIN', 'PATCH', '/projects/{projectId}', 'PATCH /projects/{projectId}', 'ADMIN'),
   entry('ADMIN', 'DELETE', '/projects/{projectId}', 'DELETE /projects/{projectId}', 'ADMIN'),
@@ -86,6 +96,7 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
 export const ROLES_OF_ROW: Record<ContractRow, readonly ContractRole[]> = {
   SIN_ROL: ['NONE', 'PUBLIC'],
   READER: ['READER'],
+  WRITER: ['WRITER'],
   MAINTAINER: ['MAINTAINER'],
   ADMIN: ['ADMIN'],
 };
@@ -109,6 +120,7 @@ export function matrixKey(method: string, path: string): string {
 const ROW_LABELS: Array<[RegExp, ContractRow]> = [
   [/^Sin rol de Project/, 'SIN_ROL'],
   [/^Reader$/, 'READER'],
+  [/^Writer$/, 'WRITER'],
   [/^Maintainer$/, 'MAINTAINER'],
   [/^Admin$/, 'ADMIN'],
 ];
@@ -126,7 +138,7 @@ export function readContractMatrixRows(): Record<ContractRow, string[]> {
 
   for (const line of contract.slice(start).split('\n')) {
     if (!line.startsWith('| ') || line.startsWith('| Rol mínimo') || line.startsWith('|---')) {
-      if (Object.keys(rows).length === 4) {
+      if (Object.keys(rows).length === ROW_LABELS.length) {
         break;
       }
       continue;

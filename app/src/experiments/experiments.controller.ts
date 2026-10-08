@@ -34,7 +34,7 @@ export class ExperimentsController {
   ) {}
 
   @Post()
-  @RequireProjectRole('MAINTAINER', ProjectTargets.body('project', 'projectId'))
+  @RequireProjectRole('WRITER', ProjectTargets.body('project', 'projectId'))
   @HttpCode(HttpStatus.ACCEPTED)
   create(
     @Body() dto: CreateExperimentDto,

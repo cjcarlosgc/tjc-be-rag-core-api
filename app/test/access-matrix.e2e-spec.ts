@@ -41,6 +41,7 @@ const REPO = 'acme/widgets';
 
 const OWNER = 'mx-owner';
 const OWNER_NO_COLLABORATOR = 'mx-owner-2';
+const MAINTAINER = 'mx-maintainer';
 const WRITER = 'mx-writer';
 const READER = 'mx-reader';
 const EXTERNAL = 'mx-external';
@@ -182,10 +183,12 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       // Owner de la organización SIN permiso explícito sobre el repositorio (no es colaborador
       // explícito): GitHub le da admin efectivo.
       .setMembership(ORG, gh(OWNER_NO_COLLABORATOR), { role: 'admin', state: 'active' })
+      .setMembership(ORG, gh(MAINTAINER), { role: 'member', state: 'active' })
       .setMembership(ORG, gh(WRITER), { role: 'member', state: 'active' })
       .setMembership(ORG, gh(READER), { role: 'member', state: 'active' })
       .addRepository(REPO, { repositoryId: '100', ownerId: ORG_ID, ownerLogin: ORG, ownerType: 'Organization' })
       .setPermission(REPO, gh(OWNER), 'admin')
+      .setPermission(REPO, gh(MAINTAINER), 'maintain')
       .setPermission(REPO, gh(WRITER), 'write')
       .setPermission(REPO, gh(READER), 'read')
       // Colaborador externo: NO es miembro de la organización pero tiene `write`.
@@ -364,7 +367,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
 
     it('the matrix fixture equals the rows of INTEROP §6.13 (same operations per role row)', () => {
       const rows = readContractMatrixRows();
-      const fixtureRows: Record<ContractRow, string[]> = { SIN_ROL: [], READER: [], MAINTAINER: [], ADMIN: [] };
+      const fixtureRows: Record<ContractRow, string[]> = { SIN_ROL: [], READER: [], WRITER: [], MAINTAINER: [], ADMIN: [] };
 
       for (const entry of INTEROP_ROLE_MATRIX) {
         fixtureRows[entry.row].push(entry.spec);
@@ -400,9 +403,11 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
   });
 
   describe('matrix by route x role (organization project)', () => {
+    // Un usuario por rol: el permiso GitHub `maintain`/`write`/`read` deriva Maintainer/Writer/Reader (§6.13).
     const ROLE_USERS: Array<[Role, string]> = [
       ['ADMIN', OWNER],
-      ['MAINTAINER', WRITER],
+      ['MAINTAINER', MAINTAINER],
+      ['WRITER', WRITER],
       ['READER', READER],
     ];
     const minRoleOf = (key: string): Role =>
@@ -412,7 +417,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
 
     it('covers every implemented, resource-bearing route of the contract', () => {
       const contractKeys = INTEROP_ROLE_MATRIX.filter(
-        (entry) => entry.implemented && ['READER', 'MAINTAINER', 'ADMIN'].includes(entry.role) && entry.method !== 'WS',
+        (entry) => entry.implemented && ['READER', 'WRITER', 'MAINTAINER', 'ADMIN'].includes(entry.role) && entry.method !== 'WS',
       )
         .map((entry) => matrixKey(entry.method, entry.path))
         .filter((key) => !LISTINGS.includes(key));
@@ -482,10 +487,10 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       },
     );
 
-    it('listings answer 200 with only what is visible: Reader/Maintainer/Admin see the project, the non-member and the external collaborator do not', async () => {
+    it('listings answer 200 with only what is visible: Reader/Writer/Admin see the project, the non-member and the external collaborator do not', async () => {
       const ids = seedProject('ORG');
       // Registros de acceso existentes para los listados cross-proyecto (no verifican contra GitHub).
-      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'MAINTAINER', verifiedAt: new Date() });
+      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'WRITER', verifiedAt: new Date() });
       prisma.insert('projectAccess', { projectId: ids.projectId, userId: READER, role: 'READER', verifiedAt: new Date() });
 
       for (const user of [OWNER, WRITER, READER]) {
@@ -506,19 +511,21 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       }
     });
 
-    it('a second owner without explicit collaborator permission enters as Admin, and a Maintainer cannot create, rename or delete', async () => {
+    it('a second owner without explicit collaborator permission enters as Admin, and a Writer or Maintainer cannot create, rename or delete', async () => {
       const ids = seedProject('ORG');
 
       const second = await authedRequest(app, OWNER_NO_COLLABORATOR).get(`/projects/${ids.projectId}`).expect(200);
       expect(second.body.role).toBe('ADMIN');
 
-      await authedRequest(app, WRITER).get(`/projects/${ids.projectId}`).expect(200);
-      const create = await authedRequest(app, WRITER).post('/projects').send({ name: 'x', workspaceId: ORG_ID }).expect(403);
-      expect(create.body.code).toBe('WORKSPACE_ADMIN_REQUIRED');
-      const rename = await authedRequest(app, WRITER).patch(`/projects/${ids.projectId}`).send({ name: 'x' }).expect(403);
-      expect(rename.body).toMatchObject({ code: 'PROJECT_ROLE_INSUFFICIENT', details: { requiredRole: 'ADMIN', currentRole: 'MAINTAINER' } });
-      const remove = await authedRequest(app, WRITER).delete(`/projects/${ids.projectId}`).expect(403);
-      expect(remove.body.code).toBe('PROJECT_ROLE_INSUFFICIENT');
+      for (const [user, role] of [[WRITER, 'WRITER'], [MAINTAINER, 'MAINTAINER']] as const) {
+        await authedRequest(app, user).get(`/projects/${ids.projectId}`).expect(200);
+        const create = await authedRequest(app, user).post('/projects').send({ name: 'x', workspaceId: ORG_ID }).expect(403);
+        expect(create.body.code).toBe('WORKSPACE_ADMIN_REQUIRED');
+        const rename = await authedRequest(app, user).patch(`/projects/${ids.projectId}`).send({ name: 'x' }).expect(403);
+        expect(rename.body).toMatchObject({ code: 'PROJECT_ROLE_INSUFFICIENT', details: { requiredRole: 'ADMIN', currentRole: role } });
+        const remove = await authedRequest(app, user).delete(`/projects/${ids.projectId}`).expect(403);
+        expect(remove.body.code).toBe('PROJECT_ROLE_INSUFFICIENT');
+      }
       expect(prisma.tables.project.filter((row) => row.deletedAt == null)).toHaveLength(1);
     });
 
@@ -648,7 +655,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
 
     it('a Project without repository or with a REVOKED binding is visible only to an Admin, even to a member with a stale record', async () => {
       const ids = seedProject('ORG');
-      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'MAINTAINER', verifiedAt: new Date() });
+      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'WRITER', verifiedAt: new Date() });
       (prisma.tables.repositoryBinding[0] as { status: string }).status = 'REVOKED';
 
       await authedRequest(app, WRITER).get(`/projects/${ids.projectId}`).expect(404);
@@ -675,7 +682,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
     const subscribe = (socket: ReturnType<typeof fakeSocket>, projectVersionId: string) =>
       app.get(RealtimeGateway).subscribeProjectVersion(socket as never, { projectVersionId });
 
-    it('Reader, Maintainer and Admin subscribe (SubscribeAck true) and the socket -> Project map records it; the rest get { false, null, false }', async () => {
+    it('Reader, Writer and Admin subscribe (SubscribeAck true) and the socket -> Project map records it; the rest get { false, null, false }', async () => {
       const ids = seedProject('ORG');
       const subscriptions = app.get(ProjectSubscriptionsService);
 
@@ -732,7 +739,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       expect(reader.leave).toHaveBeenCalledWith(`project-version:${ids.versionId}`);
       expect(writer.leave).not.toHaveBeenCalled();
 
-      // 2. El binding pasa a REVOKED: el Maintainer sale, el Admin se queda.
+      // 2. El binding pasa a REVOKED: el Writer sale, el Admin se queda.
       (prisma.tables.repositoryBinding[0] as { status: string }).status = 'REVOKED';
       await expect(subscriptions.revalidateProject(ids.projectId)).resolves.toBe(1);
       expect(writer.leave).toHaveBeenCalled();

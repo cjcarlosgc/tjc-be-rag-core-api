@@ -238,8 +238,8 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
     });
   });
 
-  describe('roles: PATCH and DELETE only Admin (HU63); binding operations Maintainer (HU60)', () => {
-    it('PATCH renames as Admin (200) and answers 403 PROJECT_ROLE_INSUFFICIENT with details to Maintainer and Reader', async () => {
+  describe('roles: PATCH and DELETE only Admin (HU63); binding operations Writer (HU60, INTEROP-2.7 §6.13)', () => {
+    it('PATCH renames as Admin (200) and answers 403 PROJECT_ROLE_INSUFFICIENT with details to Writer and Reader', async () => {
       const project = await createBoundProject();
       await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
       await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);
@@ -277,7 +277,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       await authedRequest(app, OWNER).delete(`/projects/${project.id}`).expect(404);
     });
 
-    it('a Reader reads the binding (GET) but cannot POST, pause or enable it (403); a Maintainer can pause and enable', async () => {
+    it('a Reader reads the binding (GET) but cannot POST, pause or enable it (403); a Writer can pause and enable', async () => {
       const project = await createBoundProject();
       await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);
       await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
@@ -310,7 +310,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       await bindRepository(project.id).expect(201);
     });
 
-    it('a Maintainer who is not an Admin cannot bind a project without repository: it is invisible to them (404)', async () => {
+    it('a Writer who is not an Admin cannot bind a project without repository: it is invisible to them (404)', async () => {
       const project = await createOrgProject();
 
       const response = await bindRepository(project.id, WRITER).expect(404);
@@ -318,7 +318,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       expect(response.body.code).toBe('PROJECT_NOT_FOUND');
     });
 
-    it('REVOKED binding: hidden (404) for Maintainer and Reader even though their records remain; the Admin sees and reactivates it', async () => {
+    it('REVOKED binding: hidden (404) for Writer and Reader even though their records remain; the Admin sees and reactivates it', async () => {
       const project = await createBoundProject();
       await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
       await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);

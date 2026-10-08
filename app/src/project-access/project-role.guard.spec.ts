@@ -6,6 +6,10 @@ import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { ACCESS_POLICY_KEY, NoProjectRole, ProjectTargets, RequireProjectRole, type AccessPolicy } from './access-policy.js';
 import { ProjectRoleGuard } from './project-role.guard.js';
+import { FunctionalKnowledgeController } from '../functional-knowledge/functional-knowledge.controller.js';
+import { TestPublicationsController } from '../publications/test-publications.controller.js';
+import { ExperimentsController } from '../experiments/experiments.controller.js';
+import { RepositoryBindingsController } from '../repository-bindings/repository-bindings.controller.js';
 
 function contextOf(
   policy: AccessPolicy | undefined,
@@ -166,5 +170,22 @@ describe('ProjectRoleGuard (default-deny, INTEROP-2.4 §6.13)', () => {
     });
     expect(Reflect.getMetadata(ACCESS_POLICY_KEY, Demo.prototype.free)).toEqual({ kind: 'NONE', reason: 'sesión GitHub válida basta' });
     expect(() => NoProjectRole('  ')).toThrow();
+  });
+
+  // INTEROP-2.7 §6.13 (WI-CORE-019, corte B): las operaciones que pasan a Writer declaran Writer en
+  // el controlador; responder preguntas y UNKNOWN siguen en Maintainer.
+  it('declares Writer on the binding, publication and experiment operations and keeps Maintainer for answering questions', () => {
+    const minRoleOf = (target: object, method: string): string => {
+      const handler = (target as Record<string, unknown>)[method] as object;
+      return (Reflect.getMetadata(ACCESS_POLICY_KEY, handler) as { minRole: string }).minRole;
+    };
+
+    expect(minRoleOf(RepositoryBindingsController.prototype, 'create')).toBe('WRITER');
+    expect(minRoleOf(RepositoryBindingsController.prototype, 'enable')).toBe('WRITER');
+    expect(minRoleOf(RepositoryBindingsController.prototype, 'remove')).toBe('WRITER');
+    expect(minRoleOf(RepositoryBindingsController.prototype, 'get')).toBe('READER');
+    expect(minRoleOf(TestPublicationsController.prototype, 'create')).toBe('WRITER');
+    expect(minRoleOf(ExperimentsController.prototype, 'create')).toBe('WRITER');
+    expect(minRoleOf(FunctionalKnowledgeController.prototype, 'submitAnswer')).toBe('MAINTAINER');
   });
 });
