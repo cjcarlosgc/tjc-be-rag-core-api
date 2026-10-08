@@ -4,11 +4,12 @@ import { SessionAuthService } from '../common/auth/session-auth.service.js';
 import { InvalidTokenError } from '../common/auth/token-verifier.port.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { isRoleAtLeast } from '../common/persistence/accessible-project.filter.js';
+import type { ProjectRole } from '../generated/prisma/client.js';
 import { ProjectAccessRepository } from '../project-access/project-access.repository.js';
 import { issueGithubBindingEvidence } from '../repository-bindings/github-binding-evidence.js';
 import type { GithubAuthorizationDecisionDto, GithubRepositoryFactDto } from './dto/github-authorization-decision.dto.js';
 
-const ROLE_RANK = { READER: 1, MAINTAINER: 2, ADMIN: 3 } as const;
 const BINDING_PERMISSIONS = new Set(['admin', 'maintain', 'write']);
 
 export interface GithubAuthorizationDecision {
@@ -53,7 +54,7 @@ export class GithubUiAuthorizationService {
 
     const role = roleForUser(project, identity.userId);
     const minimumRole = request.action === 'DISCOVER_REPOSITORIES' ? 'READER' : 'MAINTAINER';
-    if (!role || ROLE_RANK[role] < ROLE_RANK[minimumRole]) return { decision: 'DENY' };
+    if (!role || !isRoleAtLeast(role, minimumRole)) return { decision: 'DENY' };
 
     const repositoryOwnerId = project.githubOrgId ?? identity.githubUserId;
     const repositoryOwnerType = project.githubOrgId === null ? 'User' : 'Organization';
@@ -116,7 +117,7 @@ export class GithubUiAuthorizationService {
   }
 }
 
-function roleForUser(project: NonNullable<Awaited<ReturnType<ProjectAccessRepository['findLiveForGithubAuthorization']>>>, userId: string): 'ADMIN' | 'MAINTAINER' | 'READER' | null {
+function roleForUser(project: NonNullable<Awaited<ReturnType<ProjectAccessRepository['findLiveForGithubAuthorization']>>>, userId: string): ProjectRole | null {
   if (project.githubOrgId === null) return project.ownerUserId === userId ? 'ADMIN' : null;
   const role = project.access[0]?.role;
   if (role === 'ADMIN') return role;

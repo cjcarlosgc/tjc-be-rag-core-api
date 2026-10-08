@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
  * busca en `spec/contracts/interoperability-contract.md`, de modo que editar el contrato
  * sin actualizar esta matriz (o al revés) falla.
  */
-export type ContractRole = 'PUBLIC' | 'NONE' | 'READER' | 'MAINTAINER' | 'ADMIN';
+export type ContractRole = 'PUBLIC' | 'NONE' | 'READER' | 'WRITER' | 'MAINTAINER' | 'ADMIN';
 export type ContractRow = 'SIN_ROL' | 'READER' | 'MAINTAINER' | 'ADMIN';
 
 export interface MatrixEntry {

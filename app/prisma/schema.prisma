@@ -236,10 +236,11 @@ model Project {
 }
 
 /// 014 (HU60): rol derivado de GitHub sobre un Project de organización. Jerarquía
-/// `ADMIN` ⊃ `MAINTAINER` ⊃ `READER`.
+/// `ADMIN` ⊃ `MAINTAINER` ⊃ `WRITER` ⊃ `READER` (WI-CORE-019, INTEROP-2.7 §6.13).
 enum ProjectRole {
   ADMIN
   MAINTAINER
+  WRITER
   READER
 }
 

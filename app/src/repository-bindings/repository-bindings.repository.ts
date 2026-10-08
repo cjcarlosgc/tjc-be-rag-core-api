@@ -173,7 +173,7 @@ export class RepositoryBindingsRepository {
   }
 
   /**
-   * Bindings `REVOKED` de Projects vivos que aún conservan registros Maintainer/Reader
+   * Bindings `REVOKED` de Projects vivos que aún conservan registros Maintainer/Writer/Reader
    * (una revocación interrumpida a mitad): la reconciliación termina el borrado. El
    * predicado de acceso ya los deniega mientras tanto.
    */

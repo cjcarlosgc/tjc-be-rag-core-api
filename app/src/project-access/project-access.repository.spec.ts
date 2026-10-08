@@ -49,6 +49,28 @@ describe('ProjectAccessRepository', () => {
     expect(tx.projectAccess.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'p1', userId: 'u1' } });
   });
 
+  it('persists the WRITER role as any other derived role (WI-CORE-019): the upsert carries role WRITER', async () => {
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      projectAccess: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        upsert: vi.fn().mockResolvedValue({}),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    const prisma = { $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)) };
+    const repository = new ProjectAccessRepository(prisma as unknown as PrismaService);
+
+    await repository.withAccessLock('p1', 'u1', (scope) => scope.upsertRecord('WRITER'));
+
+    expect(tx.projectAccess.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ role: 'WRITER' }),
+        update: expect.objectContaining({ role: 'WRITER' }),
+      }),
+    );
+  });
+
   it('findVisible applies the accessibleProject predicate and includes only the record of the user', async () => {
     const prisma = { project: { findFirst: vi.fn().mockResolvedValue(null) } };
     const repository = new ProjectAccessRepository(prisma as unknown as PrismaService);

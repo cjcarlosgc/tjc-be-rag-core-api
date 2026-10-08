@@ -91,7 +91,7 @@ export function buildAccessSyncHarness() {
     });
   };
 
-  const grant = (projectId: string, userId: string, role: 'ADMIN' | 'MAINTAINER' | 'READER') =>
+  const grant = (projectId: string, userId: string, role: 'ADMIN' | 'MAINTAINER' | 'WRITER' | 'READER') =>
     db.insert('projectAccess', { projectId, userId, role, verifiedAt: new Date() });
 
   const recordsOf = (projectId: string) =>

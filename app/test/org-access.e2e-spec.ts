@@ -193,18 +193,18 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
   });
 
   describe('entry by live verification and derived roles (HU59, HU60)', () => {
-    it('registers Maintainer for write and Reader for read on first access, exposing the role in ProjectResponse', async () => {
+    it('registers Writer for write and Reader for read on first access, exposing the role in ProjectResponse', async () => {
       const project = await createBoundProject();
 
       const writer = await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
       const reader = await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);
 
-      expect(writer.body).toMatchObject({ role: 'MAINTAINER', workspace: { kind: 'ORGANIZATION', id: ORG_ID } });
+      expect(writer.body).toMatchObject({ role: 'WRITER', workspace: { kind: 'ORGANIZATION', id: ORG_ID } });
       expect(reader.body.role).toBe('READER');
       expect(prisma.tables.projectAccess.map((row) => [row.userId, row.role]).sort()).toEqual(
         [
           [OWNER, 'ADMIN'],
-          [WRITER, 'MAINTAINER'],
+          [WRITER, 'WRITER'],
           [READER, 'READER'],
         ].sort(),
       );
@@ -247,7 +247,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       const forbidden = await authedRequest(app, WRITER).patch(`/projects/${project.id}`).send({ name: 'hijack' }).expect(403);
       expect(forbidden.body).toMatchObject({
         code: 'PROJECT_ROLE_INSUFFICIENT',
-        details: { requiredRole: 'ADMIN', currentRole: 'MAINTAINER' },
+        details: { requiredRole: 'ADMIN', currentRole: 'WRITER' },
       });
       const readerForbidden = await authedRequest(app, READER).patch(`/projects/${project.id}`).send({ name: 'x' }).expect(403);
       expect(readerForbidden.body.details).toEqual({ requiredRole: 'ADMIN', currentRole: 'READER' });
@@ -388,7 +388,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
 
       expect(list.body.items.map((item: { name: string; role: string }) => [item.name, item.role]).sort()).toEqual(
         [
-          ['team-project', 'MAINTAINER'],
+          ['team-project', 'WRITER'],
           ['writer-personal', 'ADMIN'],
         ].sort(),
       );

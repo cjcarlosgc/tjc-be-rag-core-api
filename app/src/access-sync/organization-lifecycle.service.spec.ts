@@ -18,7 +18,7 @@ describe('OrganizationLifecycleService (HU61)', () => {
     h.seedOrgProject('p2', null);
     h.github.addRepository(W, { repositoryId: '100', ownerId: ORG_ID, ownerLogin: ORG_LOGIN, ownerType: 'Organization' }).setPermission(W, 'gh-writer', 'write').setPermission(W, 'gh-reader', 'read');
     h.grant('p1', 'boss', 'ADMIN');
-    h.grant('p1', 'writer', 'MAINTAINER');
+    h.grant('p1', 'writer', 'WRITER');
     h.grant('p1', 'reader', 'READER');
     h.grant('p2', 'boss', 'ADMIN');
   });
@@ -98,7 +98,7 @@ describe('OrganizationLifecycleService (HU61)', () => {
 
       await h.bindings.reactivate(h.bindingOf('p1').id, INSTALLATION_ID); // `POST .../enable` por un Admin
 
-      expect(await h.access.grantOnEntry('p1', 'writer', 'gh-writer')).toEqual({ status: 'GRANTED', role: 'MAINTAINER' });
+      expect(await h.access.grantOnEntry('p1', 'writer', 'gh-writer')).toEqual({ status: 'GRANTED', role: 'WRITER' });
       expect(await h.access.grantOnEntry('p2', 'boss', 'gh-boss')).toEqual({ status: 'GRANTED', role: 'ADMIN' }); // sin repositorio: solo Admin
     });
   });

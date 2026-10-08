@@ -474,7 +474,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('member', memberEvent('added', WRITER), { deliveryId: 'd-0' }).expect(202); // llega tarde: "added" después de "removed"
       await runJobs();
 
-      expect(recordsOf()).not.toContain(`${WRITER}:MAINTAINER`);
+      expect(recordsOf()).not.toContain(`${WRITER}:WRITER`);
       await projectAs(WRITER, projectId).expect(404);
     });
 
@@ -505,7 +505,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('membership', { action: 'removed', scope: 'team', member: { id: Number(gh(READER)) }, organization: { id: Number(ORG_ID) } }).expect(202);
       await runJobs();
 
-      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:MAINTAINER`]);
+      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:WRITER`]);
       await projectAs(READER, projectId).expect(404);
     });
 
@@ -533,7 +533,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('team', { action: 'edited', team: { id: 1 }, organization: { id: Number(ORG_ID) } }).expect(202);
       await runJobs();
 
-      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:MAINTAINER`]);
+      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:WRITER`]);
     });
 
     it('repository.privatized: the implicit read of a public repository disappears, so a record that GitHub no longer backs is deleted', async () => {
@@ -544,7 +544,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       expect(binding().status).toBe('ENABLED'); // solo encola
       await runJobs();
 
-      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:MAINTAINER`]);
+      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:WRITER`]);
       await projectAs(READER, projectId).expect(404);
     });
 
@@ -597,7 +597,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('member', memberEvent('removed', WRITER)).expect(202);
       await runJobs();
 
-      expect(recordsOf()).toContain(`${WRITER}:MAINTAINER`);
+      expect(recordsOf()).toContain(`${WRITER}:WRITER`);
       await projectAs(WRITER, projectId).expect(200); // conserva lo existente
       expect(queue.jobs[0]).toMatchObject({ status: 'PENDING', attempts: 0 });
 
@@ -605,7 +605,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       queue.advance(60_000);
       await runJobs();
 
-      expect(recordsOf()).not.toContain(`${WRITER}:MAINTAINER`);
+      expect(recordsOf()).not.toContain(`${WRITER}:WRITER`);
       await projectAs(WRITER, projectId).expect(404);
       expect(queue.jobs.every((job) => job.status === 'COMPLETED')).toBe(true);
     });

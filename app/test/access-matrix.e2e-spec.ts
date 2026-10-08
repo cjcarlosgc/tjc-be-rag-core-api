@@ -48,8 +48,8 @@ const STRANGER = 'mx-stranger';
 const PERSONAL_CREATOR = 'mx-personal';
 const gh = e2eGithubUserId;
 
-type Role = 'ADMIN' | 'MAINTAINER' | 'READER';
-const RANK: Record<Role, number> = { READER: 1, MAINTAINER: 2, ADMIN: 3 };
+type Role = 'ADMIN' | 'MAINTAINER' | 'WRITER' | 'READER';
+const RANK: Record<Role, number> = { READER: 1, WRITER: 2, MAINTAINER: 3, ADMIN: 4 };
 
 interface Ids {
   projectId: string;
@@ -584,7 +584,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       expect(prisma.tables.projectAccess.map((row) => [row.userId, row.role]).sort()).toEqual(
         [
           [OWNER, 'ADMIN'],
-          [WRITER, 'MAINTAINER'],
+          [WRITER, 'WRITER'],
           [READER, 'READER'],
         ].sort(),
       );

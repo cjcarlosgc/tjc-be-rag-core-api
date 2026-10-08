@@ -33,7 +33,7 @@ function makeGuard() {
   return { guard: new ProjectRoleGuard(new Reflector(), projectAccess as never), projectAccess };
 }
 
-const role = (minRole: 'READER' | 'MAINTAINER' | 'ADMIN', target: ReturnType<typeof ProjectTargets.project>): AccessPolicy => ({
+const role = (minRole: 'READER' | 'WRITER' | 'MAINTAINER' | 'ADMIN', target: ReturnType<typeof ProjectTargets.project>): AccessPolicy => ({
   kind: 'ROLE',
   minRole,
   target,
@@ -98,6 +98,14 @@ describe('ProjectRoleGuard (default-deny, INTEROP-2.4 §6.13)', () => {
       ['u1', 'project', 'p2', 'MAINTAINER'],
       ['u1', 'project', 'p3', 'READER'],
     ]);
+  });
+
+  it('delegates a WRITER minimum to the access service with the role name unchanged (WI-CORE-019)', async () => {
+    const { guard, projectAccess } = makeGuard();
+
+    await guard.canActivate(contextOf(role('WRITER', ProjectTargets.project('projectId')), { userId: 'u1', params: { projectId: 'p1' } }));
+
+    expect(projectAccess.requireForResource).toHaveBeenCalledWith('u1', 'project', 'p1', 'WRITER');
   });
 
   it('a listing route and an absent optional/body id do not resolve a resource (the DTO and the predicate decide)', async () => {

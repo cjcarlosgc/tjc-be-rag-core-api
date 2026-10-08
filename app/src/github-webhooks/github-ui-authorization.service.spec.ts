@@ -17,7 +17,7 @@ function setup(project: Record<string, unknown> | null) {
   };
 }
 
-function organizationProject(role: 'ADMIN' | 'MAINTAINER' | 'READER' = 'ADMIN') {
+function organizationProject(role: 'ADMIN' | 'MAINTAINER' | 'WRITER' | 'READER' = 'ADMIN') {
   return {
     id: '10000000-0000-4000-8000-000000000001',
     ownerUserId: null,
@@ -92,6 +92,24 @@ describe('GitHub UI authorization decisions', () => {
     } as GithubAuthorizationDecisionDto)).resolves.toEqual({
       decision: 'ALLOW', repositoryOwnerId: '99', repositoryOwnerType: 'Organization', githubUserId: '123',
     });
+  });
+
+  it('a Writer record (permission write, WI-CORE-019) discovers the Project repositories: Reader is the minimum of discovery', async () => {
+    const { service } = setup({ ...organizationProject('WRITER'), repositoryBinding: { status: 'ENABLED' } });
+    await expect(service.decide('jwt', {
+      action: 'DISCOVER_REPOSITORIES', projectId: '10000000-0000-4000-8000-000000000001', githubUserId: '123',
+    } as GithubAuthorizationDecisionDto)).resolves.toMatchObject({
+      decision: 'ALLOW', repositoryOwnerId: '99', repositoryOwnerType: 'Organization',
+    });
+  });
+
+  // Estado intermedio de WI-CORE-019 (corte A): el rol mínimo de las operaciones sigue en
+  // MAINTAINER hasta el corte B, así que un Writer no obtiene la identidad de rama.
+  it('a Writer record does not get branch identity while the operation minimum is still Maintainer (corte A)', async () => {
+    const { service } = setup(organizationProject('WRITER'));
+    await expect(service.decide('jwt', {
+      action: 'LIST_REPOSITORY_BRANCHES', projectId: '10000000-0000-4000-8000-000000000001',
+    } as GithubAuthorizationDecisionDto)).resolves.toEqual({ decision: 'DENY' });
   });
 
   it('does not return branch identity to readers who cannot manage a binding', async () => {

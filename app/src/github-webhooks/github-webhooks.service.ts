@@ -303,7 +303,7 @@ export class GithubWebhooksService {
 
   /**
    * HU31/HU61 (revocación): `deleted` = App desinstalada (bindings `REVOKED` y borrado de los
-   * registros Maintainer/Reader con expulsión de sockets; si es de una organización, también
+   * registros Maintainer/Writer/Reader con expulsión de sockets; si es de una organización, también
    * los Admin), `suspend`/`unsuspend` = pausa
    * reversible de la instalación completa (`suspend` NO borra registros: una instalación
    * suspendida se trata como GitHub no disponible). Sin dedup por delivery id -el efecto
@@ -346,7 +346,7 @@ export class GithubWebhooksService {
    * HU31 (revocación): la instalación sigue viva, pero GitHub retiró acceso
    * a un repositorio puntual (el usuario lo destildó en la configuración de
    * la App). Solo afecta el binding de ese repo, no el resto de la
-   * instalación: `REVOKED` y borrado de sus registros Maintainer/Reader.
+   * instalación: `REVOKED` y borrado de sus registros Maintainer/Writer/Reader.
    */
   private async handleInstallationRepositoriesEvent(
     payload: GithubInstallationRepositoriesWebhookPayload,

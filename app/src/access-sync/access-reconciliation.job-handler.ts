@@ -85,7 +85,7 @@ export interface ReconciliationSummary {
  * - **Siembra:** al arrancar se encola una ocurrencia solo si no hay un `PENDING` ni un
  *   `RUNNING` no obsoleto (varias instancias no la duplican).
  * - **Resultado por binding:** transferido fuera de la cuenta/organización del Project o
- *   eliminado (o la App ya no lo ve) -> `REVOKED` y borrado de Maintainer/Reader;
+ *   eliminado (o la App ya no lo ve) -> `REVOKED` y borrado de Maintainer/Writer/Reader;
  *   renombrado -> actualiza `repositoryName`; GitHub no verificable (red, `5xx`, límite
  *   de tasa, instalación suspendida) -> conserva y reintenta en la siguiente ocurrencia:
  *   nunca revoca por un error de red.
@@ -381,7 +381,7 @@ export class AccessReconciliationJobHandler
   }
 
   /**
-   * Un binding `REVOKED` con registros Maintainer/Reader sobrantes (una revocación
+   * Un binding `REVOKED` con registros Maintainer/Writer/Reader sobrantes (una revocación
    * interrumpida): termina el borrado. No usa GitHub ni el presupuesto.
    */
   private async sweepLeftoverRecords(): Promise<number> {

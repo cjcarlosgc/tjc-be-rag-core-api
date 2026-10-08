@@ -163,7 +163,7 @@ export class ProjectAccessService {
 
         const existing = await scope.findRecord();
 
-        // Maintainer/Reader solo con un binding existente y no `REVOKED` (mismo criterio que el predicado).
+        // Maintainer/Writer/Reader solo con un binding existente y no `REVOKED` (mismo criterio que el predicado).
         const bindingAllowsAccess = project.repositoryBinding !== null && project.repositoryBinding.status !== 'REVOKED';
 
         if (existing && (existing.role === 'ADMIN' || bindingAllowsAccess)) {
@@ -173,7 +173,7 @@ export class ProjectAccessService {
         const verdict = await this.deriveRole(project, githubUserId, context);
 
         if (verdict.status === 'GRANTED') {
-          // Maintainer/Reader dependen del binding: se confirma justo antes del upsert con
+          // Maintainer/Writer/Reader dependen del binding: se confirma justo antes del upsert con
           // `FOR SHARE`, de modo que un binding que pasó a `REVOKED` (evento o reconciliación,
           // que borran los registros DESPUÉS de cambiar el estado) no recibe un registro creado
           // con el estado anterior; una transición en vuelo espera a este commit y luego lo borra.
@@ -215,7 +215,7 @@ export class ProjectAccessService {
    * modo que nunca se intercala con un alta ni con una revocación. Confirma y actualiza
    * `role`/`verifiedAt`; borra el registro si GitHub confirma que se perdió el acceso (no
    * miembro activo, App desinstalada de la organización, permiso ausente, Project borrado o
-   * binding `REVOKED` para un Maintainer/Reader); lo conserva si no puede verificar (nunca
+   * binding `REVOKED` para un Maintainer/Writer/Reader); lo conserva si no puede verificar (nunca
    * revoca por un error de red). Un registro inexistente se deja tal cual: solo el alta al
    * entrar concede accesos nuevos.
    */
@@ -248,7 +248,7 @@ export class ProjectAccessService {
         }
 
         if (verdict.status === 'GRANTED' && verdict.role !== 'ADMIN') {
-          // Como en el alta, Maintainer/Reader dependen del binding: se confirma con `FOR SHARE`.
+          // Como en el alta, Maintainer/Writer/Reader dependen del binding: se confirma con `FOR SHARE`.
           const bindingStatus = await scope.lockBindingStatus();
 
           if (bindingStatus === null || bindingStatus === 'REVOKED') {
@@ -321,8 +321,8 @@ export class ProjectAccessService {
 
   /**
    * Rol derivado de GitHub, siempre con una lectura viva solicitada a GitHub Integration: owner de
-   * la organización = Admin; miembro activo con permiso `maintain`/`write`/`admin` sobre el
-   * repositorio vinculado = Maintainer, con `triage`/`read` = Reader. La membresía activa se
+   * la organización = Admin; miembro activo con permiso `maintain`/`admin` sobre el
+   * repositorio vinculado = Maintainer, con `write` = Writer, con `triage`/`read` = Reader. La membresía activa se
    * exige SIEMPRE (un colaborador externo con `write` no accede, ni en repositorios
    * privados, internal o públicos: el `read` implícito de un repositorio público no cuenta).
    * Un Project sin repositorio o con binding `REVOKED` solo lo ve un Admin.
@@ -369,7 +369,9 @@ export class ProjectAccessService {
   }
 }
 
-/** `maintain`/`write`/`admin` -> Maintainer; `triage`/`read` -> Reader. */
+/** `admin`/`maintain` -> Maintainer; `write` -> Writer; `triage`/`read` -> Reader (INTEROP-2.7 §6.13). */
 export function roleForPermission(permission: RepositoryPermissionLevel): ProjectRole {
-  return permission === 'admin' || permission === 'maintain' || permission === 'write' ? 'MAINTAINER' : 'READER';
+  if (permission === 'admin' || permission === 'maintain') return 'MAINTAINER';
+  if (permission === 'write') return 'WRITER';
+  return 'READER';
 }

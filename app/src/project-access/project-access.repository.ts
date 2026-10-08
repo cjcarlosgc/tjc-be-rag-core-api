@@ -107,7 +107,7 @@ export class ProjectAccessRepository {
     });
   }
 
-  /** Usuarios con registro Maintainer o Reader (no Admin) sobre el Project: los que borra un binding `REVOKED`. */
+  /** Usuarios con registro Maintainer, Writer o Reader (no Admin) sobre el Project: los que borra un binding `REVOKED`. */
   async findNonAdminUserIds(projectId: string): Promise<string[]> {
     const records = await this.prisma.projectAccess.findMany({
       where: { projectId, role: { not: 'ADMIN' } },

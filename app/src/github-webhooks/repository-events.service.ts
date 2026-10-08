@@ -11,8 +11,8 @@ import type { GithubRepositoryWebhookPayload } from './dto/repository-webhook.pa
  *
  * - `renamed`: actualiza `repositoryName` (el estado no cambia);
  * - `transferred`: si el nuevo propietario no es la cuenta/organización del Project, binding
- *   `REVOKED` y borrado de los registros Maintainer/Reader; si lo es, solo actualiza el nombre;
- * - `deleted`: binding `REVOKED` y borrado de los registros Maintainer/Reader;
+ *   `REVOKED` y borrado de los registros Maintainer/Writer/Reader; si lo es, solo actualiza el nombre;
+ * - `deleted`: binding `REVOKED` y borrado de los registros Maintainer/Writer/Reader;
  * - `privatized`: reverifica todos los registros de los Projects de organización vinculados (el
  *   `read` implícito de un repositorio público deja de existir): encola un `ACCESS_REVERIFY` del
  *   repositorio, sin efecto directo (un Project personal no tiene registros).

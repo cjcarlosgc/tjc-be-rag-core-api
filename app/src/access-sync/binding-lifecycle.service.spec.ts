@@ -6,7 +6,7 @@ describe('BindingLifecycleService (HU61)', () => {
     const h = buildAccessSyncHarness();
     const binding = h.seedOrgProject('p1')!;
     h.grant('p1', 'admin', 'ADMIN');
-    h.grant('p1', 'writer', 'MAINTAINER');
+    h.grant('p1', 'writer', 'WRITER');
     h.grant('p1', 'reader', 'READER');
     return { ...h, binding: binding as unknown as Parameters<typeof h.lifecycle.revokeBinding>[0] };
   };
@@ -75,7 +75,7 @@ describe('BindingLifecycleService (HU61)', () => {
 
     await expect(h.lifecycle.revokeBinding(h.binding)).rejects.toThrow(/Revocación incompleta/);
 
-    expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'writer:MAINTAINER']);
+    expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'writer:WRITER']);
     expect(h.bindingOf('p1').status).toBe('REVOKED');
     // El writer conserva un registro sobrante, pero la revalidación usa el predicado: con el binding REVOKED ya no lo ve.
     expect(reader.leave).toHaveBeenCalled();
