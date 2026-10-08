@@ -14,6 +14,8 @@ Las asignaciones pueden quedar vacías hasta que se designen sus responsables. A
 
 El implementer no aprueba su propio corte. Registra el veredicto humano como handoff con `agent: human-reviewer`; si el usuario delegó, registra el handoff del `reviewer`. El handoff tiene `status` de veredicto (`APPROVED|CHANGES_REQUESTED|BLOCKED|DECISION_REQUIRED`), `findings`, `blockers`, `filesAffected`, `evidence` y `recommendedNextStep`; `evidence` enlaza el reporte verificable en `harness/reports/`. El veredicto no sustituye los gates.
 
+**Trazabilidad de modelo.** Todo handoff de agente IA y todo reporte en `harness/reports/` generado por un agente declara con qué modelo se hizo la tarea: en handoffs, el objeto `executedBy: { agent, configuredModel, servedModel, effort }`; en reportes Markdown, la línea `Modelo: <agent> · configurado <exactModelId> · atendido <exactModelId|unknown> · esfuerzo <low|medium|high>`. `configuredModel` y `effort` se copian de `harness/agent-profiles.yaml`. `servedModel` es el modelo realmente observado (p. ej. `session_context.model` / `external_metadata.last_served_model` de la sesión); si no se pudo observar, se escribe `unknown`, nunca se asume igual al configurado. Una escalada `implementer → implementer-high` se anota con motivo breve. El handoff del `human-reviewer` no lleva modelo. El campo es informativo y no sustituye gates ni la revisión humana.
+
 ## Gates
 
 `WI-CORE-001` es una migración del propio Harness y SDD (`workItemType: HARNESS`): durante este único corte, la spec y el validador se construyen dentro de `W-IN_PROGRESS`, y `sddVerified` debe pasar antes de `W-IN_REVIEW`. Esto no autoriza a un WI de producto a implementar antes de `W-SPEC_VERIFIED` y aprobación humana.
