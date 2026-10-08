@@ -20,6 +20,8 @@ function buildRow(overrides: Partial<FunctionalKnowledge> = {}): FunctionalKnowl
     confirmedRole: 'ADMIN',
     originHeadSha: 'head-sha',
     sourceRef: null,
+    scenarioKind: 'EXPECTED_RESULT',
+    scenarioKey: 'LEGACY',
     createdAt: CREATED_AT,
     ...overrides,
   } as FunctionalKnowledge;
@@ -71,5 +73,21 @@ describe('toFunctionalKnowledgeResponse procedencia (INTEROP-2.7)', () => {
 
     expect(response.sourceRef).toBe('import://batch-1');
     expect(response.source).toBe('APPROVED_IMPORT');
+  });
+});
+
+describe('toFunctionalKnowledgeResponse scenarios (INTEROP-2.7, WI-CORE-020)', () => {
+  it('exposes the scenarioKind and scenarioKey inherited by the rule', () => {
+    expect(
+      toFunctionalKnowledgeResponse(
+        buildRow({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:bbbbbbbbbbbbbbbb' }),
+      ),
+    ).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:bbbbbbbbbbbbbbbb' });
+  });
+
+  it('exposes EXPECTED_RESULT and LEGACY for a historical rule', () => {
+    expect(
+      toFunctionalKnowledgeResponse(buildRow({ scenarioKind: 'EXPECTED_RESULT', scenarioKey: 'LEGACY' })),
+    ).toMatchObject({ scenarioKind: 'EXPECTED_RESULT', scenarioKey: 'LEGACY' });
   });
 });

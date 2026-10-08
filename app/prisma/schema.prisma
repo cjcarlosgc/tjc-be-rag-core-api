@@ -513,6 +513,15 @@ model FunctionalKnowledge {
   originHeadSha     String?
   /// Referencia de origen. Solo admisible si `source = APPROVED_IMPORT` (invariante en el repositorio).
   sourceRef         String?
+  /// WI-CORE-020 (DEC-FK-004): escenario heredado de la pregunta que originó la regla. Nunca lo escribe
+  /// la respuesta ni una persona, y no tiene default: el repositorio exige el valor. Reglas históricas:
+  /// `EXPECTED_RESULT`.
+  scenarioKind      ScenarioKind
+  /// WI-CORE-020 (DEC-FK-004): clave de escenario heredada de la pregunta. Reglas históricas: `LEGACY`.
+  /// Una sola regla ACTIVE por (projectId, scope, COALESCE(targetRef, ''), scenarioKey). Ese índice único
+  /// parcial (`WHERE status = 'ACTIVE'`, con expresión `COALESCE`) existe solo en la migración SQL: Prisma
+  /// no modela índices parciales ni con expresión, así que `migrate diff` lo mostrará como deriva esperada.
+  scenarioKey       String
   createdAt         DateTime                  @default(now())
 
   @@index([projectId, scope, targetRef, status])

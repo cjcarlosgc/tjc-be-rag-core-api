@@ -145,7 +145,12 @@ describe('FunctionalContextEvaluatorService', () => {
     const result = await service.evaluate(RUN);
 
     expect(result).toEqual({ actionRequired: false });
-    expect(functionalKnowledgeRepository.findActive).toHaveBeenCalledWith('project-1', 'METHOD', 'src/thing.ts::Thing.doIt');
+    expect(functionalKnowledgeRepository.findActive).toHaveBeenCalledWith(
+      'project-1',
+      'METHOD',
+      'src/thing.ts::Thing.doIt',
+      'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+    );
     expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
   });
 
@@ -253,6 +258,7 @@ describe('FunctionalContextEvaluatorService', () => {
       'project-1',
       'SYMBOL',
       'src/thing.ts::standaloneFn',
+      'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
     );
   });
 
@@ -274,5 +280,94 @@ describe('FunctionalContextEvaluatorService', () => {
     functionalQuestionsRepository.createForCurrentRun.mockResolvedValue(null);
 
     await expect(service.evaluate(RUN)).resolves.toEqual({ actionRequired: false });
+  });
+
+  describe('aplicabilidad por scenarioKey (WI-CORE-020)', () => {
+    const KEY_A = 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa';
+    const KEY_B = 'EXCEPTION:bbbbbbbbbbbbbbbb';
+
+    /** Simula el índice ACTIVE: una regla solo aplica a la clave exacta que la originó. */
+    function activeOnlyForKey(keys: string[]) {
+      functionalKnowledgeRepository.findActive.mockImplementation(
+        (_projectId: string, _scope: string, _targetRef: string, scenarioKey: string) =>
+          Promise.resolve(keys.includes(scenarioKey) ? { id: `knowledge-${scenarioKey}` } : null),
+      );
+    }
+
+    it('a LEGACY rule does not cover a construct with a real scenarioKey: the evaluator still asks', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ behaviorConstructs: [buildConstruct({ scenarioKey: KEY_A })] }),
+      ]);
+      activeOnlyForKey(['LEGACY']);
+
+      const result = await service.evaluate(RUN);
+
+      expect(functionalKnowledgeRepository.findActive).toHaveBeenCalledWith(
+        'project-1',
+        'METHOD',
+        'src/thing.ts::Thing.doIt',
+        KEY_A,
+      );
+      expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+        expect.objectContaining({ scenarioKey: KEY_A }),
+        'PROCESSING',
+      );
+    });
+
+    it('a rule for one key does not hide an uncovered construct of another key in the same target', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          behaviorConstructs: [
+            buildConstruct({ scenarioKey: KEY_A, order: 0 }),
+            buildConstruct({ scenarioKind: 'EXCEPTION', scenarioKey: KEY_B, order: 1 }),
+          ],
+        }),
+      ]);
+      activeOnlyForKey([KEY_A]);
+
+      const result = await service.evaluate(RUN);
+
+      expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+        expect.objectContaining({ scenarioKind: 'EXCEPTION', scenarioKey: KEY_B }),
+        'PROCESSING',
+      );
+    });
+
+    it('does not ask when every construct of the target has an ACTIVE rule with its own key', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          behaviorConstructs: [
+            buildConstruct({ scenarioKey: KEY_A, order: 0 }),
+            buildConstruct({ scenarioKind: 'EXCEPTION', scenarioKey: KEY_B, order: 1 }),
+          ],
+        }),
+      ]);
+      activeOnlyForKey([KEY_A, KEY_B]);
+
+      const result = await service.evaluate(RUN);
+
+      expect(result).toEqual({ actionRequired: false });
+      expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+    });
+
+    it('the question inherits the scenario of the construct, deterministically across evaluations', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          behaviorConstructs: [buildConstruct({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:cccccccccccccccc' })],
+        }),
+      ]);
+      activeOnlyForKey([]);
+
+      await service.evaluate(RUN);
+      await service.evaluate(RUN);
+
+      const calls = functionalQuestionsRepository.createForCurrentRun.mock.calls;
+      expect(calls).toHaveLength(2);
+      expect(calls[0][0]).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:cccccccccccccccc' });
+      expect(calls[1][0]).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:cccccccccccccccc' });
+    });
   });
 });

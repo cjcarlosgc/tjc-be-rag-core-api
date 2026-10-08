@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FunctionalKnowledgeService } from './functional-knowledge.service.js';
 import { FunctionalQuestionsRepository } from './functional-questions.repository.js';
-import { FunctionalKnowledgeRepository } from './functional-knowledge.repository.js';
+import { ActiveKnowledgeConflictError, FunctionalKnowledgeRepository } from './functional-knowledge.repository.js';
 import { FunctionalContextEvaluatorService } from './functional-context-evaluator.service.js';
 import { FUNCTIONAL_CONTINUATION_JOB_TYPE } from './functional-continuation-job.handler.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
@@ -83,6 +83,8 @@ function buildKnowledge(overrides: Partial<FunctionalKnowledge> = {}): Functiona
     source: 'HUMAN_ANSWER',
     status: 'ACTIVE',
     supersedesId: null,
+    scenarioKind: 'EXPECTED_RESULT',
+    scenarioKey: 'LEGACY',
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
   } as FunctionalKnowledge;
@@ -702,11 +704,12 @@ describe('FunctionalKnowledgeService', () => {
       await expect(
         service.submitAnswer('run-1', 'question-1', { choice: 'NO', answer: 'no' }, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_KNOWLEDGE_CONFLICT });
-      // La vigencia se busca solo por scope y targetRef; ningún campo de procedencia entra en la consulta.
+      // La vigencia se busca por scope, targetRef y scenarioKey; ningún campo de procedencia entra en la consulta.
       expect(functionalKnowledgeRepository.findActive).toHaveBeenCalledWith(
         'project-1',
         'METHOD',
         'src/thing.ts::Thing.doIt',
+        'LEGACY',
       );
     });
 
@@ -731,6 +734,214 @@ describe('FunctionalKnowledgeService', () => {
 
       expect(functionalKnowledgeRepository.create).not.toHaveBeenCalled();
       expect(functionalKnowledgeRepository.supersede).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('escenarios por clave (INTEROP-2.7, WI-CORE-020)', () => {
+    const BOUNDARY_KEY = 'BOUNDARY:bbbbbbbbbbbbbbbb';
+    const EXPECTED_KEY = 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa';
+
+    function scenarioQuestion(overrides: Partial<QuestionWithAbstentions> = {}): QuestionWithAbstentions {
+      return buildQuestion({
+        scenarioKind: 'BOUNDARY',
+        scenarioKey: BOUNDARY_KEY,
+        ...overrides,
+      });
+    }
+
+    /** Simula el índice: solo devuelve la regla ACTIVE cuya clave coincide con la consultada. */
+    function activeOnlyForKey(rules: Record<string, FunctionalKnowledge>) {
+      functionalKnowledgeRepository.findActive.mockImplementation(
+        (_projectId: string, _scope: string, _targetRef: string, scenarioKey: string) =>
+          Promise.resolve(rules[scenarioKey] ?? null),
+      );
+    }
+
+    it('hereda scenarioKind y scenarioKey de la pregunta y la misma pregunta produce la misma clave', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      functionalKnowledgeRepository.create.mockResolvedValue(buildKnowledge());
+
+      await service.submitAnswer('run-1', 'question-1', { choice: 'YES', answer: 'sí' }, OWNER_USER_ID);
+      await service.submitAnswer('run-1', 'question-1', { choice: 'YES', answer: 'sí' }, OWNER_USER_ID);
+
+      const [first, second] = functionalKnowledgeRepository.create.mock.calls.map((call) => call[0]);
+      expect(first).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: BOUNDARY_KEY });
+      expect(second).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: BOUNDARY_KEY });
+      expect(functionalKnowledgeRepository.findActive).toHaveBeenLastCalledWith(
+        'project-1',
+        'METHOD',
+        'src/thing.ts::Thing.doIt',
+        BOUNDARY_KEY,
+      );
+    });
+
+    it('una pregunta histórica (escenario nulo) produce una regla EXPECTED_RESULT/LEGACY', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalKnowledgeRepository.create.mockResolvedValue(buildKnowledge());
+
+      await service.submitAnswer('run-1', 'question-1', { choice: 'YES', answer: 'sí' }, OWNER_USER_ID);
+
+      expect(functionalKnowledgeRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ scenarioKind: 'EXPECTED_RESULT', scenarioKey: 'LEGACY' }),
+      );
+    });
+
+    it('ignora scenarioKind/scenarioKey enviados por la persona: la regla usa el escenario de la pregunta', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      functionalKnowledgeRepository.create.mockResolvedValue(buildKnowledge());
+
+      await service.submitAnswer(
+        'run-1',
+        'question-1',
+        { choice: 'YES', answer: 'sí', scenarioKind: 'EXCEPTION', scenarioKey: 'FORGED:key' } as never,
+        OWNER_USER_ID,
+      );
+
+      const input = functionalKnowledgeRepository.create.mock.calls[0][0];
+      expect(input).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: BOUNDARY_KEY });
+      expect(functionalKnowledgeRepository.findActive).toHaveBeenCalledWith(
+        'project-1',
+        'METHOD',
+        'src/thing.ts::Thing.doIt',
+        BOUNDARY_KEY,
+      );
+    });
+
+    it('coexistencia: una regla ACTIVE de otra clave no entra en conflicto y la nueva se crea junto a ella', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      activeOnlyForKey({
+        [EXPECTED_KEY]: buildKnowledge({ id: 'knowledge-expected', scenarioKey: EXPECTED_KEY }),
+      });
+      functionalKnowledgeRepository.create.mockResolvedValue(buildKnowledge({ id: 'knowledge-boundary' }));
+
+      const result = await service.submitAnswer(
+        'run-1',
+        'question-1',
+        { choice: 'NO', answer: 'no, en el límite falla' },
+        OWNER_USER_ID,
+      );
+
+      expect(functionalKnowledgeRepository.create).toHaveBeenCalledOnce();
+      expect(functionalKnowledgeRepository.supersede).not.toHaveBeenCalled();
+      expect(result.knowledgeId).toBe('knowledge-boundary');
+    });
+
+    it('conflicto solo con la misma clave: 409 con la regla ACTIVE de esa clave', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      activeOnlyForKey({
+        [BOUNDARY_KEY]: buildKnowledge({
+          id: 'knowledge-same-key',
+          scenarioKind: 'BOUNDARY',
+          scenarioKey: BOUNDARY_KEY,
+        }),
+      });
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'NO', answer: 'no' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({
+        code: ErrorCode.FUNCTIONAL_KNOWLEDGE_CONFLICT,
+        details: expect.objectContaining({
+          conflictingKnowledge: expect.objectContaining({ id: 'knowledge-same-key', scenarioKey: BOUNDARY_KEY }),
+        }),
+      });
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+    });
+
+    it('SUPERSEDE solo sustituye la regla de la misma clave y deja intactas las de otras claves', async () => {
+      projectAccess.require.mockResolvedValue({ project: { id: 'project-1' }, role: 'ADMIN' });
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      activeOnlyForKey({
+        [BOUNDARY_KEY]: buildKnowledge({ id: 'knowledge-same-key', scenarioKind: 'BOUNDARY', scenarioKey: BOUNDARY_KEY }),
+        [EXPECTED_KEY]: buildKnowledge({ id: 'knowledge-other-key', scenarioKey: EXPECTED_KEY }),
+      });
+      functionalKnowledgeRepository.supersede.mockResolvedValue(buildKnowledge({ id: 'knowledge-new' }));
+
+      const result = await service.submitAnswer(
+        'run-1',
+        'question-1',
+        {
+          choice: 'NO',
+          answer: 'no',
+          conflictResolution: { conflictId: 'question-1', action: 'SUPERSEDE' },
+        },
+        OWNER_USER_ID,
+      );
+
+      expect(functionalKnowledgeRepository.supersede).toHaveBeenCalledOnce();
+      expect(functionalKnowledgeRepository.supersede).toHaveBeenCalledWith(
+        'knowledge-same-key',
+        expect.objectContaining({ scenarioKind: 'BOUNDARY', scenarioKey: BOUNDARY_KEY }),
+      );
+      expect(result.knowledgeId).toBe('knowledge-new');
+    });
+
+    it('carrera: la segunda respuesta de la misma clave recibe 409 con la regla ganadora (índice ACTIVE)', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      functionalKnowledgeRepository.create.mockRejectedValue(
+        new ActiveKnowledgeConflictError(buildKnowledge({ id: 'knowledge-winner', normalizedRule: 'sí' })),
+      );
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'NO', answer: 'no' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({
+        code: ErrorCode.FUNCTIONAL_KNOWLEDGE_CONFLICT,
+        details: {
+          conflictId: 'question-1',
+          analysisRunId: 'run-1',
+          questionId: 'question-1',
+          conflictingKnowledge: expect.objectContaining({ id: 'knowledge-winner', scenarioKey: 'LEGACY' }),
+          proposedNormalizedRule: 'no',
+        },
+      });
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+      expect(functionalContextEvaluatorService.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('carrera en SUPERSEDE: el índice rechaza la nueva regla y la respuesta recibe 409 sin responder la pregunta', async () => {
+      projectAccess.require.mockResolvedValue({ project: { id: 'project-1' }, role: 'ADMIN' });
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      functionalKnowledgeRepository.findActive.mockResolvedValue(buildKnowledge({ id: 'knowledge-1' }));
+      functionalKnowledgeRepository.supersede.mockRejectedValue(
+        new ActiveKnowledgeConflictError(buildKnowledge({ id: 'knowledge-other-winner' })),
+      );
+
+      await expect(
+        service.submitAnswer(
+          'run-1',
+          'question-1',
+          {
+            choice: 'NO',
+            answer: 'no',
+            conflictResolution: { conflictId: 'question-1', action: 'SUPERSEDE' },
+          },
+          OWNER_USER_ID,
+        ),
+      ).rejects.toMatchObject({
+        code: ErrorCode.FUNCTIONAL_KNOWLEDGE_CONFLICT,
+        details: expect.objectContaining({
+          conflictingKnowledge: expect.objectContaining({ id: 'knowledge-other-winner' }),
+        }),
+      });
+      expect(functionalQuestionsRepository.answer).not.toHaveBeenCalled();
+    });
+
+    it('un error distinto de la violación de índice se propaga sin convertirse en conflicto', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(scenarioQuestion());
+      const failure = new Error('database unavailable');
+      functionalKnowledgeRepository.create.mockRejectedValue(failure);
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'YES', answer: 'sí' }, OWNER_USER_ID),
+      ).rejects.toBe(failure);
     });
   });
 

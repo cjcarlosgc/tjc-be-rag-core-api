@@ -73,9 +73,9 @@ function buildRationale(symbol: AnalysisSymbol, construct: BehaviorConstructReco
  * seguir o necesita preguntar. Solo lee `analysis_symbols.behaviorConstructs`, calculado por el job
  * de snapshot con el HEAD en disco; no hace I/O de GitHub ni de disco.
  *
- * Elegibilidad: una pregunta por construcción nueva o modificada de un target `DIRECTLY_CHANGED`
- * `METHOD`/`FUNCTION` TypeScript, sin regla `ACTIVE` del target (hasta WI-CORE-020) y sin pregunta
- * no `OBSOLETE` con la misma `scenarioKey`. Una pregunta histórica (`scenarioKey` nulo) cubre todo
+ * Elegibilidad (WI-CORE-020): una pregunta por construcción nueva o modificada de un target
+ * `DIRECTLY_CHANGED` `METHOD`/`FUNCTION` TypeScript, sin regla `ACTIVE` con la misma `scenarioKey`
+ * y sin pregunta no `OBSOLETE` con esa clave. Una pregunta histórica (`scenarioKey` nulo) cubre todo
  * el target. Las preguntas se plantean de una en una, en orden estable (archivo, nombre, `order`).
  */
 @Injectable()
@@ -113,43 +113,46 @@ export class FunctionalContextEvaluatorService {
       }
 
       const trackedKeys = new Set(targetQuestions.map((question) => question.scenarioKey));
-      const pending = [...constructs]
-        .sort((left, right) => left.order - right.order)
-        .find((construct) => !trackedKeys.has(construct.scenarioKey));
-
-      if (!pending) {
-        continue;
-      }
-
       const targetRef = symbolTargetRef(symbol);
-      const covered = await this.functionalKnowledgeRepository.findActive(
-        run.projectId,
-        symbolScope(symbol.kind),
-        targetRef,
-      );
+      const scope = symbolScope(symbol.kind);
 
-      if (covered) {
-        continue;
+      for (const construct of [...constructs].sort((left, right) => left.order - right.order)) {
+        if (trackedKeys.has(construct.scenarioKey)) {
+          continue;
+        }
+
+        // WI-CORE-020: aplicabilidad por misma scenarioKey. Una regla de otra clave, o una LEGACY,
+        // no cubre esta construcción.
+        const covered = await this.functionalKnowledgeRepository.findActive(
+          run.projectId,
+          scope,
+          targetRef,
+          construct.scenarioKey,
+        );
+
+        if (covered) {
+          continue;
+        }
+
+        const result = await this.functionalQuestionsRepository.createForCurrentRun({
+          analysisRunId: run.id,
+          projectId: run.projectId,
+          symbolLanguage: symbol.language,
+          symbolKind: symbol.kind,
+          qualifiedName: symbol.qualifiedName,
+          filePath: symbol.filePath,
+          question: buildQuestion(symbol, construct),
+          rationale: buildRationale(symbol, construct),
+          scenarioKind: construct.scenarioKind,
+          scenarioKey: construct.scenarioKey,
+        }, run.status);
+
+        if (!result) {
+          return { actionRequired: false };
+        }
+
+        return { actionRequired: true, analysisRun: result.analysisRun };
       }
-
-      const result = await this.functionalQuestionsRepository.createForCurrentRun({
-        analysisRunId: run.id,
-        projectId: run.projectId,
-        symbolLanguage: symbol.language,
-        symbolKind: symbol.kind,
-        qualifiedName: symbol.qualifiedName,
-        filePath: symbol.filePath,
-        question: buildQuestion(symbol, pending),
-        rationale: buildRationale(symbol, pending),
-        scenarioKind: pending.scenarioKind,
-        scenarioKey: pending.scenarioKey,
-      }, run.status);
-
-      if (!result) {
-        return { actionRequired: false };
-      }
-
-      return { actionRequired: true, analysisRun: result.analysisRun };
     }
 
     return { actionRequired: false };

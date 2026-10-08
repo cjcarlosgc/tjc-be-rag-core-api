@@ -18,6 +18,10 @@ export interface FunctionalKnowledgeResponse {
   originHeadSha: string | null;
   /** Solo para `source = APPROVED_IMPORT`. */
   sourceRef: string | null;
+  /** INTEROP-2.7 (WI-CORE-020): heredado de la pregunta; `EXPECTED_RESULT` en reglas históricas. */
+  scenarioKind: FunctionalKnowledge['scenarioKind'];
+  /** INTEROP-2.7 (WI-CORE-020): clave de escenario heredada; `LEGACY` en reglas históricas. */
+  scenarioKey: string;
   createdAt: string;
 }
 
@@ -46,6 +50,8 @@ export function toFunctionalKnowledgeResponse(knowledge: FunctionalKnowledge): F
     confirmedRole: knowledge.confirmedRole ?? null,
     originHeadSha: knowledge.originHeadSha ?? null,
     sourceRef: knowledge.sourceRef ?? null,
+    scenarioKind: knowledge.scenarioKind,
+    scenarioKey: knowledge.scenarioKey,
     createdAt: knowledge.createdAt.toISOString(),
   };
 }
