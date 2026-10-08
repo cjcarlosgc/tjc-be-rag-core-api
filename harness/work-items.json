@@ -1019,7 +1019,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DECISION_REQUIRED",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1067,7 +1067,8 @@
           "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
           "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
         }
-      ]
+      ],
+      "blockedReason": "DEC-FK-005 PENDING: el flujo de Functional Knowledge no tiene estado persistido de resolucion humana (solo ACTIVE/SUPERSEDED) y la spec vigente (DEC-FK-001/004) no define equivalencia semantica entre reglas ni permite derivar el scenarioKey real de las historicas; la migracion 20261008150000 (superseder por target) fue rechazada por el Human Reviewer y no se rediseña hasta que el usuario elija opcion A/B/C."
     },
     {
       "component": "CORE",

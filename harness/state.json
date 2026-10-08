@@ -3524,7 +3524,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_REVIEW",
+    "status": "W-DECISION_REQUIRED",
     "specPaths": [
       "spec/features/013-pr-driven-analysis/spec.md",
       "spec/features/013-pr-driven-analysis/plan.md",
@@ -3552,13 +3552,15 @@
     "approved": true,
     "decisionGate": {
       "checked": true,
-      "blockingDecisionIds": [],
+      "blockingDecisionIds": [
+        "DEC-FK-005"
+      ],
       "nonBlockingDecisionIds": [
         "DEC-FK-001",
         "DEC-FK-003",
         "DEC-FK-004"
       ],
-      "checkedAt": "2026-10-08T22:05:00.000Z"
+      "checkedAt": "2026-10-08T23:00:00.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
@@ -3633,21 +3635,49 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "leader",
+          "status": "DECISION_REQUIRED",
+          "findings": [
+            "Human Reviewer: CHANGES_REQUESTED (punto 1: migracion no debe superseder por target; punto 3: textos obsoletos).",
+            "Punto 3 corregido en bdd5700 y sincronizado documentalmente con CS-CORE-20261008-006 (CS-005 intacto).",
+            "Punto 1 detenido: sin estado de resolucion humana ni definicion de equivalencia semantica en la spec; DEC-FK-005 PENDING con opciones A/B/C."
+          ],
+          "blockers": [
+            "DEC-FK-005"
+          ],
+          "filesAffected": [
+            "spec/contracts/system-contract.md",
+            "spec/contracts/interoperability-contract.md",
+            "spec/features/013-pr-driven-analysis/plan.md",
+            "harness/contract-sync/outbox/CS-CORE-20261008-006.yaml"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-020-review-changes-requested.md"
+          ],
+          "recommendedNextStep": "El usuario elige A, B o C para DEC-FK-005; luego implementer-high rediseña la migracion y valida contra Postgres local desechable.",
+          "executedBy": {
+            "agent": "leader",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
         }
       ],
-      "reviewCycles": 0,
+      "reviewCycles": 1,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
       "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
+      "independentReviewPassed": "G-FAILED",
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-PASSED",
       "canonicalContractSynced": "G-PASSED",
       "contractSyncPublished": "G-PASSED",
       "interopSyncChecked": "G-PASSED",
-      "noBlockingDecisions": "G-PASSED",
+      "noBlockingDecisions": "G-FAILED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -3730,7 +3760,7 @@
       "harness/reports/wi-core-020-contract-review.md",
       "harness/reports/contract-sync-publish-cs-core-20261008-005.md"
     ],
-    "blockedReason": null,
+    "blockedReason": "DEC-FK-005 PENDING: el flujo de Functional Knowledge no tiene estado persistido de resolucion humana (solo ACTIVE/SUPERSEDED) y la spec vigente (DEC-FK-001/004) no define equivalencia semantica entre reglas ni permite derivar el scenarioKey real de las historicas; la migracion 20261008150000 (superseder por target) fue rechazada por el Human Reviewer y no se rediseña hasta que el usuario elija opcion A/B/C.",
     "gateEvidence": {
       "sddVerified": [
         "harness/reports/wi-core-020-sdd-verification.md"
