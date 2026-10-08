@@ -180,6 +180,9 @@ export class AccessReverifyService {
 
 function filterOf(scope: AccessReverifyScope): AccessRecordFilter {
   switch (scope.scope) {
+    case 'ALL':
+      // Sin filtro: todos los registros de Projects de organización vivos (`liveOrganizationProjects`).
+      return {};
     case 'USER_REPOSITORY':
     case 'REPOSITORY':
       return { repositoryId: scope.repositoryId };

@@ -1,10 +1,16 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 import { JobsService } from '../jobs/jobs.service.js';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
 import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
 import { VerificationContext } from '../project-access/organization-access.resolver.js';
 import { accessBackoffMs } from './access-backoff.js';
-import { ACCESS_REVERIFY_JOB_TYPE, parseReverifyPayload, type AccessReverifyPayload } from './access-reverify.scope.js';
+import {
+  ACCESS_REVERIFY_ALL_DEDUPE_KEY,
+  ACCESS_REVERIFY_ALL_SCOPE,
+  ACCESS_REVERIFY_JOB_TYPE,
+  parseReverifyPayload,
+  type AccessReverifyPayload,
+} from './access-reverify.scope.js';
 import { AccessReverifyService } from './access-reverify.service.js';
 
 /**
@@ -17,7 +23,7 @@ import { AccessReverifyService } from './access-reverify.service.js';
  * evento nuevo del mismo alcance puede absorberse en ese `PENDING`.
  */
 @Injectable()
-export class AccessReverifyJobHandler implements JobHandler<AccessReverifyPayload>, OnModuleInit {
+export class AccessReverifyJobHandler implements JobHandler<AccessReverifyPayload>, OnModuleInit, OnApplicationBootstrap {
   readonly type = ACCESS_REVERIFY_JOB_TYPE;
   private readonly logger = new Logger(AccessReverifyJobHandler.name);
 
@@ -28,6 +34,33 @@ export class AccessReverifyJobHandler implements JobHandler<AccessReverifyPayloa
 
   onModuleInit(): void {
     this.jobs.registerHandler(this);
+  }
+
+  /**
+   * Despliegue (WI-CORE-019): reclasifica TODOS los registros existentes por verificación viva (p. ej.
+   * Maintainer -> Writer con permiso `write`). Un fallo de la base al arrancar no impide el arranque:
+   * el siguiente arranque vuelve a sembrar.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    try {
+      await this.seedAll();
+    } catch (error) {
+      this.logger.error(`No se pudo sembrar la reverificación completa de acceso: ${describe(error)}`);
+    }
+  }
+
+  /**
+   * Siembra idempotente: encola `ACCESS_REVERIFY:ALL` salvo que ya exista un `PENDING` (índice único
+   * parcial) o un `RUNNING` vigente (`skipIfRunning`). Un `RUNNING` obsoleto cuenta como ausente.
+   * Devuelve si encoló uno nuevo.
+   */
+  async seedAll(): Promise<boolean> {
+    const { created } = await this.jobs.enqueueDeduped(ACCESS_REVERIFY_JOB_TYPE, { ...ACCESS_REVERIFY_ALL_SCOPE }, {
+      dedupeKey: ACCESS_REVERIFY_ALL_DEDUPE_KEY,
+      skipIfRunning: true,
+    });
+
+    return created;
   }
 
   async handle(payload: AccessReverifyPayload): Promise<void> {
@@ -58,4 +91,8 @@ export class AccessReverifyJobHandler implements JobHandler<AccessReverifyPayloa
       );
     }
   }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

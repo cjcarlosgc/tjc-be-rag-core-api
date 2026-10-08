@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildAccessSyncHarness, ORG_ID, ORG_LOGIN, socketOf } from '../../test/support/access-sync-harness.js';
 import { accessBackoffMs } from './access-backoff.js';
 import { AccessReverifyJobHandler } from './access-reverify.job-handler.js';
-import { ACCESS_REVERIFY_JOB_TYPE, reverifyDedupeKey, type AccessReverifyScope } from './access-reverify.scope.js';
+import {
+  ACCESS_REVERIFY_ALL_DEDUPE_KEY,
+  ACCESS_REVERIFY_ALL_SCOPE,
+  ACCESS_REVERIFY_JOB_TYPE,
+  parseReverifyPayload,
+  reverifyDedupeKey,
+  type AccessReverifyScope,
+} from './access-reverify.scope.js';
 
 const W = 'acme/widgets';
 const G = 'acme/gadgets';
@@ -556,5 +563,204 @@ describe('AccessReverifyJobHandler (HU61): Writer role in reverification (WI-COR
     await run();
 
     expect(h.recordsOf('p1')).toEqual(['boss:ADMIN', 'writer:READER']);
+  });
+});
+
+/**
+ * WI-CORE-019 (corte C): `ACCESS_REVERIFY` de alcance COMPLETO (`ALL`), sembrado al desplegar. Recalcula
+ * TODOS los registros de los Projects de organización vivos, con o sin repositorio, por verificación viva
+ * (Maintainer -> Writer con `write`), conserva lo no verificable reprogramando el alcance completo y usa
+ * solo la `dedupeKey`, el advisory lock por (projectId, userId) y el backoff existentes.
+ */
+describe('AccessReverifyJobHandler (WI-CORE-019): full scope ALL seeded at deploy', () => {
+  let h: ReturnType<typeof buildAccessSyncHarness>;
+  let handler: AccessReverifyJobHandler;
+
+  beforeEach(() => {
+    h = buildAccessSyncHarness();
+    handler = new AccessReverifyJobHandler(h.jobs, h.reverify);
+    handler.onModuleInit();
+    h.seedOrganization({ boss: 'owner', writer: 'member', reader: 'member' });
+    h.seedOrgProject('p1', { repositoryId: '100', repositoryName: W });
+    h.seedOrgProject('p2', { repositoryId: '101', repositoryName: G });
+    h.seedOrgProject('p3', null); // sin repositorio: solo Admin
+    h.github.addRepository(W, { repositoryId: '100', ...owner }).addRepository(G, { repositoryId: '101', ...owner });
+    h.github
+      .setPermission(W, 'gh-writer', 'write')
+      .setPermission(G, 'gh-writer', 'write')
+      .setPermission(W, 'gh-reader', 'read')
+      .setPermission(G, 'gh-reader', 'read');
+    for (const project of ['p1', 'p2', 'p3']) {
+      h.grant(project, 'boss', 'ADMIN');
+    }
+    h.grant('p1', 'writer', 'MAINTAINER'); // registrado antes de WRITER: GitHub dice `write`
+    h.grant('p2', 'writer', 'WRITER');
+    h.grant('p1', 'reader', 'READER');
+    h.grant('p2', 'reader', 'READER');
+  });
+
+  const run = () => h.jobs.runOnce();
+  const allJobs = () => h.queue.jobs.filter((job) => job.dedupeKey === ACCESS_REVERIFY_ALL_DEDUPE_KEY);
+  const roleOf = (projectId: string, userId: string) =>
+    (h.db.tables.projectAccess.find((row) => row.projectId === projectId && row.userId === userId) as { role: string } | undefined)?.role;
+
+  describe('key and payload', () => {
+    it('the dedupeKey is constant and the complete scope has no filter fields', () => {
+      expect(reverifyDedupeKey(ACCESS_REVERIFY_ALL_SCOPE)).toBe('ACCESS_REVERIFY:ALL');
+      expect(ACCESS_REVERIFY_ALL_DEDUPE_KEY).toBe('ACCESS_REVERIFY:ALL');
+      expect(reverifyDedupeKey({ scope: 'REPOSITORY', repositoryId: '100' })).not.toBe(ACCESS_REVERIFY_ALL_DEDUPE_KEY);
+    });
+
+    it('parses the payload with or without deferrals and rejects an unknown scope', () => {
+      expect(parseReverifyPayload({ scope: 'ALL' })).toEqual({ scope: 'ALL', deferrals: 0 });
+      expect(parseReverifyPayload({ scope: 'ALL', deferrals: 2 })).toEqual({ scope: 'ALL', deferrals: 2 });
+      expect(parseReverifyPayload({ scope: 'ALLX' })).toBeNull();
+    });
+  });
+
+  describe('seeding at deploy is idempotent', () => {
+    it('enqueues one ALL job when there is none', async () => {
+      expect(await handler.seedAll()).toBe(true);
+
+      expect(h.queue.pending(ACCESS_REVERIFY_ALL_DEDUPE_KEY)).toHaveLength(1);
+      expect(h.queue.jobs[0]).toMatchObject({ type: ACCESS_REVERIFY_JOB_TYPE, dedupeKey: ACCESS_REVERIFY_ALL_DEDUPE_KEY });
+      expect(h.queue.jobs[0].payload).toEqual({ scope: 'ALL' });
+    });
+
+    it('onApplicationBootstrap seeds it at startup', async () => {
+      await handler.onApplicationBootstrap();
+
+      expect(h.queue.pending(ACCESS_REVERIFY_ALL_DEDUPE_KEY)).toHaveLength(1);
+    });
+
+    it('is skipped while a PENDING exists (a restart or another instance does not duplicate it)', async () => {
+      await handler.seedAll();
+
+      expect(await handler.seedAll()).toBe(false);
+      expect(h.queue.jobs).toHaveLength(1);
+    });
+
+    it('is skipped while a non-stale RUNNING exists', async () => {
+      await handler.seedAll();
+      await h.queue.claimNext('worker-a');
+
+      expect(await handler.seedAll()).toBe(false);
+      expect(h.queue.pending()).toHaveLength(0);
+    });
+
+    it('treats a stale RUNNING as absent and enqueues again', async () => {
+      await handler.seedAll();
+      await h.queue.claimNext('worker-a');
+      h.queue.advance(700_000); // > JOBS_STALE_LOCK_MS por defecto (10 min)
+
+      expect(await handler.seedAll()).toBe(true);
+      expect(h.queue.pending(ACCESS_REVERIFY_ALL_DEDUPE_KEY)).toHaveLength(1);
+    });
+
+    it('a database failure at startup does not abort the boot', async () => {
+      vi.spyOn(h.jobs, 'enqueueDeduped').mockRejectedValue(new Error('db down'));
+
+      await expect(handler.onApplicationBootstrap()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('the run reclassifies every record by live verification', () => {
+    it('covers every live organization project, with or without repository, and turns Maintainer into Writer by the live write permission', async () => {
+      await handler.seedAll();
+
+      await run();
+
+      expect(h.recordsOf('p1')).toEqual(['boss:ADMIN', 'reader:READER', 'writer:WRITER']);
+      expect(h.recordsOf('p2')).toEqual(['boss:ADMIN', 'reader:READER', 'writer:WRITER']);
+      expect(h.recordsOf('p3')).toEqual(['boss:ADMIN']);
+      expect(allJobs().map((job) => job.status)).toEqual(['COMPLETED']);
+    });
+
+    it('deletes what GitHub no longer grants, in every project of the organization', async () => {
+      h.github.removePermission(W, 'gh-reader');
+      h.github.removePermission(G, 'gh-reader');
+      await handler.seedAll();
+
+      await run();
+
+      expect(h.recordsOf('p1')).toEqual(['boss:ADMIN', 'writer:WRITER']);
+      expect(h.recordsOf('p2')).toEqual(['boss:ADMIN', 'writer:WRITER']);
+    });
+
+    it('never touches a personal project or a soft-deleted project, and reaches live projects of every organization', async () => {
+      h.db.insert('project', { id: 'mine', name: 'mine', ownerUserId: 'writer', githubOrgId: null, githubOrgLogin: null });
+      h.grant('mine', 'writer', 'WRITER');
+      h.db.insert('project', { id: 'gone', name: 'gone', ownerUserId: 'x', githubOrgId: ORG_ID, githubOrgLogin: ORG_LOGIN, deletedAt: new Date() });
+      h.grant('gone', 'writer', 'WRITER');
+      // Proyecto vivo de OTRA organización: el alcance completo son los registros de TODAS las organizaciones
+      // vivas. GitHub no conoce la organización 777 (instalación ausente, confirmado y no una caída): se borra.
+      h.db.insert('project', { id: 'other', name: 'other', ownerUserId: 'x', githubOrgId: '777', githubOrgLogin: 'other' });
+      h.grant('other', 'writer', 'WRITER');
+      h.github.removePermission(W, 'gh-writer');
+      await handler.seedAll();
+
+      await run();
+
+      expect(h.recordsOf('p1')).toEqual(['boss:ADMIN', 'reader:READER']); // sí se reverifica
+      expect(h.recordsOf('mine')).toEqual(['writer:WRITER']);
+      expect(h.recordsOf('gone')).toEqual(['writer:WRITER']);
+      expect(h.recordsOf('other')).toEqual([]);
+      expect(allJobs().map((job) => job.status)).toEqual(['COMPLETED']);
+    });
+  });
+
+  describe('GitHub not verifiable: the role is kept and the complete scope is rescheduled', () => {
+    it('keeps the registered Maintainer role and reschedules the ALL job with backoff, without consuming attempts', async () => {
+      h.github.permissionMode = 'UNVERIFIABLE';
+      await handler.seedAll();
+
+      await run();
+
+      expect(roleOf('p1', 'writer')).toBe('MAINTAINER'); // no degrada ni reclasifica sin verificar
+      expect(h.recordsOf('p2')).toContain('writer:WRITER');
+      const [job] = allJobs();
+      expect(job).toMatchObject({ status: 'PENDING', attempts: 0, lockedBy: null });
+      expect(job.payload).toEqual({ scope: 'ALL', deferrals: 1 });
+      expect(job.availableAt.getTime() - h.queue.now().getTime()).toBe(accessBackoffMs(0));
+    });
+
+    it('once GitHub recovers, the rescheduled ALL job reclassifies Maintainer into Writer and completes', async () => {
+      h.github.permissionMode = 'UNVERIFIABLE';
+      await handler.seedAll();
+      await run();
+
+      h.github.permissionMode = 'NORMAL';
+      h.queue.advance(accessBackoffMs(0));
+      await run();
+
+      expect(roleOf('p1', 'writer')).toBe('WRITER');
+      expect(allJobs().map((job) => job.status)).toEqual(['COMPLETED']);
+    });
+  });
+
+  describe('a selective event during a RUNNING ALL', () => {
+    it('is enqueued as its own PENDING (not dropped, not absorbed by the RUNNING ALL) and verifies the live state afterwards', async () => {
+      await handler.seedAll();
+      const original = h.access.reverify.bind(h.access);
+      let fired = false;
+      vi.spyOn(h.access, 'reverify').mockImplementation(async (projectId, userId, githubUserId, context) => {
+        if (!fired) {
+          fired = true;
+          h.github.removePermission(W, 'gh-writer');
+          await h.reverify.enqueue({ scope: 'REPOSITORY', repositoryId: '100' });
+        }
+        return original(projectId, userId, githubUserId, context);
+      });
+
+      await run();
+
+      expect(allJobs().map((job) => job.status)).toEqual(['COMPLETED']);
+      expect(h.queue.pending('ACCESS_REVERIFY:REPOSITORY:100')).toHaveLength(1);
+
+      await run();
+
+      expect(h.recordsOf('p1')).toEqual(['boss:ADMIN', 'reader:READER']);
+      expect(h.recordsOf('p2')).toContain('writer:WRITER');
+    });
   });
 });
