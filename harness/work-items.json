@@ -293,7 +293,7 @@
       "id": "WI-CORE-006",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Trazar decisiones de candidatos RAG",
@@ -310,7 +310,7 @@
         "WI-CORE-001"
       ],
       "contractImpact": true,
-      "publishesContract": true,
+      "publishesContract": false,
       "specPaths": [
         "spec/features/004-rag-retrieval-context/spec.md",
         "spec/features/004-rag-retrieval-context/plan.md",
