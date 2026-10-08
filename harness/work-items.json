@@ -293,7 +293,7 @@
       "id": "WI-CORE-006",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Trazar decisiones de candidatos RAG",

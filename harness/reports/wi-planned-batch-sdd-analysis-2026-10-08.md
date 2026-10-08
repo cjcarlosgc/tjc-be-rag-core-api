@@ -1,4 +1,6 @@
 # Análisis SDD por lote de WI W-PLANNED (2026-10-08)
+Modelo: sdd-analyst (consolidado por leader) · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo low
+
 
 Ejecutado por `sdd-analyst` en modo lectura. El Harness admite un solo WI activo (`validate-work-items.mjs`: "only one local work item may be active at a time"), y `W-BLOCKED`/`W-DECISION_REQUIRED` ocupan ese lugar. Por eso los WI no elegibles permanecen `W-PLANNED` en el registro y su motivo se conserva aquí, sin ocupar el WI activo.
 

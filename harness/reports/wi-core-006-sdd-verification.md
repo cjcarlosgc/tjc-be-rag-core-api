@@ -1,4 +1,6 @@
 # WI-CORE-006 — Verificación de especificación y alcance
+Modelo: sdd-analyst + contract-reviewer (consolidado por leader) · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo low
+
 
 ## Alcance
 

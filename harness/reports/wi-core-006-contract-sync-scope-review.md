@@ -1,4 +1,6 @@
 # WI-CORE-006 — Revisión de alcance Contract Sync
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
 
 Los dos eventos históricos reconocidos en `start` no aplican a este WI:
 
