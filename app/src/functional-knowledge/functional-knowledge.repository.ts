@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
+  ConfirmingRole,
   FunctionalKnowledge,
   FunctionalKnowledgeSource,
   FunctionalKnowledgeStatus,
@@ -17,6 +18,26 @@ export interface CreateFunctionalKnowledgeInput {
   normalizedRule: string;
   source?: FunctionalKnowledgeSource;
   supersedesId?: string;
+  /** Procedencia (INTEROP-2.7, WI-CORE-019). Usuario que respondió; nulo en reglas históricas. */
+  confirmedByUserId?: string | null;
+  /** Rol del AccessGrant de quien respondió (ADMIN o MAINTAINER). */
+  confirmedRole?: ConfirmingRole | null;
+  /** `headSha` del AnalysisRun de la pregunta respondida. Procedencia: no vence la regla. */
+  originHeadSha?: string | null;
+  /** Referencia de origen; solo admisible si `source` es `APPROVED_IMPORT`. */
+  sourceRef?: string | null;
+}
+
+/**
+ * Invariante de procedencia: `sourceRef` solo existe para reglas `APPROVED_IMPORT`.
+ * Violarla es un error de programación, no una respuesta de API, por eso es un `Error` plano.
+ */
+function assertSourceRefAllowed(input: CreateFunctionalKnowledgeInput): void {
+  const source = input.source ?? 'HUMAN_ANSWER';
+
+  if (input.sourceRef != null && source !== 'APPROVED_IMPORT') {
+    throw new Error('sourceRef solo se admite para FunctionalKnowledge con source APPROVED_IMPORT.');
+  }
 }
 
 @Injectable()
@@ -28,6 +49,7 @@ export class FunctionalKnowledgeRepository {
     scope: FunctionalScope,
     targetRef: string | null,
   ): Promise<FunctionalKnowledge | null> {
+    // La vigencia depende solo de status/scope/targetRef: `originHeadSha` es procedencia, no vencimiento.
     return this.prisma.functionalKnowledge.findFirst({
       where: { projectId, scope, targetRef, status: 'ACTIVE' },
     });
@@ -37,7 +59,8 @@ export class FunctionalKnowledgeRepository {
     return this.prisma.functionalKnowledge.findUnique({ where: { id } });
   }
 
-  create(input: CreateFunctionalKnowledgeInput): Promise<FunctionalKnowledge> {
+  async create(input: CreateFunctionalKnowledgeInput): Promise<FunctionalKnowledge> {
+    assertSourceRefAllowed(input);
     return this.prisma.functionalKnowledge.create({ data: input });
   }
 
@@ -46,6 +69,7 @@ export class FunctionalKnowledgeRepository {
     existingId: string,
     input: CreateFunctionalKnowledgeInput,
   ): Promise<FunctionalKnowledge> {
+    assertSourceRefAllowed(input);
     const [, created] = await this.prisma.$transaction([
       this.prisma.functionalKnowledge.update({
         where: { id: existingId },

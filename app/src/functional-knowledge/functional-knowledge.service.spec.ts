@@ -636,6 +636,104 @@ describe('FunctionalKnowledgeService', () => {
     });
   });
 
+  describe('procedencia de reglas funcionales (INTEROP-2.7, WI-CORE-019)', () => {
+    it('create persists who answered, the MAINTAINER role and the run headSha, without writing sourceRef', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalKnowledgeRepository.create.mockResolvedValue(buildKnowledge());
+
+      await service.submitAnswer('run-1', 'question-1', { choice: 'YES', answer: 'sí' }, OWNER_USER_ID);
+
+      const input = functionalKnowledgeRepository.create.mock.calls[0][0];
+      expect(input).toMatchObject({
+        confirmedByUserId: OWNER_USER_ID,
+        confirmedRole: 'MAINTAINER',
+        originHeadSha: 'head-sha',
+      });
+      expect(input).not.toHaveProperty('sourceRef');
+    });
+
+    it('create records the ADMIN role when an Admin confirms the rule', async () => {
+      projectAccess.require.mockResolvedValue({ project: { id: 'project-1' }, role: 'ADMIN' });
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalKnowledgeRepository.create.mockResolvedValue(buildKnowledge());
+
+      await service.submitAnswer('run-1', 'question-1', { choice: 'YES', answer: 'sí' }, OWNER_USER_ID);
+
+      expect(functionalKnowledgeRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ confirmedByUserId: OWNER_USER_ID, confirmedRole: 'ADMIN' }),
+      );
+    });
+
+    it('supersede persists the procedencia of the new ACTIVE rule, with the run of the answered question', async () => {
+      projectAccess.require.mockResolvedValue({ project: { id: 'project-1' }, role: 'ADMIN' });
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun({ headSha: 'answered-sha' }));
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalKnowledgeRepository.findActive.mockResolvedValue(buildKnowledge({ originHeadSha: 'old-sha' }));
+      functionalKnowledgeRepository.supersede.mockResolvedValue(buildKnowledge({ id: 'knowledge-2' }));
+
+      await service.submitAnswer(
+        'run-1',
+        'question-1',
+        {
+          choice: 'NO',
+          answer: 'no, cambió',
+          conflictResolution: { conflictId: 'question-1', action: 'SUPERSEDE' },
+        },
+        OWNER_USER_ID,
+      );
+
+      expect(functionalKnowledgeRepository.supersede).toHaveBeenCalledWith(
+        'knowledge-1',
+        expect.objectContaining({
+          confirmedByUserId: OWNER_USER_ID,
+          confirmedRole: 'ADMIN',
+          originHeadSha: 'answered-sha',
+        }),
+      );
+    });
+
+    it('originHeadSha is procedencia, not vencimiento: a rule from another headSha still conflicts', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun({ headSha: 'new-sha' }));
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalKnowledgeRepository.findActive.mockResolvedValue(buildKnowledge({ originHeadSha: 'old-sha' }));
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'NO', answer: 'no' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_KNOWLEDGE_CONFLICT });
+      // La vigencia se busca solo por scope y targetRef; ningún campo de procedencia entra en la consulta.
+      expect(functionalKnowledgeRepository.findActive).toHaveBeenCalledWith(
+        'project-1',
+        'METHOD',
+        'src/thing.ts::Thing.doIt',
+      );
+    });
+
+    it('historical rules with null procedencia stay ACTIVE and conflict like any other rule', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalKnowledgeRepository.findActive.mockResolvedValue(
+        buildKnowledge({ confirmedByUserId: null, confirmedRole: null, originHeadSha: null, sourceRef: null }),
+      );
+
+      await expect(
+        service.submitAnswer('run-1', 'question-1', { choice: 'NO', answer: 'no' }, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.FUNCTIONAL_KNOWLEDGE_CONFLICT });
+    });
+
+    it('UNKNOWN records only an abstention and creates no functional knowledge', async () => {
+      analysisRunsRepository.findByIdForOwner.mockResolvedValue(buildRun());
+      functionalQuestionsRepository.findById.mockResolvedValue(buildQuestion());
+      functionalQuestionsRepository.recordAbstention.mockResolvedValue({ id: 'abstention-1' });
+
+      await service.submitAnswer('run-1', 'question-1', { choice: 'UNKNOWN' }, OWNER_USER_ID);
+
+      expect(functionalKnowledgeRepository.create).not.toHaveBeenCalled();
+      expect(functionalKnowledgeRepository.supersede).not.toHaveBeenCalled();
+    });
+  });
+
   describe('listActionRequired', () => {
     it('maps each question with its own run for repositoryName/pullRequestNumber/headSha', async () => {
       const run = buildRun();

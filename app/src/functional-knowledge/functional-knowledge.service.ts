@@ -146,7 +146,7 @@ export class FunctionalKnowledgeService {
       };
     }
 
-    const knowledgeId = await this.resolveKnowledge(run, question, body);
+    const knowledgeId = await this.resolveKnowledge(run, question, body, ownerUserId, this.confirmingRole(grant));
     const answered = await this.functionalQuestionsRepository.answer(question.id, {
       answerChoice: body.choice,
       answerText: body.answer ?? null,
@@ -211,15 +211,22 @@ export class FunctionalKnowledgeService {
    * (match exacto de scope + targetRef, sin resolver jerarquía PROJECT⊃MODULE⊃CLASS
    * todavía): nunca sobrescribe en silencio, a costa de pedir resolución explícita más
    * seguido de lo estrictamente necesario.
+   *
+   * Procedencia (INTEROP-2.7): toda regla nueva o sustituida registra quién la confirmó,
+   * con qué rol y el `headSha` de la pregunta respondida. `originHeadSha` no invalida la
+   * regla: la vigencia se decide solo por status/scope/targetRef.
    */
   private async resolveKnowledge(
     run: AnalysisRun,
     question: FunctionalQuestion,
     body: SubmitFunctionalAnswerRequestDto,
+    confirmedByUserId: string,
+    confirmedRole: ConfirmingRole,
   ): Promise<string | null> {
     const scope = questionScope(question.symbolKind);
     const targetRef = questionTargetRef(question);
     const normalizedRule = body.answer ?? body.choice;
+    const provenance = { confirmedByUserId, confirmedRole, originHeadSha: run.headSha };
     const existing = await this.functionalKnowledgeRepository.findActive(run.projectId, scope, targetRef);
 
     if (!existing) {
@@ -230,6 +237,7 @@ export class FunctionalKnowledgeService {
         originalQuestion: question.question,
         originalAnswer: normalizedRule,
         normalizedRule,
+        ...provenance,
       });
       return created.id;
     }
@@ -265,6 +273,7 @@ export class FunctionalKnowledgeService {
       originalQuestion: question.question,
       originalAnswer: normalizedRule,
       normalizedRule,
+      ...provenance,
     });
     return superseded.id;
   }

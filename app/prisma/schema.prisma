@@ -206,6 +206,13 @@ enum FunctionalKnowledgeStatus {
   SUPERSEDED
 }
 
+/// WI-CORE-019 (INTEROP-2.7): rol que confirmó una regla funcional al responder.
+/// Solo ADMIN o MAINTAINER: Writer y Reader no responden preguntas funcionales.
+enum ConfirmingRole {
+  ADMIN
+  MAINTAINER
+}
+
 model Project {
   id                  String                @id @default(uuid())
   name                String
@@ -486,18 +493,27 @@ enum ScenarioKind {
 /// para scope `PROJECT` (no hay jerarquía MODULE/CLASS todavía — ver
 /// `functional-knowledge.service.ts`).
 model FunctionalKnowledge {
-  id               String                    @id @default(uuid())
-  projectId        String
-  project          Project                   @relation(fields: [projectId], references: [id])
-  scope            FunctionalScope
-  targetRef        String?
-  originalQuestion String
-  originalAnswer   String
-  normalizedRule   String
-  source           FunctionalKnowledgeSource @default(HUMAN_ANSWER)
-  status           FunctionalKnowledgeStatus @default(ACTIVE)
-  supersedesId     String?
-  createdAt        DateTime                  @default(now())
+  id                String                    @id @default(uuid())
+  projectId         String
+  project           Project                   @relation(fields: [projectId], references: [id])
+  scope             FunctionalScope
+  targetRef         String?
+  originalQuestion  String
+  originalAnswer    String
+  normalizedRule    String
+  source            FunctionalKnowledgeSource @default(HUMAN_ANSWER)
+  status            FunctionalKnowledgeStatus @default(ACTIVE)
+  supersedesId      String?
+  /// WI-CORE-019 (INTEROP-2.7): procedencia. Nula en reglas históricas anteriores a esta versión.
+  /// Usuario que respondió la pregunta que originó la regla.
+  confirmedByUserId String?
+  /// Rol del AccessGrant de quien confirmó (ADMIN o MAINTAINER).
+  confirmedRole     ConfirmingRole?
+  /// `headSha` del AnalysisRun de la pregunta respondida. Procedencia, no vencimiento: no invalida la regla.
+  originHeadSha     String?
+  /// Referencia de origen. Solo admisible si `source = APPROVED_IMPORT` (invariante en el repositorio).
+  sourceRef         String?
+  createdAt         DateTime                  @default(now())
 
   @@index([projectId, scope, targetRef, status])
   @@map("functional_knowledge")
