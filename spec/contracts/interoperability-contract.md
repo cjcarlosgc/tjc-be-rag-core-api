@@ -761,7 +761,7 @@ Las preguntas creadas antes de `INTEROP-2.7` (históricas) se devuelven con `sce
 type FunctionalScope = 'PROJECT' | 'MODULE' | 'CLASS' | 'METHOD' | 'SYMBOL'
 type FunctionalQuestionStatus = 'PENDING' | 'ANSWERED' | 'OBSOLETE'
 type FunctionalAnswerChoice = 'YES' | 'NO' | 'DEPENDS' | 'UNKNOWN' | 'FREE_TEXT'
-// Los tipos y campos marcados INTEROP-2.7 siguientes están definidos; WI-CORE-018 y WI-CORE-019 los implementaron y WI-CORE-020 sigue pendiente.
+// Los tipos y campos marcados INTEROP-2.7 siguientes están definidos; WI-CORE-018, WI-CORE-019 y WI-CORE-020 los implementaron.
 type ScenarioKind = 'EXPECTED_RESULT' | 'BOUNDARY' | 'EXCEPTION' | 'STATE_TRANSITION' | 'OBSERVABLE_SIDE_EFFECT' | 'FUNCTIONAL_PRECONDITION'
 type ConfirmingRole = 'ADMIN' | 'MAINTAINER'
 
@@ -831,8 +831,8 @@ interface FunctionalKnowledgeResponse {
   source: 'HUMAN_ANSWER' | 'APPROVED_IMPORT'
   status: 'ACTIVE' | 'SUPERSEDED'
   supersedesId: Id | null
-  scenarioKind: ScenarioKind // INTEROP-2.7 (pendiente, WI-CORE-020)
-  scenarioKey: string // INTEROP-2.7 (pendiente, WI-CORE-020)
+  scenarioKind: ScenarioKind // INTEROP-2.7 (implementado en WI-CORE-020)
+  scenarioKey: string // INTEROP-2.7 (implementado en WI-CORE-020)
   confirmedByUserId: Id | null // INTEROP-2.7 (implementado en WI-CORE-019): null solo en reglas históricas anteriores a esta versión
   confirmedRole: ConfirmingRole | null
   originHeadSha: string | null // procedencia, no vencimiento
@@ -851,9 +851,9 @@ interface FunctionalKnowledgeConflictResponse {
 
 **HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto (match exacto por ahora; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
 
-**INTEROP-2.7, `DEC-FK-001` (definido y pendiente de implementar en `WI-CORE-020`).** El match se refina por `scenarioKey`: el conflicto solo existe entre reglas con el mismo scope, `targetRef` y `scenarioKey`, y reglas con distinto `scenarioKey` coexisten como `ACTIVE`. Hasta `WI-CORE-020` rige el match exacto por scope+símbolo descrito arriba.
+**INTEROP-2.7, `DEC-FK-001` (definido e implementado en `WI-CORE-020`).** La regla hereda `scenarioKind`/`scenarioKey` de la pregunta que la originó (las históricas, `EXPECTED_RESULT`/`LEGACY`); nunca los envía la persona. El match se refina por `scenarioKey`: el conflicto solo existe entre reglas con el mismo scope, `targetRef` y `scenarioKey`, y reglas con distinto `scenarioKey` coexisten como `ACTIVE`. Un índice único parcial `ACTIVE` sobre project+scope+`targetRef`+`scenarioKey` resuelve la carrera: la segunda respuesta recibe `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con la forma existente. El listado devuelve todas las reglas `ACTIVE` del target.
 
-**`UNKNOWN` (INTEROP-2.7, `DEC-FK-002`; definido, pendiente de implementar en `WI-CORE-018`).** `UNKNOWN` es una abstención auditada y no una respuesta: solo Maintainer o Admin pueden registrarla (`403 PROJECT_ROLE_INSUFFICIENT` para Writer y Reader). La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED`, no se crea ni modifica Functional Knowledge, no se encola continuación y no hay generación. Core responde `202` con `outcome: 'ABSTAINED'`, `continuationAttemptId: null` y `knowledgeId: null`, y registra quién se abstuvo, con qué rol y cuándo (`abstention`). Otra persona con autoridad puede responder la misma pregunta después. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
+**`UNKNOWN` (INTEROP-2.7, `DEC-FK-002`; definido e implementado en `WI-CORE-018`).** `UNKNOWN` es una abstención auditada y no una respuesta: solo Maintainer o Admin pueden registrarla (`403 PROJECT_ROLE_INSUFFICIENT` para Writer y Reader). La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED`, no se crea ni modifica Functional Knowledge, no se encola continuación y no hay generación. Core responde `202` con `outcome: 'ABSTAINED'`, `continuationAttemptId: null` y `knowledgeId: null`, y registra quién se abstuvo, con qué rol y cuándo (`abstention`). Otra persona con autoridad puede responder la misma pregunta después. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
 
 ### 6.12 Checks, propuestas y companion PR
 
