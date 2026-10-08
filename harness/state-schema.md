@@ -71,3 +71,5 @@ Console añade `coordination.uiImpact`, `coordination.knownIncompatibilities` y 
 Los prefijos `H-`, `O-`, `T-`, `D-`, `C-` y `G-` identifican estados de otros niveles; no se mezclan con `W-`. Los IDs `HU`, `OC`, `ST`, `WI`, `DEC` y `CS` son identificadores, no estados.
 
 `handoffs[]` (agentes IA) incluyen `executedBy: { agent, configuredModel, servedModel, effort }`; `servedModel` puede ser `unknown` si no se observó. Ver `harness/WORKFLOW.md`, «Trazabilidad de modelo». Es informativo y el validador no lo exige.
+
+Cuando el leader hace un cambio mínimo en lugar de delegarlo, su handoff declara `executedBy.agent: leader` con `reason: "cambio mínimo"` y los archivos y líneas tocados (`filesAffected`). Ver `harness/WORKFLOW.md`, «Delegación de implementación». Es informativo y el validador no lo exige.
