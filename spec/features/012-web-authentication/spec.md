@@ -32,5 +32,5 @@ Establecer `PlatformUser` mediante Supabase Auth para todos los flujos de Consol
 ## Fuera de alcance
 
 - Linking custom de cuentas por correo, persistencia de tokens del proveedor GitHub o automatización con OAuth de usuario.
-- SSO empresarial distinto de Supabase Auth y RBAC propio de Core: los workspaces y los roles Admin/Maintainer/Reader se derivan de GitHub (`014-organizations-access`) y los miembros se administran en GitHub, no en Core.
+- SSO empresarial distinto de Supabase Auth y RBAC propio de Core: los workspaces y los roles Admin/Maintainer/Writer/Reader se derivan de GitHub (`014-organizations-access`) y los miembros se administran en GitHub, no en Core.
 - Resolver por sí sola las condiciones restantes de `DEC-VAL-001`.

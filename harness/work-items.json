@@ -822,7 +822,7 @@
     {
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-READY",
+      "status": "W-IN_PROGRESS",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -967,7 +967,7 @@
       "acceptanceCriteria": [
         "ProjectRole incorpora WRITER y Core deriva el rol de los permisos GitHub: owner o creador personal Admin, admin/maintain Maintainer, write Writer, triage/read Reader, con membresía activa en organizaciones; el navegador nunca aporta el rol.",
         "La matriz de INTEROP-2.7 §6.13 se aplica con default-deny: Writer ejecuta binding, publicaciones, experimentos y comparaciones de retrieval; responder preguntas y UNKNOWN exigen Maintainer o Admin y Writer/Reader reciben 403 PROJECT_ROLE_INSUFFICIENT con details.",
-        "El registro de acceso, la reconciliación y la reverificación manejan WRITER; los registros existentes se reclasifican por la reverificación vigente, con plan de migración documentado y sin degradación silenciosa.",
+        "El registro de acceso, la reconciliación y la reverificación manejan WRITER; los registros existentes se reclasifican por la reverificación vigente, con plan de migración documentado y sin degradación silenciosa. Se actualizan las pruebas que enumeran roles (por ejemplo `accessible-project.filter.spec.ts`).",
         "Las reglas nuevas persisten confirmedByUserId, confirmedRole, originHeadSha y, para APPROVED_IMPORT, sourceRef; las reglas históricas quedan con esos campos null. originHeadSha no vence la regla.",
         "Pruebas de derivación de rol, matriz 403/404 y procedencia; Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
       ],

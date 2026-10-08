@@ -104,7 +104,7 @@ GitHub Integration verifica firma sobre body crudo, estado de instalación y mí
 ## Fuera de alcance inicial
 
 - soporte completo de fork PR;
-- RBAC propio: los roles Admin/Maintainer/Reader se derivan de GitHub y viven en `014-organizations-access` como capacidad de apoyo a HU01/HU02;
+- RBAC propio: los roles Admin/Maintainer/Writer/Reader se derivan de GitHub y viven en `014-organizations-access` como capacidad de apoyo a HU01/HU02;
 - proveedor remoto del Sandbox;
 - despliegue o cutover de GitHub Integration; el código fuente y sus consumidores están migrados bajo `016-github-integration`, pero la operación externa requiere aprobación y secuencia coordinada. PHP completo sigue bajo desarrollo paralelo de Sandbox.
 
