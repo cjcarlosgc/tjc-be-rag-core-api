@@ -751,7 +751,7 @@
       "id": "WI-CORE-016",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "Post-transition",
       "title": "Evitar declarar cobertura sin targets elegibles",
