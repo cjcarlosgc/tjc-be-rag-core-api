@@ -962,7 +962,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1019,7 +1019,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-READY",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
