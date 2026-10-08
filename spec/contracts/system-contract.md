@@ -389,16 +389,11 @@ Trace operativo (HU15): el recorrido auditable de un cambio tiene nueve enlaces:
 
 ### DEC-FK-005 — Reglas ACTIVE duplicadas por identidad de escenario en la migración de WI-CORE-020
 
-**Estado:** PENDING
+**Estado:** APROBADO (2026-10-08, por el usuario; opción A)
 
-**Blocks:** cierre de `WI-CORE-020` (migración `20261008150000_functional_knowledge_scenarios`); no bloquea otros WIs.
+**Resolución:** ante múltiples reglas `ACTIVE` para el mismo `projectId` + `scope` + `targetRef` + `scenarioKey`, la migración `20261008150000_functional_knowledge_scenarios` aborta sin modificar estados y emite un listado determinista (ordenado) de los casos afectados. La identidad se evalúa tras el backfill `EXPECTED_RESULT`/`LEGACY` de las reglas históricas (`DEC-FK-004`). La migración nunca cambia `status`, no selecciona automáticamente una regla ganadora ni marca reglas como `SUPERSEDED`, incluso si parecen equivalentes por normalización textual: no existe equivalencia automática entre reglas. La resolución es explícita, mediante el flujo vigente `SUPERSEDE` / `KEEP_EXISTING`, preservando trazabilidad. Resueltos los conflictos, la migración puede ejecutarse nuevamente (es re-ejecutable e idempotente) y entonces crea el índice único parcial `ACTIVE` sobre `(projectId, scope, targetRef, scenarioKey)`. Una consulta SQL de solo lectura, documentada como paso de despliegue, reporta los mismos casos antes de migrar. Sin cambio de contrato ni de DTO.
 
-**Contexto:** la migración debe derivar el `scenarioKey` antes de crear el índice único parcial `ACTIVE` sobre `(projectId, scope, targetRef, scenarioKey)` y no puede superseder por target ni elegir silenciosamente una ganadora (revisión humana de `WI-CORE-020`). Hoy: (a) `FunctionalKnowledgeStatus` solo tiene `ACTIVE` y `SUPERSEDED`: no existe un estado persistido de «pendiente de resolución humana»; el conflicto de HU09 es un diálogo de runtime (`409` + `conflictResolution`), no un estado de datos; (b) `DEC-FK-004` solo permite derivar el `scenarioKey` real al crear la pregunta; las reglas históricas reciben `LEGACY` y no hay forma determinista de reconstruirlo; (c) ninguna decisión vigente define «semánticamente equivalentes» para dos reglas con la misma identidad. La invariante previa (una `ACTIVE` por target) hace esperable que no existan duplicados reales, pero la migración no puede asumirlo.
-
-**Opciones:**
-- **A (propuesta, mínima):** la migración nunca cambia `status`. Tras el backfill `LEGACY`, si existen dos o más `ACTIVE` con la misma identidad (`projectId`, `scope`, `targetRef`, `scenarioKey`), aborta con `RAISE EXCEPTION` listando los casos; una consulta de solo lectura documentada los reporta antes del despliegue y una persona los resuelve con el flujo vigente (`SUPERSEDE`/`KEEP_EXISTING`) o con un ajuste manual aprobado antes de reintentar. Sin cambio de contrato.
-- **B:** A, más equivalencia conservadora definida por esta decisión (mismo `normalizedRule` tras normalizar espacios y mayúsculas): una `ACTIVE` se conserva y las demás pasan a `SUPERSEDED` con `supersedesId`; las no equivalentes abortan como en A.
-- **C:** agregar un estado persistido de revisión humana (p. ej. `NEEDS_REVIEW`) fuera del índice único, con superficie en DTO/Console. Cambia contrato (`INTEROP`), requiere Contract Sync y trabajo de Console.
+**Descartadas:** B (equivalencia por `normalizedRule` normalizado con `SUPERSEDED` automático) y C (nuevo estado persistido de revisión humana, con superficie en DTO/Console).
 
 ### DEC-EXP-004 — Configuración del LLM de los experimentos
 
