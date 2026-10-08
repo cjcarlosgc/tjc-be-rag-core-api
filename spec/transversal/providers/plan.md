@@ -15,3 +15,7 @@ La implementación existente de OpenAI, `text-embedding-3-small` y la columna `v
 - Pruebas automatizadas para reglas determinísticas y contratos.
 - Casos positivos, negativos y estados terminales relevantes.
 - `lint`, `test` y `build` antes de cierre.
+
+## Corte SMART V3
+
+`WI-CORE-023` mueve la configuración de razonamiento y el cliente OpenAI del servicio del agente al adaptador del proveedor y precede a `WI-CORE-024` y `WI-CORE-025`.

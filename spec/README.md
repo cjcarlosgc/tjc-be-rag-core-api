@@ -2,7 +2,7 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-**Línea base Core/Console:** SDD 3.0 / SYSTEM-2.5 / INTEROP-2.6. **Homologación global pendiente:** Sandbox permanece en SDD 2.1 bajo trabajo de otro desarrollador; `2026-09-24-core-console-transition` identifica este corte sin declarar compatibilidad global.
+**Línea base Core/Console:** SDD 3.0 / SYSTEM-2.6 / INTEROP-2.7. **Homologación global pendiente:** Sandbox permanece en SDD 2.1 bajo trabajo de otro desarrollador; `2026-09-24-core-console-transition` identifica este corte sin declarar compatibilidad global.
 
 Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> `constitution/planning-model.md` y constitución aplicable -> `backlog.md`/`operational-cases.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables -> `harness/work-items.json`. La extracción está detallada en `features/016-github-integration/`; las dependencias entre repos y sus puertas locales, en `features/017-cross-repository-dependency-gates/`. Cada repo mantiene solo WIs locales y se coordina por Contract Sync.
 

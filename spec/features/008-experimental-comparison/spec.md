@@ -44,12 +44,23 @@ El brazo de referencia es `GENERALIST_AGENT`; el término académico “baseline
 1. **Herramientas** (todas read-only, sin shell/red/escritura, acotadas al snapshot del `ProjectVersion`): listar archivos, leer contenido de un archivo, buscar texto/símbolo (grep), seguir imports/referencias de un archivo, y capacidades de TypeScript language service (ir a definición, buscar referencias, inspeccionar tipos).
 2. **Entrega del snapshot:** se reutiliza la materialización interna del commit fijado; su ZIP privado puede extraerse en un directorio temporal, sin introducir carga manual.
 3. **Trazabilidad de la trayectoria:** se persiste la trayectoria completa del agente — secuencia ordenada de tool calls con argumentos y resultado resumido — como evidencia auditable/reproducible. Las métricas agregadas `toolCalls`/`filesInspected` se derivan de esa trayectoria, no la reemplazan.
-4. **Política sobre pruebas existentes:** los archivos `*.test.ts`/`*.spec.ts` que cubren el target actual quedan excluidos de la vista del snapshot que recibe el agente, para evitar que copie la prueba existente en vez de generarla y mantener comparabilidad con RAG.
+4. **Política sobre pruebas existentes:** reemplazada por `DEC-EXP-003` (2026-10-08): el agente puede descubrir y leer las pruebas existentes mediante sus herramientas; ya no se excluyen de su vista y tampoco se le entregan directamente.
 5. **Límites y paridad frente a RAG:** mismo presupuesto de tokens de contexto que usa `ContextBuilder` para RAG (`maxContextTokens`), mismo timeout de generación del pipeline, y un tope de ~20 tool calls para evitar loops de exploración descontrolados.
 
 El implementador no debe simular el agente con un contexto fijo ni darle shell irrestricto por defecto; el diseño anterior es la resolución definitiva, pendiente de implementación.
 
 Para HU15/HU17, la trayectoria observable se expone en la forma normalizada y consultable de `011-context-traces`: hashes, rangos, snippets, truncamiento, resultados vacíos/errores y archivos descubiertos paginables. Las métricas agregadas se conservan.
+
+## Alineación SMART V3 — OE5 (SDD 2026-10-08; implementación pendiente)
+
+Decisiones: `DEC-EXP-FK-001` y `DEC-EXP-003`, ambas `APROBADO`. Contrato: `INTEROP-2.7` §6.5.1.
+
+- OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura, bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información. RAG usa `SE`, `ContextBuilder` y el conocimiento funcional `ACTIVE` aplicable; el agente explora sin retriever RAG, sin `ContextBuilder` y sin conocimiento funcional persistente. Ninguno recibe el oráculo.
+- Condiciones comunes: repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable (tope de tool calls, presupuesto de contexto, tokens, archivos y duración). El razonamiento no se degrada en silencio. **Hallazgo:** el agente lee hoy `reasoning_effort` por su cuenta y usa el SDK de OpenAI directamente, así que puede divergir del brazo RAG; `WI-CORE-023` lo unifica detrás de `LLMProvider`.
+- Herramientas del agente: `list_files`, `read_file`, `search_text` e `inspect_symbol`/referencias. Prohibidos: shell, Composer/PHPUnit/Jest/Vitest, escritura, Internet y GitHub API (`WI-CORE-024`).
+- Diseño pareado: 3 repeticiones por estrategia forman 3 pares, cada repetición en sesión fresca; el orden dentro del par es aleatorio y reproducible desde `randomizationSeed`; se persisten `pairId`, `pairPosition`, `attempt` y configuración. Un fallo de la estrategia no admite reintento de calidad; un fallo externo demostrado admite como máximo uno; un segundo fallo de infraestructura deja la repetición `technicallyEvaluable: false`. **Hallazgo:** no existe pairing, orden ni seed formales (`WI-CORE-025`).
+- Jerarquía: CF primaria, CO secundaria y VT guardrail; CF/CO son externas y no se derivan de `valid`/`passed`; no hay ganador automático ni significancia estadística en el backend (`spec/transversal/experimental-metrics`).
+- PHP/PHPUnit sigue bloqueado para experimentos hasta cerrar `WI-CORE-013` y la coordinación con Sandbox (`WI-CORE-029`).
 
 ## Fuera de alcance
 

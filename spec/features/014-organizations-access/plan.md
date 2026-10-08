@@ -4,7 +4,7 @@
 
 ## Dependencias
 
-- SYSTEM-2.5 e INTEROP-2.6 (§6.1, §6.6, §6.8, §6.9, §6.13); `DEC-ORG-001` y `DEC-ORG-002` APROBADOS (este último enmienda la visibilidad personal de `DEC-ORG-001`, exige membresía activa siempre en organizaciones y pone la corrección de seguridad primero).
+- SYSTEM-2.6 e INTEROP-2.7 (§6.1, §6.6, §6.8, §6.9, §6.13); `DEC-ORG-001` y `DEC-ORG-002` APROBADOS (este último enmienda la visibilidad personal de `DEC-ORG-001`, exige membresía activa siempre en organizaciones y pone la corrección de seguridad primero).
 - `012-web-authentication` (guard global, `CurrentUserId`), `013-pr-driven-analysis` (bindings, recepción privada de eventos normalizados, `REPOSITORY_ALREADY_BOUND`, borrado lógico, job handlers) y la cola `jobs` existente.
 - `SUPABASE_URL` y `SUPABASE_SECRET_KEY` ya existen en la configuración de Core y bastan para la Admin API; ambos son de servidor.
 
@@ -59,3 +59,7 @@
 - **Regresión:** los tests actuales de `013` (bindings, borrado lógico, job handlers) siguen en verde con el predicado nuevo; fixtures compartidos por copia para los contract tests de INTEROP-2.6.
 - **Criterios de aceptación de despliegue (no bloquean implementar):** validación contra una organización real de las lecturas no probadas (rol de owner, permiso heredado por Team o base, membresía `pending`, colaborador externo con permiso, `GET /user/{id}` y colaborador con `Metadata: read`), App pública solo después del bundle A (hasta entonces no instalada por terceros, idealmente privada), con `Members: read` y los eventos suscritos, manual linking de Supabase deshabilitado y correo/contraseña deshabilitado tras publicar la Console solo GitHub.
 - Lint, unit, integración, e2e, build y revisión consolidada antes de cada push.
+
+## Corte SMART V3 — rol Writer
+
+`WI-CORE-019` incorpora `WRITER` al enum, a la derivación desde los permisos GitHub, al registro de acceso `(projectId, userId, rol, verifiedAt)`, a la reconciliación y reverificación existentes y a la matriz de rutas (default-deny). Los registros existentes se reclasifican por la reverificación vigente, sin degradación silenciosa en la migración. Depende de `WI-CORE-018` porque ambos tocan la autorización de las preguntas funcionales.

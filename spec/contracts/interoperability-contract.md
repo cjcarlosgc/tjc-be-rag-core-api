@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.6
-**Compatible con:** SYSTEM-2.5
-**Fecha de corte:** 2026-09-27
+**Versión:** INTEROP-2.7
+**Compatible con:** SYSTEM-2.6
+**Fecha de corte:** 2026-10-08
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.6` es la versión documental vigente. Mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.7` es la versión documental vigente (preparada en `WI-CORE-017`). Sobre la base de `INTEROP-2.6` agrega el rol Writer (§6.13), la abstención auditada de `UNKNOWN` y la procedencia y escenarios de Functional Knowledge (§6.11), las extensiones de OE5 (§6.5.1), la comparación de retrieval OE2 (§6.15) y el trace operativo con exportación de evidencia (§6.16). Todo lo agregado está definido pero pendiente de implementar y verificar según el WI indicado en cada sección; nada de ello se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que Mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -324,6 +324,51 @@ interface ExperimentResultsResponse {
 Las tasas usan el intervalo `[0,1]`. Un valor no observable se representa con `null`, nunca con cero. La moneda y metodología de `estimatedCost` deben viajar en la configuración persistida del experimento; este campo no implica una divisa universal.
 
 El contrato HTTP queda definido. `DEC-EXP-002` queda `APROBADO` (herramientas, límites y paridad del agente generalista definidos en `spec/features/008-experimental-comparison/spec.md`); implementar HU17 ya no está bloqueado por decisión, solo pendiente de código. `BASELINE` no es un valor válido.
+
+### 6.5.1 Extensiones de OE5 (INTEROP-2.7)
+
+**Definido, pendiente de implementar y verificar** (`WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`). Bajo `DEC-EXP-FK-001` y `DEC-EXP-003`, OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información.
+
+- Ambos brazos comparten repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable. Core no degrada el razonamiento en silencio: si el proveedor no admite el esfuerzo pedido, el experimento falla al crearse en lugar de ejecutarse con otro. El esfuerzo y los parámetros efectivos se persisten.
+- RAG usa recuperación SE, `ContextBuilder` y el conocimiento funcional `ACTIVE` aplicable. El agente generalista explora en modo solo lectura, sin retriever RAG, sin `ContextBuilder` y sin conocimiento funcional persistente. Ninguno recibe el oráculo. El agente puede descubrir y leer las pruebas existentes; no se le entregan directamente ni se ocultan.
+- Herramientas permitidas del agente: `list_files`, `read_file`, `search_text` e `inspect_symbol`/referencias. Prohibidos: shell, Composer/PHPUnit/Jest/Vitest, escritura, Internet y GitHub API. Se persisten el tope de tool calls, el presupuesto de contexto, tokens, archivos y duración, y la secuencia observable de herramientas.
+- Diseño pareado: 3 repeticiones RAG y 3 GA forman 3 pares, cada repetición en sesión fresca. El orden dentro de cada par es aleatorio y reproducible a partir de `randomizationSeed`, que se persiste por experimento.
+- Reintentos: un fallo de la estrategia no tiene reintento de calidad; un fallo externo demostrado admite como máximo un reintento; un segundo fallo de infraestructura deja la repetición `technicallyEvaluable: false`.
+- Ningún DTO declara un ganador. `validRate`, `passedRate` y similares son diagnóstico técnico y no se derivan en CF/CO (SYSTEM-2.6, «Calidad, métricas y evidencia»).
+- PHP/PHPUnit (`PHP_LARAVEL_PHPUNIT`, `PHPUNIT`) sigue bloqueado para experimentos hasta que `WI-CORE-013` y la coordinación con el dueño de Sandbox estén resueltos.
+
+```ts
+interface ExperimentModelConfigResponse {
+  provider: string
+  model: string
+  modelVersion: string | null
+  reasoningEffort: string | null // efectivo y común a ambos brazos
+  temperature: number | null
+  maxOutputTokens: number | null
+}
+
+interface ExperimentBudgetResponse {
+  toolCallCap: number
+  contextTokenBudget: number
+  maxDurationMs: number
+}
+
+// Campos que INTEROP-2.7 agrega (los consumidores ignoran campos desconocidos):
+interface ExperimentStatusResponse {
+  model: ExperimentModelConfigResponse
+  budget: ExperimentBudgetResponse
+  executionProfile: string
+  runnerHint: string
+  randomizationSeed: string
+}
+
+interface ExperimentRepetitionResponse {
+  pairId: Id
+  pairPosition: 1 | 2 // posición de ejecución dentro del par, reproducible desde randomizationSeed
+  attempt: number // 1 o 2
+  technicallyEvaluable: boolean
+}
+```
 
 ### 6.6 Progreso en tiempo real (WebSockets)
 
@@ -712,6 +757,15 @@ El inbox de preguntas también omite cualquier pregunta cuyo Run esté sin clasi
 type FunctionalScope = 'PROJECT' | 'MODULE' | 'CLASS' | 'METHOD' | 'SYMBOL'
 type FunctionalQuestionStatus = 'PENDING' | 'ANSWERED' | 'OBSOLETE'
 type FunctionalAnswerChoice = 'YES' | 'NO' | 'DEPENDS' | 'UNKNOWN' | 'FREE_TEXT'
+type ScenarioKind = 'EXPECTED_RESULT' | 'BOUNDARY' | 'EXCEPTION' | 'STATE_TRANSITION' | 'OBSERVABLE_SIDE_EFFECT' | 'FUNCTIONAL_PRECONDITION'
+type ConfirmingRole = 'ADMIN' | 'MAINTAINER'
+
+interface FunctionalAbstentionSummary {
+  count: number
+  lastAt: IsoDateTime
+  lastByUserId: Id
+  lastByRole: ConfirmingRole
+}
 
 interface VisualAidResponse {
   kind: 'STATE_DIAGRAM' | 'SYMBOL_RELATION' | 'MINI_DIFF' | 'CODE_FRAGMENT'
@@ -732,6 +786,9 @@ interface FunctionalQuestionResponse {
   rationale: string
   status: FunctionalQuestionStatus
   visualAid: VisualAidResponse | null
+  scenarioKind: ScenarioKind // INTEROP-2.7: un escenario por pregunta atómica
+  scenarioKey: string // derivado por Core de forma determinista; nunca lo escribe una persona
+  abstention: FunctionalAbstentionSummary | null // INTEROP-2.7: abstenciones UNKNOWN auditadas
   createdAt: IsoDateTime
 }
 
@@ -755,6 +812,7 @@ interface FunctionalAnswerAcceptedResponse extends AsyncAccepted {
   questionId: Id
   continuationAttemptId: Id | null
   knowledgeId: Id | null
+  outcome: 'ANSWERED' | 'ABSTAINED' // INTEROP-2.7: ABSTAINED implica continuationAttemptId=null y knowledgeId=null
 }
 
 interface FunctionalKnowledgeResponse {
@@ -768,6 +826,12 @@ interface FunctionalKnowledgeResponse {
   source: 'HUMAN_ANSWER' | 'APPROVED_IMPORT'
   status: 'ACTIVE' | 'SUPERSEDED'
   supersedesId: Id | null
+  scenarioKind: ScenarioKind // INTEROP-2.7
+  scenarioKey: string // INTEROP-2.7
+  confirmedByUserId: Id | null // INTEROP-2.7: null solo en reglas históricas anteriores a esta versión
+  confirmedRole: ConfirmingRole | null
+  originHeadSha: string | null // procedencia, no vencimiento
+  sourceRef: string | null // solo si source=APPROVED_IMPORT
   createdAt: IsoDateTime
 }
 
@@ -780,9 +844,9 @@ interface FunctionalKnowledgeConflictResponse {
 }
 ```
 
-**HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto (match exacto por ahora; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
+**HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto y el mismo `scenarioKey` (`DEC-FK-001`, INTEROP-2.7; reglas con distinto `scenarioKey` coexisten como `ACTIVE`; match exacto por ahora; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
 
-`UNKNOWN` puede cerrar una pregunta pero devuelve `knowledgeId=null` y nunca crea conocimiento autoritativo. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
+**`UNKNOWN` (INTEROP-2.7, `DEC-FK-002`; definido, pendiente de implementar en `WI-CORE-018`).** `UNKNOWN` es una abstención auditada y no una respuesta: solo Maintainer o Admin pueden registrarla (`403 PROJECT_ROLE_INSUFFICIENT` para Writer y Reader). La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED`, no se crea ni modifica Functional Knowledge, no se encola continuación y no hay generación. Core responde `202` con `outcome: 'ABSTAINED'`, `continuationAttemptId: null` y `knowledgeId: null`, y registra quién se abstuvo, con qué rol y cuándo (`abstention`). Otra persona con autoridad puede responder la misma pregunta después. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
 
 ### 6.12 Checks, propuestas y companion PR
 
@@ -841,7 +905,7 @@ Fuente: `DEC-ORG-001` (HU01/HU02). GitHub es la fuente de verdad de la autorizac
 ```ts
 type WorkspaceKind = 'PERSONAL' | 'ORGANIZATION'
 type WorkspaceRole = 'ADMIN' | 'MEMBER'
-type ProjectRole = 'ADMIN' | 'MAINTAINER' | 'READER'
+type ProjectRole = 'ADMIN' | 'MAINTAINER' | 'WRITER' | 'READER' // WRITER: INTEROP-2.7, DEC-ORG-003, implementado por WI-CORE-019
 
 interface WorkspaceRefResponse {
   kind: WorkspaceKind
@@ -868,10 +932,11 @@ interface ProjectRoleInsufficientDetails {
 
 **Identidad.** Core resuelve `PlatformUser -> githubUserId` una vez y persiste el vínculo. El `githubUserId` es el `id` numérico de la entrada `provider: 'github'` de `identities[]` que devuelve la Admin API de Supabase `GET /auth/v1/admin/users/{sub}` (con la credencial de servicio de Core, nunca expuesta al navegador); nunca se toma de `user_metadata`, que el propio usuario puede editar, y no se usa el listado `GET /auth/v1/admin/users`, que devuelve `identities: null`. El `login` de GitHub es un dato opcional de presentación y nunca autoriza. El linking manual de identidades de Supabase permanece deshabilitado. El handshake WebSocket usa esta misma resolución. En desarrollo local, un `AUTH_BYPASS` explícito (nunca en producción) aporta una identidad GitHub sintética configurada y no consulta la Admin API. Un token válido sin identidad GitHub responde `401 GITHUB_IDENTITY_REQUIRED` y, si la Admin API no responde y el vínculo aún no está persistido, `503 IDENTITY_UNAVAILABLE`. Si el `githubUserId` resuelto ya está vinculado a otro `sub`, Core no comparte identidad ni roles entre cuentas de Supabase: responde `401 GITHUB_IDENTITY_REQUIRED` (sin revelar el otro `sub`) y no modifica el vínculo existente. El vínculo es inmutable; un usuario que recrea su cuenta de Supabase queda bloqueado hasta que un operador elimine la fila huérfana de `user_github_identities`, y la Console no debe tratar ese `401` como "inicia sesión con GitHub" en bucle.
 
-**Visibilidad y rol.** Un Project personal lo ve únicamente su creador, siempre como Admin, sin registro de acceso ni verificación contra GitHub: los Projects personales no se comparten con colaboradores, solo se comparte mediante organizaciones (`DEC-ORG-002`, que enmienda la visibilidad de `DEC-ORG-001`). Un Project de organización lo ve un usuario si Core verificó que tiene un rol sobre él; el rol es el más alto que aplique, con jerarquía Admin ⊃ Maintainer ⊃ Reader:
+**Visibilidad y rol.** Un Project personal lo ve únicamente su creador, siempre como Admin, sin registro de acceso ni verificación contra GitHub: los Projects personales no se comparten con colaboradores, solo se comparte mediante organizaciones (`DEC-ORG-002`, que enmienda la visibilidad de `DEC-ORG-001`). Un Project de organización lo ve un usuario si Core verificó que tiene un rol sobre él; el rol es el más alto que aplique, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (INTEROP-2.7; antes no existía Writer y `write` producía Maintainer, ahora produce Writer, un cambio observable):
 
 - **Admin:** en una organización, owner activo de la organización (`GET /orgs/{org}/memberships/{login}` con `role: admin` y `state: active`, permiso `Members: read` de la App); en el workspace personal, el creador, siempre. Un Admin además es Maintainer y Reader. Un Project sin repositorio vinculado solo lo ven los Admin: todos los owners de la organización, o el creador en personal.
-- **Maintainer:** en una organización, miembro activo de ella y con permiso `maintain`, `write` o `admin` sobre el repositorio vinculado (`role_name` de `GET /repos/{owner}/{repo}/collaborators/{username}/permission`, con `Metadata: read`; un rol personalizado se mapea por su permiso base).
+- **Maintainer:** en una organización, miembro activo de ella y con permiso `maintain` o `admin` sobre el repositorio vinculado (`role_name` de `GET /repos/{owner}/{repo}/collaborators/{username}/permission`, con `Metadata: read`; un rol personalizado se mapea por su permiso base).
+- **Writer:** en una organización, miembro activo de ella y con permiso `write` sobre el repositorio vinculado (misma fuente `role_name` que Maintainer). Puede todo lo que puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`; no es una degradación global a Reader.
 - **Reader:** en una organización, miembro activo de ella y con permiso `triage` o `read` sobre el repositorio vinculado.
 - **La membresía activa se exige siempre** (`DEC-ORG-002`): en un Project de organización Maintainer y Reader necesitan ser miembros activos de la organización además del permiso sobre el repositorio, sea este privado, internal o público. Un colaborador externo (no miembro) no accede al Project aunque tenga `write`, y el `read` implícito de un repositorio público no cuenta. Una única lectura `GET /orgs/{org}/memberships/{login}` sirve para la membresía y el rol de owner.
 - Con el binding `REVOKED` no hay permiso de repositorio verificable, y la regla se evalúa en cada petición (no depende de que el paso a `REVOKED` haya borrado registros): un registro Maintainer o Reader no da acceso a un Project con binding `REVOKED`. Solo los Admin ven el Project (para reactivar el binding con `POST .../enable` o eliminarlo). Si la organización desaparece, se desinstala la App o queda sin owners, el Project queda oculto para todos y se conserva.
@@ -900,8 +965,9 @@ Un recurso no visible conserva el `404` de su recurso (`PROJECT_NOT_FOUND`, etc.
 | Rol mínimo | Operaciones |
 |---|---|
 | Sin rol de Project (solo sesión GitHub válida) | `GET /workspaces`; `GET /integrations/github/repositories` (con `workspaceId`: pertenencia al workspace); `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` (exigen permiso `maintain`/`write`/`admin` sobre el repositorio); `POST /projects` (personal: cualquiera; organización: Admin de la organización). Sin sesión de usuario: `GET /health`. El receptor privado normalizado GH Integration→Core se rige por `GH-INTEROP-1.2` (§6.9), no es una operación pública sujeta a rol de Project ni de Console. |
-| Reader | `GET /projects`, `GET /projects/{projectId}`; `GET /projects/{projectId}/versions`; `GET /project-versions/{id}`, `.../results`, `.../test-inventory`; `GET /projects/{projectId}/integrations/github`; `GET /projects/{projectId}/analysis-runs`, `GET /analysis-runs`, `GET /analysis-runs/{id}`; `GET /action-required`, `GET /analysis-runs/{id}/context-questions`, `GET /projects/{projectId}/functional-knowledge`; `GET /analysis-runs/{id}/test-proposals`, `GET /test-publications/{id}`; `GET /experiments/{id}`, `.../results`, `GET /analysis-runs/{id}/experiments`; `GET /experiments/{id}/context-traces`, `GET /context-traces/{id}`, `.../discovered-files`; suscripción WebSocket `subscribe:project-version`. |
-| Maintainer | `POST /projects/{projectId}/integrations/github`, `POST .../enable`, `DELETE .../integrations/github` (pausa) (con la salvedad de que un Project sin repositorio, y uno con binding `REVOKED`, lo ve solo un Admin: reactivar un binding `REVOKED` lo hace un Admin); `POST /analysis-runs/{id}/context-questions/{questionId}/answers`; `POST /analysis-runs/{id}/test-publications`; `POST /experiments`. |
+| Reader | `GET /projects`, `GET /projects/{projectId}`; `GET /projects/{projectId}/versions`; `GET /project-versions/{id}`, `.../results`, `.../test-inventory`; `GET /projects/{projectId}/integrations/github`; `GET /projects/{projectId}/analysis-runs`, `GET /analysis-runs`, `GET /analysis-runs/{id}`; `GET /action-required`, `GET /analysis-runs/{id}/context-questions`, `GET /projects/{projectId}/functional-knowledge`; `GET /analysis-runs/{id}/test-proposals`, `GET /test-publications/{id}`; `GET /experiments/{id}`, `.../results`, `GET /analysis-runs/{id}/experiments`; `GET /experiments/{id}/context-traces`, `GET /context-traces/{id}`, `.../discovered-files`; `GET /retrieval-comparisons/{id}`, `.../results`, `.../evidence`, `GET /analysis-runs/{id}/retrieval-comparisons`; `GET /analysis-runs/{id}/trace`, `GET /analysis-runs/{id}/evidence`, `GET /experiments/{id}/evidence`; suscripción WebSocket `subscribe:project-version`. |
+| Writer | `POST /projects/{projectId}/integrations/github`, `POST .../enable`, `DELETE .../integrations/github` (pausa) (con la salvedad de que un Project sin repositorio, y uno con binding `REVOKED`, lo ve solo un Admin: reactivar un binding `REVOKED` lo hace un Admin); `POST /analysis-runs/{id}/test-publications`; `POST /experiments`; `POST /retrieval-comparisons`. |
+| Maintainer | `POST /analysis-runs/{id}/context-questions/{questionId}/answers` (incluye la abstención `UNKNOWN`, `DEC-FK-002`). |
 | Admin | `PATCH /projects/{projectId}`; `DELETE /projects/{projectId}`; `POST /projects` en una organización. |
 
 Notas de la matriz: (1) la validación nace del `AnalysisRun`; leer propuestas y Runs requiere Reader; (2) `GET /analysis-runs` y `GET /action-required` solo devuelven recursos de Projects visibles; (3) en un Project personal el creador es Admin; (4) el rol se exige al aceptar la petición, mientras que la automatización de un job aceptado se autoriza por la GitHub App; (5) default-deny: toda ruta autenticada declara su rol mínimo o una excepción explícita.
@@ -955,6 +1021,165 @@ interface GithubAuthorizationDecisionResponse {
 Core firma la evidencia con una clave exclusiva (`GITHUB_BINDING_EVIDENCE_SECRET`, no compartida con los tokens de servicio) y duración máxima de 60 segundos. Sus claims obligatorios son `sub=userId`, `act=CREATE_REPOSITORY_BINDING`, `projectId`, `repositoryId`, `repositoryName`, `ownerId`, `installationId`, `integrationBranch`, `iat`, `exp`, `jti`; `githubUserId` procede de la sesión validada. La evidencia solo se entrega tras permiso Maintainer/Admin, propiedad de workspace correcta, App instalada, permiso de repositorio suficiente y rama confirmada. La firma es opaca para el navegador.
 
 **Persistencia y compatibilidad.** Console conserva el `projectId` y selección UX actuales. Al vincular, vuelve a llamar a Integration con la rama elegida para obtener evidencia fresca y envía `{ repositoryId, repositoryName, integrationBranch, authorizationEvidence }` a `POST /projects/{projectId}/integrations/github/verified`. Core valida firma, audiencia/acción, usuario autenticado, alcance exacto, vencimiento y Project vigente; toma el `installationId` únicamente del claim firmado y escribe el binding sin llamar a Integration. Campos de rol/installationId del request se rechazan. La ruta Core existente `POST /projects/{projectId}/integrations/github` y las rutas Core de discovery, verify-access y ramas se mantienen sin cambio durante este corte; su retiro será otra tarea/corte una vez verificado el consumo directo. Core sigue sirviendo las operaciones de binding no GitHub, Projects/workspaces y toda actividad RAG/análisis.
+
+### 6.15 Comparación de retrieval OE2 (SE vs SEM)
+
+**Definido en INTEROP-2.7, pendiente de implementar y verificar** (`WI-CORE-022`; la Console la consume en `WI-CONSOLE-014`). Es una capacidad experimental separada de OE5 y del producto operativo, con alcance HU05 y HU17. El producto normal usa siempre `SE`; no existe un selector permanente de modo en la interfaz.
+
+- `POST /retrieval-comparisons` → `202 RetrievalComparisonAcceptedResponse`. Exige `Idempotency-Key` (scope `RETRIEVAL_COMPARISON_CREATE`) y rol Writer.
+- `GET /retrieval-comparisons/{retrievalComparisonId}` → `200 RetrievalComparisonStatusResponse`.
+- `GET /retrieval-comparisons/{retrievalComparisonId}/results` → `200 RetrievalComparisonResultsResponse`; antes de un estado terminal, `409 RETRIEVAL_COMPARISON_NOT_FINISHED`.
+- `GET /analysis-runs/{analysisRunId}/retrieval-comparisons?cursor&limit` → `200 Page<RetrievalComparisonStatusResponse>`.
+
+El target se identifica igual que en §6.5 (`AnalysisRun` + símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED`); ausente: `404 ANALYSIS_SYMBOL_NOT_FOUND`; tipo no elegible: `422 UNSUPPORTED_SYMBOL_KIND`; comparación inexistente o no visible: `404 RETRIEVAL_COMPARISON_NOT_FOUND`. La operación es asíncrona (§5) y de solo retrieval: no invoca LLM, Functional Knowledge, `ACTION_REQUIRED`, generación, Sandbox ni publicación, y no cambia el estado del `AnalysisRun`.
+
+Ambos modos comparten `Project`/`ProjectVersion`, snapshot, target, chunks, embeddings, query anchor, los 20 primeros candidatos semánticos y las exclusiones generales. `SEM` es solo semántico (coseno), conserva `semanticScore`, no aplica refuerzo estructural y selecciona los 10 primeros. `SE` une y deduplica los 20 semánticos con los candidatos estructurales, pondera `0.7·semántico + 0.3·estructural` (configurable, sin presentarse como verdad científica) y selecciona los 10 primeros. Para PHP, las relaciones estructurales son `IMPORTS`, `IMPORTED_BY`, `SAME_NAMESPACE`, `FULLY_QUALIFIED_REFERENCE` y `DECLARING_CLASS` (su implementación PHP queda diferida con `WI-CORE-028`).
+
+`Precision@10` y `Recall@10` son las métricas principales; `Precision@5` y `Recall@5`, secundarias. La verdad de terreno, Cohen κ, bootstrap y Wilcoxon son externos a Core: Core calcula P@k y R@k solo si la solicitud trae `groundTruth` y, si no, `metrics` es `null`. Nunca se inventa una verdad de terreno ni se declara un ganador.
+
+```ts
+type RetrievalMode = 'SE' | 'SEM'
+type StructuralRelation = 'IMPORTS' | 'IMPORTED_BY' | 'SAME_NAMESPACE' | 'FULLY_QUALIFIED_REFERENCE' | 'DECLARING_CLASS'
+type RetrievalComparisonStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+
+interface RetrievalGroundTruthItem {
+  filePath: RelativePath
+  symbolQualifiedName: string
+}
+
+interface CreateRetrievalComparisonRequest {
+  analysisRunId: Id
+  symbolFilePath: RelativePath
+  symbolQualifiedName: string
+  groundTruth?: RetrievalGroundTruthItem[] // externa; sin ella, metrics=null
+}
+
+interface RetrievalComparisonAcceptedResponse extends AsyncAccepted {
+  analysisRunId: Id
+  retrievalComparisonId: Id
+  projectVersionId: Id
+}
+
+interface RetrievalComparisonStatusResponse {
+  id: Id
+  analysisRunId: Id
+  projectId: Id
+  projectVersionId: Id
+  symbol: AnalysisSymbolResponse
+  status: RetrievalComparisonStatus
+  failureCode: string | null
+  failureMessage: string | null
+  startedAt: IsoDateTime | null
+  completedAt: IsoDateTime | null
+}
+
+interface RetrievalCandidateResponse {
+  rank: number
+  chunkId: Id
+  filePath: RelativePath
+  symbolQualifiedName: string | null
+  semanticScore: number | null
+  structuralRelation: StructuralRelation | null
+  combinedScore: number | null // solo SE
+  selected: boolean
+}
+
+interface RetrievalMetricsResponse {
+  precisionAt5: number
+  recallAt5: number
+  precisionAt10: number
+  recallAt10: number
+}
+
+interface RetrievalModeResultResponse {
+  mode: RetrievalMode
+  retrievalId: Id
+  config: {
+    semanticTopK: number // 20
+    finalTopK: number // 10
+    semanticWeight: number | null // SE: 0.7 por defecto; SEM: null
+    structuralWeight: number | null // SE: 0.3 por defecto; SEM: null
+    embeddingModel: string
+  }
+  candidates: RetrievalCandidateResponse[]
+  metrics: RetrievalMetricsResponse | null
+}
+
+interface RetrievalComparisonResultsResponse {
+  retrievalComparisonId: Id
+  analysisRunId: Id
+  projectVersionId: Id
+  symbol: AnalysisSymbolResponse
+  modes: RetrievalModeResultResponse[] // exactamente SE y SEM
+  completedAt: IsoDateTime
+}
+```
+
+### 6.16 Trace operativo y exportación de evidencia
+
+**Definido en INTEROP-2.7, pendiente de implementar y verificar** (`WI-CORE-026`, `WI-CORE-027`; la Console los consume en `WI-CONSOLE-016` y `WI-CONSOLE-017`). El trace operativo del `AnalysisRun` (HU15) es distinto del `ContextTrace` experimental de §6.7. Core introduce `retrieval_id` y `context_id` y reutiliza el `execution_id` del Sandbox; no crea otros identificadores ni identificadores de evidencia académica (`EV-OE*`).
+
+- `GET /analysis-runs/{analysisRunId}/trace` → `200 AnalysisRunTraceResponse` (Reader).
+- `GET /analysis-runs/{analysisRunId}/evidence`, `GET /experiments/{experimentId}/evidence`, `GET /retrieval-comparisons/{retrievalComparisonId}/evidence` → `200 EvidenceBundleResponse` (Reader). Antes de un estado terminal, `409 EVIDENCE_NOT_FINISHED`.
+
+Un enlace es `NOT_APPLICABLE` solo cuando el flujo termina legítimamente antes (por ejemplo, un Run sin targets no tiene retrieval). La evidencia no incluye chain-of-thought ni credenciales, y los fragmentos de código se tratan como datos potencialmente confidenciales (§6.7).
+
+```ts
+type TraceLinkStatus = 'PRESENT' | 'NOT_APPLICABLE'
+
+interface TraceExecutionResponse {
+  executionId: string // identificador del Sandbox
+  proposalId: Id
+  attempt: number
+  executionProfile: string
+  outcome: string // clasificación técnica ya expuesta en el Run
+}
+
+interface TraceTargetResponse {
+  symbol: AnalysisSymbolResponse
+  retrieval: { status: TraceLinkStatus; retrievalId: Id | null }
+  context: { status: TraceLinkStatus; contextId: Id | null; functionalRuleIds: Id[] }
+  generation: { status: TraceLinkStatus; proposalIds: Id[] }
+  executions: { status: TraceLinkStatus; items: TraceExecutionResponse[] }
+}
+
+interface TracePublicationResponse {
+  status: TraceLinkStatus
+  checkId: string | null
+  companionBranch: string | null
+  companionPullRequestUrl: string | null
+  sourceHeadSha: string | null
+  freshness: 'CURRENT' | 'STALE' | null
+}
+
+interface AnalysisRunTraceResponse {
+  analysisRunId: Id
+  repositoryName: string
+  pullRequestNumber: number
+  headSha: string
+  changeset: { status: TraceLinkStatus; targetCount: number }
+  targets: TraceTargetResponse[]
+  publication: TracePublicationResponse
+}
+
+type EvidenceKind = 'ANALYSIS_RUN' | 'EXPERIMENT' | 'RETRIEVAL_COMPARISON'
+
+interface EvidenceBundleResponse {
+  schemaVersion: '1'
+  kind: EvidenceKind
+  subjectId: Id
+  generatedAt: IsoDateTime
+  correlationId: string
+  analysisRun: { analysisRunId: Id; repositoryName: string; pullRequestNumber: number; headSha: string; projectVersionId: Id; snapshotRef: string; targets: AnalysisSymbolResponse[]; createdAt: IsoDateTime } | null
+  retrieval: { retrievalId: Id; mode: RetrievalMode; config: RetrievalModeResultResponse['config']; candidates: RetrievalCandidateResponse[] }[]
+  context: { contextId: Id; selectedChunkIds: Id[]; discardedChunkIds: Id[]; tokenCounts: { selected: number; budget: number | null }; functionalRuleIds: Id[] }[]
+  generation: { strategy: ExperimentStrategy | 'PRODUCT'; provider: string; model: string; modelVersion: string | null; reasoningEffort: string | null; inputTokens: number | null; outputTokens: number | null; durationMs: number; artifactHash: string }[]
+  agentExploration: { toolCallCap: number; steps: { step: number; toolName: string; status: string }[]; filesInspected: number | null; contextTokenBudget: number }[]
+  sandbox: { executionId: string; executionProfile: string; runnerHint: string; attempt: number; facts: Record<string, unknown>; durationMs: number; requestId: string; correlationId: string }[]
+  experimental: { experimentId: Id; strategy: ExperimentStrategy; repetition: number; pairId: Id; pairPosition: 1 | 2; attempt: number; randomizationSeed: string }[]
+  publication: TracePublicationResponse | null
+}
+```
 
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 
@@ -1141,8 +1366,8 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Developer Console conserva únicamente mocks alineados a INTEROP-2.2 y separados de live; no constituyen evidencia ni sustituyen endpoints de Core.
 - Test Execution Sandbox implementa actualmente el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest. `PHP_LARAVEL_PHPUNIT`, `phase` y la evidencia ampliada quedan aprobados pero pendientes de implementación.
 - La integración Core↔Sandbox actual continúa operativa bajo el subconjunto compatible de 1.6; la adopción completa de los campos 2.0 exige migración coordinada y contract tests en ambos backends.
-- `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-ORG-001`, `DEC-ORG-002`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
-- `DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` permanecen `PENDING` con blocks acotados. Mutation testing fue descartado para este alcance.
+- `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-ORG-001`, `DEC-ORG-002`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO` y, desde `INTEROP-2.7`, `DEC-EXP-003`, `DEC-EXP-FK-001`, `DEC-FK-001`, `DEC-FK-002` y `DEC-ORG-003` (todas `APROBADO`).
+- `DEC-INF-001` y `DEC-VAL-001` permanecen `PENDING` con blocks acotados. Mutation testing fue descartado para este alcance.
 
 ## 9. Reglas de implementación
 
