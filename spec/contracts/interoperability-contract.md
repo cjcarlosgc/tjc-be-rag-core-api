@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.7` es la versión documental vigente (preparada en `WI-CORE-017`). Sobre la base de `INTEROP-2.6` agrega el rol Writer (§6.13), la abstención auditada de `UNKNOWN` y la procedencia y escenarios de Functional Knowledge (§6.11), las extensiones de OE5 (§6.5.1), la comparación de retrieval OE2 (§6.15) y el trace operativo con exportación de evidencia (§6.16). Todo lo agregado está definido pero pendiente de implementar y verificar según el WI indicado en cada sección; nada de ello se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.7` es la versión documental vigente (preparada en `WI-CORE-017`). Sobre la base de `INTEROP-2.6` agrega el rol Writer (§6.13), la abstención auditada de `UNKNOWN` y la procedencia y escenarios de Functional Knowledge (§6.11), las extensiones de OE5 (§6.5.1), la comparación de retrieval OE2 (§6.15) y el trace operativo con exportación de evidencia (§6.16). Cada sección indica su estado: la abstención `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge (§6.11, aplicabilidad y conflicto por `scenarioKey`) y el rol Writer están implementados en Core (`WI-CORE-018`, `WI-CORE-019`, `WI-CORE-020`); lo demás sigue definido y pendiente de implementar y verificar según el WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -791,9 +791,9 @@ interface FunctionalQuestionResponse {
   rationale: string
   status: FunctionalQuestionStatus
   visualAid: VisualAidResponse | null
-  scenarioKind: ScenarioKind // INTEROP-2.7 (pendiente, WI-CORE-018): un escenario por pregunta atómica
+  scenarioKind: ScenarioKind // INTEROP-2.7 (implementado en WI-CORE-018): un escenario por pregunta atómica
   scenarioKey: string // derivado por Core de forma determinista (DEC-FK-004, WI-CORE-018); nunca lo escribe una persona
-  abstention: FunctionalAbstentionSummary | null // INTEROP-2.7 (pendiente, WI-CORE-018): abstenciones UNKNOWN auditadas
+  abstention: FunctionalAbstentionSummary | null // INTEROP-2.7 (implementado en WI-CORE-018): abstenciones UNKNOWN auditadas
   createdAt: IsoDateTime
 }
 
@@ -817,7 +817,7 @@ interface FunctionalAnswerAcceptedResponse extends AsyncAccepted {
   questionId: Id
   continuationAttemptId: Id | null
   knowledgeId: Id | null
-  outcome: 'ANSWERED' | 'ABSTAINED' // INTEROP-2.7 (pendiente, WI-CORE-018): ABSTAINED implica continuationAttemptId=null y knowledgeId=null
+  outcome: 'ANSWERED' | 'ABSTAINED' // INTEROP-2.7 (implementado en WI-CORE-018): ABSTAINED implica continuationAttemptId=null y knowledgeId=null
 }
 
 interface FunctionalKnowledgeResponse {
@@ -849,7 +849,7 @@ interface FunctionalKnowledgeConflictResponse {
 }
 ```
 
-**HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto (match exacto por ahora; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
+**HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto+`scenarioKey` (desde INTEROP-2.7 el match incluye el `scenarioKey`, `DEC-FK-001`; otro `scenarioKey` del mismo target coexiste y no es conflicto; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
 
 **INTEROP-2.7, `DEC-FK-001` (definido e implementado en `WI-CORE-020`).** La regla hereda `scenarioKind`/`scenarioKey` de la pregunta que la originó (las históricas, `EXPECTED_RESULT`/`LEGACY`); nunca los envía la persona. El match se refina por `scenarioKey`: el conflicto solo existe entre reglas con el mismo scope, `targetRef` y `scenarioKey`, y reglas con distinto `scenarioKey` coexisten como `ACTIVE`. Un índice único parcial `ACTIVE` sobre project+scope+`targetRef`+`scenarioKey` resuelve la carrera: la segunda respuesta recibe `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con la forma existente. El listado devuelve todas las reglas `ACTIVE` del target.
 
