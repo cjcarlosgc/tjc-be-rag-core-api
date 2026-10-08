@@ -2928,7 +2928,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/features/013-pr-driven-analysis/spec.md",
       "spec/features/013-pr-driven-analysis/plan.md",
@@ -2971,7 +2971,7 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer-high",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
+      "reviewAgent": "human-reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -2993,6 +2993,51 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "implementer-high",
+          "status": "APPROVED",
+          "findings": [
+            "Tres cortes implementados (a01bea1, 17ebf0d y corte 3); lint, test y build verdes.",
+            "Escalado preventivo implementer -> implementer-high por complejidad multiarchivo."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/functional-knowledge",
+            "app/src/snapshot-intelligence",
+            "app/src/analysis-runs/persistence/analysis-symbols.repository.ts",
+            "app/prisma"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-018-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión contractual y revisión humana.",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          }
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Implementación conforme con INTEROP-2.7 §6.11 y DEC-FK-002/003/004.",
+            "Recomienda nota contractual de una frase para preguntas históricas (EXPECTED_RESULT/LEGACY) y opcionalmente el orden 404 antes de 403; requiere aprobación del usuario."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-018-contract-review.md"
+          ],
+          "recommendedNextStep": "Revisión humana; decidir la nota contractual.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -3000,13 +3045,13 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -3031,14 +3076,62 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-08T18:08:48.769Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-018",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-08T18:39:58.021Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-018",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-08T18:40:16.130Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261008-002"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
       "harness/reports/wi-core-018-sdd-verification.md",
-      "harness/reports/smart-v3-scope-approval.md"
+      "harness/reports/smart-v3-scope-approval.md",
+      "harness/reports/wi-core-018-implementation.md",
+      "harness/reports/wi-core-018-contract-review.md",
+      "harness/reports/wi-core-018-contract-sync-checkpoints.md",
+      "harness/reports/wi-core-018-contract-sync-scope-review.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -3047,6 +3140,24 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-018-sdd-verification.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-018-implementation.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-018-implementation.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-018-contract-review.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-018-contract-sync-checkpoints.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/wi-core-018-contract-sync-checkpoints.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-018-contract-sync-checkpoints.md"
       ]
     }
   }
