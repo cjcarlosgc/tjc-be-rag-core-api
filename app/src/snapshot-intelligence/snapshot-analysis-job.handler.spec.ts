@@ -102,6 +102,9 @@ describe('SnapshotAnalysisJobHandler', () => {
       materialize: vi.fn().mockResolvedValue({ dir: '/tmp/fake-workspace', cleanup: workspaceCleanup }),
     };
     const analysisSymbolsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
+    const symbolBehaviorConstructsService = {
+      compute: vi.fn().mockImplementation(async (_request: unknown, symbols: unknown[]) => symbols.map(() => null)),
+    };
     const functionalContextEvaluatorService = { evaluate: vi.fn().mockResolvedValue({ actionRequired: false }) };
     const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
     const embeddingProvider = { embedMany: vi.fn().mockResolvedValue([[0.1, 0.2]]) };
@@ -136,6 +139,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       githubRepositoryContentService as never,
       githubSnapshotMaterializerService as never,
       analysisSymbolsRepository as never,
+      symbolBehaviorConstructsService as never,
       functionalContextEvaluatorService as never,
       analysisRunChecksService as never,
       embeddingProvider as never,
@@ -159,6 +163,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       githubRepositoryContentService,
       githubSnapshotMaterializerService,
       analysisSymbolsRepository,
+      symbolBehaviorConstructsService,
       functionalContextEvaluatorService,
       analysisRunChecksService,
       embeddingProvider,
@@ -234,6 +239,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       githubRepositoryContentService,
       projectVersionsRepository,
       analysisSymbolsRepository,
+      symbolBehaviorConstructsService,
     } = setup();
     const phpChunk = buildChunk({
       filePath: 'app/Service.php',
@@ -277,6 +283,7 @@ describe('SnapshotAnalysisJobHandler', () => {
     expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith(
       'run-1', [expect.objectContaining({ language: 'PHP', kind: 'CLASS' })],
     );
+    expect(symbolBehaviorConstructsService.compute).not.toHaveBeenCalled();
   });
 
   it('marks INCREMENTAL with the previous commit as indexDeltaBaseSha when a previous version exists', async () => {
@@ -435,6 +442,58 @@ describe('SnapshotAnalysisJobHandler', () => {
     await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
 
     expect(analysisRunChecksService.publishForRun).not.toHaveBeenCalled();
+  });
+
+  it('persists the behavior constructs computed for TypeScript symbols before inserting them', async () => {
+    const { handler, analysisSymbolsRepository, symbolBehaviorConstructsService, workspaceCleanup } = setup();
+    const constructs = [
+      { scenarioKind: 'EXCEPTION', scenarioKey: 'EXCEPTION:abc', order: 0, snippet: 'throw new Error()' },
+    ];
+    symbolBehaviorConstructsService.compute.mockResolvedValue([constructs]);
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledWith(
+      {
+        workspaceDir: '/tmp/fake-workspace',
+        installationId: '999',
+        repositoryName: 'org/repo',
+        baseSha: 'base-sha',
+        changesetFiles: [{ filename: 'src/a.ts', status: 'modified' }],
+      },
+      [expect.objectContaining({ qualifiedName: 'doThing', changeKind: 'DIRECTLY_CHANGED', kind: 'FUNCTION' })],
+    );
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith('run-1', [
+      expect.objectContaining({ qualifiedName: 'doThing', behaviorConstructs: constructs }),
+    ]);
+    expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('computes behavior constructs while the materialized workspace still exists', async () => {
+    const { handler, symbolBehaviorConstructsService, workspaceCleanup } = setup();
+    symbolBehaviorConstructsService.compute.mockImplementation(async () => {
+      expect(workspaceCleanup).not.toHaveBeenCalled();
+      return [null];
+    });
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails as INFRASTRUCTURE_FAILURE and rethrows when the behavior constructs computation fails', async () => {
+    const { handler, symbolBehaviorConstructsService, analysisRunsService, analysisRunChecksService, processingRun } =
+      setup();
+    symbolBehaviorConstructsService.compute.mockRejectedValue(new Error('GitHub base 502'));
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('GitHub base 502');
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      processingRun,
+      'INFRASTRUCTURE_FAILURE',
+      expect.objectContaining({ resultSummary: 'GitHub base 502' }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
   });
 
   it('cleans up the materialized workspace even when a later step fails', async () => {

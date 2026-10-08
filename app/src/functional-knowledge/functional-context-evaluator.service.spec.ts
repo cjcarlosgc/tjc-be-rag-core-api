@@ -16,9 +16,30 @@ function buildSymbol(overrides: Partial<AnalysisSymbol> = {}): AnalysisSymbol {
     qualifiedName: 'Thing.doIt',
     filePath: 'src/thing.ts',
     changeKind: 'DIRECTLY_CHANGED',
+    behaviorConstructs: null,
     createdAt: new Date(),
     ...overrides,
   };
+}
+
+function buildConstruct(overrides: Record<string, unknown> = {}) {
+  return {
+    scenarioKind: 'EXPECTED_RESULT',
+    scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+    order: 0,
+    snippet: 'if (amount <= 0)',
+    ...overrides,
+  };
+}
+
+function buildQuestion(overrides: Partial<FunctionalQuestion> = {}): FunctionalQuestion {
+  return {
+    filePath: 'src/thing.ts',
+    qualifiedName: 'Thing.doIt',
+    status: 'ANSWERED',
+    scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+    ...overrides,
+  } as FunctionalQuestion;
 }
 
 describe('FunctionalContextEvaluatorService', () => {
@@ -47,10 +68,10 @@ describe('FunctionalContextEvaluatorService', () => {
     );
   });
 
-  it('returns actionRequired=false when there are no DIRECTLY_CHANGED METHOD/FUNCTION symbols', async () => {
+  it('returns actionRequired=false when no DIRECTLY_CHANGED METHOD/FUNCTION TypeScript symbol has constructs', async () => {
     analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
-      buildSymbol({ kind: 'CLASS' }),
-      buildSymbol({ changeKind: 'POTENTIALLY_IMPACTED' }),
+      buildSymbol({ kind: 'CLASS', behaviorConstructs: [buildConstruct()] }),
+      buildSymbol({ changeKind: 'POTENTIALLY_IMPACTED', behaviorConstructs: [buildConstruct()] }),
     ]);
 
     const result = await service.evaluate(RUN);
@@ -59,10 +80,152 @@ describe('FunctionalContextEvaluatorService', () => {
     expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
   });
 
-  it('creates one question and stops at the first uncovered symbol', async () => {
+  it.each([
+    ['EXPECTED_RESULT', 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa'],
+    ['BOUNDARY', 'BOUNDARY:bbbbbbbbbbbbbbbb'],
+    ['EXCEPTION', 'EXCEPTION:cccccccccccccccc'],
+    ['STATE_TRANSITION', 'STATE_TRANSITION:dddddddddddddddd'],
+  ])('creates a question persisting scenarioKind and scenarioKey for %s', async (scenarioKind, scenarioKey) => {
     analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
-      buildSymbol({ qualifiedName: 'Thing.first' }),
-      buildSymbol({ qualifiedName: 'Thing.second' }),
+      buildSymbol({ behaviorConstructs: [buildConstruct({ scenarioKind, scenarioKey })] }),
+    ]);
+
+    const result = await service.evaluate(RUN);
+
+    expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        analysisRunId: 'run-1',
+        projectId: 'project-1',
+        symbolLanguage: 'TYPESCRIPT',
+        symbolKind: 'METHOD',
+        qualifiedName: 'Thing.doIt',
+        filePath: 'src/thing.ts',
+        scenarioKind,
+        scenarioKey,
+      }),
+      'PROCESSING',
+    );
+  });
+
+  it('mentions the symbol, the file and the construct snippet in the templated question', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({
+        behaviorConstructs: [buildConstruct({ scenarioKind: 'EXCEPTION', snippet: 'throw new Error("invalid")' })],
+      }),
+    ]);
+
+    await service.evaluate(RUN);
+
+    const input = functionalQuestionsRepository.createForCurrentRun.mock.calls[0]?.[0] as { question: string; rationale: string };
+    expect(input.question).toContain('"Thing.doIt" (src/thing.ts)');
+    expect(input.question).toContain('throw new Error("invalid")');
+    expect(input.rationale).toContain('EXCEPTION');
+  });
+
+  it.each([
+    ['null', null],
+    ['an empty list', []],
+    ['a malformed entry only', [{ scenarioKind: 'OBSERVABLE_SIDE_EFFECT', scenarioKey: 'x', order: 0, snippet: 'x' }]],
+  ])('does not ask and lets the run continue when behaviorConstructs is %s', async (_label, behaviorConstructs) => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol({ behaviorConstructs })]);
+
+    const result = await service.evaluate(RUN);
+
+    expect(result).toEqual({ actionRequired: false });
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+  });
+
+  it('does not ask when an ACTIVE rule applies to the target', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({ behaviorConstructs: [buildConstruct()] }),
+    ]);
+    functionalKnowledgeRepository.findActive.mockResolvedValue({ id: 'knowledge-1' });
+
+    const result = await service.evaluate(RUN);
+
+    expect(result).toEqual({ actionRequired: false });
+    expect(functionalKnowledgeRepository.findActive).toHaveBeenCalledWith('project-1', 'METHOD', 'src/thing.ts::Thing.doIt');
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate a non-obsolete question that already has the same scenarioKey', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({ behaviorConstructs: [buildConstruct({ scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa' })] }),
+    ]);
+    functionalQuestionsRepository.findByAnalysisRun.mockResolvedValue([
+      buildQuestion({ scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa', status: 'PENDING' }),
+    ]);
+
+    const result = await service.evaluate(RUN);
+
+    expect(result).toEqual({ actionRequired: false });
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+  });
+
+  it('asks about a construct with a different scenarioKey than the tracked question of the same target', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({
+        behaviorConstructs: [
+          buildConstruct({ scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa', order: 0 }),
+          buildConstruct({ scenarioKind: 'EXCEPTION', scenarioKey: 'EXCEPTION:bbbbbbbbbbbbbbbb', order: 1 }),
+        ],
+      }),
+    ]);
+    functionalQuestionsRepository.findByAnalysisRun.mockResolvedValue([
+      buildQuestion({ scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa' }),
+    ]);
+
+    await service.evaluate(RUN);
+
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+      expect.objectContaining({ scenarioKind: 'EXCEPTION', scenarioKey: 'EXCEPTION:bbbbbbbbbbbbbbbb' }),
+      'PROCESSING',
+    );
+  });
+
+  it('treats a historical question without scenarioKey as covering the whole target', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({ behaviorConstructs: [buildConstruct({ scenarioKey: 'BOUNDARY:eeeeeeeeeeeeeeee', scenarioKind: 'BOUNDARY' })] }),
+    ]);
+    functionalQuestionsRepository.findByAnalysisRun.mockResolvedValue([buildQuestion({ scenarioKey: null })]);
+
+    const result = await service.evaluate(RUN);
+
+    expect(result).toEqual({ actionRequired: false });
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+  });
+
+  it('re-considers a construct whose previous question is OBSOLETE', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({ behaviorConstructs: [buildConstruct()] }),
+    ]);
+    functionalQuestionsRepository.findByAnalysisRun.mockResolvedValue([
+      buildQuestion({ status: 'OBSOLETE' }),
+    ]);
+
+    const result = await service.evaluate(RUN);
+
+    expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks one question at a time in stable order: file, qualifiedName, then construct order', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({
+        qualifiedName: 'Thing.second',
+        filePath: 'src/z.ts',
+        behaviorConstructs: [buildConstruct({ scenarioKey: 'EXPECTED_RESULT:zzzzzzzzzzzzzzzz' })],
+      }),
+      buildSymbol({
+        qualifiedName: 'Thing.first',
+        filePath: 'src/a.ts',
+        behaviorConstructs: [
+          buildConstruct({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:2222222222222222', order: 1 }),
+          buildConstruct({ scenarioKey: 'EXPECTED_RESULT:1111111111111111', order: 0 }),
+        ],
+      }),
     ]);
 
     const result = await service.evaluate(RUN);
@@ -70,48 +233,18 @@ describe('FunctionalContextEvaluatorService', () => {
     expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
     expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
     expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
-      expect.objectContaining({ analysisRunId: 'run-1', projectId: 'project-1', qualifiedName: 'Thing.first' }),
+      expect.objectContaining({
+        qualifiedName: 'Thing.first',
+        filePath: 'src/a.ts',
+        scenarioKey: 'EXPECTED_RESULT:1111111111111111',
+      }),
       'PROCESSING',
     );
   });
 
-  it('does not create a question for a symbol already covered by ACTIVE knowledge', async () => {
-    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol()]);
-    functionalKnowledgeRepository.findActive.mockResolvedValue({ id: 'knowledge-1' });
-
-    const result = await service.evaluate(RUN);
-
-    expect(result).toEqual({ actionRequired: false });
-    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
-  });
-
-  it('does not create a question for a symbol that already has a tracked (non-obsolete) question', async () => {
-    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol()]);
-    functionalQuestionsRepository.findByAnalysisRun.mockResolvedValue([
-      { filePath: 'src/thing.ts', qualifiedName: 'Thing.doIt', status: 'ANSWERED' } as FunctionalQuestion,
-    ]);
-
-    const result = await service.evaluate(RUN);
-
-    expect(result).toEqual({ actionRequired: false });
-    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
-  });
-
-  it('re-considers a symbol whose previous question is OBSOLETE', async () => {
-    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol()]);
-    functionalQuestionsRepository.findByAnalysisRun.mockResolvedValue([
-      { filePath: 'src/thing.ts', qualifiedName: 'Thing.doIt', status: 'OBSOLETE' } as FunctionalQuestion,
-    ]);
-
-    const result = await service.evaluate(RUN);
-
-    expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
-    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
-  });
-
   it('uses SYMBOL scope (not METHOD) for a FUNCTION kind symbol', async () => {
     analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
-      buildSymbol({ kind: 'FUNCTION', qualifiedName: 'standaloneFn' }),
+      buildSymbol({ kind: 'FUNCTION', qualifiedName: 'standaloneFn', behaviorConstructs: [buildConstruct()] }),
     ]);
 
     await service.evaluate(RUN);
@@ -123,8 +256,21 @@ describe('FunctionalContextEvaluatorService', () => {
     );
   });
 
+  it('does not ask about PHP symbols even when they carry constructs', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({ language: 'PHP', behaviorConstructs: [buildConstruct()] }),
+    ]);
+
+    const result = await service.evaluate(RUN);
+
+    expect(result).toEqual({ actionRequired: false });
+    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+  });
+
   it('does not report ACTION_REQUIRED when the run became obsolete before the atomic write', async () => {
-    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol()]);
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({ behaviorConstructs: [buildConstruct()] }),
+    ]);
     functionalQuestionsRepository.createForCurrentRun.mockResolvedValue(null);
 
     await expect(service.evaluate(RUN)).resolves.toEqual({ actionRequired: false });
