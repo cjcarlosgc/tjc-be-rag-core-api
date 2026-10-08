@@ -34,3 +34,6 @@ Productor: Core. Consumidores: Console (importa SYSTEM-2.6 e INTEROP-2.7 y adopt
 
 ## Validación
 Se ejecutan `node scripts/sdd-check.mjs`, `harness/validate-harness.mjs`, `harness/validate-work-items.mjs` y `harness/validate-completions.mjs`; no hay cambios en `app/`.
+
+## Auditorías de preparación (sdd-analyst, solo lectura)
+Antes: `READY_WITH_NOTES` 007, 019, 021, 023, 024; `NOT_READY` 018, 020, 022, 025, 026, 027, 004, 005, 008. Los huecos de diseño de 007 y 018 a 027 se cierran en este WI con los textos propuestos por los auditores y tres decisiones del usuario; 004, 005 y 008 quedan fuera del bloque por decisión del usuario. Cada WI de implementación conserva su propia verificación SDD al seleccionarse.

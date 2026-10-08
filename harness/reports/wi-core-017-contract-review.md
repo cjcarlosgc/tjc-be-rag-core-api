@@ -19,3 +19,6 @@ Aplicada en `33c1ca7` y `9c8cda8`: binding, evidencia y registros con Writer; ma
 Los 13 hallazgos constan resueltos; sin contradicciones nuevas. Observación MINOR atendida en `9c8cda8`: línea de estado al inicio de la matriz de §6.13. Compatibilidad: GH-INTEROP-1.2 no cambia y sus hechos de permiso bastan para derivar los cuatro roles. `CS-CORE-20261008-001` es correcto (`breaking: true`, sin cambios para Sandbox).
 
 Reserva declarada por el reviewer: el rol personalizado mapeado por su permiso base depende de que GitHub Integration lo entregue; lo confirma `WI-GH-011`.
+
+## Ronda 3 — `APPROVED`
+Tras incorporar las decisiones `DEC-FK-003`, `DEC-FK-004` y `DEC-EXP-004`, enumerar los nueve enlaces, fijar los estados terminales y la lista cerrada de `facts`, y reescribir los criterios de `WI-CORE-007` y `WI-CORE-018` a `WI-CORE-027`, el reviewer verificó coherencia entre decisiones, SYSTEM-2.6, §6.11, §6.5.1, §6.16 y los criterios, sin referencias obsoletas. Tres observaciones MINOR: (a) el detalle de normalización y el mapeo de `scenarioKind` de `DEC-FK-004` queda sujeto a la aprobación explícita del Human Reviewer al cerrar este WI; (b) y (c), de redacción (categorías de pregunta reservadas y el `422` de `DEC-EXP-004`), aplicadas en `3fb84af`. El reviewer no revisó los criterios de `WI-CORE-019`, `022`, `024` ni `026`; los cubrieron las auditorías SDD.

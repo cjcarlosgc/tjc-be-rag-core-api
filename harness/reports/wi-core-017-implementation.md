@@ -10,3 +10,6 @@ Solo SDD y Harness; cero cambios en `app/`. SYSTEM-2.6 e INTEROP-2.7 (roles, `UN
 
 ## Contrato
 Publica `CS-CORE-20261008-001` (`breaking: true`: el enum `ProjectRole` agrega `WRITER` y `write` deja de producir Maintainer). Los espejos de Console y GitHub Integration los sincronizan `WI-CONSOLE-011` y `WI-GH-010`; este WI no modifica ningún otro repositorio.
+
+## Ampliación tras las auditorías de preparación
+El alcance se amplió dentro de este WI, antes de la revisión humana: decisiones `DEC-FK-003`, `DEC-FK-004` y `DEC-EXP-004`; diseño técnico (tablas, fórmulas, semilla, reintentos, migraciones, estados terminales y lista cerrada de `facts`) en los planes de 004, 008, 011, 013, 014, providers y experimental-metrics; y criterios reescritos de `WI-CORE-007` y `WI-CORE-018` a `WI-CORE-027`. El refinamiento de Console y GitHub Integration se hace en sus propios repos.

@@ -822,7 +822,7 @@
     {
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -853,8 +853,8 @@
       ],
       "acceptanceCriteria": [
         "SYSTEM-2.6 e INTEROP-2.7 recogen `DEC-EXP-FK-001` (cerrada), `DEC-EXP-003`, `DEC-FK-001`, `DEC-FK-002` y `DEC-ORG-003`, y marcan cada superficie nueva como definida y pendiente de implementar con su WI.",
-        "Las specs, planes y tareas de 004, 008, 011, 013, 014, providers y experimental-metrics reflejan el alcance SMART V3 y registran los hallazgos spec-código; HU17 usa «condiciones experimentales externas controladas».",
-        "WI-CORE-018 a WI-CORE-029 quedan registrados con subtarea, dependencias y criterios; PHP y Sandbox quedan diferidos y no bloquean el resto.",
+        "Las specs, planes y tareas de 004, 008, 011, 013, 014, providers y experimental-metrics reflejan el alcance SMART V3, registran los hallazgos spec-código y cierran el diseño técnico (tablas, fórmulas, semilla, reintentos, migraciones) de los WI de implementación; HU17 usa «condiciones experimentales externas controladas».",
+        "WI-CORE-007 y WI-CORE-018 a WI-CORE-029 quedan registrados con subtarea, dependencias y criterios verificables; PHP, Sandbox y los WI antiguos 004, 005 y 008 quedan diferidos y no bloquean el resto.",
         "Se publican Contract Sync a Console y GitHub Integration para importar SYSTEM-2.6 e INTEROP-2.7 byte a byte; no se modifica ningún otro repositorio.",
         "Validadores SDD, Harness, work-items y completions pasan, no hay cambios en `app/` y el corte queda en W-IN_REVIEW a la espera de la revisión humana."
       ],

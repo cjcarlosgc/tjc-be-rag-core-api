@@ -2637,7 +2637,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/contracts/system-contract.md",
       "spec/contracts/interoperability-contract.md",
@@ -2723,8 +2723,8 @@
           "agent": "contract-reviewer",
           "status": "APPROVED",
           "findings": [
-            "Ronda 1 CHANGES_REQUESTED (13 hallazgos) resuelta; ronda 2 APPROVED sin contradicciones nuevas.",
-            "Reserva: el rol personalizado depende de que GitHub Integration entregue el permiso base; lo confirma WI-GH-011."
+            "Tres rondas: CHANGES_REQUESTED con 13 hallazgos (resueltos), APPROVED y APPROVED tras incorporar DEC-FK-003, DEC-FK-004 y DEC-EXP-004.",
+            "Pendiente: el Human Reviewer debe aprobar explícitamente el detalle de normalización y el mapeo de scenarioKind de DEC-FK-004."
           ],
           "blockers": [],
           "filesAffected": [
@@ -2751,8 +2751,8 @@
       "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
       "contractSyncPublished": "G-PASSED",
       "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
@@ -2776,6 +2776,12 @@
       ],
       "interopSyncChecked": [
         "harness/reports/wi-core-017-contract-sync-checkpoints.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-017-contract-review.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-017-final-contract-sync.md"
       ]
     },
     "coordination": {
