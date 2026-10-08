@@ -383,7 +383,7 @@ Trace operativo (HU15): el recorrido auditable de un cambio tiene nueve enlaces:
 
 ### DEC-FK-004 — Derivación del scenarioKey
 
-**Estado:** APROBADO (2026-10-08, por el usuario); el detalle de normalización y el mapeo de `scenarioKind` se aprueban con la revisión de `WI-CORE-017`.
+**Estado:** APROBADO (2026-10-08, por el usuario), incluidos el detalle de normalización y el mapeo de `scenarioKind`, aprobados al cerrar `WI-CORE-017`.
 
 **Resolución:** `scenarioKey` se deriva de `scenarioKind`, del `targetRef` estable (`filePath::qualifiedName`) y de una huella determinista de la construcción concreta que disparó la pregunta: `scenarioKey = <scenarioKind>:<16 primeros hex de SHA-256(targetRef + "\n" + forma normalizada de la construcción)>`. La forma normalizada es una representación estructural del AST, no el número de línea ni el formato: descarta espacios, comentarios y formato, reemplaza los identificadores locales por marcadores posicionales y conserva los nombres de parámetros, miembros y campos, los operadores y los literales. Dos construcciones funcionalmente distintas dentro de un mismo método producen claves distintas y los cambios cosméticos no crean un escenario nuevo. `scenarioKind` según la construcción: `throw` → `EXCEPTION`; ramificación cuya condición compara contra un límite (`<`, `<=`, `>`, `>=`) → `BOUNDARY`; otra ramificación → `EXPECTED_RESULT`; escritura o transición de estado → `STATE_TRANSITION`. `OBSERVABLE_SIDE_EFFECT` y `FUNCTIONAL_PRECONDITION` quedan reservados y V1 no los produce. Las reglas históricas reciben `scenarioKind=EXPECTED_RESULT` y `scenarioKey=LEGACY` mediante una migración reversible.
 

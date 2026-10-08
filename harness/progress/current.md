@@ -5,7 +5,7 @@
 `WI-CORE-016` y `WI-CORE-006` están `W-DONE`; no hay WI activo. El usuario aprobó el alcance de `WI-CORE-017` a `WI-CORE-027` (`harness/reports/smart-v3-scope-approval.md`); el Leader los toma por prioridad y dependencias sin pedir aprobación por corte y se detiene solo por `BLOCKED`, `DECISION_REQUIRED`, Human Review o dependencia externa real.
 
 1. **P0, ruta crítica en serie:** `WI-CORE-017` (publica SYSTEM-2.6/INTEROP-2.7; la SDD ya está aplicada, el WI la verifica, publica Contract Sync y pasa a revisión humana, con contract-reviewer autorizado como agente) → `WI-CORE-018` → `WI-CORE-019` → `WI-CORE-020` → `WI-CORE-021`. Comparten migraciones de Functional Knowledge y por eso no se paralelizan.
-2. **P1, tras `WI-CORE-017`, en paralelo con la ruta crítica:** `WI-CORE-022` (OE2) y `WI-CORE-023` → `WI-CORE-024` → `WI-CORE-025` (OE5). Después `WI-CORE-026` (tras 021) y `WI-CORE-007` → `WI-CORE-027` (tras 007, 025 y 026).
+2. **P1, en paralelo con la ruta crítica:** `WI-CORE-023` → `WI-CORE-024` → `WI-CORE-025` (OE5) tras `WI-CORE-017`; `WI-CORE-022` (OE2) tras `WI-CORE-019`, que introduce el rol Writer que exige su ruta. Después `WI-CORE-026` (tras 021) y `WI-CORE-007` → `WI-CORE-027` (tras 007, 025 y 026).
 3. **Diferido, no bloquea nada:** `WI-CORE-013`, `WI-CORE-028` y `WI-CORE-029` (PHP y coordinación con Sandbox, de otro desarrollador). `WI-CORE-004`, `005` y `008` (P2) se toman al final.
 
 Cada WI con impacto contractual emite Contract Sync a Console al implementarse; Console y GitHub Integration no se modifican desde Core.

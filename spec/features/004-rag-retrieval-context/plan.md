@@ -20,7 +20,7 @@
 
 ## Cortes SMART V3
 
-Orden: `WI-CORE-021` (`functionalRules`, depende de `WI-CORE-020`), `WI-CORE-022` (OE2, depende solo de la SDD) y, diferido, `WI-CORE-028` (PHP estructural). `WI-CORE-006` (decisiones de candidatos RAG) comparte `RetrievalService` con OE2: se ejecutan en serie y el contrato de candidatos de §6.15 reutiliza el vocabulario de señales de §6.7.
+Orden: `WI-CORE-021` (`functionalRules`, depende de `WI-CORE-020`), `WI-CORE-022` (OE2, depende de `WI-CORE-017` y de `WI-CORE-019` por el rol Writer) y, diferido, `WI-CORE-028` (PHP estructural). `WI-CORE-006` (decisiones de candidatos RAG) comparte `RetrievalService` con OE2: se ejecutan en serie y el contrato de candidatos de §6.15 reutiliza el vocabulario de señales de §6.7.
 
 ## Diseño técnico SMART V3 (WI-CORE-021 y WI-CORE-022)
 
