@@ -625,6 +625,194 @@ describe('ExperimentJobHandler', () => {
     );
   });
 
+  it('persists mixed RAG audit decisions with every candidate, counters and configuration', async () => {
+    const mixedCandidate = (
+      overrides: Record<string, unknown>,
+    ): Record<string, unknown> => ({
+      filePath: 'src/bar.ts',
+      symbolKind: 'FUNCTION',
+      symbolName: 'bar',
+      parentSymbolName: null,
+      startLine: 4,
+      endLine: 6,
+      content: 'candidate content',
+      tokenCount: 20,
+      semanticScore: 0.9,
+      structuralMatch: 'IMPORTS',
+      combinedScore: 0.93,
+      matchedVia: ['SEMANTIC', 'IMPORTS'],
+      ...overrides,
+    });
+    const mixedContext = {
+      target: {
+        filePath: 'src/foo.ts',
+        symbolName: 'foo',
+        methodName: null,
+        targetType: 'FUNCTION',
+        content: 'target content',
+      },
+      relatedChunks: [
+        {
+          filePath: 'src/bar.ts',
+          symbolKind: 'FUNCTION',
+          symbolName: 'bar',
+          parentSymbolName: null,
+          content: 'selected content',
+          score: 0.93,
+          matchedVia: ['SEMANTIC', 'IMPORTS'],
+        },
+      ],
+      metadata: { language: 'typescript', framework: 'VITEST' },
+      retrievedChunks: 4,
+      selectedChunks: 1,
+      contextTokens: 30,
+      audit: {
+        target: {
+          chunkIds: ['target-chunk-1'],
+          chunks: [
+            {
+              chunkId: 'target-chunk-1',
+              filePath: 'src/foo.ts',
+              symbolKind: 'FUNCTION',
+              symbolName: 'foo',
+              parentSymbolName: null,
+              startLine: 1,
+              endLine: 3,
+              content: 'target content',
+              tokenCount: 10,
+            },
+          ],
+          tokenCount: 10,
+        },
+        candidates: [
+          mixedCandidate({
+            chunkId: 'selected',
+            rank: 1,
+            content: 'selected content',
+            decision: 'SELECTED',
+            discardReason: null,
+          }),
+          mixedCandidate({
+            chunkId: 'top-k',
+            rank: 2,
+            filePath: 'src/top-k.ts',
+            content: 'top-k content',
+            tokenCount: 5,
+            semanticScore: 0.8,
+            structuralMatch: null,
+            combinedScore: 0.8,
+            matchedVia: ['SEMANTIC'],
+            decision: 'DISCARDED',
+            discardReason: 'TOP_K_LIMIT',
+          }),
+          mixedCandidate({
+            chunkId: 'budget',
+            rank: 3,
+            filePath: 'src/budget.ts',
+            content: 'budget content',
+            tokenCount: 90,
+            semanticScore: 0.7,
+            structuralMatch: null,
+            combinedScore: 0.7,
+            matchedVia: ['SEMANTIC'],
+            decision: 'DISCARDED',
+            discardReason: 'TOKEN_BUDGET',
+          }),
+          mixedCandidate({
+            chunkId: 'below',
+            rank: 4,
+            filePath: 'src/below.ts',
+            content: 'below content',
+            tokenCount: 3,
+            semanticScore: 0.1,
+            structuralMatch: null,
+            combinedScore: 0.07,
+            matchedVia: ['SEMANTIC'],
+            decision: 'DISCARDED',
+            discardReason: 'BELOW_MINIMUM_SCORE',
+          }),
+        ],
+        configuration: {
+          minimumScore: 0.5,
+          topK: 2,
+          maxContextTokens: 40,
+          semanticWeight: 0.7,
+          structuralWeight: 0.3,
+        },
+      },
+    };
+    const { deps } = makeDeps({
+      contextBuilder: { build: vi.fn().mockReturnValue(mixedContext) },
+    });
+    const traceRepository = deps.contextTracesRepository as {
+      updateDetail: ReturnType<typeof vi.fn>;
+    };
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const ragDetailCall = traceRepository.updateDetail.mock.calls.find(
+      (call: unknown[]) => {
+        const detail = call[1] as {
+          target?: { excerpt?: { snippet?: string } };
+        };
+        return detail.target?.excerpt?.snippet === 'target content';
+      },
+    );
+    const persisted = ragDetailCall?.[1] as {
+      target: { chunkIds: string[]; tokenCount: number };
+      candidates: Array<Record<string, unknown>>;
+      retrievedChunks: number;
+      selectedChunks: number;
+      contextTokens: number;
+      configuration: Record<string, unknown>;
+    };
+    expect(persisted.target).toMatchObject({
+      chunkIds: ['target-chunk-1'],
+      tokenCount: 10,
+    });
+    expect(
+      persisted.candidates.map(
+        ({ chunkId, rank, decision, discardReason, tokenCount }) => [
+          chunkId,
+          rank,
+          decision,
+          discardReason,
+          tokenCount,
+        ],
+      ),
+    ).toEqual([
+      ['selected', 1, 'SELECTED', null, 20],
+      ['top-k', 2, 'DISCARDED', 'TOP_K_LIMIT', 5],
+      ['budget', 3, 'DISCARDED', 'TOKEN_BUDGET', 90],
+      ['below', 4, 'DISCARDED', 'BELOW_MINIMUM_SCORE', 3],
+    ]);
+    expect(persisted.candidates.map((candidate) => candidate.excerpt)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ filePath: 'src/top-k.ts', snippet: 'top-k content' }),
+        expect.objectContaining({ filePath: 'src/budget.ts', snippet: 'budget content' }),
+        expect.objectContaining({ filePath: 'src/below.ts', snippet: 'below content' }),
+      ]),
+    );
+    expect(persisted.retrievedChunks).toBe(4);
+    expect(persisted.selectedChunks).toBe(1);
+    expect(persisted.contextTokens).toBe(30);
+    expect(persisted.configuration).toEqual({
+      minimumScore: 0.5,
+      topK: 2,
+      maxContextTokens: 40,
+      semanticWeight: 0.7,
+      structuralWeight: 0.3,
+    });
+    expect(deps.promptBuilder.build).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relatedChunks: [
+          expect.objectContaining({ content: 'selected content' }),
+        ],
+      }),
+    );
+  });
+
   it('persists AGENT steps incrementally, strips raw results and sidecar paths from detail', async () => {
     const { deps } = makeDeps();
     const handler = makeHandler(deps);

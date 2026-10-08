@@ -1,6 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { HttpStatus } from '@nestjs/common';
+import type { HttpException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ContextTracesService } from './context-traces.service.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -408,4 +410,174 @@ describe('ContextTracesService', () => {
       service.listDiscoveredFiles('trace-1', USER_ID, { step: 1 }),
     ).rejects.toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
   });
+
+  it('returns 404 CONTEXT_TRACE_NOT_FOUND when the trace is missing or not owned by the user', async () => {
+    const { service, objectStorage } = makeService({
+      reads: { findForOwner: vi.fn().mockResolvedValue(null) },
+    });
+
+    const error = await service
+      .getContextTraceDetail('foreign-trace', USER_ID)
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: ErrorCode.CONTEXT_TRACE_NOT_FOUND });
+    expect((error as HttpException).getStatus()).toBe(HttpStatus.NOT_FOUND);
+    expect(objectStorage.get).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'SELECTED with a discard reason',
+      { decision: 'SELECTED', discardReason: 'TOP_K_LIMIT' },
+    ],
+    [
+      'DISCARDED without a discard reason',
+      { decision: 'DISCARDED', discardReason: null },
+    ],
+    [
+      'DISCARDED with an unknown discard reason',
+      { decision: 'DISCARDED', discardReason: 'UNKNOWN_REASON' },
+    ],
+  ])(
+    'returns 500 INTERNAL_ERROR for a candidate that is %s',
+    async (_label, overrides) => {
+      const { service } = makeService({
+        reads: {
+          findForOwner: vi
+            .fn()
+            .mockResolvedValue(makeRagTrace([makeRagCandidate(overrides)])),
+        },
+      });
+
+      await expect(
+        service.getContextTraceDetail('trace-1', USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
+    },
+  );
+
+  it('exposes DISCARDED candidates with their reason, rank and effective configuration', async () => {
+    const candidates = [
+      makeRagCandidate({ chunkId: 'selected', rank: 1, combinedScore: 0.9 }),
+      makeRagCandidate({
+        chunkId: 'top-k',
+        rank: 2,
+        combinedScore: 0.8,
+        decision: 'DISCARDED',
+        discardReason: 'TOP_K_LIMIT',
+      }),
+      makeRagCandidate({
+        chunkId: 'budget',
+        rank: 3,
+        combinedScore: 0.7,
+        tokenCount: 90,
+        decision: 'DISCARDED',
+        discardReason: 'TOKEN_BUDGET',
+      }),
+      makeRagCandidate({
+        chunkId: 'below',
+        rank: 4,
+        combinedScore: 0.05,
+        semanticScore: 0.05,
+        decision: 'DISCARDED',
+        discardReason: 'BELOW_MINIMUM_SCORE',
+      }),
+    ];
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace(candidates)),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    expect(detail.kind).toBe('RAG');
+    if (detail.kind !== 'RAG') throw new Error('expected RAG detail');
+    expect(
+      detail.candidates.map(({ chunkId, rank, decision, discardReason }) => [
+        chunkId,
+        rank,
+        decision,
+        discardReason,
+      ]),
+    ).toEqual([
+      ['selected', 1, 'SELECTED', null],
+      ['top-k', 2, 'DISCARDED', 'TOP_K_LIMIT'],
+      ['budget', 3, 'DISCARDED', 'TOKEN_BUDGET'],
+      ['below', 4, 'DISCARDED', 'BELOW_MINIMUM_SCORE'],
+    ]);
+    expect(detail.retrievedChunks).toBe(4);
+    expect(detail.selectedChunks).toBe(1);
+    expect(detail.configuration).toEqual({
+      minimumScore: 0.1,
+      topK: 2,
+      maxContextTokens: 100,
+      semanticWeight: 0.7,
+      structuralWeight: 0.3,
+    });
+  });
+
+  it('accepts a RAG trace without candidates as a valid read', async () => {
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace([])),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    expect(detail).toMatchObject({
+      kind: 'RAG',
+      candidates: [],
+      retrievedChunks: 0,
+      selectedChunks: 0,
+      target: { chunkIds: ['target-chunk'], tokenCount: 12 },
+    });
+  });
 });
+
+// Excerpts without line numbers skip the private snapshot, so these fixtures
+// exercise the mapping rules without needing a real workspace extraction.
+function makeNullLineExcerpt(overrides: Record<string, unknown> = {}) {
+  return makeExcerpt({ startLine: null, endLine: null, ...overrides });
+}
+
+function makeRagCandidate(overrides: Record<string, unknown> = {}) {
+  return {
+    chunkId: 'candidate-1',
+    rank: 1,
+    excerpt: makeNullLineExcerpt({ filePath: 'src/bar.ts', snippet: 'bar' }),
+    tokenCount: 8,
+    semanticScore: 0.9,
+    structuralMatch: null,
+    combinedScore: 0.9,
+    matchedVia: ['SEMANTIC'],
+    decision: 'SELECTED',
+    discardReason: null,
+    ...overrides,
+  };
+}
+
+function makeRagTrace(candidates: unknown[]) {
+  return makeTrace('RAG', {
+    detail: {
+      target: {
+        chunkIds: ['target-chunk'],
+        excerpt: makeNullLineExcerpt(),
+        tokenCount: 12,
+      },
+      candidates,
+      retrievedChunks: candidates.length,
+      selectedChunks: candidates.filter(
+        (candidate) => (candidate as { decision: string }).decision === 'SELECTED',
+      ).length,
+      contextTokens: 20,
+      configuration: {
+        minimumScore: 0.1,
+        topK: 2,
+        maxContextTokens: 100,
+        semanticWeight: 0.7,
+        structuralWeight: 0.3,
+      },
+    },
+  });
+}

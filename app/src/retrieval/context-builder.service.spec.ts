@@ -257,4 +257,116 @@ describe('ContextBuilder', () => {
     expect(auditedPrompt).not.toContain('BELOW_MINIMUM_SCORE');
     expect(auditedPrompt).not.toContain('src/below.ts');
   });
+
+  it('keeps a candidate whose score equals minimumScore and rejects one just below it', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const atMinimum = makeCandidate({
+      chunk: makeChunk({ id: 'at-minimum', tokenCount: 1 }),
+      semanticScore: 1,
+    });
+    const belowMinimum = makeCandidate({
+      chunk: makeChunk({ id: 'below-minimum', tokenCount: 1 }),
+      semanticScore: 0.99,
+    });
+
+    const context = builder.build(
+      {
+        targetChunks: [makeChunk({ tokenCount: 1 })],
+        candidates: [belowMinimum, atMinimum],
+      },
+      target,
+      { framework: null },
+      { minimumScore: 0.7, topK: 10, maxContextTokens: 100 },
+    );
+
+    expect(
+      context.audit?.candidates.map(({ chunkId, decision, discardReason }) => [
+        chunkId,
+        decision,
+        discardReason,
+      ]),
+    ).toEqual([
+      ['at-minimum', 'SELECTED', null],
+      ['below-minimum', 'DISCARDED', 'BELOW_MINIMUM_SCORE'],
+    ]);
+    expect(context.selectedChunks).toBe(1);
+  });
+
+  it('breaks equal scores by retrieval order and reports the loser as TOP_K_LIMIT', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const firstRetrieved = makeCandidate({
+      chunk: makeChunk({ id: 'first-retrieved', tokenCount: 1 }),
+      semanticScore: 0.5,
+    });
+    const secondRetrieved = makeCandidate({
+      chunk: makeChunk({ id: 'second-retrieved', tokenCount: 1 }),
+      semanticScore: 0.5,
+    });
+
+    const context = builder.build(
+      {
+        targetChunks: [makeChunk({ tokenCount: 1 })],
+        candidates: [firstRetrieved, secondRetrieved],
+      },
+      target,
+      { framework: null },
+      { minimumScore: 0, topK: 1, maxContextTokens: 100 },
+    );
+
+    expect(
+      context.audit?.candidates.map(
+        ({ chunkId, rank, decision, discardReason }) => [
+          chunkId,
+          rank,
+          decision,
+          discardReason,
+        ],
+      ),
+    ).toEqual([
+      ['first-retrieved', 1, 'SELECTED', null],
+      ['second-retrieved', 2, 'DISCARDED', 'TOP_K_LIMIT'],
+    ]);
+    expect(context.relatedChunks).toHaveLength(1);
+    expect(context.relatedChunks[0].score).toBeCloseTo(0.35);
+  });
+
+  it('marks an oversized candidate TOKEN_BUDGET and still selects a smaller one that fits after it', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const oversized = makeCandidate({
+      chunk: makeChunk({ id: 'oversized', filePath: 'src/big.ts', tokenCount: 100 }),
+      semanticScore: 0.9,
+    });
+    const smaller = makeCandidate({
+      chunk: makeChunk({ id: 'smaller', filePath: 'src/small.ts', tokenCount: 5 }),
+      semanticScore: 0.5,
+    });
+
+    const context = builder.build(
+      {
+        targetChunks: [makeChunk({ tokenCount: 10 })],
+        candidates: [smaller, oversized],
+      },
+      target,
+      { framework: null },
+      { minimumScore: 0, topK: 10, maxContextTokens: 15 },
+    );
+
+    expect(
+      context.audit?.candidates.map(
+        ({ chunkId, rank, decision, discardReason }) => [
+          chunkId,
+          rank,
+          decision,
+          discardReason,
+        ],
+      ),
+    ).toEqual([
+      ['oversized', 1, 'DISCARDED', 'TOKEN_BUDGET'],
+      ['smaller', 2, 'SELECTED', null],
+    ]);
+    expect(context.relatedChunks.map((chunk) => chunk.filePath)).toEqual([
+      'src/small.ts',
+    ]);
+    expect(context.contextTokens).toBe(15);
+  });
 });
