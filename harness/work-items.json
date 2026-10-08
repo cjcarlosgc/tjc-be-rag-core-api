@@ -822,7 +822,7 @@
     {
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
