@@ -755,6 +755,8 @@ Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respue
 
 El inbox de preguntas también omite cualquier pregunta cuyo Run esté sin clasificar o corresponda a un PR anterior al binding. Al clasificarlo como anterior, las preguntas `PENDING` se obsoletan junto al Run.
 
+Las preguntas creadas antes de `INTEROP-2.7` (históricas) se devuelven con `scenarioKind: 'EXPECTED_RESULT'` y `scenarioKey: 'LEGACY'`.
+
 ```ts
 type FunctionalScope = 'PROJECT' | 'MODULE' | 'CLASS' | 'METHOD' | 'SYMBOL'
 type FunctionalQuestionStatus = 'PENDING' | 'ANSWERED' | 'OBSOLETE'
