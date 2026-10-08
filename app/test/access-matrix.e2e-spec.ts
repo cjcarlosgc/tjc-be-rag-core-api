@@ -221,6 +221,8 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       repositoryId: '100',
       repositoryName: REPO,
       prNumber: 1,
+      pullRequestCreatedAt: new Date(Date.now() + 60_000),
+      repositoryBindingEligible: true,
       prTitle: 't',
       baseRef: 'main',
       headRef: 'f',
