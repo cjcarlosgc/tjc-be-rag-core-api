@@ -338,7 +338,7 @@
       "id": "WI-CORE-007",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-READY",
       "priority": "P1",
       "sprint": "P2",
       "title": "Persistir diagnóstico detallado de fallos experimentales",
@@ -822,7 +822,7 @@
     {
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -906,7 +906,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-READY",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1103,7 +1103,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-READY",
       "priority": "P1",
       "sprint": "SMART V3",
       "caseIds": [],
