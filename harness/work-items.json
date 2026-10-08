@@ -1019,12 +1019,12 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-READY",
+      "status": "W-SELECTED",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
       "contractImpact": true,
-      "publishesContract": false,
+      "publishesContract": true,
       "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
       "id": "WI-CORE-020",
       "title": "Varias reglas ACTIVE por target con scenarioKey",
@@ -1051,6 +1051,22 @@
         "spec/features/013-pr-driven-analysis/tasks.md",
         "spec/contracts/interoperability-contract.md",
         "spec/contracts/system-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo diferencia reglas de Functional Knowledge por scenarioKey.",
+          "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
+        }
       ]
     },
     {
