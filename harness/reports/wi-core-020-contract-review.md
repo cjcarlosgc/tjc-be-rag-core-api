@@ -28,3 +28,32 @@ Ninguno.
 
 ## Evidencia
 git show 5ffcdee, git show 2f4ef6a, interoperability-contract.md §6.11 (749-862), system-contract.md DEC-FK-001/003/004 (364-386), outbox CS-CORE-20261008-001/002.
+
+---
+
+## Revisión tras DEC-FK-005
+
+Modelo: contract-reviewer · claude-sonnet-5-5 · effort low
+
+Alcance: 42e214a (migración 20261008150000 + preflight + validación), 0c9965e (spec/CHANGELOG), CS-CORE-20261008-005/006/007.
+
+### Resultado: APPROVED_WITH_NOTES
+
+### Verificaciones
+1. Sin cambio contractual: desde 2b0e89a el único cambio en `app/src` es `functional-knowledge-scenarios-migration.spec.ts` (prueba estática); INTEROP-2.7 y schema.prisma sin diff. DTO, rutas, enums, errores, auth y forma del 409 intactos. El 409 sigue siendo exclusivo del runtime (SUPERSEDE/KEEP_EXISTING); la migración falla con RAISE EXCEPTION, que no es una respuesta HTTP.
+2. Contract Sync:
+   - 005 (console, scopePaths INTEROP): sin cambios, sourceRevision 2f4ef6a, sigue válido.
+   - 006: no alterado tras 547c6a3 (git log); sourceRevision 2b0e89a, targets [console, github-integration], scopePaths SYSTEM+INTEROP.
+   - 007: documental, breaking false, targets [console, github-integration] correcto (ambos espejan SYSTEM), scopePaths [system-contract.md] correcto (INTEROP no cambió desde 2b0e89a), sourceRevision 0c9965e (verificado, es el commit que cierra DEC-FK-005). Declara que prevalece sobre la revisión SYSTEM de 006.
+   - Espejo: SYSTEM de 0c9965e es la revisión canónica vigente (system-contract.md sin cambios posteriores). INTEROP se refresca desde 006 (2b0e89a), idéntico al HEAD.
+3. Consistencia: system-contract DEC-FK-005, plan.md (línea 38) y CHANGELOG coinciden con la migración: aborta sin tocar status, listado ordenado por projectId, scope, targetKey, scenarioKey (ids por createdAt, id), re-ejecutable (IF NOT EXISTS), índice solo sin duplicados, preflight de solo lectura con mismo formato/orden (scenarioKey fijo LEGACY pre-migración). Desapareció la frase obsoleta de «DROP COLUMN no revierte SUPERSEDED».
+
+### Findings (menores)
+- Si 006 y 007 se importan en orden inverso, el espejo SYSTEM quedaría en 2b0e89a con DEC-FK-005 PENDING; 007 ya indica que prevalece. Acción: ninguna, solo cuidar el orden o importar 007 último.
+- 007 declara «sustituye en la práctica» a 006 sin cambiar su status; es aceptable (006 sigue vigente para INTEROP).
+
+### Blockers
+Ninguno.
+
+### Evidencia
+git show 42e214a/0c9965e/ecb62db; git diff 2b0e89a HEAD -- INTEROP/app/src/schema; git log del outbox 006; migration.sql y preflight leídos; outbox 005/006/007.

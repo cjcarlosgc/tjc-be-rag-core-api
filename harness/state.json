@@ -3524,7 +3524,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/features/013-pr-driven-analysis/spec.md",
       "spec/features/013-pr-driven-analysis/plan.md",
@@ -3687,20 +3687,89 @@
             "servedModel": "unknown",
             "effort": "medium"
           }
+        },
+        {
+          "agent": "implementer-high",
+          "status": "APPROVED",
+          "findings": [
+            "Migracion 20261008150000 reescrita segun DEC-FK-005: backfill LEGACY, aborta con RAISE EXCEPTION y listado ordenado sin tocar status, indice unico parcial solo sin duplicados, re-ejecutable.",
+            "Preflight de solo lectura y script de validacion; 30 PASS en 6 escenarios sobre PostgreSQL 14 local desechable (sin Docker; no pg16 ni pgvector).",
+            "Commit 42e214a (trailer corregido a Sonnet 5.5 por el leader)."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/prisma/migrations/20261008150000_functional_knowledge_scenarios/migration.sql",
+            "app/prisma/preflight",
+            "app/prisma/validation",
+            "app/src/prisma/functional-knowledge-scenarios-migration.spec.ts"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-020-implementation.md"
+          ],
+          "recommendedNextStep": "Contract review y revision humana.",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          }
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Sin cambio de DTO/rutas/enums/errores/auth; 409 intacto.",
+            "CS-005/006/007 coherentes; importar 007 al final para que prevalezca el espejo SYSTEM.",
+            "DEC-FK-005 en spec/plan/CHANGELOG coincide con migracion y preflight."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-020-contract-review.md"
+          ],
+          "recommendedNextStep": "Revision humana del diff y la evidencia.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        },
+        {
+          "agent": "leader",
+          "status": "APPROVED",
+          "findings": [
+            "Verificados diff, trailer, validate-harness, lint, test (1337), build y e2e (222) con URL inalcanzable.",
+            "Riesgos abiertos para el usuario antes de desplegar: A) duplicados historicos sin pregunta PENDING no resolubles por la API; B) transaccionalidad/P3009 en Prisma 7.10.0 sin verificar; C) validacion en PG14, no pg16/pgvector."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-020-implementation.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-020-implementation.md"
+          ],
+          "recommendedNextStep": "Human Reviewer decide; resolver A-C antes de desplegar.",
+          "executedBy": {
+            "agent": "leader",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
         }
       ],
-      "reviewCycles": 1,
+      "reviewCycles": 2,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
       "canonicalContractSynced": "G-PASSED",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -3770,10 +3839,53 @@
             "CS-20260921-003"
           ],
           "checkedAt": "2026-10-08T21:59:40.390Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-020",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-08T22:29:50.334Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-020",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-08T22:29:53.336Z"
         }
       ],
       "publishedSyncIds": [
         "CS-CORE-20261008-005",
+        "CS-CORE-20261008-006",
         "CS-CORE-20261008-007"
       ],
       "pendingRelevantSyncIds": []
