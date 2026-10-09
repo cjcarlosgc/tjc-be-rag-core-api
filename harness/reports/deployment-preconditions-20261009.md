@@ -30,3 +30,11 @@ Valor que reflejaría la evidencia en `LLM_SUPPORTED_COMBINATIONS`:
 `[{"model":"gpt-6-luna","efforts":["none","low","medium","high","xhigh"],"toolEfforts":["none"]}]`
 
 **Consecuencia:** el brazo del agente generalista usa herramientas, así que con `/v1/chat/completions` solo puede correr a `none`; como los dos brazos deben compartir configuración, el esfuerzo común máximo del experimento es `none`. Para esfuerzos mayores con herramientas haría falta el endpoint `/v1/responses` (cambio de diseño del proveedor, no de configuración). No se modificó `app/.env`.
+
+## 3. Verificación ampliada del endpoint (2026-10-09, mismas llamadas mínimas)
+
+**`/v1/responses` con herramienta y `gpt-6-luna`:** `none`, `low`, `medium`, `high` y `xhigh` aceptados (status `completed`). Es decir, el modelo sí admite razonamiento con herramientas, pero solo por Responses.
+
+**`/v1/chat/completions` con herramienta y `reasoning_effort=low`:** `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.5`, `gpt-5.4`, `gpt-6-sol` y `gpt-6-luna` → 400 con el mismo mensaje («use /v1/responses or set reasoning_effort to 'none'»); `o4-mini` → aceptado. Sin herramientas, todos aceptan `low`. `gpt-5`, `gpt-5-mini` y variantes: 404 (organización sin verificar o modelo obsoleto), no concluyente.
+
+**Conclusión:** no es una diferencia entre versiones 5.x y 6.x, sino una restricción del endpoint para los modelos recientes; solo la serie `o` antigua acepta herramientas con esfuerzo en `chat/completions`. El proyecto ya la había encontrado el 2026-09-07 (commit `0bb9278`, que fuerza `reasoning_effort: 'none'` en la llamada con herramientas del agente generalista). `OpenAiLLMProvider` usa `chat.completions` desde su primer commit (`38011c5`, 2026-09-06), con `gpt-4o-mini` como modelo por defecto, donde la restricción no aplica; `/v1/responses` nunca se evaluó.
