@@ -51,3 +51,5 @@ POST 202 crea estado persistido antes de despachar. Prohibido fire-and-forget in
 3. Los tipos no aprobados en `DEC-JOBS-001` (`snapshot-analysis`, `functional-continuation`, `analysis-run-validation`, `test-publication`) siguen sin liberarse (prueba negativa por tipo).
 4. H3 y H4 con pruebas.
 5. Sin migración y sin cambio de contrato (`contractImpact=false`); lint, test y build en verde.
+
+> Enmienda (2026-10-09, `DEC-RC-002`, aprobada por el usuario): `RELEASABLE_UNKEYED_JOB_TYPES` pasa de `['experiment-run']` a `['experiment-run', 'retrieval-comparison']` en `WI-CORE-022`; el handler de comparación de retrieval es idempotente y de solo lectura, y su `onExhausted` cierra la comparación `FAILED` con `RETRIEVAL_COMPARISON_WORKER_LOST`. `snapshot-analysis`, `functional-continuation`, `analysis-run-validation` y `test-publication` siguen sin liberarse.
