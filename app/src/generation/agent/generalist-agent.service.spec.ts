@@ -419,4 +419,171 @@ describe('GeneralistAgentService', () => {
       code: ErrorCode.LLM_PROVIDER_UNAVAILABLE,
     });
   });
+
+  describe('ítems de razonamiento del proveedor (WI-CORE-031)', () => {
+    const ENCRYPTED = 'ENCRYPTED-REASONING-BLOB-7731';
+    const REASONING_ID = 'rs_secret_1';
+
+    /** Turno con razonamiento cifrado, mensaje opcional y una o varias llamadas a función. */
+    function reasoningTurn(
+      toolCalls: Array<{ id: string; name: string; arguments: string }>,
+      options: { content?: string; encrypted?: string } = {},
+    ) {
+      const content = options.content ?? '';
+      const providerItems = [
+        {
+          type: 'reasoning',
+          id: REASONING_ID,
+          summary: [],
+          encrypted_content: options.encrypted ?? ENCRYPTED,
+        },
+        ...(content.length > 0
+          ? [
+              {
+                type: 'message',
+                id: 'msg_1',
+                role: 'assistant',
+                status: 'completed',
+                content: [{ type: 'output_text', text: content, annotations: [] }],
+              },
+            ]
+          : []),
+        ...toolCalls.map((call) => ({
+          type: 'function_call',
+          id: `fc_${call.id}`,
+          call_id: call.id,
+          name: call.name,
+          arguments: call.arguments,
+          status: 'completed',
+        })),
+      ];
+      return {
+        content,
+        toolCalls,
+        assistantMessage: {
+          role: 'assistant',
+          content: content.length > 0 ? content : null,
+          toolCalls,
+          providerItems,
+        },
+        inputTokens: 1,
+        outputTokens: 1,
+      };
+    }
+
+    it('keeps providerItems in memory and forwards them unchanged in the next call', async () => {
+      const provider = makeProvider();
+      const first = reasoningTurn([{ id: 'c1', name: 'list_files', arguments: '{}' }]);
+      provider.generateWithTools
+        .mockResolvedValueOnce(first)
+        .mockResolvedValueOnce(finalResponse('done'));
+
+      const service = new GeneralistAgentService(provider as never);
+      await service.generate('prompt', makeTools(async () => 'src/a.ts'), limits(5), config);
+
+      const sent = provider.generateWithTools.mock.calls[1][0] as Array<{ role: string; providerItems?: unknown[] }>;
+      const assistant = sent.find((message) => message.role === 'assistant');
+      expect(assistant?.providerItems).toBe(first.assistantMessage.providerItems);
+    });
+
+    it('never exposes providerItems, encrypted reasoning or reasoning ids in the result, trajectory or callbacks', async () => {
+      const provider = makeProvider();
+      provider.generateWithTools
+        .mockResolvedValueOnce(reasoningTurn([{ id: 'c1', name: 'search_text', arguments: '{"query":"a"}' }], { content: 'busco' }))
+        .mockResolvedValueOnce(reasoningTurn([], { content: 'respuesta final' }));
+
+      const callback = vi.fn();
+      const service = new GeneralistAgentService(provider as never);
+      const result = await service.generate(
+        'prompt',
+        makeTools(async () => 'a.ts:1: a'),
+        limits(5),
+        config,
+        callback,
+      );
+
+      const serialized = JSON.stringify({ result, events: callback.mock.calls });
+      expect(serialized).not.toContain(ENCRYPTED);
+      expect(serialized).not.toContain(REASONING_ID);
+      expect(serialized).not.toContain('providerItems');
+      expect(result.content).toBe('respuesta final');
+    });
+
+    it('answers every function_call of a turn that mixes a message, including the ones over the cap', async () => {
+      const provider = makeProvider();
+      provider.generateWithTools
+        .mockResolvedValueOnce(
+          reasoningTurn(
+            [
+              { id: 'c1', name: 'search_text', arguments: '{"query":"a"}' },
+              { id: 'c2', name: 'read_file', arguments: '{"relativePath":"src/x.ts"}' },
+              { id: 'c3', name: 'search_text', arguments: '{"query":"b"}' },
+            ],
+            { content: 'busco en paralelo' },
+          ),
+        )
+        .mockResolvedValueOnce(finalResponse('final'));
+      const dispatch = vi.fn(async (name: string, args: Record<string, unknown>) => `res-${String(args.query ?? args.relativePath)}`);
+
+      const service = new GeneralistAgentService(provider as never);
+      const result = await service.generate('prompt', makeTools(dispatch), limits(2), config);
+
+      expect(dispatch).toHaveBeenCalledTimes(2);
+      expect(result.toolCallCount).toBe(2);
+      const sent = provider.generateWithTools.mock.calls[1][0] as Array<{ role: string; toolCallId?: string }>;
+      expect(sent.filter((message) => message.role === 'tool').map((message) => message.toolCallId)).toEqual([
+        'c1',
+        'c2',
+        'c3',
+      ]);
+      expect(toolMessages(provider.generateWithTools.mock.calls[1])).toEqual([
+        'res-a',
+        'res-src/x.ts',
+        TOOL_CAP_MESSAGE,
+      ]);
+    });
+
+    it('does not count encrypted reasoning items against the context token budget', async () => {
+      const provider = makeProvider();
+      const hugeEncrypted = 'Z'.repeat(60_000);
+      provider.generateWithTools
+        .mockResolvedValueOnce(
+          reasoningTurn([{ id: 'c1', name: 'read_file', arguments: '{"relativePath":"src/x.ts"}' }], {
+            encrypted: hugeEncrypted,
+          }),
+        )
+        .mockResolvedValueOnce(finalResponse('done'));
+      const deliveredText = 'algun texto de resultado';
+
+      const service = new GeneralistAgentService(provider as never);
+      const result = await service.generate(
+        'prompt',
+        makeTools(async () => deliveredText),
+        limits(5, countTokens(deliveredText)),
+        config,
+      );
+
+      expect(result.trajectory[0]).toMatchObject({ truncated: false, truncationReason: null, contextTokens: countTokens(deliveredText) });
+      expect(result.contextTokensDelivered).toBe(countTokens(deliveredText));
+      expect(result.truncatedSteps).toBe(0);
+      expect(toolMessages(provider.generateWithTools.mock.calls[1])).toEqual([deliveredText]);
+    });
+
+    it('sends the final call without tools, with the same config, after reasoning turns', async () => {
+      const provider = makeProvider();
+      provider.generateWithTools
+        .mockResolvedValueOnce(reasoningTurn([{ id: 'c1', name: 'list_files', arguments: '{}' }]))
+        .mockResolvedValueOnce(finalResponse('forced'));
+
+      const service = new GeneralistAgentService(provider as never);
+      const result = await service.generate('prompt', makeTools(async () => 'src/a.ts'), limits(1), config);
+
+      expect(result).toMatchObject({ content: 'forced', capReached: true });
+      const [messages, tools, sentConfig] = provider.generateWithTools.mock.calls[1];
+      expect(tools).toEqual([]);
+      expect(sentConfig).toBe(config);
+      expect(messages.some((message: { providerItems?: unknown[] }) => message.providerItems !== undefined)).toBe(true);
+      expect(messages.at(-1).content).toContain('límite de herramientas');
+    });
+  });
 });
