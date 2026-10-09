@@ -166,3 +166,71 @@ describe('RetrievalService', () => {
     expect(result.candidates).toEqual([]);
   });
 });
+
+describe('RetrievalService modes (WI-CORE-022)', () => {
+  const anchor = makeChunk({ id: 'anchor', filePath: 'src/service.ts', importsUsed: ['./helper.js'] });
+  const helper = makeChunk({ id: 'helper', filePath: 'src/helper.ts', symbolName: 'help' });
+  const semanticOther = makeChunk({ id: 'other', filePath: 'src/other.ts', symbolName: 'other' });
+  const target = { filePath: 'src/service.ts', symbolName: 'foo', methodName: null, targetType: 'FUNCTION' as const };
+
+  function makeRepository() {
+    return {
+      findBySymbol: vi.fn().mockResolvedValue([anchor]),
+      findSimilarByEmbedding: vi.fn().mockResolvedValue([
+        { ...helper, semanticScore: 0.6 },
+        { ...semanticOther, semanticScore: 0.9 },
+      ]),
+      findByProjectVersion: vi.fn().mockResolvedValue([anchor, helper, semanticOther]),
+    };
+  }
+
+  it('uses SE when no mode is given, with the same candidates as an explicit SE', async () => {
+    const defaultRepository = makeRepository();
+    const explicitRepository = makeRepository();
+    const defaultResult = await new RetrievalService(defaultRepository as never).retrieve('version-1', target);
+    const explicitResult = await new RetrievalService(explicitRepository as never).retrieve('version-1', target, 20, 'SE');
+
+    expect(explicitResult).toEqual(defaultResult);
+    expect(defaultResult.candidates.map((candidate) => [candidate.chunk.id, candidate.semanticScore, candidate.structuralMatch])).toEqual([
+      ['helper', 0.6, 'IMPORTS'],
+      ['other', 0.9, null],
+    ]);
+    expect(defaultRepository.findByProjectVersion).toHaveBeenCalledTimes(1);
+  });
+
+  it('SEM returns only semantic candidates with no structural match and does not read project chunks', async () => {
+    const repository = makeRepository();
+    const result = await new RetrievalService(repository as never).retrieve('version-1', target, 20, 'SEM');
+
+    expect(result.candidates.map((candidate) => [candidate.chunk.id, candidate.semanticScore, candidate.structuralMatch])).toEqual([
+      ['helper', 0.6, null],
+      ['other', 0.9, null],
+    ]);
+    expect(repository.findByProjectVersion).not.toHaveBeenCalled();
+    expect(repository.findSimilarByEmbedding).toHaveBeenCalledWith('version-1', 'anchor', 20);
+  });
+
+  it('SEM semantic candidates equal the semantic subset of SE for the same anchor', async () => {
+    const se = await new RetrievalService(makeRepository() as never).retrieve('version-1', target, 20, 'SE');
+    const sem = await new RetrievalService(makeRepository() as never).retrieve('version-1', target, 20, 'SEM');
+    const semanticSubsetOfSe = se.candidates
+      .filter((candidate) => candidate.semanticScore !== null)
+      .map((candidate) => candidate.chunk.id)
+      .sort();
+
+    expect(sem.candidates.map((candidate) => candidate.chunk.id).sort()).toEqual(semanticSubsetOfSe);
+  });
+
+  it('SEM still throws UNRESOLVABLE_TARGET when the symbol has no chunk', async () => {
+    const service = new RetrievalService({
+      findBySymbol: vi.fn().mockResolvedValue([]),
+      findSimilarByEmbedding: vi.fn(),
+      findByProjectVersion: vi.fn(),
+    } as never);
+
+    await expect(service.retrieve('version-1', target, 20, 'SEM')).rejects.toMatchObject({
+      code: ErrorCode.UNRESOLVABLE_TARGET,
+    });
+  });
+});
+

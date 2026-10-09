@@ -463,3 +463,37 @@ describe('ContextBuilder functional rules (WI-CORE-021)', () => {
     expect(context.audit?.functionalRules).toEqual({ retrieved: 0, selected: 0, tokenCount: 0, omitted: [] });
   });
 });
+
+describe('ContextBuilder scoring API (WI-CORE-022)', () => {
+  it('resolveWeights uses 0.7/0.3 by default, env values when set, and explicit options first', () => {
+    const defaults = new ContextBuilder(makeConfigService());
+    const fromEnv = new ContextBuilder(
+      makeConfigService({ RETRIEVAL_SEMANTIC_WEIGHT: 0.5, RETRIEVAL_STRUCTURAL_WEIGHT: 0.5 }),
+    );
+
+    expect(defaults.resolveWeights()).toEqual({ semanticWeight: 0.7, structuralWeight: 0.3 });
+    expect(fromEnv.resolveWeights()).toEqual({ semanticWeight: 0.5, structuralWeight: 0.5 });
+    expect(fromEnv.resolveWeights({ semanticWeight: 0.1 })).toEqual({ semanticWeight: 0.1, structuralWeight: 0.5 });
+  });
+
+  it('scoreCandidate applies the product formula and the same score build() reports', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const weights = builder.resolveWeights();
+
+    expect(builder.scoreCandidate(weights, 0.9, null)).toBeCloseTo(0.63);
+    expect(builder.scoreCandidate(weights, null, 'IMPORTS')).toBeCloseTo(0.3);
+    expect(builder.scoreCandidate(weights, 0.5, 'IMPORTED_BY')).toBeCloseTo(0.65);
+
+    const context = builder.build(
+      {
+        targetChunks: [makeChunk({ tokenCount: 1 })],
+        candidates: [makeCandidate({ chunk: makeChunk({ id: 'c', tokenCount: 1 }), semanticScore: 0.5, structuralMatch: 'IMPORTED_BY' })],
+      },
+      target,
+      { framework: null },
+    );
+
+    expect(context.relatedChunks[0].score).toBeCloseTo(builder.scoreCandidate(weights, 0.5, 'IMPORTED_BY'));
+  });
+});
+

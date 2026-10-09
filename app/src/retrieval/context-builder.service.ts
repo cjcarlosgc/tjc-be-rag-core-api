@@ -29,6 +29,12 @@ interface ResolvedConfig {
   structuralWeight: number;
 }
 
+/** Pesos del score combinado `semanticWeight·semántico + structuralWeight·estructural` (WI-CORE-022). */
+export interface ScoringWeights {
+  semanticWeight: number;
+  structuralWeight: number;
+}
+
 const DEFAULT_MINIMUM_SCORE = 0;
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SEMANTIC_WEIGHT = 0.7;
@@ -56,11 +62,11 @@ export class ContextBuilder {
 
     const ranked = result.candidates
       .map((candidate) => {
-        const semantic = candidate.semanticScore ?? 0;
-        const structuralBoost = candidate.structuralMatch ? 1 : 0;
-        const score =
-          config.semanticWeight * semantic +
-          config.structuralWeight * structuralBoost;
+        const score = this.scoreCandidate(
+          config,
+          candidate.semanticScore,
+          candidate.structuralMatch,
+        );
         const matchedVia: ContextChunk['matchedVia'] = [];
 
         if (candidate.semanticScore !== null) {
@@ -217,6 +223,34 @@ export class ContextBuilder {
     };
   }
 
+  /**
+   * Pesos vigentes del score combinado: los de `options` o, si faltan, `RETRIEVAL_SEMANTIC_WEIGHT` y
+   * `RETRIEVAL_STRUCTURAL_WEIGHT` (defecto 0.7 / 0.3). API pública para la comparación de retrieval;
+   * no cambia el orden ni la traza del producto.
+   */
+  resolveWeights(options: Pick<ContextBuilderOptions, 'semanticWeight' | 'structuralWeight'> = {}): ScoringWeights {
+    return {
+      semanticWeight:
+        options.semanticWeight ??
+        this.configService.get<number>('RETRIEVAL_SEMANTIC_WEIGHT', DEFAULT_SEMANTIC_WEIGHT),
+      structuralWeight:
+        options.structuralWeight ??
+        this.configService.get<number>('RETRIEVAL_STRUCTURAL_WEIGHT', DEFAULT_STRUCTURAL_WEIGHT),
+    };
+  }
+
+  /** Score combinado de un candidato con la fórmula del producto. Sin estructural, el boost es 0. */
+  scoreCandidate(
+    weights: ScoringWeights,
+    semanticScore: number | null,
+    structuralMatch: StructuralMatch | null,
+  ): number {
+    const semantic = semanticScore ?? 0;
+    const structuralBoost = structuralMatch ? 1 : 0;
+
+    return weights.semanticWeight * semantic + weights.structuralWeight * structuralBoost;
+  }
+
   private resolveConfig(options: ContextBuilderOptions): ResolvedConfig {
     return {
       minimumScore:
@@ -234,18 +268,7 @@ export class ContextBuilder {
           'RETRIEVAL_MAX_CONTEXT_TOKENS',
           DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
         ),
-      semanticWeight:
-        options.semanticWeight ??
-        this.configService.get<number>(
-          'RETRIEVAL_SEMANTIC_WEIGHT',
-          DEFAULT_SEMANTIC_WEIGHT,
-        ),
-      structuralWeight:
-        options.structuralWeight ??
-        this.configService.get<number>(
-          'RETRIEVAL_STRUCTURAL_WEIGHT',
-          DEFAULT_STRUCTURAL_WEIGHT,
-        ),
+      ...this.resolveWeights(options),
     };
   }
 }

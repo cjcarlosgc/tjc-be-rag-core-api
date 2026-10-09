@@ -17,6 +17,13 @@ export interface RetrievalResult {
   candidates: RetrievalCandidate[];
 }
 
+/**
+ * Modo de recuperación (WI-CORE-022, INTEROP-2.7 §6.15). `SE` es el producto: candidatos semánticos
+ * unidos con los estructurales. `SEM` es solo semántico: sin relaciones estructurales ni consulta de
+ * chunks del proyecto. Sin argumento se usa `SE`, así el flujo del producto no cambia.
+ */
+export type RetrievalMode = 'SE' | 'SEM';
+
 const SOURCE_EXTENSION_PATTERN = /\.(tsx?|jsx?|mjs|cjs)$/;
 
 function stripExtension(filePath: string): string {
@@ -49,6 +56,7 @@ export class RetrievalService {
     projectVersionId: string,
     target: RetrievalTarget,
     vectorTopK = 20,
+    mode: RetrievalMode = 'SE',
   ): Promise<RetrievalResult> {
     const symbolKind = target.targetType === 'METHOD' ? 'METHOD' : 'FUNCTION';
     const symbolName = target.targetType === 'METHOD' ? (target.methodName ?? '') : target.symbolName;
@@ -71,12 +79,30 @@ export class RetrievalService {
     }
 
     const anchor = targetChunks[0];
+    const candidatesById = new Map<string, RetrievalCandidate>();
+
+    if (mode === 'SEM') {
+      const semanticCandidates = await this.codeChunksRepository.findSimilarByEmbedding(
+        projectVersionId,
+        anchor.id,
+        vectorTopK,
+      );
+
+      for (const chunk of semanticCandidates) {
+        if (isSameSymbol(chunk, anchor)) {
+          continue;
+        }
+
+        candidatesById.set(chunk.id, { chunk, semanticScore: chunk.semanticScore, structuralMatch: null });
+      }
+
+      return { targetChunks, candidates: [...candidatesById.values()] };
+    }
+
     const [semanticCandidates, allChunks] = await Promise.all([
       this.codeChunksRepository.findSimilarByEmbedding(projectVersionId, anchor.id, vectorTopK),
       this.codeChunksRepository.findByProjectVersion(projectVersionId),
     ]);
-
-    const candidatesById = new Map<string, RetrievalCandidate>();
 
     for (const chunk of semanticCandidates) {
       if (isSameSymbol(chunk, anchor)) {

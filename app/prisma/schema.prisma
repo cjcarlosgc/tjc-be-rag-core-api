@@ -92,6 +92,19 @@ enum ExperimentStatus {
   FAILED
 }
 
+enum RetrievalComparisonStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// WI-CORE-022 (INTEROP-2.7 §6.15): SE = modo del producto (semántico + estructural); SEM = solo semántico.
+enum RetrievalMode {
+  SE
+  SEM
+}
+
 enum ExperimentStrategy {
   RAG
   GENERALIST_AGENT
@@ -228,6 +241,7 @@ model Project {
   versions            ProjectVersion[]      @relation("ProjectVersions")
   testGenerationRuns  TestGenerationRun[]
   experimentRuns      ExperimentRun[]
+  retrievalComparisons RetrievalComparison[]
   repositoryBinding   RepositoryBinding?
   analysisRuns        AnalysisRun[]
   functionalQuestions FunctionalQuestion[]
@@ -325,6 +339,7 @@ model AnalysisRun {
   projectVersionId            String?
   projectVersion              ProjectVersion?         @relation(fields: [projectVersionId], references: [id])
   symbols                     AnalysisSymbol[]
+  retrievalComparisons        RetrievalComparison[]
   functionalQuestions         FunctionalQuestion[]
   generatedTestProposals      GeneratedTestProposal[]
   testPublications            TestPublication[]
@@ -569,6 +584,7 @@ model ProjectVersion {
   chunks            CodeChunk[]
   testTargets       TestTarget[]
   analysisRuns      AnalysisRun[]
+  retrievalComparisons RetrievalComparison[]
   contextTraces     ContextTrace[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
@@ -815,6 +831,51 @@ model DiscoveredFile {
   @@unique([contextTraceId, step, filePath])
   @@index([contextTraceId, step, id])
   @@map("discovered_files")
+}
+
+/// WI-CORE-022 (HU05, HU17; INTEROP-2.7 §6.15): comparación experimental SE vs SEM sobre un símbolo
+/// DIRECTLY_CHANGED de un AnalysisRun. Es solo retrieval: no altera el AnalysisRun ni invoca LLM.
+model RetrievalComparison {
+  id               String                    @id @default(uuid())
+  analysisRunId    String
+  analysisRun      AnalysisRun               @relation(fields: [analysisRunId], references: [id])
+  projectId        String
+  project          Project                   @relation(fields: [projectId], references: [id])
+  projectVersionId String
+  projectVersion   ProjectVersion            @relation(fields: [projectVersionId], references: [id])
+  /// Snapshot del símbolo (AnalysisSymbolResponse) tomado al crear: el resultado no depende de re-lecturas.
+  symbol           Json
+  /// Header Idempotency-Key tal como se recibió; la unicidad la garantiza IdempotencyRecord.
+  idempotencyKey   String?
+  status           RetrievalComparisonStatus @default(PENDING)
+  failureCode      String?
+  failureMessage   String?
+  /// Verdad de terreno externa y opcional: sin ella las métricas son null. Core nunca la inventa.
+  groundTruth      Json?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  results          RetrievalComparisonResult[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([analysisRunId, createdAt])
+  @@index([projectId])
+  @@map("retrieval_comparisons")
+}
+
+/// WI-CORE-022: resultado de un modo (SE o SEM) de una comparación. `id` es el `retrievalId` de §6.15.
+model RetrievalComparisonResult {
+  id           String              @id @default(uuid())
+  comparisonId String
+  comparison   RetrievalComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+  mode         RetrievalMode
+  config       Json
+  candidates   Json
+  metrics      Json?
+  createdAt    DateTime            @default(now())
+
+  @@unique([comparisonId, mode])
+  @@map("retrieval_comparison_results")
 }
 
 model Job {
