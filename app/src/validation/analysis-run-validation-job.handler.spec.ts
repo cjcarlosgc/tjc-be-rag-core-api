@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunValidationJobHandler } from './analysis-run-validation-job.handler.js';
-import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import { SandboxAcceptedExecutionError, SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import { countFunctionalRuleTokens } from '../retrieval/functional-rule-format.js';
@@ -25,6 +25,7 @@ function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
     headSha: 'head-sha',
     status: 'PROCESSING',
     projectVersionId: 'version-1',
+    attemptCount: 0,
     ...overrides,
   } as AnalysisRun;
 }
@@ -80,12 +81,16 @@ function buildGenerationContext(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function sandboxResult(overrides: Partial<{ status: string; facts: unknown; failure: unknown }> = {}) {
+function sandboxResult(
+  overrides: Partial<{ status: string; facts: unknown; failure: unknown; executionId: string; executionProfile: string }> = {},
+) {
   return {
     status: 'COMPLETED',
     facts: { runner: 'JEST', compiled: true, executed: true, passed: true, totalTests: 1, passedTests: 1, failedTests: 0, skippedTests: 0, testCases: [], testCasesTruncated: false },
     failure: null,
     stageDurations: [],
+    executionId: 'exec-1',
+    executionProfile: 'NODE_TYPESCRIPT',
     ...overrides,
   };
 }
@@ -129,10 +134,11 @@ describe('AnalysisRunValidationJobHandler', () => {
     };
     const sandboxExecutionService = { execute: vi.fn().mockResolvedValue(sandboxResult()) };
     const objectStorageService = { put: vi.fn().mockResolvedValue(undefined) };
-    const generatedTestProposalsRepository = { create: vi.fn().mockResolvedValue({ id: 'proposal-1' }) };
+    const generatedTestProposalsRepository = { upsertForSymbol: vi.fn().mockResolvedValue({ id: 'proposal-1' }) };
     const analysisTraceRepository = {
       upsertRetrieval: vi.fn().mockResolvedValue({ id: 'retrieval-1' }),
       upsertContext: vi.fn().mockResolvedValue({ id: 'context-1' }),
+      upsertExecution: vi.fn().mockResolvedValue({ id: 'execution-1' }),
     };
     const llmProvider = { generate: vi.fn().mockResolvedValue({ content: 'test content', inputTokens: 10, outputTokens: 20 }) };
     const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
@@ -302,7 +308,7 @@ describe('AnalysisRunValidationJobHandler', () => {
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
     expect(llmProvider.generate).not.toHaveBeenCalled();
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+    expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'HELD', failureSummary: expect.stringContaining('framework') }),
     );
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
@@ -321,7 +327,7 @@ describe('AnalysisRunValidationJobHandler', () => {
     expect(sandboxExecutionService.execute).toHaveBeenCalledWith(
       expect.objectContaining({ scope: 'TARGET', targetIds: ['symbol-1'], runnerHint: 'JEST' }),
     );
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+    expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'AVAILABLE', qualifiedName: 'Thing.doIt' }),
     );
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
@@ -344,7 +350,7 @@ describe('AnalysisRunValidationJobHandler', () => {
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+    expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'HELD', failureSummary: 'expected true, got false' }),
     );
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
@@ -377,7 +383,7 @@ describe('AnalysisRunValidationJobHandler', () => {
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+    expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'HELD', failureSummary: 'Sandbox no disponible.' }),
     );
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
@@ -460,6 +466,94 @@ describe('AnalysisRunValidationJobHandler', () => {
     );
   });
 
+  describe('ejecuciones del Sandbox y propuestas por símbolo (WI-CORE-026, corte B)', () => {
+    it('upserts the proposal by symbol and records the accepted execution with the attempt of the run', async () => {
+      const { handler, generatedTestProposalsRepository, analysisTraceRepository } = await setup();
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ analysisRunId: 'run-1', analysisSymbolId: 'symbol-1', status: 'AVAILABLE', failureSummary: null }),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith({
+        analysisRunId: 'run-1',
+        proposalId: 'proposal-1',
+        executionId: 'exec-1',
+        attempt: 1,
+        executionProfile: 'NODE_TYPESCRIPT',
+        outcome: 'SUCCESS',
+      });
+    });
+
+    it('numbers the attempt after the continuations of the run (attemptCount + 1)', async () => {
+      const context = await setup();
+      context.analysisRunsRepository.findById.mockResolvedValue(buildRun({ attemptCount: 1 }));
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ attempt: 2, executionId: 'exec-1' }),
+      );
+    });
+
+    it('records a BEHAVIORAL_MISMATCH execution with the Run vocabulary for a failing assertion', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } = await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: { runner: 'JEST', compiled: true, executed: true, passed: false, totalTests: 1, passedTests: 0, failedTests: 1, skippedTests: 0, testCases: [], testCasesTruncated: false },
+          executionId: 'exec-assert',
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ proposalId: 'proposal-1', executionId: 'exec-assert', outcome: 'BEHAVIORAL_MISMATCH' }),
+      );
+    });
+
+    it('keeps the executionId of an accepted execution that failed afterwards and holds its proposal', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository, generatedTestProposalsRepository } = await setup();
+      sandboxExecutionService.execute.mockRejectedValue(
+        new SandboxAcceptedExecutionError('La ejecución exec-9 no terminó.', 'exec-9', 'NODE_TYPESCRIPT'),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', failureSummary: 'La ejecución exec-9 no terminó.' }),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith({
+        analysisRunId: 'run-1',
+        proposalId: 'proposal-1',
+        executionId: 'exec-9',
+        attempt: 1,
+        executionProfile: 'NODE_TYPESCRIPT',
+        outcome: 'TECHNICAL_GENERATION_FAILURE',
+      });
+    });
+
+    it('records no execution when the Sandbox never accepted the request', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } = await setup();
+      sandboxExecutionService.execute.mockRejectedValue(new SandboxUnavailableError('Sandbox no disponible.'));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).not.toHaveBeenCalled();
+    });
+
+    it('records no execution for a symbol that already has a test, so its executions are NOT_APPLICABLE', async () => {
+      const { handler, testTargetsRepository, analysisTraceRepository } = await setup();
+      testTargetsRepository.findByProjectVersion.mockResolvedValue([
+        { id: 'target-1', projectVersionId: 'version-1', filePath: 'src/thing.ts', symbolName: 'Thing', methodName: 'doIt', targetType: 'METHOD', hasTest: true, testFilePaths: [] } as unknown as TestTarget,
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).not.toHaveBeenCalled();
+    });
+  });
+
   describe('trazas de retrieval y contexto (WI-CORE-026)', () => {
     const chunk = {
       id: 'chunk-target',
@@ -512,7 +606,7 @@ describe('AnalysisRunValidationJobHandler', () => {
           omittedFunctionalRules: [],
         }),
       );
-      expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'AVAILABLE', contextId: 'context-1' }),
       );
     });
@@ -536,7 +630,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       const context = await setup();
       const kept = { ...rule, knowledgeId: 'rule-kept' };
       // El presupuesto admite exactamente una regla: la segunda (mismo texto renderizado) queda omitida.
-      const budget = countFunctionalRuleTokens(kept);
+      const budget = countFunctionalRuleTokens(kept as never);
       const realBuilder = new ContextBuilder({
         get: (key: string, fallback: unknown) => (key === 'RETRIEVAL_MAX_CONTEXT_TOKENS' ? budget : fallback),
       } as never);
@@ -544,7 +638,7 @@ describe('AnalysisRunValidationJobHandler', () => {
         (realBuilder.build as (...a: unknown[]) => unknown).apply(realBuilder, args),
       );
       context.retrievalService.retrieve.mockResolvedValue({ targetChunks: [{ ...chunk, tokenCount: 0 }], candidates: [] });
-      context.functionalRulesRetriever.retrieve.mockResolvedValue([kept, { ...rule, knowledgeId: 'rule-omitted' }]);
+      context.functionalRulesRetriever.retrieve.mockResolvedValue([kept, { ...rule, knowledgeId: 'rule-omitted' }] as never);
 
       await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
@@ -570,7 +664,7 @@ describe('AnalysisRunValidationJobHandler', () => {
 
       expect(analysisTraceRepository.upsertRetrieval).not.toHaveBeenCalled();
       expect(analysisTraceRepository.upsertContext).not.toHaveBeenCalled();
-      expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'HELD', contextId: null }),
       );
     });
@@ -581,7 +675,7 @@ describe('AnalysisRunValidationJobHandler', () => {
 
       await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
-      expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'HELD', contextId: 'context-1' }),
       );
     });

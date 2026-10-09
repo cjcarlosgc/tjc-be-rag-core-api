@@ -29,6 +29,23 @@ interface EphemeralDownloadRef {
 
 export class SandboxUnavailableError extends Error {}
 
+/**
+ * Fallo posterior a la aceptación del Sandbox (`POST /executions` ya respondió): conserva el
+ * `executionId` para que Core lo persista aunque la ejecución no llegue a un resultado (WI-CORE-026).
+ * Es un `SandboxUnavailableError`, así que los llamadores existentes no cambian de comportamiento.
+ */
+export class SandboxAcceptedExecutionError extends SandboxUnavailableError {
+  constructor(
+    message: string,
+    readonly executionId: string,
+    readonly executionProfile: ExecutionProfile,
+  ) {
+    super(message);
+  }
+}
+
+type SandboxExecutionOutcome = Omit<SandboxExecutionResult, 'executionId' | 'executionProfile'>;
+
 @Injectable()
 export class SandboxExecutionService {
   private readonly logger = new Logger(SandboxExecutionService.name);
@@ -68,6 +85,7 @@ export class SandboxExecutionService {
       })),
     );
 
+    const executionProfile = request.executionProfile ?? EXECUTION_PROFILE_BY_RUNNER[request.runnerHint];
     const body = {
       requestId,
       testRunId: request.testRunId,
@@ -76,7 +94,7 @@ export class SandboxExecutionService {
       artifacts,
       scope: request.scope,
       targetIds: request.targetIds,
-      executionProfile: request.executionProfile ?? EXECUTION_PROFILE_BY_RUNNER[request.runnerHint],
+      executionProfile,
       runnerHint: request.runnerHint,
     };
 
@@ -88,15 +106,21 @@ export class SandboxExecutionService {
       serviceToken,
     );
 
-    await this.pollUntilTerminal(
-      baseUrl,
-      accepted.executionId,
-      accepted.pollAfterMs,
-      correlationId,
-      serviceToken,
-    );
+    try {
+      await this.pollUntilTerminal(
+        baseUrl,
+        accepted.executionId,
+        accepted.pollAfterMs,
+        correlationId,
+        serviceToken,
+      );
 
-    return this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
+      const outcome = await this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
+      return { ...outcome, executionId: accepted.executionId, executionProfile };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Fallo desconocido tras aceptar la ejecución.';
+      throw new SandboxAcceptedExecutionError(message, accepted.executionId, executionProfile);
+    }
   }
 
   private async buildSnapshotRef(
@@ -173,7 +197,7 @@ export class SandboxExecutionService {
     executionId: string,
     correlationId: string,
     serviceToken: string,
-  ): Promise<SandboxExecutionResult> {
+  ): Promise<SandboxExecutionOutcome> {
     const result = await this.getJson<{
       status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
       facts: SandboxExecutionResult['facts'];

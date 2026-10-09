@@ -20,13 +20,13 @@ function makeFacts(overrides: Partial<SandboxExecutionResult['facts']> = {}) {
 
 describe('mapSandboxResult', () => {
   it('maps TIMED_OUT to FAILED/INFRASTRUCTURE', () => {
-    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [] });
+    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT' });
 
     expect(outcome).toMatchObject({ status: 'FAILED', valid: false, failureType: 'INFRASTRUCTURE' });
   });
 
   it('keeps the timeout text only as errorSummary and exposes no timeout flag in the outcome (WI-CORE-025 (1))', () => {
-    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [] });
+    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT' });
 
     expect(outcome.errorSummary).toBe(SANDBOX_TIMED_OUT_ERROR_SUMMARY);
     expect(Object.keys(outcome).sort()).toEqual(
@@ -40,13 +40,15 @@ describe('mapSandboxResult', () => {
       facts: null,
       failure: { stage: 'INSTALLING_DEPENDENCIES', category: 'DEPENDENCY', code: 'E1', message: 'npm install failed' },
       stageDurations: [],
+      executionId: 'exec-1',
+      executionProfile: 'NODE_TYPESCRIPT',
     });
 
     expect(outcome).toMatchObject({ status: 'FAILED', failureType: 'DEPENDENCY', errorSummary: 'npm install failed' });
   });
 
   it('maps a passing execution to VALID/NONE', () => {
-    const outcome = mapSandboxResult({ status: 'COMPLETED', facts: makeFacts(), failure: null, stageDurations: [] });
+    const outcome = mapSandboxResult({ status: 'COMPLETED', facts: makeFacts(), failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT' });
 
     expect(outcome).toEqual({
       status: 'VALID',
@@ -65,6 +67,8 @@ describe('mapSandboxResult', () => {
       facts: makeFacts({ compiled: false, executed: false, passed: false }),
       failure: null,
       stageDurations: [],
+      executionId: 'exec-1',
+      executionProfile: 'NODE_TYPESCRIPT',
     });
 
     expect(outcome).toMatchObject({ status: 'INVALID', failureType: 'COMPILATION' });
@@ -81,6 +85,8 @@ describe('mapSandboxResult', () => {
       }),
       failure: null,
       stageDurations: [],
+      executionId: 'exec-1',
+      executionProfile: 'NODE_TYPESCRIPT',
     });
 
     expect(outcome).toMatchObject({

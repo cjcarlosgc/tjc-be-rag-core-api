@@ -4,6 +4,8 @@ import type { GeneratedTestProposal, GeneratedTestProposalStatus } from '../gene
 
 export interface CreateGeneratedTestProposalInput {
   analysisRunId: string;
+  /** WI-CORE-026 (corte B): símbolo del que se generó la propuesta; clave natural con `analysisRunId`. */
+  analysisSymbolId: string;
   relativePath: string;
   symbolLanguage: GeneratedTestProposal['symbolLanguage'];
   symbolKind: GeneratedTestProposal['symbolKind'];
@@ -12,7 +14,7 @@ export interface CreateGeneratedTestProposalInput {
   storageKey: string;
   contentSha256: string;
   status: GeneratedTestProposalStatus;
-  failureSummary?: string;
+  failureSummary?: string | null;
   /** WI-CORE-026: `context_id` del contexto usado para generar la propuesta. */
   contextId?: string | null;
 }
@@ -21,8 +23,18 @@ export interface CreateGeneratedTestProposalInput {
 export class GeneratedTestProposalsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(input: CreateGeneratedTestProposalInput): Promise<GeneratedTestProposal> {
-    return this.prisma.generatedTestProposal.create({ data: input });
+  /**
+   * Upsert por `(analysisRunId, analysisSymbolId)`: un reintento del job actualiza la propuesta del
+   * símbolo en lugar de duplicarla. `failureSummary` se escribe siempre (null limpia un fallo previo).
+   */
+  upsertForSymbol(input: CreateGeneratedTestProposalInput): Promise<GeneratedTestProposal> {
+    const { analysisRunId, analysisSymbolId, ...fields } = input;
+
+    return this.prisma.generatedTestProposal.upsert({
+      where: { analysisRunId_analysisSymbolId: { analysisRunId, analysisSymbolId } },
+      create: { analysisRunId, analysisSymbolId, ...fields },
+      update: fields,
+    });
   }
 
   findByAnalysisRun(analysisRunId: string): Promise<GeneratedTestProposal[]> {

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
-import { SandboxExecutionService, SandboxUnavailableError } from './sandbox-execution.service.js';
+import {
+  SandboxAcceptedExecutionError,
+  SandboxExecutionService,
+  SandboxUnavailableError,
+} from './sandbox-execution.service.js';
 
 function makeConfigService(overrides: Record<string, unknown> = {}) {
   const values: Record<string, unknown> = {
@@ -329,6 +333,90 @@ describe('SandboxExecutionService', () => {
         runnerHint: 'JEST',
       }),
     ).rejects.toBeInstanceOf(SandboxUnavailableError);
+  });
+
+  it('returns the executionId accepted by the Sandbox and the effective execution profile (WI-CORE-026)', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-accepted', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const base = {
+      requestId: 'request-1',
+      testRunId: 'run-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'key',
+      snapshotBuffer: Buffer.from('zip'),
+      artifacts: [],
+      scope: 'TARGET' as const,
+      targetIds: ['target-1'],
+    };
+
+    const derived = await service.execute({ ...base, runnerHint: 'JEST' });
+    expect(derived).toMatchObject({ executionId: 'exec-accepted', executionProfile: 'NODE_TYPESCRIPT', status: 'COMPLETED' });
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-persisted', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+    const persisted = await service.execute({ ...base, runnerHint: 'VITEST', executionProfile: 'NODE_TYPESCRIPT' });
+    expect(persisted).toMatchObject({ executionId: 'exec-persisted', executionProfile: 'NODE_TYPESCRIPT' });
+  });
+
+  it('keeps the executionId in the error when the Sandbox accepted the execution but never produced a result (WI-CORE-026)', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ executionId: 'exec-lost', pollAfterMs: 1 }));
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }));
+
+    const service = new SandboxExecutionService(
+      makeConfigService({ SANDBOX_MAX_POLL_ATTEMPTS: 2 }),
+      objectStorageService as never,
+    );
+
+    const failure = await service
+      .execute({
+        requestId: 'request-1',
+        testRunId: 'run-1',
+        projectVersionId: 'version-1',
+        snapshotKey: 'key',
+        snapshotBuffer: Buffer.from('zip'),
+        artifacts: [],
+        scope: 'TARGET',
+        targetIds: ['target-1'],
+        runnerHint: 'JEST',
+      })
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SandboxAcceptedExecutionError);
+    expect(failure).toBeInstanceOf(SandboxUnavailableError);
+    expect(failure).toMatchObject({ executionId: 'exec-lost', executionProfile: 'NODE_TYPESCRIPT' });
+  });
+
+  it('does not invent an executionId when the Sandbox never accepted the execution (WI-CORE-026)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, false, 503));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const failure = await service
+      .execute({
+        requestId: 'request-1',
+        testRunId: 'run-1',
+        projectVersionId: 'version-1',
+        snapshotKey: 'key',
+        snapshotBuffer: Buffer.from('zip'),
+        artifacts: [],
+        scope: 'TARGET',
+        targetIds: ['target-1'],
+        runnerHint: 'JEST',
+      })
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SandboxUnavailableError);
+    expect(failure).not.toBeInstanceOf(SandboxAcceptedExecutionError);
   });
 
   it('never sends functional rules to Sandbox: the posted body has only the execution contract keys (WI-CORE-021)', async () => {

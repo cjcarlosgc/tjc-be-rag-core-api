@@ -54,6 +54,10 @@ export interface SandboxExecutionResult {
   facts: RunnerFacts | null;
   failure: SandboxFailureFact | null;
   stageDurations: StageDuration[];
+  /** WI-CORE-026: identificador que devolvió el Sandbox al aceptar la ejecución (`POST /executions`). */
+  executionId: string;
+  /** Perfil con el que se ejecutó: el persistido en la petición o el derivado de `runnerHint`. */
+  executionProfile: ExecutionProfile;
 }
 
 export interface SandboxArtifactInput {

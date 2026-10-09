@@ -342,6 +342,7 @@ model AnalysisRun {
   retrievalComparisons        RetrievalComparison[]
   analysisRetrievals          AnalysisRetrieval[]
   analysisContexts            AnalysisContext[]
+  analysisRunExecutions       AnalysisRunExecution[]
   functionalQuestions         FunctionalQuestion[]
   generatedTestProposals      GeneratedTestProposal[]
   testPublications            TestPublication[]
@@ -378,6 +379,7 @@ model AnalysisSymbol {
   createdAt     DateTime               @default(now())
   analysisRetrievals AnalysisRetrieval[]
   analysisContexts   AnalysisContext[]
+  generatedTestProposals GeneratedTestProposal[]
 
   @@index([analysisRunId])
   @@map("analysis_symbols")
@@ -400,6 +402,25 @@ model AnalysisRetrieval {
   @@unique([analysisRunId, analysisSymbolId])
   @@index([analysisRunId])
   @@map("analysis_retrievals")
+}
+
+/// WI-CORE-026 (corte B; INTEROP-2.7 §6.16): ejecución aceptada por el Sandbox para una propuesta, en un intento del Run.
+/// `executionId` es el identificador que devuelve el Sandbox; `outcome` reutiliza la clasificación del Run.
+model AnalysisRunExecution {
+  id               String                @id @default(uuid())
+  analysisRunId    String
+  analysisRun      AnalysisRun           @relation(fields: [analysisRunId], references: [id])
+  proposalId       String
+  proposal         GeneratedTestProposal @relation(fields: [proposalId], references: [id])
+  executionId      String
+  attempt          Int
+  executionProfile String
+  outcome          String
+  createdAt        DateTime              @default(now())
+
+  @@unique([proposalId, attempt])
+  @@index([analysisRunId])
+  @@map("analysis_run_executions")
 }
 
 /// WI-CORE-026 (HU12/HU15; INTEROP-2.7 §6.16): contexto construido para un target. `id` es el
@@ -460,8 +481,13 @@ model GeneratedTestProposal {
   /// WI-CORE-026: `context_id` del contexto con el que se generó la propuesta (null en Runs previos o si no hubo contexto).
   contextId      String?
   context        AnalysisContext?            @relation(fields: [contextId], references: [id])
+  /// WI-CORE-026 (corte B): símbolo del que se generó la propuesta. Clave natural (analysisRunId, analysisSymbolId).
+  analysisSymbolId String?
+  analysisSymbol   AnalysisSymbol?           @relation(fields: [analysisSymbolId], references: [id])
+  executions       AnalysisRunExecution[]
   createdAt      DateTime                    @default(now())
 
+  @@unique([analysisRunId, analysisSymbolId])
   @@index([analysisRunId])
   @@map("generated_test_proposals")
 }

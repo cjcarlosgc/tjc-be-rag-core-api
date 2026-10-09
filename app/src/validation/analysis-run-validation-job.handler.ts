@@ -18,7 +18,11 @@ import type { GenerationContext } from '../retrieval/generation-context.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import { TestFileMergeService, coLocatedSpecPath } from '../generation/test-file-merge.service.js';
-import { SandboxExecutionService, SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import {
+  SandboxAcceptedExecutionError,
+  SandboxExecutionService,
+  SandboxUnavailableError,
+} from '../sandbox/sandbox-execution.service.js';
 import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-result.js';
 import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
@@ -39,6 +43,14 @@ export interface AnalysisRunValidationJobPayload {
 export const ANALYSIS_RUN_VALIDATION_JOB_TYPE = 'analysis-run-validation';
 
 type SymbolOutcomeKind = 'AVAILABLE' | 'SKIPPED_HAS_TEST' | 'TECHNICAL_GENERATION_FAILURE' | 'BEHAVIORAL_MISMATCH';
+
+/** Clasificaciones de un símbolo con ejecución en el Sandbox (WI-CORE-026). */
+type ExecutionOutcomeKind = Extract<SymbolOutcomeKind, 'AVAILABLE' | 'TECHNICAL_GENERATION_FAILURE' | 'BEHAVIORAL_MISMATCH'>;
+
+/** Mismo vocabulario que `AnalysisRun.status` para cada clasificación de símbolo. */
+function toExecutionOutcome(kind: ExecutionOutcomeKind): string {
+  return kind === 'AVAILABLE' ? 'SUCCESS' : kind;
+}
 
 interface SymbolOutcome {
   symbol: AnalysisSymbol;
@@ -277,23 +289,25 @@ export class AnalysisRunValidationJobHandler
       const outcome = mapSandboxResult(sandboxResult);
 
       if (outcome.status === 'VALID') {
-        await this.persistProposal(run, symbol, {
+        const proposalId = await this.persistProposal(run, symbol, {
           relativePath,
           content: mergedContent,
           status: 'AVAILABLE',
           contextId,
         });
+        await this.recordExecution(run, proposalId, sandboxResult, 'AVAILABLE');
         return { symbol, kind: 'AVAILABLE' };
       }
 
       const kind = this.classifySymbolFailure(outcome.failureType);
-      await this.persistProposal(run, symbol, {
+      const proposalId = await this.persistProposal(run, symbol, {
         relativePath,
         content: mergedContent,
         status: 'HELD',
         failureSummary: outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
         contextId,
       });
+      await this.recordExecution(run, proposalId, sandboxResult, kind);
       return { symbol, kind };
     } catch (error) {
       const summary =
@@ -305,13 +319,17 @@ export class AnalysisRunValidationJobHandler
       this.logger.warn(
         `Símbolo ${symbol.qualifiedName} (${symbol.filePath}) del AnalysisRun ${run.id} no pudo validarse: ${summary}`,
       );
-      await this.persistProposal(run, symbol, {
+      const proposalId = await this.persistProposal(run, symbol, {
         relativePath: coLocatedSpecPath(symbol.filePath),
         content: '',
         status: 'HELD',
         failureSummary: summary,
         contextId,
       });
+      // Solo si el Sandbox aceptó la ejecución hay un executionId que conservar (WI-CORE-026).
+      if (error instanceof SandboxAcceptedExecutionError) {
+        await this.recordExecution(run, proposalId, error, 'TECHNICAL_GENERATION_FAILURE');
+      }
       return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
     }
   }
@@ -387,6 +405,28 @@ export class AnalysisRunValidationJobHandler
     return storedContext.id;
   }
 
+  /**
+   * WI-CORE-026 (corte B): registra la ejecución aceptada por el Sandbox para la propuesta. El intento
+   * es el del Run (`attemptCount` + 1: la primera pasada es 1; cada continuación desde ACTION_REQUIRED
+   * suma uno). El `outcome` reutiliza la clasificación del Run por símbolo.
+   */
+  private async recordExecution(
+    run: AnalysisRun,
+    proposalId: string,
+    execution: { executionId: string; executionProfile: string },
+    kind: ExecutionOutcomeKind,
+  ): Promise<void> {
+    await this.analysisTraceRepository.upsertExecution({
+      analysisRunId: run.id,
+      proposalId,
+      executionId: execution.executionId,
+      attempt: run.attemptCount + 1,
+      executionProfile: execution.executionProfile,
+      outcome: toExecutionOutcome(kind),
+    });
+  }
+
+  /** Upsert por símbolo: devuelve el id de la propuesta, que liga la ejecución. */
   private async persistProposal(
     run: AnalysisRun,
     symbol: AnalysisSymbol,
@@ -397,13 +437,14 @@ export class AnalysisRunValidationJobHandler
       failureSummary?: string;
       contextId: string | null;
     },
-  ): Promise<void> {
+  ): Promise<string> {
     const storageKey = `analysis-runs/${run.id}/proposals/${randomUUID()}`;
     const buffer = Buffer.from(input.content, 'utf8');
     await this.objectStorageService.put(storageKey, buffer, 'text/plain');
 
-    await this.generatedTestProposalsRepository.create({
+    const proposal = await this.generatedTestProposalsRepository.upsertForSymbol({
       analysisRunId: run.id,
+      analysisSymbolId: symbol.id,
       relativePath: input.relativePath,
       symbolLanguage: symbol.language,
       symbolKind: symbol.kind,
@@ -413,7 +454,9 @@ export class AnalysisRunValidationJobHandler
       contentSha256: createHash('sha256').update(buffer).digest('hex'),
       status: input.status,
       contextId: input.contextId,
-      ...(input.failureSummary ? { failureSummary: input.failureSummary } : {}),
+      failureSummary: input.failureSummary ?? null,
     });
+
+    return proposal.id;
   }
 }

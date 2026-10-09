@@ -4,6 +4,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import type { CodeChunk } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import { AnalysisTraceRepository } from './analysis-trace.repository.js';
+import { GeneratedTestProposalsRepository } from '../../validation/generated-test-proposals.repository.js';
 import { ContextBuilder } from '../../retrieval/context-builder.service.js';
 import { countFunctionalRuleTokens } from '../../retrieval/functional-rule-format.js';
 import type { FunctionalRule, RetrievalTarget } from '../../retrieval/generation-context.js';
@@ -12,8 +13,9 @@ import { DEFAULT_VECTOR_TOP_K } from '../../retrieval/retrieval.service.js';
 import { toAnalysisContextEvidence, toRetrievalEvidence } from '../analysis-trace-evidence.util.js';
 
 /**
- * WI-CORE-026 (corte A): SQL real de `analysis_retrievals`, `analysis_contexts` y la FK
- * `generated_test_proposals.contextId`, con el `ContextBuilder` real y la omisión por `TOKEN_BUDGET`.
+ * WI-CORE-026 (cortes A y B): SQL real de `analysis_retrievals`, `analysis_contexts`, la FK
+ * `generated_test_proposals.contextId`, el upsert de propuestas por símbolo y `analysis_run_executions`
+ * (idempotencia por `(proposalId, attempt)`), con el `ContextBuilder` real y la omisión por `TOKEN_BUDGET`.
  * Necesita un PostgreSQL LOCAL descartable con las migraciones aplicadas (incluida
  * `20261009140000_analysis_trace_retrieval_context`). Sin `ANALYSIS_TRACE_TEST_DATABASE_URL` se omite;
  * la suite nunca toca Supabase ni una base real. No borra filas: cada caso usa un Run nuevo.
@@ -60,6 +62,7 @@ function rule(knowledgeId: string): FunctionalRule {
 describe.skipIf(!url)('AnalysisTraceRepository against a local PostgreSQL (WI-CORE-026, corte A)', () => {
   let prisma: PrismaClient;
   let repository: AnalysisTraceRepository;
+  let proposals: GeneratedTestProposalsRepository;
 
   beforeAll(() => {
     if (!isLocal) {
@@ -68,6 +71,7 @@ describe.skipIf(!url)('AnalysisTraceRepository against a local PostgreSQL (WI-CO
 
     prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url as string }) });
     repository = new AnalysisTraceRepository(prisma as unknown as PrismaService);
+    proposals = new GeneratedTestProposalsRepository(prisma as unknown as PrismaService);
   });
 
   afterAll(async () => {
@@ -259,5 +263,71 @@ describe.skipIf(!url)('AnalysisTraceRepository against a local PostgreSQL (WI-CO
         },
       }),
     ).rejects.toThrow();
+  });
+
+  describe('propuestas por símbolo y ejecuciones (WI-CORE-026, corte B)', () => {
+    const proposalInput = (analysisRunId: string, analysisSymbolId: string, overrides: Record<string, unknown> = {}) => ({
+      analysisRunId,
+      analysisSymbolId,
+      relativePath: 'src/thing.spec.ts',
+      symbolLanguage: 'TYPESCRIPT' as const,
+      symbolKind: 'METHOD' as const,
+      qualifiedName: 'Thing.doIt',
+      filePath: 'src/thing.ts',
+      storageKey: `analysis-runs/${analysisRunId}/proposals/${crypto.randomUUID()}`,
+      contentSha256: 'e'.repeat(64),
+      status: 'HELD' as const,
+      contextId: null,
+      failureSummary: 'fallo previo',
+      ...overrides,
+    });
+
+    it('upserts the proposal by (analysisRunId, analysisSymbolId): a retry keeps the id, updates the status and clears the old failure', async () => {
+      const { runId, symbolId } = await createRunWithSymbol();
+
+      const first = await proposals.upsertForSymbol(proposalInput(runId, symbolId));
+      const retry = await proposals.upsertForSymbol(
+        proposalInput(runId, symbolId, { status: 'AVAILABLE', failureSummary: null, contentSha256: 'f'.repeat(64) }),
+      );
+
+      expect(retry.id).toBe(first.id);
+      expect(await prisma.generatedTestProposal.count({ where: { analysisRunId: runId } })).toBe(1);
+      const stored = await prisma.generatedTestProposal.findUniqueOrThrow({ where: { id: first.id } });
+      expect(stored).toMatchObject({ status: 'AVAILABLE', failureSummary: null, analysisSymbolId: symbolId });
+    });
+
+    it('keeps one execution per (proposalId, attempt): repeating an attempt updates it, a new attempt adds a row ordered by attempt', async () => {
+      const { runId, symbolId } = await createRunWithSymbol();
+      const proposal = await proposals.upsertForSymbol(proposalInput(runId, symbolId));
+      const base = { analysisRunId: runId, proposalId: proposal.id, executionProfile: 'NODE_TYPESCRIPT', outcome: 'SUCCESS' };
+
+      await repository.upsertExecution({ ...base, executionId: 'exec-a1', attempt: 1 });
+      await repository.upsertExecution({ ...base, executionId: 'exec-a1-retry', attempt: 1, outcome: 'BEHAVIORAL_MISMATCH' });
+      await repository.upsertExecution({ ...base, executionId: 'exec-a2', attempt: 2 });
+
+      const rows = await prisma.analysisRunExecution.findMany({
+        where: { proposalId: proposal.id },
+        orderBy: { attempt: 'asc' },
+      });
+      expect(rows.map((row) => [row.attempt, row.executionId, row.outcome])).toEqual([
+        [1, 'exec-a1-retry', 'BEHAVIORAL_MISMATCH'],
+        [2, 'exec-a2', 'SUCCESS'],
+      ]);
+    });
+
+    it('rejects an execution that references a proposal which does not exist', async () => {
+      const { runId } = await createRunWithSymbol();
+
+      await expect(
+        repository.upsertExecution({
+          analysisRunId: runId,
+          proposalId: 'proposal-does-not-exist',
+          executionId: 'exec-x',
+          attempt: 1,
+          executionProfile: 'NODE_TYPESCRIPT',
+          outcome: 'SUCCESS',
+        }),
+      ).rejects.toThrow();
+    });
   });
 });

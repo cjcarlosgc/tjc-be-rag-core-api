@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type {
   AnalysisContext,
   AnalysisRetrieval,
+  AnalysisRunExecution,
   Prisma,
   RetrievalMode,
 } from '../../generated/prisma/client.js';
@@ -13,6 +14,15 @@ export interface UpsertAnalysisRetrievalInput {
   mode: RetrievalMode;
   config: Prisma.InputJsonValue;
   candidates: Prisma.InputJsonValue;
+}
+
+export interface UpsertAnalysisRunExecutionInput {
+  analysisRunId: string;
+  proposalId: string;
+  executionId: string;
+  attempt: number;
+  executionProfile: string;
+  outcome: string;
 }
 
 export interface UpsertAnalysisContextInput {
@@ -46,6 +56,20 @@ export class AnalysisTraceRepository {
       where: { analysisRunId_analysisSymbolId: { analysisRunId, analysisSymbolId } },
       create: { analysisRunId, analysisSymbolId, mode, config, candidates },
       update: { mode, config, candidates },
+    });
+  }
+
+  /**
+   * WI-CORE-026 (corte B): ejecución de una propuesta en un intento. Upsert por `(proposalId, attempt)`:
+   * repetir la captura del mismo intento no duplica la fila.
+   */
+  upsertExecution(input: UpsertAnalysisRunExecutionInput): Promise<AnalysisRunExecution> {
+    const { proposalId, attempt, ...fields } = input;
+
+    return this.prisma.analysisRunExecution.upsert({
+      where: { proposalId_attempt: { proposalId, attempt } },
+      create: { proposalId, attempt, ...fields },
+      update: fields,
     });
   }
 
