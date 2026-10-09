@@ -142,12 +142,22 @@ export class RetrievalComparisonJobHandler implements JobHandler<RetrievalCompar
 
   /**
    * Cierre al agotar los intentos (DEC-JOBS-001). Solo cierra una comparación abierta; nunca pisa
-   * COMPLETED ni FAILED.
+   * COMPLETED ni FAILED. Si `handle()` ya registró `RETRIEVAL_COMPARISON_FAILED` (con su mensaje saneado),
+   * lo conserva; `RETRIEVAL_COMPARISON_WORKER_LOST` solo cuando el worker murió sin fallo registrado.
    */
   async onExhausted(payload: RetrievalComparisonJobPayload, _reason: string): Promise<void> {
     const comparison = await this.repository.findById(payload.retrievalComparisonId);
 
     if (!comparison || comparison.status === 'COMPLETED' || comparison.status === 'FAILED') {
+      return;
+    }
+
+    if (comparison.failureCode === RETRIEVAL_COMPARISON_FAILED_CODE) {
+      await this.repository.markFailed(
+        comparison.id,
+        RETRIEVAL_COMPARISON_FAILED_CODE,
+        comparison.failureMessage ?? COMPARISON_FAILED_MESSAGE,
+      );
       return;
     }
 

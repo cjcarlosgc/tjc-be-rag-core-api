@@ -235,6 +235,45 @@ describe('RetrievalComparisonJobHandler', () => {
 
       expect(repository.markFailed).not.toHaveBeenCalled();
     });
+
+    it('keeps RETRIEVAL_COMPARISON_FAILED and its sanitized message when handle() already recorded it', async () => {
+      const sanitized = 'La comparación de retrieval falló durante la recuperación; el job se reintentará si quedan intentos.';
+      repository.findById.mockResolvedValue(
+        comparison({ status: 'RUNNING', failureCode: RETRIEVAL_COMPARISON_FAILED_CODE, failureMessage: sanitized }),
+      );
+
+      await handler.onExhausted(payload, 'Lock obsoleto');
+
+      expect(repository.markFailed).toHaveBeenCalledTimes(1);
+      expect(repository.markFailed).toHaveBeenCalledWith('cmp-1', RETRIEVAL_COMPARISON_FAILED_CODE, sanitized);
+      expect(repository.markFailed).not.toHaveBeenCalledWith(expect.anything(), RETRIEVAL_COMPARISON_WORKER_LOST_CODE, expect.anything());
+    });
+
+    it('uses WORKER_LOST only when no failure is recorded (failureCode null) for a PENDING comparison', async () => {
+      repository.findById.mockResolvedValue(comparison({ status: 'PENDING', failureCode: null, failureMessage: null }));
+
+      await handler.onExhausted(payload, 'Lock obsoleto');
+
+      expect(repository.markFailed).toHaveBeenCalledWith('cmp-1', RETRIEVAL_COMPARISON_WORKER_LOST_CODE, WORKER_LOST_MESSAGE);
+    });
+
+    it('a comparison already FAILED with RETRIEVAL_COMPARISON_FAILED is not overwritten by WORKER_LOST', async () => {
+      repository.findById.mockResolvedValue(
+        comparison({ status: 'FAILED', failureCode: RETRIEVAL_COMPARISON_FAILED_CODE, failureMessage: COMPARISON_FAILED_MESSAGE }),
+      );
+
+      await handler.onExhausted(payload, 'Lock obsoleto');
+
+      expect(repository.markFailed).not.toHaveBeenCalled();
+    });
+
+    it('a COMPLETED comparison with a stale failureCode is never overwritten', async () => {
+      repository.findById.mockResolvedValue(comparison({ status: 'COMPLETED', failureCode: RETRIEVAL_COMPARISON_FAILED_CODE }));
+
+      await handler.onExhausted(payload, 'Lock obsoleto');
+
+      expect(repository.markFailed).not.toHaveBeenCalled();
+    });
   });
 
   it('readSymbolTarget maps a METHOD snapshot to a method target and rejects other shapes', () => {
