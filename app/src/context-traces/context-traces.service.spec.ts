@@ -298,6 +298,44 @@ describe('ContextTracesService', () => {
     expect(reads.listDiscoveredFilesForOwner).not.toHaveBeenCalled();
   });
 
+  it('maps an AGENT detail carrying budget and per-step budget fields without changing the DTO', async () => {
+    const base = makeTrace('AGENT');
+    const baseDetail = base.detail as { trajectory: Array<Record<string, unknown>> };
+    const detail = {
+      trajectory: baseDetail.trajectory.slice(0, 1).map((step) => ({
+        ...step,
+        contextTokens: 12,
+        truncationReason: 'CHAR_LIMIT',
+      })),
+      budget: {
+        toolCallCap: 20,
+        contextTokenBudget: 6000,
+        contextTokensDelivered: 12,
+        capReached: false,
+        truncatedSteps: 1,
+      },
+    };
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeTrace('AGENT', { detail, toolCalls: 1, filesInspected: 0 })),
+      },
+    });
+
+    const result = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    expect(result).toMatchObject({
+      kind: 'AGENT',
+      toolCalls: 1,
+      filesInspected: 0,
+      trajectory: [expect.objectContaining({ step: 1, toolName: 'list_files', truncated: true })],
+    });
+    expect(result).not.toHaveProperty('budget');
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('contextTokens');
+    expect(serialized).not.toContain('truncationReason');
+    expect(serialized).not.toContain('capReached');
+  });
+
   it('returns an empty observed trajectory when Agent workspace acquisition failed before any tool call', async () => {
     const { service, objectStorage } = makeService({
       reads: {

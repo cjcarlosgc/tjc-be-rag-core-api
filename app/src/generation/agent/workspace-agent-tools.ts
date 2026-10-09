@@ -128,7 +128,7 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
     function: {
       name: 'list_files',
       description:
-        'Lista las rutas relativas de todos los archivos disponibles del snapshot del proyecto (no incluye archivos de test que ya cubren el target actual).',
+        'Lista las rutas relativas de todos los archivos disponibles del snapshot del proyecto.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
   },
@@ -187,10 +187,9 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
 
 /**
  * Herramientas read-only del GENERALIST_AGENT (DEC-EXP-002), acotadas al
- * snapshot materializado del ProjectVersion. Los archivos de test que ya
- * cubren el target actual quedan excluidos de `list_files`/`read_file`/
- * `search_text`/`inspect_symbol` para evitar que el agente copie la prueba
- * existente en vez de generarla.
+ * snapshot materializado del ProjectVersion. Las pruebas existentes son
+ * visibles y legibles (DEC-EXP-003); solo se excluyen las rutas fuera del
+ * snapshot (node_modules, .git, etc.) ya filtradas por FileDiscoveryService.
  */
 export class WorkspaceAgentTools {
   private readonly allowedFiles: Set<string>;
@@ -198,12 +197,8 @@ export class WorkspaceAgentTools {
   constructor(
     private readonly workspaceDir: string,
     poolFiles: string[],
-    excludedTestFiles: string[],
   ) {
-    const excluded = new Set(excludedTestFiles);
-    this.allowedFiles = new Set(
-      poolFiles.filter((filePath) => !excluded.has(filePath)),
-    );
+    this.allowedFiles = new Set(poolFiles);
   }
 
   async dispatch(name: string, args: Record<string, unknown>): Promise<string> {
@@ -247,7 +242,7 @@ export class WorkspaceAgentTools {
   ): Promise<AgentToolDispatchResult> {
     if (!this.allowedFiles.has(relativePath)) {
       return result(
-        `No se puede leer "${relativePath}": no existe en el snapshot disponible o está excluido (test existente del target).`,
+        `No se puede leer "${relativePath}": no existe en el snapshot disponible.`,
         'FAILED',
       );
     }

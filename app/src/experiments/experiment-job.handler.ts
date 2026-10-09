@@ -600,12 +600,10 @@ export class ExperimentJobHandler
     const trajectory: Prisma.InputJsonValue[] = [];
     const inspectedPaths = new Set<string>();
     let toolCalls = 0;
+    let contextTokensDelivered = 0;
+    let truncatedSteps = 0;
     const poolFiles = await this.fileDiscoveryService.discover(workspaceDir);
-    const tools = new WorkspaceAgentTools(
-      workspaceDir,
-      poolFiles,
-      target.testFilePaths,
-    );
+    const tools = new WorkspaceAgentTools(workspaceDir, poolFiles);
     const maxContextTokens = this.configService.get<number>(
       'RETRIEVAL_MAX_CONTEXT_TOKENS',
       6000,
@@ -618,7 +616,19 @@ export class ExperimentJobHandler
       target,
       framework,
       maxContextTokens,
+      maxToolCalls,
     );
+    const budgetDetail = (
+      capReached: boolean,
+      delivered: number,
+      truncated: number,
+    ): Prisma.InputJsonObject => ({
+      toolCallCap: maxToolCalls,
+      contextTokenBudget: maxContextTokens,
+      contextTokensDelivered: delivered,
+      capReached,
+      truncatedSteps: truncated,
+    });
     const onToolStep = async (event: AgentToolStepEvent): Promise<void> => {
       const safeStep = this.safeAgentStep(event.step);
       if (event.discoveredFiles.length > 0) {
@@ -630,6 +640,8 @@ export class ExperimentJobHandler
       }
       trajectory.push(safeStep);
       toolCalls += 1;
+      contextTokensDelivered += event.step.contextTokens;
+      if (event.step.truncated) truncatedSteps += 1;
       if (
         event.step.toolName === 'read_file' &&
         typeof event.step.arguments.relativePath === 'string'
@@ -641,6 +653,11 @@ export class ExperimentJobHandler
         trajectory,
         toolCalls,
         filesInspected,
+        budget: budgetDetail(
+          toolCalls >= maxToolCalls,
+          contextTokensDelivered,
+          truncatedSteps,
+        ),
       });
       await this.contextTracesRepository.updateAgentCounters(traceId, {
         toolCalls,
@@ -650,10 +667,20 @@ export class ExperimentJobHandler
     const result = await this.generalistAgentService.generate(
       instructions,
       tools,
-      maxToolCalls,
+      { toolCallCap: maxToolCalls, contextTokenBudget: maxContextTokens },
       config,
       onToolStep,
     );
+    await this.contextTracesRepository.updateDetail(traceId, {
+      trajectory,
+      toolCalls,
+      filesInspected: inspectedPaths.size,
+      budget: budgetDetail(
+        result.capReached,
+        result.contextTokensDelivered,
+        result.truncatedSteps,
+      ),
+    });
 
     return {
       content: result.content,
@@ -672,6 +699,7 @@ export class ExperimentJobHandler
     target: TestTarget,
     framework: 'JEST' | 'VITEST' | null,
     maxContextTokens: number,
+    maxToolCalls: number,
   ): string {
     const label = target.methodName
       ? `${target.symbolName}.${target.methodName}`
@@ -686,7 +714,8 @@ export class ExperimentJobHandler
       `Objetivo: escribir una prueba unitaria para ${kind} "${label}", declarada en el archivo "${target.filePath}".`,
       'No se te entrega el código del objetivo directamente: debes explorarlo tú mismo usando las herramientas disponibles (list_files, read_file, search_text, inspect_symbol) antes de generar la prueba.',
       frameworkLine,
-      `Presupuesto orientativo de contexto: no excedas lo estrictamente necesario para escribir una prueba correcta (referencia comparable a la estrategia RAG: ~${maxContextTokens} tokens de contexto).`,
+      `Tienes como máximo ${maxToolCalls} llamadas a herramientas; al alcanzar ese límite deberás responder sin más herramientas.`,
+      `Presupuesto de contexto: los resultados de las herramientas suman como máximo ${maxContextTokens} tokens en total; lo que exceda se trunca y queda marcado como truncado.`,
       'Cuando tengas suficiente información, responde ÚNICAMENTE con código TypeScript válido (imports + bloques de prueba). No incluyas explicaciones ni envuelvas la respuesta en fences de markdown.',
     ].join('\n\n');
   }
@@ -829,6 +858,8 @@ export class ExperimentJobHandler
       resultSummary: this.describeAgentResult(step, args),
       resultSha256: step.resultSha256,
       truncated: step.truncated,
+      contextTokens: step.contextTokens,
+      truncationReason: step.truncationReason,
       observations,
     } as Prisma.InputJsonObject;
   }

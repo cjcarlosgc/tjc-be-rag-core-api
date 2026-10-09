@@ -173,6 +173,7 @@ class EnvironmentVariables {
 
   @IsInt()
   @Min(1)
+  @Max(100)
   AGENT_MAX_TOOL_CALLS: number = 20;
 
   @IsInt()

@@ -3,7 +3,10 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { WorkspaceAgentTools } from './workspace-agent-tools.js';
+import {
+  AGENT_TOOL_SCHEMAS,
+  WorkspaceAgentTools,
+} from './workspace-agent-tools.js';
 
 describe('WorkspaceAgentTools', () => {
   let dir: string;
@@ -35,21 +38,24 @@ describe('WorkspaceAgentTools', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  function makeTools(excluded: string[] = ['src/calculator.spec.ts']) {
-    return new WorkspaceAgentTools(
-      dir,
-      ['src/calculator.ts', 'src/calculator.spec.ts', 'src/helper.ts'],
-      excluded,
-    );
+  function makeTools() {
+    return new WorkspaceAgentTools(dir, [
+      'src/calculator.ts',
+      'src/calculator.spec.ts',
+      'src/helper.ts',
+    ]);
   }
 
-  it('list_files excludes the test files covering the current target', async () => {
+  it('list_files lists existing test files as discoverable snapshot files', async () => {
     const tools = makeTools();
 
     const result = await tools.dispatchWithObservations('list_files', {});
 
-    expect(result.result).toBe('src/calculator.ts\nsrc/helper.ts');
+    expect(result.result).toBe(
+      'src/calculator.spec.ts\nsrc/calculator.ts\nsrc/helper.ts',
+    );
     expect(result.discoveredFiles).toEqual([
+      'src/calculator.spec.ts',
       'src/calculator.ts',
       'src/helper.ts',
     ]);
@@ -60,12 +66,45 @@ describe('WorkspaceAgentTools', () => {
         filePath: null,
         symbolName: null,
         excerpt: null,
-        discoveredFilesCount: 2,
+        discoveredFilesCount: 3,
       },
     ]);
-    expect(JSON.stringify(result.observations)).not.toContain(
-      'src/calculator.ts',
-    );
+  });
+
+  it('does not expose files outside the snapshot pool such as node_modules or .git', async () => {
+    const tools = new WorkspaceAgentTools(dir, ['src/helper.ts']);
+
+    const list = await tools.dispatch('list_files', {});
+    const read = await tools.dispatch('read_file', {
+      relativePath: 'node_modules/pkg/index.ts',
+    });
+    const gitRead = await tools.dispatch('read_file', {
+      relativePath: '.git/config',
+    });
+    const search = await tools.dispatch('search_text', { query: 'pkg' });
+
+    expect(list).toBe('src/helper.ts');
+    expect(read).toContain('No se puede leer');
+    expect(gitRead).toContain('No se puede leer');
+    expect(search).toBe('Sin coincidencias para "pkg".');
+  });
+
+  it('exposes exactly the four read-only tools', () => {
+    expect(AGENT_TOOL_SCHEMAS.map((schema) => schema.function.name)).toEqual([
+      'list_files',
+      'read_file',
+      'search_text',
+      'inspect_symbol',
+    ]);
+  });
+
+  it('describes tools without any test-exclusion wording', () => {
+    const descriptions = AGENT_TOOL_SCHEMAS.map(
+      (schema) => schema.function.description,
+    ).join('\n');
+
+    expect(descriptions).not.toMatch(/test|prueba/i);
+    expect(descriptions).not.toMatch(/excluid|cubren el target/i);
   });
 
   it('read_file returns the content of an allowed file', async () => {
@@ -95,20 +134,20 @@ describe('WorkspaceAgentTools', () => {
     });
   });
 
-  it('read_file refuses an excluded test file', async () => {
+  it('read_file returns the content of an existing test file', async () => {
     const tools = makeTools();
 
     const result = await tools.dispatch('read_file', {
       relativePath: 'src/calculator.spec.ts',
     });
 
-    expect(result).toContain('No se puede leer');
+    expect(result).toContain("test('adds'");
   });
 
   it('returns an exact model string while bounding and hashing a long file observation', async () => {
     const longContent = 'x'.repeat(20_001);
     await writeFile(join(dir, 'src/long.ts'), longContent);
-    const tools = new WorkspaceAgentTools(dir, ['src/long.ts'], []);
+    const tools = new WorkspaceAgentTools(dir, ['src/long.ts']);
 
     const result = await tools.dispatchWithObservations('read_file', {
       relativePath: 'src/long.ts',
@@ -123,14 +162,13 @@ describe('WorkspaceAgentTools', () => {
     );
   });
 
-  it('search_text finds matches with file and line number, only in allowed files', async () => {
+  it('search_text finds matches with file and line number, including existing tests', async () => {
     const tools = makeTools();
 
     const result = await tools.dispatch('search_text', { query: 'return' });
 
     expect(result).toContain('src/calculator.ts:3:');
     expect(result).toContain('src/helper.ts:2:');
-    expect(result).not.toContain('calculator.spec.ts');
   });
 
   it('normalizes search matches in the same deterministic order as the model result', async () => {
@@ -180,7 +218,7 @@ describe('WorkspaceAgentTools', () => {
     });
   });
 
-  it('inspect_symbol finds the declaration and does not report itself as an external reference', async () => {
+  it('inspect_symbol finds the declaration and lists the existing test as a reference', async () => {
     const tools = makeTools();
 
     const result = await tools.dispatch('inspect_symbol', {
@@ -189,9 +227,7 @@ describe('WorkspaceAgentTools', () => {
 
     expect(result).toContain('Declarado en src/calculator.ts');
     expect(result).toContain('add(a: number, b: number)');
-    expect(result).toContain(
-      'No se encontraron referencias en otros archivos.',
-    );
+    expect(result).toContain('Referenciado también en: src/calculator.spec.ts');
   });
 
   it('returns symbol evidence separately while preserving the existing model response', async () => {
@@ -202,7 +238,7 @@ describe('WorkspaceAgentTools', () => {
     });
 
     expect(result.result).toBe(
-      'Declarado en src/calculator.ts:\nexport class Calculator {\n  add(a: number, b: number): number {\n    return a + b;\n  }\n}\n\nNo se encontraron referencias en otros archivos.',
+      'Declarado en src/calculator.ts:\nexport class Calculator {\n  add(a: number, b: number): number {\n    return a + b;\n  }\n}\n\nReferenciado también en: src/calculator.spec.ts',
     );
     expect(result.status).toBe('SUCCEEDED');
     expect(result.observations[0]).toMatchObject({

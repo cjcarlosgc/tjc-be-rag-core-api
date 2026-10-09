@@ -62,6 +62,8 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       resultSummary: 'src/foo.ts\nsrc/bar.ts',
       resultSha256: 'a'.repeat(64),
       truncated: true,
+      contextTokens: 0,
+      truncationReason: 'CHAR_LIMIT',
       observations: [
         {
           kind: 'FILE_LIST_SUMMARY',
@@ -80,6 +82,8 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       resultSummary: 'SECRET FULL FILE CONTENT',
       resultSha256: 'b'.repeat(64),
       truncated: false,
+      contextTokens: 0,
+      truncationReason: null,
       observations: [
         {
           kind: 'FILE_CONTENT',
@@ -276,6 +280,11 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
           filesInspected: 1,
           inputTokens: 40,
           outputTokens: 15,
+          contextTokensDelivered: 40,
+          toolCallCap: 20,
+          contextTokenBudget: 6000,
+          capReached: false,
+          truncatedSteps: 1,
         };
       }),
     },
@@ -926,10 +935,18 @@ describe('ExperimentJobHandler', () => {
       trajectory: Array<Record<string, unknown>>;
       toolCalls: number;
       filesInspected: number;
+      budget: Record<string, unknown>;
     };
 
     expect(agentDetails.length).toBeGreaterThan(1);
     expect(finalDetail).toMatchObject({ toolCalls: 2, filesInspected: 1 });
+    expect(finalDetail.budget).toEqual({
+      toolCallCap: 20,
+      contextTokenBudget: 6000,
+      contextTokensDelivered: 40,
+      capReached: false,
+      truncatedSteps: 1,
+    });
     expect(finalDetail.trajectory[0]).toMatchObject({
       resultSummary: 'Listado disponible: 2 archivos.',
       resultSha256: 'a'.repeat(64),
@@ -961,6 +978,22 @@ describe('ExperimentJobHandler', () => {
         }>
       )[0].excerpt,
     ).not.toHaveProperty('before');
+  });
+
+  it('gives the agent the real tool cap and context budget without Functional Knowledge or test paths', async () => {
+    const { deps } = makeDeps();
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const generateCalls = (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls;
+    expect(generateCalls.length).toBeGreaterThan(0);
+    const [instructions, , limits] = generateCalls[0] as [string, unknown, unknown];
+    expect(instructions).toContain('como máximo 20 llamadas a herramientas');
+    expect(instructions).toContain('como máximo 6000 tokens');
+    expect(instructions).not.toMatch(/orientativo/i);
+    expect(instructions).not.toMatch(/functional|oráculo|oracle/i);
+    expect(limits).toEqual({ toolCallCap: 20, contextTokenBudget: 6000 });
   });
 
   it('retains RAG detail and marks the attempt failed when LLM generation fails afterward', async () => {
