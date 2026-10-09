@@ -80,6 +80,17 @@ export class FunctionalKnowledgeRepository {
     });
   }
 
+  /**
+   * Reglas ACTIVE del Project cuyo `targetRef` coincide exactamente, de todos los escenarios y scopes
+   * (WI-CORE-021). Sin herencia: no busca por MODULE/CLASS/PROJECT. Orden determinista por createdAt e id.
+   */
+  findActiveByTargetRef(projectId: string, targetRef: string): Promise<FunctionalKnowledge[]> {
+    return this.prisma.functionalKnowledge.findMany({
+      where: { projectId, targetRef, status: 'ACTIVE' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   findById(id: string): Promise<FunctionalKnowledge | null> {
     return this.prisma.functionalKnowledge.findUnique({ where: { id } });
   }

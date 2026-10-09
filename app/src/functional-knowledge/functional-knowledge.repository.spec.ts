@@ -63,6 +63,7 @@ function setup() {
       create: vi.fn().mockResolvedValue({ id: 'knowledge-new' }),
       update: vi.fn().mockResolvedValue({ id: 'knowledge-old' }),
       findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     $transaction: vi.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
   };
@@ -275,6 +276,19 @@ describe('FunctionalKnowledgeRepository provenance', () => {
         scenarioKey: 'LEGACY',
         status: 'ACTIVE',
       },
+    });
+  });
+});
+
+describe('FunctionalKnowledgeRepository.findActiveByTargetRef (WI-CORE-021)', () => {
+  it('selects ACTIVE rules by project and exact targetRef, every scope and scenarioKey, ordered by createdAt and id', async () => {
+    const { repository, prisma } = setup();
+
+    await repository.findActiveByTargetRef('project-1', 'src/thing.ts::Thing.doIt');
+
+    expect(prisma.functionalKnowledge.findMany).toHaveBeenCalledWith({
+      where: { projectId: 'project-1', targetRef: 'src/thing.ts::Thing.doIt', status: 'ACTIVE' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
   });
 });

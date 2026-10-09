@@ -5,7 +5,38 @@ export interface RetrievalTarget {
   targetType: 'METHOD' | 'FUNCTION';
 }
 
+import type {
+  ConfirmingRole,
+  FunctionalKnowledgeSource,
+  FunctionalScope,
+} from '../generated/prisma/client.js';
+
 export type StructuralMatch = 'IMPORTS' | 'IMPORTED_BY';
+
+/**
+ * Procedencia de una regla funcional (INTEROP-2.7, WI-CORE-019). Cada campo es nulo en reglas
+ * históricas anteriores a esa versión. `confirmedByUserId` no sale hacia el prompt.
+ */
+export interface FunctionalRuleProvenance {
+  confirmedByUserId: string | null;
+  confirmedRole: ConfirmingRole | null;
+  originHeadSha: string | null;
+  sourceRef: string | null;
+}
+
+/**
+ * Regla funcional ACTIVE recuperada de `FunctionalKnowledge` (WI-CORE-021). Es conocimiento
+ * aprobado, no código: nunca entra en `relatedChunks` ni en el bloque de código del prompt.
+ */
+export interface FunctionalRule {
+  knowledgeId: string;
+  scenarioKey: string;
+  normalizedRule: string;
+  scope: FunctionalScope;
+  targetRef: string;
+  source: FunctionalKnowledgeSource;
+  provenance: FunctionalRuleProvenance;
+}
 
 export interface ContextChunk {
   filePath: string;
@@ -65,6 +96,22 @@ export interface GenerationContextAuditCandidate extends GenerationContextAuditC
   matchedVia: Array<'SEMANTIC' | StructuralMatch>;
   decision: RagCandidateDecision;
   discardReason: RagDiscardReason | null;
+}
+
+export interface GenerationContextAuditFunctionalRuleOmission {
+  knowledgeId: string;
+  tokenCount: number;
+  reason: 'TOKEN_BUDGET';
+}
+
+export interface GenerationContextAuditFunctionalRules {
+  /** Reglas ACTIVE recuperadas para el target. */
+  retrieved: number;
+  /** Reglas incluidas en el contexto. */
+  selected: number;
+  /** Tokens consumidos por las reglas incluidas. */
+  tokenCount: number;
+  omitted: GenerationContextAuditFunctionalRuleOmission[];
 }
 
 export interface GenerationContextAudit {
