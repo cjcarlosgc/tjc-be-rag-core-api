@@ -118,6 +118,8 @@ export interface AgentToolSchema {
       type: 'object';
       properties: Record<string, { type: string; description: string }>;
       required: string[];
+      /** Exigido por `strict: true` en Responses (WI-CORE-031). */
+      additionalProperties: false;
     };
   };
 }
@@ -129,7 +131,12 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
       name: 'list_files',
       description:
         'Lista las rutas relativas de todos los archivos disponibles del snapshot del proyecto.',
-      parameters: { type: 'object', properties: {}, required: [] },
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
     },
   },
   {
@@ -147,6 +154,7 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
           },
         },
         required: ['relativePath'],
+        additionalProperties: false,
       },
     },
   },
@@ -162,6 +170,7 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
           query: { type: 'string', description: 'Texto a buscar.' },
         },
         required: ['query'],
+        additionalProperties: false,
       },
     },
   },
@@ -180,6 +189,7 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
           },
         },
         required: ['symbolName'],
+        additionalProperties: false,
       },
     },
   },

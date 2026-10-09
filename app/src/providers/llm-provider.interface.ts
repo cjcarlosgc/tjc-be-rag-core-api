@@ -32,7 +32,18 @@ export interface LLMToolCall {
 
 export type LLMMessage =
   | { role: 'system' | 'user'; content: string }
-  | { role: 'assistant'; content: string | null; toolCalls?: LLMToolCall[] }
+  | {
+      role: 'assistant';
+      content: string | null;
+      toolCalls?: LLMToolCall[];
+      /**
+       * Ítems de salida del proveedor del turno (WI-CORE-031), opacos para el dominio:
+       * razonamiento cifrado, mensajes y llamadas a función tal cual. Solo el adaptador
+       * del proveedor los interpreta; otros proveedores y fakes los ignoran. Nunca se
+       * persisten ni entran en trayectoria o logs.
+       */
+      providerItems?: unknown[];
+    }
   | { role: 'tool'; toolCallId: string; content: string };
 
 export interface LLMToolsResult {
