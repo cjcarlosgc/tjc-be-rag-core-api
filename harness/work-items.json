@@ -1529,6 +1529,42 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-030-scope-approval.md"
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "id": "WI-CORE-031",
+      "title": "Migrar las llamadas con herramientas del proveedor LLM a /v1/responses",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-038"
+      ],
+      "dependsOn": [
+        "WI-CORE-025"
+      ],
+      "acceptanceCriteria": [
+        "Los experimentos OE5 pueden correr RAG y GENERALIST_AGENT con gpt-6-luna al esfuerzo máximo que acepte el modelo con herramientas (DEC-EXP-004), con el mismo modelo, endpoint y esfuerzo en ambos brazos: la llamada con herramientas usa /v1/responses porque /v1/chat/completions solo admite reasoning_effort=none con herramientas (verificado el 2026-10-09, harness/reports/deployment-preconditions-20261009.md).",
+        "El análisis SDD decide si el brazo RAG (sin herramientas) migra también para mantener la paridad de endpoint y si el flujo de producto cambia; por defecto el flujo de producto no cambia.",
+        "LLM_SUPPORTED_COMBINATIONS refleja los esfuerzos verificados contra la API real para gpt-6-luna (efforts y toolEfforts); sin valores adivinados.",
+        "El esfuerzo y el endpoint efectivos quedan en modelConfig y en la evidencia experimental; sin degradación silenciosa (REASONING_EFFORT_UNSUPPORTED si no es compatible).",
+        "Pruebas con el cliente del SDK simulado (openai 7.8.0, client.responses.create); ninguna llamada real a OpenAI en la suite; bucle de herramientas del agente cubierto (llamadas a función, salidas, tope de tool calls y presupuesto de contexto de WI-CORE-024).",
+        "Sin cambio de contrato público esperado (contractImpact=false); si el análisis lo desmiente se registra y se emite Contract Sync."
+      ],
+      "specPaths": [
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/contracts/system-contract.md"
+      ]
     }
   ]
 }
