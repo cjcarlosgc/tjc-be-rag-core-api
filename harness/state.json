@@ -5323,7 +5323,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/transversal/providers/spec.md",
       "spec/transversal/providers/plan.md",
@@ -5362,7 +5362,7 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
-      "reviewAgent": null,
+      "reviewAgent": "human-reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -5390,6 +5390,55 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "implementer-high",
+          "status": "APPROVED",
+          "findings": [
+            "Cortes 1-4: adaptador Responses sin estado con providerItems y strict; pruebas del bucle; endpoint interno en modelConfig; esfuerzo max y guarda de temperature.",
+            "lint 0, build 0, tsc 43, test 1545 (3 corridas), e2e 222; cada commit compila."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/providers",
+            "app/src/llm",
+            "app/src/experiments",
+            "app/src/config",
+            "app/.env.example"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-031-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión humana del diff 59ae0bc..HEAD y decisión sobre las notas.",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          },
+          "reason": "Escalado a implementer-high: adaptador del proveedor y mapeo de mensajes."
+        },
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Corte 5: TEMPERATURE_UNSUPPORTED_WITH_REASONING se traduce al 422 REASONING_EFFORT_UNSUPPORTED sin ErrorCode nuevo, con prueba de servicio."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/experiments/experiments.service.ts",
+            "app/src/experiments/experiments.service.spec.ts"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-031-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión humana.",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -5397,15 +5446,15 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -5420,6 +5469,32 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-09T16:30:09.211Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-031",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T16:58:50.693Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-031",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T16:58:50.779Z"
         }
       ],
       "publishedSyncIds": [],
@@ -5428,7 +5503,8 @@
     "evidence": [
       "harness/reports/wi-core-031-contract-sync-scope-review.md",
       "harness/reports/wi-core-031-scope-approval.md",
-      "harness/reports/wi-core-031-sdd-verification.md"
+      "harness/reports/wi-core-031-sdd-verification.md",
+      "harness/reports/wi-core-031-implementation.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -5437,6 +5513,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-031-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-031-implementation.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-031-implementation.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-031-implementation.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-031-contract-sync-scope-review.md"
       ]
     }
   }
