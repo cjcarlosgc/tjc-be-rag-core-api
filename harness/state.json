@@ -5047,7 +5047,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/transversal/async-jobs/spec.md",
       "spec/transversal/async-jobs/plan.md",
@@ -5072,25 +5072,56 @@
       }
     ],
     "transversalPaths": [],
-    "approved": false,
+    "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-JOBS-001",
+        "DEC-JOBS-002"
+      ],
+      "checkedAt": "2026-10-09T16:00:19.312Z"
     },
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "Causa raíz: lockedAt solo se escribe al reclamar y nadie lo renueva; releaseStale solo libera dedupeKey por eso.",
+            "DEC-JOBS-001 y DEC-JOBS-002 aprobadas por el usuario en chat (B+E+C solo experiment-run, gancho onExhausted, H3/H4); IDEA-011 registrada.",
+            "contractImpact=false confirmado; sin migración."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-030-sdd-verification.md",
+            "spec/transversal/async-jobs/plan.md",
+            "spec/transversal/async-jobs/spec.md",
+            "spec/ideas.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-030-sdd-verification.md",
+            "harness/reports/wi-core-030-scope-approval.md"
+          ],
+          "recommendedNextStep": "Implementer-high por cortes: latido+fencing; liberación experiment-run+onExhausted; H3/H4.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -5098,7 +5129,7 @@
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -5121,9 +5152,13 @@
     },
     "evidence": [
       "harness/reports/wi-core-030-contract-sync-scope-review.md",
-      "harness/reports/wi-core-030-scope-request.md"
+      "harness/reports/wi-core-030-scope-request.md",
+      "harness/reports/wi-core-030-sdd-verification.md",
+      "harness/reports/wi-core-030-scope-approval.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": "harness/reports/wi-core-030-sdd-verification.md"
+    }
   }
 }

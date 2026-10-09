@@ -1480,7 +1480,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-SELECTED",
+      "status": "W-IN_PROGRESS",
       "priority": "P1",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1527,7 +1527,8 @@
           "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI es una recuperación interna de la cola de jobs sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
           "report": "harness/reports/wi-core-030-contract-sync-scope-review.md"
         }
-      ]
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-030-scope-approval.md"
     }
   ]
 }
