@@ -5910,7 +5910,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/features/011-context-traces/spec.md",
       "spec/features/011-context-traces/plan.md",
@@ -6070,6 +6070,53 @@
           "recommendedNextStep": "Corte F (implementer) con los 5 hallazgos y nueva ejecución del gate del reviewer sobre el diff adicional.",
           "executedBy": {
             "agent": "reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
+        },
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Corte F (b03ae56, 70b10d3): checkPublishedAt y publication PRESENT según DEC-TRACE-002; forma exacta de context y no exposición probadas; desempate por qualifiedName; recordExecution best-effort en HELD y catch; prueba dividida.",
+            "lint 0, build 0, test 1689 (x3), e2e 237, tsc 43 con cliente regenerado; 82 specs pg en PG 14 desechable."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/prisma",
+            "app/src/analysis-runs",
+            "app/src/validation",
+            "app/src/github-app"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-026-implementation.md"
+          ],
+          "recommendedNextStep": "El reviewer repite su gate sobre b03ae56..HEAD.",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        },
+        {
+          "agent": "leader",
+          "status": "APPROVED",
+          "findings": [
+            "Cambio mínimo: una línea checkPublishedAt: null en el fixture de github-webhooks.service.spec.ts (solo prueba) para restituir tsc 43."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/github-webhooks/github-webhooks.service.spec.ts (1 línea)"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-026-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión independiente.",
+          "reason": "cambio mínimo",
+          "executedBy": {
+            "agent": "leader",
             "configuredModel": "claude-sonnet-5-5",
             "servedModel": "unknown",
             "effort": "medium"

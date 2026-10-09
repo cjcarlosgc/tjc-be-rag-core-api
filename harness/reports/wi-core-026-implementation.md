@@ -26,3 +26,25 @@ Documentos: `018c35c` (INTEROP §6.16), `209807f` (corrección y ratificación f
 - `WI-CORE-027` no debe exponer conteos ni omitidas sin enmendar el contrato.
 - `checkId` solo será no nulo cuando GitHub Integration implemente `CS-CORE-20261009-012`.
 - El corte E no tuvo mutation test.
+
+## Corte F — hallazgos de la revisión independiente (CHANGES_REQUESTED, ciclo 1 de 2)
+Reporte del reviewer: `harness/reports/wi-core-026-independent-review.md`. Corte F por `implementer` (Haiku 5.5 / low, esfuerzo low):
+- `b03ae56` (hallazgos 1, 2, 3): columna nullable `analysis_runs.checkPublishedAt` (migración `20261009170000_analysis_run_check_published_at`, sin backfill, rollback documentado); `markCheckPublished(id, checkId|null)` se escribe tras un `createCheckRun` exitoso aunque el id sea null (best-effort); `publication.status = PRESENT` si hay `checkId`, `checkPublishedAt` o `TestPublication`, `NOT_APPLICABLE` si ninguno (DEC-TRACE-002); `context` comparado con `toEqual` sobre filas completas y aserción de no exposición de conteos/omitidas/`knowledgeId`; prueba del desempate por `qualifiedName`.
+- `70b10d3` (hallazgos 4 y 5): `recordExecution` best-effort también en la rama HELD y en el catch (la propuesta conserva contenido y clasificación); prueba dividida para coincidir con su título.
+- `c37b27d` (cambio mínimo declarado del leader, `executedBy agent: leader`, motivo «cambio mínimo»): una línea `checkPublishedAt: null` en el fixture de `app/src/github-webhooks/github-webhooks.service.spec.ts` (solo prueba, 1 línea, 1 archivo) que corrige un error de tipos introducido por `b03ae56`.
+
+### Medición de `tsc --noEmit` (worktree desechable con `prisma generate` en cada commit)
+| Commit | errores |
+|---|---|
+| `f92a746` (base de 026) | 43 |
+| `d91fdac` (corte A) | 44 (un error adicional en `analysis-run-validation-job.handler.spec.ts`: fixture del binding sin `disabledReason`) |
+| `8c8839c` (corte E) | 43 |
+| `70b10d3` (corte F) | 44 (nuevo error en `github-webhooks.service.spec.ts`: `checkPublishedAt` ausente en el fixture) |
+| `c37b27d` (HEAD) | 43 |
+Conclusión: el 44 en `d91fdac` fue una regresión real de fixture (solo spec) corregida después; el 44 en `70b10d3` era una regresión real de fixture de `b03ae56`, corregida en `c37b27d`. La línea base de 43 se mantiene en HEAD; una medición con cliente Prisma desactualizado puede dar 44.
+
+### Verificación del leader tras el corte F (HEAD `c37b27d`)
+lint 0; build 0; `tsc --noEmit` 43 con cliente regenerado; `pnpm test` x3: 1689 pasan, 82 omitidos, 1771 total (antes 1683/77); e2e con URL inalcanzable 237 pasan. El implementer corrió 82 specs pg en PostgreSQL 14 desechable con las 45 migraciones (aplica, rollback válido, `migrate diff` sin diferencias en `analysis_runs`) y 4 mutaciones temporales detectadas.
+
+### Deuda añadida
+La migración `20261009170000` no está aplicada a ninguna base real; la verificación sobre Postgres real sigue pendiente del agente principal. `checkPublishedAt` queda NULL en Runs previos (sin backfill: su `publication` solo será `PRESENT` si tienen `checkId` o `TestPublication`).
