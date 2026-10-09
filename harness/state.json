@@ -3931,5 +3931,100 @@
       "closedAt": "2026-10-09T00:45:00.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-021",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "storyIds": [
+      "HU05",
+      "HU07",
+      "HU10"
+    ],
+    "taskIds": [
+      "ST-CORE-028"
+    ],
+    "caseIds": [],
+    "sprint": "SMART V3",
+    "status": "W-SELECTED",
+    "specPaths": [
+      "spec/features/004-rag-retrieval-context/spec.md",
+      "spec/features/004-rag-retrieval-context/plan.md",
+      "spec/features/004-rag-retrieval-context/tasks.md",
+      "spec/features/013-pr-driven-analysis/spec.md",
+      "spec/features/013-pr-driven-analysis/plan.md",
+      "spec/features/013-pr-driven-analysis/tasks.md"
+    ],
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo separa las reglas funcionales en GenerationContext.",
+        "report": "harness/reports/wi-core-021-contract-sync-scope-review.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+        "report": "harness/reports/wi-core-021-contract-sync-scope-review.md"
+      }
+    ],
+    "transversalPaths": [],
+    "approved": true,
+    "decisionGate": {
+      "checked": false,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": null
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "implementer-high",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-NOT_RUN",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
+      "contractSyncPublished": "G-NOT_RUN",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-NOT_RUN",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-021",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-09T00:40:34.780Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-021-contract-sync-scope-review.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {}
+  }
 }

@@ -1072,7 +1072,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-READY",
+      "status": "W-SELECTED",
       "priority": "P0",
       "sprint": "SMART V3",
       "caseIds": [],
