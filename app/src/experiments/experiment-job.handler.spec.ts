@@ -393,6 +393,41 @@ describe('ExperimentJobHandler', () => {
     expect(deps.llmProvider.resolveEffectiveConfig).not.toHaveBeenCalled();
   });
 
+  it('keeps the persisted config for all six repetitions even if the env or a new resolution would now yield another model (WI-CORE-023)', async () => {
+    const { deps } = makeDeps({
+      configService: {
+        get: (key: string, fallback?: unknown) =>
+          key === 'EXPERIMENT_LLM_MODEL' || key === 'EXPERIMENT_LLM_REASONING_EFFORT' ? 'other-model' : fallback,
+      },
+    });
+    (deps.llmProvider.resolveEffectiveConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...effectiveConfig,
+      model: 'other-model',
+      modelVersion: 'other-model',
+      reasoningEffort: 'low',
+    });
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'exp-1',
+      status: 'PENDING',
+      modelConfig: effectiveConfig,
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const ragConfigs = (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]);
+    const agentConfigs = (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[3],
+    );
+    expect(ragConfigs).toHaveLength(3);
+    expect(agentConfigs).toHaveLength(3);
+    for (const config of [...ragConfigs, ...agentConfigs]) {
+      expect(config).toEqual(effectiveConfig);
+    }
+    expect(deps.llmProvider.resolveEffectiveConfig).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+  });
+
   it('resolves the default config for a legacy run whose modelConfig is NULL', async () => {
     const { deps } = makeDeps();
     (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({

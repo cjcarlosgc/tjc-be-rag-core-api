@@ -103,15 +103,17 @@ export class ExperimentsService {
 
     const projectVersionId = project.currentVersionId;
 
-    // WI-CORE-023: una sola resolución por experimento, antes de la transacción idempotente.
-    // Un error de configuración (LLMConfigurationError) se propaga sin crear el run.
-    const modelConfig = await this.llmProvider.resolveEffectiveConfig();
-
+    // WI-CORE-023 (Desviación 1): la LLMEffectiveConfig se resuelve y valida una única vez al crear el
+    // experimento y se persiste en ExperimentRun.modelConfig; las repeticiones la reutilizan y nunca la
+    // vuelven a resolver. `prepare` solo corre en una creación nueva: un replay con la misma
+    // Idempotency-Key no re-resuelve ni re-valida con el entorno actual. Un LLMConfigurationError se
+    // propaga antes de crear el run o encolar el job.
     return this.idempotencyService.run({
       scope: 'EXPERIMENT_CREATE',
       key: idempotencyKey,
       fingerprintInput: dto,
-      create: async (tx) => {
+      prepare: () => this.llmProvider.resolveEffectiveConfig(),
+      create: async (tx, modelConfig) => {
         const run = await this.experimentRunsRepository.create(
           {
             projectId: dto.projectId,

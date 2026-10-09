@@ -10,18 +10,29 @@ import { canonicalJsonStringify } from '../canonical-json.util.js';
 /** DEC-IDEMP-001 / spec/transversal/persistence/spec.md */
 export type IdempotencyScope = 'TEST_RUN_CREATE' | 'EXPERIMENT_CREATE' | 'TARGET_RETRY';
 
-export interface IdempotencyRunParams<T> {
+export interface IdempotencyRunParams<T, P = undefined> {
   scope: IdempotencyScope;
   /** Header `Idempotency-Key` tal como llegó del cliente (sin validar). */
   key: string | undefined;
   /** Huella canónica del request: scope + este valor, serializado con keys ordenadas. */
   fingerprintInput: unknown;
   /**
+   * Opcional. Se ejecuta solo para una creación nueva: si ya existe un registro
+   * para (scope, key) no se invoca, así un replay nunca repite la preparación
+   * (p. ej. resolver configuración externa). Corre antes de abrir la transacción,
+   * por lo que un error aborta la creación sin crear recursos. Su resultado se
+   * pasa a `create`.
+   */
+  prepare?: () => Promise<P>;
+  /**
    * Crea el recurso + encola el job dentro de la transacción `tx`. Devuelve
    * `operationId` (el runId/experimentId/retryJobId original, referenciado
    * por el registro de idempotencia) y la respuesta 202 a devolver.
    */
-  create: (tx: Prisma.TransactionClient) => Promise<{ operationId: string; response: T }>;
+  create: (
+    tx: Prisma.TransactionClient,
+    prepared: P,
+  ) => Promise<{ operationId: string; response: T }>;
   /**
    * Reconstruye la respuesta 202 en un replay, a partir del `operationId`
    * guardado. No se persiste el cuerpo de la respuesta original.
@@ -48,7 +59,7 @@ interface StoredIdempotencyRecord {
 export class IdempotencyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async run<T>(params: IdempotencyRunParams<T>): Promise<T> {
+  async run<T, P = undefined>(params: IdempotencyRunParams<T, P>): Promise<T> {
     const key = this.validateKey(params.key);
     const fingerprint = this.computeFingerprint(params.scope, params.fingerprintInput);
     const where = { scope_idempotencyKey: { scope: params.scope, idempotencyKey: key } };
@@ -59,6 +70,8 @@ export class IdempotencyService {
       return this.resolveExisting(existing, fingerprint, params.rebuildResponse);
     }
 
+    const prepared = (params.prepare ? await params.prepare() : undefined) as P;
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const recheck = await tx.idempotencyRecord.findUnique({ where });
@@ -67,7 +80,7 @@ export class IdempotencyService {
           return this.resolveExisting(recheck, fingerprint, params.rebuildResponse);
         }
 
-        const { operationId, response } = await params.create(tx);
+        const { operationId, response } = await params.create(tx, prepared);
 
         await tx.idempotencyRecord.create({
           data: {

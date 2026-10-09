@@ -41,10 +41,15 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     idempotencyService: {
       run: vi.fn(
         async ({
+          prepare,
           create,
         }: {
-          create: (tx: never) => Promise<{ operationId: string; response: unknown }>;
-        }) => (await create(undefined as never)).response,
+          prepare?: () => Promise<unknown>;
+          create: (tx: never, prepared: unknown) => Promise<{ operationId: string; response: unknown }>;
+        }) => {
+          const prepared = prepare ? await prepare() : undefined;
+          return (await create(undefined as never, prepared)).response;
+        },
       ),
     },
     ...overrides,
@@ -203,16 +208,17 @@ describe('ExperimentsService', () => {
       expect(result).toMatchObject({ experimentId: 'exp-1', projectVersionId: 'version-1', status: 'PENDING' });
     });
 
-    it('resolves the effective LLM config once, before the idempotent transaction, and persists it', async () => {
+    it('resolves the effective LLM config exactly once through prepare and persists that same config in create', async () => {
       const deps = makeDeps();
       const service = makeService(deps);
 
       await service.createRun({ projectId: 'project-1', targetId: 'target-1' }, 'key-1', OWNER_USER_ID);
 
       expect(deps.llmProvider.resolveEffectiveConfig).toHaveBeenCalledTimes(1);
-      const resolveOrder = deps.llmProvider.resolveEffectiveConfig.mock.invocationCallOrder[0];
-      const idempotencyOrder = deps.idempotencyService.run.mock.invocationCallOrder[0];
-      expect(resolveOrder).toBeLessThan(idempotencyOrder);
+      expect(deps.idempotencyService.run).toHaveBeenCalledWith(
+        expect.objectContaining({ prepare: expect.any(Function) }),
+      );
+      expect(deps.experimentRunsRepository.create).toHaveBeenCalledTimes(1);
       expect(deps.experimentRunsRepository.create.mock.calls[0][0]).toMatchObject({
         modelConfig: EFFECTIVE_CONFIG,
       });
@@ -236,7 +242,6 @@ describe('ExperimentsService', () => {
       await expect(
         service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: 'REASONING_EFFORT_UNSUPPORTED' });
-      expect(deps.idempotencyService.run).not.toHaveBeenCalled();
       expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
       expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
     });

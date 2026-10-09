@@ -364,5 +364,64 @@ describe('OpenAiLLMProvider', () => {
       expect(config.temperature).toBe(0.2);
       expect(config.maxOutputTokens).toBe(4000);
     });
+
+    it('registers no efforts by default for gpt-6-luna: without LLM_SUPPORTED_COMBINATIONS it fails before confirming the model', async () => {
+      const provider = new OpenAiLLMProvider(makeConfigService({ LLM_SUPPORTED_COMBINATIONS: undefined }));
+
+      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
+        code: 'REASONING_EFFORT_UNSUPPORTED',
+        model: 'gpt-6-luna',
+        requestedEffort: null,
+        supportedEfforts: [],
+      });
+      expect(retrieveMock).not.toHaveBeenCalled();
+    });
+
+    it('does not fall back to a guessed effort when gpt-6-luna is absent from LLM_SUPPORTED_COMBINATIONS', async () => {
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({
+          LLM_SUPPORTED_COMBINATIONS: JSON.stringify([
+            { model: 'model-a', efforts: ['low'], toolEfforts: ['low'] },
+          ]),
+        }),
+      );
+
+      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
+        code: 'REASONING_EFFORT_UNSUPPORTED',
+        model: 'gpt-6-luna',
+        supportedEfforts: [],
+      });
+      expect(retrieveMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('config persistida frente a entorno posterior (WI-CORE-023)', () => {
+    it('generate with a persisted config ignores EXPERIMENT_LLM_* changed after creation', async () => {
+      createMock.mockResolvedValue({ choices: [{ message: { content: 'x' } }] });
+
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-b', EXPERIMENT_LLM_REASONING_EFFORT: 'low' }),
+      );
+      await provider.generate('prompt', makeConfig({ model: 'model-a', reasoningEffort: 'medium' }));
+
+      expect(createMock.mock.calls[0][0]).toMatchObject({ model: 'model-a', reasoning_effort: 'medium' });
+      expect(retrieveMock).not.toHaveBeenCalled();
+    });
+
+    it('generateWithTools with a persisted config ignores EXPERIMENT_LLM_* changed after creation', async () => {
+      createMock.mockResolvedValue({ choices: [{ message: { content: 'x' } }] });
+
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-b', EXPERIMENT_LLM_REASONING_EFFORT: 'low' }),
+      );
+      await provider.generateWithTools(
+        [{ role: 'user', content: 'hola' }],
+        [],
+        makeConfig({ model: 'model-a', reasoningEffort: 'medium' }),
+      );
+
+      expect(createMock.mock.calls[0][0]).toMatchObject({ model: 'model-a', reasoning_effort: 'medium' });
+      expect(retrieveMock).not.toHaveBeenCalled();
+    });
   });
 });
