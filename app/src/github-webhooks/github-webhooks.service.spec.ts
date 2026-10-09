@@ -150,6 +150,7 @@ describe('GithubWebhooksService', () => {
     return {
       id: 'run-1',
       checkId: null,
+      checkPublishedAt: null,
       projectId: 'project-1',
       repositoryId: '123',
       repositoryName: 'org/repo',
