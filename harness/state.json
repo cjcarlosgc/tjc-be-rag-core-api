@@ -3509,420 +3509,427 @@
         ]
       },
       "closedAt": "2026-10-08T21:50:00.000Z"
+    },
+    {
+      "id": "WI-CORE-020",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU07",
+        "HU09"
+      ],
+      "taskIds": [
+        "ST-CORE-027"
+      ],
+      "caseIds": [],
+      "sprint": "SMART V3",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/system-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo diferencia reglas de Functional Knowledge por scenarioKey.",
+          "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-FK-001",
+          "DEC-FK-003",
+          "DEC-FK-004",
+          "DEC-FK-005"
+        ],
+        "checkedAt": "2026-10-08T23:30:00.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "DEC-FK-001/003/004 aprobadas; ninguna PENDING/PROPOSED alcanza el WI.",
+              "Ambigüedades (históricas LEGACY, migración única con backfill+NOT NULL+índice, dedupe previo de ACTIVE duplicadas, COALESCE(targetRef,''), P2002 -> 409) cerradas como detalle técnico en plan.md de 013."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/features/013-pr-driven-analysis/plan.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-020-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Implementar con implementer-high (migración con índice parcial y carrera) y revisar contrato después.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Migración, repositorio, servicio, evaluador y DTO implementados en 5ffcdee; lint, test (1329), build y e2e (222) verdes.",
+              "Escalado desde el inicio por migración con índice parcial y carrera.",
+              "La migración pasa a SUPERSEDED las ACTIVE duplicadas por target donde existan."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/prisma",
+              "app/src/functional-knowledge"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-020-implementation.md"
+            ],
+            "recommendedNextStep": "Revisión contractual y revisión humana.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Forma del 409 intacta; campos aditivos; coherente con INTEROP-2.7 §6.11.",
+              "Contract Sync solo a Console, breaking:false (CS-CORE-20261008-005).",
+              "Notas documentales menores no bloqueantes (SYSTEM DEC-FK-003 'hasta WI-CORE-020', línea 14 de INTEROP)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-020-contract-review.md"
+            ],
+            "recommendedNextStep": "Revisión humana del diff y la evidencia.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "leader",
+            "status": "DECISION_REQUIRED",
+            "findings": [
+              "Human Reviewer: CHANGES_REQUESTED (punto 1: migracion no debe superseder por target; punto 3: textos obsoletos).",
+              "Punto 3 corregido en bdd5700 y sincronizado documentalmente con CS-CORE-20261008-006 (CS-005 intacto).",
+              "Punto 1 detenido: sin estado de resolucion humana ni definicion de equivalencia semantica en la spec; DEC-FK-005 PENDING con opciones A/B/C."
+            ],
+            "blockers": [
+              "DEC-FK-005"
+            ],
+            "filesAffected": [
+              "spec/contracts/system-contract.md",
+              "spec/contracts/interoperability-contract.md",
+              "spec/features/013-pr-driven-analysis/plan.md",
+              "harness/contract-sync/outbox/CS-CORE-20261008-006.yaml"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-020-review-changes-requested.md"
+            ],
+            "recommendedNextStep": "El usuario elige A, B o C para DEC-FK-005; luego implementer-high rediseña la migracion y valida contra Postgres local desechable.",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "DEC-FK-005 aprobada por el usuario, opcion A.",
+              "CS-006 intacto; documental adicional CS-CORE-20261008-007 por cambio de system-contract.md."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/system-contract.md",
+              "spec/features/013-pr-driven-analysis/plan.md",
+              "CHANGELOG.md",
+              "harness/contract-sync/outbox/CS-CORE-20261008-007.yaml"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-020-dec-fk-005-approved.md"
+            ],
+            "recommendedNextStep": "implementer-high rediseña la migración 20261008150000 y valida contra Postgres docker desechable.",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Migracion 20261008150000 reescrita segun DEC-FK-005: backfill LEGACY, aborta con RAISE EXCEPTION y listado ordenado sin tocar status, indice unico parcial solo sin duplicados, re-ejecutable.",
+              "Preflight de solo lectura y script de validacion; 30 PASS en 6 escenarios sobre PostgreSQL 14 local desechable (sin Docker; no pg16 ni pgvector).",
+              "Commit 42e214a (trailer corregido a Sonnet 5.5 por el leader)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/prisma/migrations/20261008150000_functional_knowledge_scenarios/migration.sql",
+              "app/prisma/preflight",
+              "app/prisma/validation",
+              "app/src/prisma/functional-knowledge-scenarios-migration.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-020-implementation.md"
+            ],
+            "recommendedNextStep": "Contract review y revision humana.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Sin cambio de DTO/rutas/enums/errores/auth; 409 intacto.",
+              "CS-005/006/007 coherentes; importar 007 al final para que prevalezca el espejo SYSTEM.",
+              "DEC-FK-005 en spec/plan/CHANGELOG coincide con migracion y preflight."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-020-contract-review.md"
+            ],
+            "recommendedNextStep": "Revision humana del diff y la evidencia.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "Verificados diff, trailer, validate-harness, lint, test (1337), build y e2e (222) con URL inalcanzable.",
+              "Riesgos abiertos para el usuario antes de desplegar: A) duplicados historicos sin pregunta PENDING no resolubles por la API; B) transaccionalidad/P3009 en Prisma 7.10.0 sin verificar; C) validacion en PG14, no pg16/pgvector."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-020-implementation.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-020-implementation.md"
+            ],
+            "recommendedNextStep": "Human Reviewer decide; resolver A-C antes de desplegar.",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Veredicto del usuario en chat: APPROVED sobre el rediseño de DEC-FK-005 (opción A).",
+              "Punto A: preflight de solo lectura ejecutado con autorización del usuario; 0 duplicados y tabla vacía; no hace falta script de remediación.",
+              "Deuda/precondiciones de despliegue aceptadas sin resolver: B (transaccionalidad y P3009 de prisma migrate deploy en Prisma 7.10.0) y C (validación en pg16/pgvector)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-020-preflight-result.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-020-user-review.md"
+            ],
+            "recommendedNextStep": "Registrar el cierre aprobado y conservar el snapshot W-DONE; resolver B y C antes de aplicar la migración en una base con datos."
+          }
+        ],
+        "reviewCycles": 2,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-020",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-08T21:44:37.130Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-020",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-08T22:29:50.334Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-020",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-08T22:29:53.336Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-020",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-09T00:38:07.632Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261008-005",
+          "CS-CORE-20261008-006",
+          "CS-CORE-20261008-007"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-020-contract-sync-scope-review.md",
+        "harness/reports/wi-core-020-sdd-verification.md",
+        "harness/reports/wi-core-020-implementation.md",
+        "harness/reports/wi-core-020-contract-review.md",
+        "harness/reports/contract-sync-publish-cs-core-20261008-005.md",
+        "harness/reports/wi-core-020-dec-fk-005-approved.md",
+        "harness/reports/wi-core-020-preflight-result.md",
+        "harness/reports/wi-core-020-user-review.md",
+        "harness/reports/wi-core-020-closure.md"
+      ],
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-020-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-020-dec-fk-005-approved.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-020-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-020-implementation.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-020-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-020-contract-sync-checkpoints.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-020-contract-sync-checkpoints.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/contract-sync-publish-cs-core-20261008-005.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-020-user-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-020-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-09T00:45:00.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-020",
-    "component": "CORE",
-    "workItemType": "PRODUCT",
-    "storyIds": [
-      "HU07",
-      "HU09"
-    ],
-    "taskIds": [
-      "ST-CORE-027"
-    ],
-    "caseIds": [],
-    "sprint": "SMART V3",
-    "status": "W-IN_REVIEW",
-    "specPaths": [
-      "spec/features/013-pr-driven-analysis/spec.md",
-      "spec/features/013-pr-driven-analysis/plan.md",
-      "spec/features/013-pr-driven-analysis/tasks.md",
-      "spec/contracts/interoperability-contract.md",
-      "spec/contracts/system-contract.md"
-    ],
-    "contractSyncReview": [
-      {
-        "eventId": "CS-20260920-001",
-        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo diferencia reglas de Functional Knowledge por scenarioKey.",
-        "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
-      },
-      {
-        "eventId": "CS-20260921-003",
-        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
-        "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
-      }
-    ],
-    "transversalPaths": [],
-    "approved": true,
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-FK-001",
-        "DEC-FK-003",
-        "DEC-FK-004",
-        "DEC-FK-005"
-      ],
-      "checkedAt": "2026-10-08T23:30:00.000Z"
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer-high",
-      "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": "human-reviewer",
-      "handoffs": [
-        {
-          "agent": "sdd-analyst",
-          "status": "APPROVED",
-          "findings": [
-            "DEC-FK-001/003/004 aprobadas; ninguna PENDING/PROPOSED alcanza el WI.",
-            "Ambigüedades (históricas LEGACY, migración única con backfill+NOT NULL+índice, dedupe previo de ACTIVE duplicadas, COALESCE(targetRef,''), P2002 -> 409) cerradas como detalle técnico en plan.md de 013."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "spec/features/013-pr-driven-analysis/plan.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-020-sdd-verification.md"
-          ],
-          "recommendedNextStep": "Implementar con implementer-high (migración con índice parcial y carrera) y revisar contrato después.",
-          "executedBy": {
-            "agent": "sdd-analyst",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        },
-        {
-          "agent": "implementer",
-          "status": "APPROVED",
-          "findings": [
-            "Migración, repositorio, servicio, evaluador y DTO implementados en 5ffcdee; lint, test (1329), build y e2e (222) verdes.",
-            "Escalado desde el inicio por migración con índice parcial y carrera.",
-            "La migración pasa a SUPERSEDED las ACTIVE duplicadas por target donde existan."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "app/prisma",
-            "app/src/functional-knowledge"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-020-implementation.md"
-          ],
-          "recommendedNextStep": "Revisión contractual y revisión humana.",
-          "executedBy": {
-            "agent": "implementer-high",
-            "configuredModel": "claude-haiku-5-5",
-            "servedModel": "unknown",
-            "effort": "high"
-          }
-        },
-        {
-          "agent": "contract-reviewer",
-          "status": "APPROVED",
-          "findings": [
-            "Forma del 409 intacta; campos aditivos; coherente con INTEROP-2.7 §6.11.",
-            "Contract Sync solo a Console, breaking:false (CS-CORE-20261008-005).",
-            "Notas documentales menores no bloqueantes (SYSTEM DEC-FK-003 'hasta WI-CORE-020', línea 14 de INTEROP)."
-          ],
-          "blockers": [],
-          "filesAffected": [],
-          "evidence": [
-            "harness/reports/wi-core-020-contract-review.md"
-          ],
-          "recommendedNextStep": "Revisión humana del diff y la evidencia.",
-          "executedBy": {
-            "agent": "contract-reviewer",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        },
-        {
-          "agent": "leader",
-          "status": "DECISION_REQUIRED",
-          "findings": [
-            "Human Reviewer: CHANGES_REQUESTED (punto 1: migracion no debe superseder por target; punto 3: textos obsoletos).",
-            "Punto 3 corregido en bdd5700 y sincronizado documentalmente con CS-CORE-20261008-006 (CS-005 intacto).",
-            "Punto 1 detenido: sin estado de resolucion humana ni definicion de equivalencia semantica en la spec; DEC-FK-005 PENDING con opciones A/B/C."
-          ],
-          "blockers": [
-            "DEC-FK-005"
-          ],
-          "filesAffected": [
-            "spec/contracts/system-contract.md",
-            "spec/contracts/interoperability-contract.md",
-            "spec/features/013-pr-driven-analysis/plan.md",
-            "harness/contract-sync/outbox/CS-CORE-20261008-006.yaml"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-020-review-changes-requested.md"
-          ],
-          "recommendedNextStep": "El usuario elige A, B o C para DEC-FK-005; luego implementer-high rediseña la migracion y valida contra Postgres local desechable.",
-          "executedBy": {
-            "agent": "leader",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "medium"
-          }
-        },
-        {
-          "agent": "leader",
-          "status": "APPROVED",
-          "findings": [
-            "DEC-FK-005 aprobada por el usuario, opcion A.",
-            "CS-006 intacto; documental adicional CS-CORE-20261008-007 por cambio de system-contract.md."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "spec/contracts/system-contract.md",
-            "spec/features/013-pr-driven-analysis/plan.md",
-            "CHANGELOG.md",
-            "harness/contract-sync/outbox/CS-CORE-20261008-007.yaml"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-020-dec-fk-005-approved.md"
-          ],
-          "recommendedNextStep": "implementer-high rediseña la migración 20261008150000 y valida contra Postgres docker desechable.",
-          "executedBy": {
-            "agent": "leader",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "medium"
-          }
-        },
-        {
-          "agent": "implementer-high",
-          "status": "APPROVED",
-          "findings": [
-            "Migracion 20261008150000 reescrita segun DEC-FK-005: backfill LEGACY, aborta con RAISE EXCEPTION y listado ordenado sin tocar status, indice unico parcial solo sin duplicados, re-ejecutable.",
-            "Preflight de solo lectura y script de validacion; 30 PASS en 6 escenarios sobre PostgreSQL 14 local desechable (sin Docker; no pg16 ni pgvector).",
-            "Commit 42e214a (trailer corregido a Sonnet 5.5 por el leader)."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "app/prisma/migrations/20261008150000_functional_knowledge_scenarios/migration.sql",
-            "app/prisma/preflight",
-            "app/prisma/validation",
-            "app/src/prisma/functional-knowledge-scenarios-migration.spec.ts"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-020-implementation.md"
-          ],
-          "recommendedNextStep": "Contract review y revision humana.",
-          "executedBy": {
-            "agent": "implementer-high",
-            "configuredModel": "claude-haiku-5-5",
-            "servedModel": "unknown",
-            "effort": "high"
-          }
-        },
-        {
-          "agent": "contract-reviewer",
-          "status": "APPROVED",
-          "findings": [
-            "Sin cambio de DTO/rutas/enums/errores/auth; 409 intacto.",
-            "CS-005/006/007 coherentes; importar 007 al final para que prevalezca el espejo SYSTEM.",
-            "DEC-FK-005 en spec/plan/CHANGELOG coincide con migracion y preflight."
-          ],
-          "blockers": [],
-          "filesAffected": [],
-          "evidence": [
-            "harness/reports/wi-core-020-contract-review.md"
-          ],
-          "recommendedNextStep": "Revision humana del diff y la evidencia.",
-          "executedBy": {
-            "agent": "contract-reviewer",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        },
-        {
-          "agent": "leader",
-          "status": "APPROVED",
-          "findings": [
-            "Verificados diff, trailer, validate-harness, lint, test (1337), build y e2e (222) con URL inalcanzable.",
-            "Riesgos abiertos para el usuario antes de desplegar: A) duplicados historicos sin pregunta PENDING no resolubles por la API; B) transaccionalidad/P3009 en Prisma 7.10.0 sin verificar; C) validacion en PG14, no pg16/pgvector."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "harness/reports/wi-core-020-implementation.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-020-implementation.md"
-          ],
-          "recommendedNextStep": "Human Reviewer decide; resolver A-C antes de desplegar.",
-          "executedBy": {
-            "agent": "leader",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "medium"
-          }
-        }
-      ],
-      "reviewCycles": 2,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-PASSED",
-      "canonicalContractSynced": "G-PASSED",
-      "contractSyncPublished": "G-PASSED",
-      "interopSyncChecked": "G-PASSED",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
-    },
-    "coordination": {
-      "contractImpact": true,
-      "publishesContract": true,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-020",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-08T21:44:37.130Z"
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "workItem": "WI-CORE-020",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-08T21:59:40.212Z"
-        },
-        {
-          "checkpoint": "before-review",
-          "workItem": "WI-CORE-020",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-08T21:59:40.390Z"
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "workItem": "WI-CORE-020",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-08T22:29:50.334Z"
-        },
-        {
-          "checkpoint": "before-review",
-          "workItem": "WI-CORE-020",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-08T22:29:53.336Z"
-        }
-      ],
-      "publishedSyncIds": [
-        "CS-CORE-20261008-005",
-        "CS-CORE-20261008-006",
-        "CS-CORE-20261008-007"
-      ],
-      "pendingRelevantSyncIds": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-020-contract-sync-scope-review.md",
-      "harness/reports/wi-core-020-sdd-verification.md",
-      "harness/reports/wi-core-020-implementation.md",
-      "harness/reports/wi-core-020-contract-review.md",
-      "harness/reports/contract-sync-publish-cs-core-20261008-005.md",
-      "harness/reports/wi-core-020-dec-fk-005-approved.md"
-    ],
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-020-sdd-verification.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-020-dec-fk-005-approved.md"
-      ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-020-implementation.md"
-      ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-020-implementation.md"
-      ],
-      "contractReviewed": [
-        "harness/reports/wi-core-020-contract-review.md"
-      ],
-      "canonicalContractSynced": [
-        "harness/reports/wi-core-020-contract-sync-checkpoints.md"
-      ],
-      "interopSyncChecked": [
-        "harness/reports/wi-core-020-contract-sync-checkpoints.md"
-      ],
-      "contractSyncPublished": [
-        "harness/reports/contract-sync-publish-cs-core-20261008-005.md"
-      ]
-    }
-  }
+  "activeWorkItem": null
 }

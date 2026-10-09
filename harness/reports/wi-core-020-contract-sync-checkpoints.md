@@ -5,4 +5,4 @@ Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo 
 - `implementation-delivery` (2026-10-08T21:59:40.212Z): sin pendientes relevantes; no relevantes revisados: CS-20260920-001, CS-20260921-003.
 - `before-review` (2026-10-08T21:59:40.390Z): sin pendientes relevantes; no relevantes revisados: CS-20260920-001, CS-20260921-003.
 
-El `before-done` se registra al cierre tras la revisión humana. `CS-CORE-20261008-005` (Console) sigue `C-PENDING`.
+- `before-done` (2026-10-09T00:38:07.632Z): sin pendientes relevantes; no relevantes revisados: CS-20260920-001, CS-20260921-003. Se conservan los últimos `implementation-delivery` y `before-review` (22:29Z) en el snapshot. `CS-CORE-20261008-005/006/007` (Console) siguen `C-PENDING`.
