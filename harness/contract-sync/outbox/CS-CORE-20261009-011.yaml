@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-011
+source: core
+sourceWorkItem: WI-CORE-022
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.7 6.15 (comparacion de retrieval OE2) implementada en Core (WI-CORE-022): POST/GET /retrieval-comparisons, /results y listado por AnalysisRun; resultados SE y SEM sin ganador; metricas P@k/R@k solo con groundTruth (hasta 200); failureCode abierto; 5 ErrorCode nuevos: ANALYSIS_SYMBOL_NOT_FOUND, UNSUPPORTED_SYMBOL_KIND, RETRIEVAL_COMPARISON_NOT_FOUND, RETRIEVAL_COMPARISON_NOT_FINISHED y RETRIEVAL_COMPARISON_FAILED; ademas 409 ANALYSIS_NOT_FINISHED y 422 UNSUPPORTED_PROJECT (PHP) en la creacion, ya existentes en Core. Checkpoints de contenido en harness/reports/wi-core-022-contract-final-review.md.
+requiredAction:
+  - Console (WI-CONSOLE-014): implementar cliente y tipos segun los 6 checkpoints de contenido; tratar failureCode como string abierto; limitar groundTruth a 200; manejar 409 RETRIEVAL_COMPARISON_FAILED leyendo el detalle del status sin reintentar, 409 NOT_FINISHED con polling por pollAfterMs, 409 ANALYSIS_NOT_FINISHED y 422 UNSUPPORTED_PROJECT con mensaje de UI propio.
+sourceRevision: d3829fc58e2a2d8133e5a22c34924aa468718b26
+status: C-PENDING
