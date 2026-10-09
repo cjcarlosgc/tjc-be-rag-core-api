@@ -4682,7 +4682,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/features/008-experimental-comparison/spec.md",
       "spec/features/008-experimental-comparison/plan.md",
@@ -4711,10 +4711,16 @@
     "transversalPaths": [],
     "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-EXP-002",
+        "DEC-EXP-003",
+        "DEC-EXP-004",
+        "DEC-EXP-FK-001",
+        "DEC-IDEMP-001"
+      ],
+      "checkedAt": "2026-10-09T03:05:00.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
@@ -4722,19 +4728,45 @@
       "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "SPEC_VERIFIED sin bloqueos; contractImpact=true y publishesContract=true confirmados; modelConfig ya lo persistió WI-CORE-023.",
+            "Detalle técnico de 11 puntos cerrado en 008/plan.md.",
+            "Decisiones del usuario en chat: executionDurationMs: number | null ratificado; TIMED_OUT del Sandbox NO es fallo externo (desviación aprobada de la regla literal del WI); IDEA-006/IDEA-007 registradas en el backlog sin implementar."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/features/008-experimental-comparison/plan.md",
+            "spec/features/008-experimental-comparison/tasks.md",
+            "spec/ideas.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-025-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Contract-reviewer antes del corte 1; luego implementer en cortes (implementer-high para el handler).",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
       "contractReviewed": "G-NOT_RUN",
       "canonicalContractSynced": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN"
     },
@@ -4765,9 +4797,17 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-025-contract-sync-scope-review.md"
+      "harness/reports/wi-core-025-contract-sync-scope-review.md",
+      "harness/reports/wi-core-025-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-025-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-025-sdd-verification.md"
+      ]
+    }
   }
 }
