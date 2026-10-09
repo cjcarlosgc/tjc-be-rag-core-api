@@ -4753,6 +4753,29 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Diseño APPROVED sin blockers ni DECISION_REQUIRED; sin bump de INTEROP ni SYSTEM (precedente 018/019/020).",
+            "Editó INTEROP §3 (identidad :2 solo si attempt>1, nunca intento 3), §6.5 (executionDurationMs: number | null) y §6.5.1 (422 con details.supportedEfforts, MODEL_UNAVAILABLE a 503 LLM_PROVIDER_UNAVAILABLE, TIMED_OUT no es externo).",
+            "Pendiente al cierre con la implementación verificada: §6.5.1 a Implementado, nota de versión (línea 14), tipos V27Additions con | null, anotar 422 UNSUPPORTED_PROJECT; Contract Sync a Console."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/contracts/interoperability-contract.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-025-contract-review.md"
+          ],
+          "recommendedNextStep": "Implementar los cortes; emitir el Contract Sync al cierre.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -4798,7 +4821,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-025-contract-sync-scope-review.md",
-      "harness/reports/wi-core-025-sdd-verification.md"
+      "harness/reports/wi-core-025-sdd-verification.md",
+      "harness/reports/wi-core-025-contract-review.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
