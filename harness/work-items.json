@@ -1271,7 +1271,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1392,7 +1392,8 @@
         "sandbox.facts se limita a la lista cerrada executionProfile, runner, compiled, executed, passed, totalTests, passedTests, failedTests, skippedTests, testCasesTruncated, failureStage, failureCategory, failureCode y failureMessage saneado, nunca logs, evidencias ni URLs; snapshotRef es opaco y artifactHash es un SHA-256.",
         "La evidencia no contiene chain-of-thought, credenciales ni identificadores EV-OE*; una prueba de esquema estable (snapshot) detecta cambios no versionados.",
         "Los DTO y agregados respetan la jerarquía CF/CO/VT documentada en spec/transversal/experimental-metrics: CF y CO son externos y no se derivan de valid/passed, no hay ganador ni significancia estadística y los valores no observables son null.",
-        "Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints.",
+        "Obligación heredada de WI-CORE-025 (aprobada por el usuario): la exclusión de repeticiones con technicallyEvaluable=false de las tasas y promedios ya está implementada en StrategyMetricsResponse; WI-027 la refleja en los agregados y la evidencia (sección experimental), distingue «sin datos evaluables» de 0 % (decide si validRate pasa a null cuando no hay slots evaluables, lo que exige tocar el contrato y emitir Contract Sync) y no deriva CF/CO de esos slots."
       ],
       "specPaths": [
         "spec/transversal/experimental-metrics/spec.md",
