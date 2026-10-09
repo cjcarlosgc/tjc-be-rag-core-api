@@ -308,7 +308,7 @@ export class AnalysisRunValidationJobHandler
         failureSummary: outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
         contextId,
       });
-      await this.recordExecution(run, proposalId, sandboxResult, kind);
+      await this.recordExecutionBestEffort(run, proposalId, sandboxResult, kind);
       return { symbol, kind };
     } catch (error) {
       const summary =
@@ -327,9 +327,10 @@ export class AnalysisRunValidationJobHandler
         failureSummary: summary,
         contextId,
       });
-      // Solo si el Sandbox aceptó la ejecución hay un executionId que conservar (WI-CORE-026).
+      // Solo si el Sandbox aceptó la ejecución hay un executionId que conservar (WI-CORE-026). Best-effort:
+      // un fallo aquí no sale del handler ni reclasifica la propuesta ya guardada.
       if (error instanceof SandboxAcceptedExecutionError) {
-        await this.recordExecution(run, proposalId, error, 'TECHNICAL_GENERATION_FAILURE');
+        await this.recordExecutionBestEffort(run, proposalId, error, 'TECHNICAL_GENERATION_FAILURE');
       }
       return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
     }
@@ -428,8 +429,9 @@ export class AnalysisRunValidationJobHandler
   }
 
   /**
-   * Variante best-effort para el camino de éxito: si el registro falla se loguea (solo el nombre del error,
-   * sin cuerpos ni secretos) y la propuesta AVAILABLE se conserva; la ejecución queda sin registrar.
+   * Variante best-effort para los caminos VALID, HELD y de excepción aceptada: si el registro falla se loguea
+   * (executionId y nombre del error, sin mensaje ni cuerpos) y la propuesta conserva su contenido y su
+   * clasificación; la ejecución queda sin registrar.
    */
   private async recordExecutionBestEffort(
     run: AnalysisRun,
@@ -442,7 +444,7 @@ export class AnalysisRunValidationJobHandler
     } catch (error) {
       const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
       this.logger.warn(
-        `No se pudo registrar la ejecución ${execution.executionId} del AnalysisRun ${run.id} (${reason}); la propuesta sigue disponible.`,
+        `No se pudo registrar la ejecución ${execution.executionId} del AnalysisRun ${run.id} (${reason}); la propuesta conserva su contenido y su clasificación.`,
       );
     }
   }

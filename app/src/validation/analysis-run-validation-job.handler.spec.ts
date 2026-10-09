@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -507,6 +508,57 @@ describe('AnalysisRunValidationJobHandler', () => {
       warn.mockRestore();
     });
 
+    it('keeps a BEHAVIORAL_MISMATCH proposal with its classification when recording the execution fails', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository, generatedTestProposalsRepository, analysisRunsService } = await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: { runner: 'JEST', compiled: true, executed: true, passed: false, totalTests: 1, passedTests: 0, failedTests: 1, skippedTests: 0, testCases: [{ suitePath: null, name: 'it works', status: 'FAILED', durationMs: 1, errorMessage: 'expected true, got false' }], testCasesTruncated: false },
+        }),
+      );
+      analysisTraceRepository.upsertExecution.mockRejectedValueOnce(new Error('connection string postgresql://user:secret@host'));
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(handler.handle({ analysisRunId: 'run-1' }, 'job-1')).resolves.toBeUndefined();
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', failureSummary: 'expected true, got false', contextId: 'context-1' }),
+      );
+      const stored = generatedTestProposalsRepository.upsertForSymbol.mock.calls[0]![0] as { contentSha256: string };
+      expect(stored.contentSha256).not.toBe(createHash('sha256').update('').digest('hex'));
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'BEHAVIORAL_MISMATCH',
+        expect.anything(),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('exec-1'));
+      expect(warn.mock.calls.map((call) => String(call[0])).join(' ')).not.toContain('secret');
+      warn.mockRestore();
+    });
+
+    it('does not leave the handler when recording an accepted execution fails inside the catch, and keeps the held classification', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository, generatedTestProposalsRepository, analysisRunsService } = await setup();
+      sandboxExecutionService.execute.mockRejectedValue(
+        new SandboxAcceptedExecutionError('La ejecución exec-9 no terminó.', 'exec-9', 'NODE_TYPESCRIPT'),
+      );
+      analysisTraceRepository.upsertExecution.mockRejectedValueOnce(new Error('connection string postgresql://user:secret@host'));
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(handler.handle({ analysisRunId: 'run-1' }, 'job-1')).resolves.toBeUndefined();
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', failureSummary: 'La ejecución exec-9 no terminó.' }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('exec-9'));
+      expect(warn.mock.calls.map((call) => String(call[0])).join(' ')).not.toContain('secret');
+      warn.mockRestore();
+    });
+
     it('numbers the attempt after the continuations of the run (attemptCount + 1)', async () => {
       const context = await setup();
       context.analysisRunsRepository.findById.mockResolvedValue(buildRun({ attemptCount: 1 }));
@@ -678,8 +730,21 @@ describe('AnalysisRunValidationJobHandler', () => {
       expect(serialized).not.toContain('user-1');
     });
 
-    it('records no retrieval or context for a symbol that already has a test, and a null context_id when retrieval fails', async () => {
-      const { handler, analysisTraceRepository, generatedTestProposalsRepository, retrievalService } = await setup();
+    it('records no retrieval or context for a symbol that already has a test', async () => {
+      const { handler, testTargetsRepository, analysisTraceRepository, retrievalService } = await setup();
+      testTargetsRepository.findByProjectVersion.mockResolvedValue([
+        { id: 'target-1', projectVersionId: 'version-1', filePath: 'src/thing.ts', symbolName: 'Thing', methodName: 'doIt', targetType: 'METHOD', hasTest: true, testFilePaths: [] } as unknown as TestTarget,
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(retrievalService.retrieve).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertRetrieval).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertContext).not.toHaveBeenCalled();
+    });
+
+    it('holds the proposal with a null context_id and persists no retrieval or context when retrieval fails', async () => {
+      const { handler, retrievalService, analysisTraceRepository, generatedTestProposalsRepository } = await setup();
       retrievalService.retrieve.mockRejectedValue(new Error('No se encontró un chunk indexado'));
 
       await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
