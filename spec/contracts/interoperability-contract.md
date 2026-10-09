@@ -274,6 +274,8 @@ interface ExperimentStatusResponse {
   completedAt: IsoDateTime | null
 }
 
+// Nota informativa sobre ExperimentStatusResponse.failureCode: el campo sigue siendo `string | null` abierto; los consumidores deben tolerar valores desconocidos. Valores que Core emite hoy cuando status = FAILED: `EXPERIMENT_FAILED` (el handler capturó un error durante la ejecución y marcó el run) y `EXPERIMENT_WORKER_LOST` (la cola agotó los intentos tras la muerte del worker y cerró el run). Un run FAILED puede reanudarse; si completa, vuelve a COMPLETED y failureCode/failureMessage se limpian a null.
+
 interface StrategyMetricsResponse {
   strategy: ExperimentStrategy
   validRate: number
