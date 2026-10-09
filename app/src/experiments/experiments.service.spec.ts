@@ -258,6 +258,38 @@ describe('ExperimentsService', () => {
       expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
     });
 
+    it('answers 422 REASONING_EFFORT_UNSUPPORTED when temperature conflicts with active reasoning, without creating the run or enqueuing the job', async () => {
+      const deps = makeDeps({
+        llmProvider: {
+          resolveEffectiveConfig: vi.fn().mockRejectedValue(
+            new LLMConfigurationError({
+              code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
+              model: 'gpt-6-luna',
+              requestedEffort: 'high',
+              supportedEfforts: ['none'],
+              temperature: 0.2,
+            }),
+          ),
+        },
+      });
+      const service = makeService(deps);
+
+      const error = await service
+        .createRun({ projectId: 'project-1', targetId: 'target-1' }, 'key-1', OWNER_USER_ID)
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(AppException);
+      expect(error).toMatchObject({
+        code: ErrorCode.REASONING_EFFORT_UNSUPPORTED,
+        details: { model: 'gpt-6-luna', requestedEffort: 'high', supportedEfforts: ['none'] },
+      });
+      expect((error as AppException).message).toContain('temperatura');
+      expect((error as AppException).message).toContain('"none"');
+      expect((error as AppException).getStatus()).toBe(422);
+      expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
+      expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
+    });
+
     it('answers 503 LLM_PROVIDER_UNAVAILABLE when the experiment model is unavailable, without creating the run', async () => {
       const deps = makeDeps({
         llmProvider: {
