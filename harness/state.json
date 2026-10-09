@@ -5625,16 +5625,14 @@
       "handoffs": [
         {
           "agent": "sdd-analyst",
-          "status": "DECISION_REQUIRED",
+          "status": "APPROVED",
           "findings": [
             "El WI implementa exactamente INTEROP-2.7 §6.15; sin llamadas a OpenAI (ancla = embedding almacenado).",
             "DEC-RC-001 (validaciones de creación 409 ANALYSIS_NOT_FINISHED y 422 UNSUPPORTED_SYMBOL_KIND PHP) abierta: no aprobada por el usuario; bloquea solo ese punto y el cierre del WI.",
             "DEC-RC-002 aprobada por el usuario: retrieval-comparison entra en los jobs liberables (enmienda de DEC-JOBS-001).",
-            "Nota del leader: el validador exige noBlockingDecisions G-PASSED desde W-IN_PROGRESS y no admite decisiones bloqueantes. DEC-RC-001 solo bloquea las dos validaciones de creación (no implementadas, marcadas pendientes), por eso se registra como no bloqueante del avance y noBlockingDecisions pasa con ese alcance acotado. El leader NO cerrará W-DONE mientras el usuario no resuelva DEC-RC-001 (condición manual, no aplicada por el validador)."
+            "DEC-RC-001 APROBADA por el usuario en chat (2026-10-09): 409 ANALYSIS_NOT_FINISHED para Run sin projectVersionId y 422 UNSUPPORTED_PROJECT para PHP; sin códigos nuevos. Ya no hay decisiones pendientes."
           ],
-          "blockers": [
-            "DEC-RC-001"
-          ],
+          "blockers": [],
           "filesAffected": [
             "harness/reports/wi-core-022-sdd-verification.md",
             "spec/features/004-rag-retrieval-context/plan.md"
