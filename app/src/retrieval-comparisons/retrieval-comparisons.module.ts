@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
+import { ProjectVersionsModule } from '../project-versions/project-versions.module.js';
 import { RetrievalModule } from '../retrieval/retrieval.module.js';
 import { RetrievalComparisonsRepository } from './persistence/retrieval-comparisons.repository.js';
 import { RetrievalComparisonJobHandler } from './retrieval-comparison-job.handler.js';
@@ -7,7 +8,7 @@ import { RetrievalComparisonsController } from './retrieval-comparisons.controll
 import { RetrievalComparisonsService } from './retrieval-comparisons.service.js';
 
 @Module({
-  imports: [RetrievalModule, AnalysisRunsModule],
+  imports: [RetrievalModule, AnalysisRunsModule, ProjectVersionsModule],
   controllers: [RetrievalComparisonsController],
   providers: [RetrievalComparisonsRepository, RetrievalComparisonsService, RetrievalComparisonJobHandler],
 })

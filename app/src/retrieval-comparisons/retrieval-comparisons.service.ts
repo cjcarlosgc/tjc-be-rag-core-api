@@ -7,6 +7,7 @@ import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisSymbol, Prisma } from '../generated/prisma/client.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { RETRIEVAL_COMPARISON_JOB_TYPE, type RetrievalComparisonJobPayload } from './retrieval-comparison-job.handler.js';
 import { RetrievalComparisonsRepository } from './persistence/retrieval-comparisons.repository.js';
 import type { RetrievalComparison } from '../generated/prisma/client.js';
@@ -57,6 +58,7 @@ export class RetrievalComparisonsService {
     private readonly jobsService: JobsService,
     private readonly idempotencyService: IdempotencyService,
     private readonly configService: ConfigService,
+    private readonly projectVersionsRepository: ProjectVersionsRepository,
   ) {}
 
   /**
@@ -71,20 +73,23 @@ export class RetrievalComparisonsService {
     const run = await this.analysisRunsService.getById(dto.analysisRunId, ownerUserId);
     this.idempotencyService.validateKey(idempotencyKey);
 
-    const symbol = await this.requireComparableSymbol(run.id, dto.symbolFilePath, dto.symbolQualifiedName);
-
-    // DEC-RC-001 pendiente: un Run visible sin projectVersionId no puede aceptarse (la respuesta `202`
-    // exige `projectVersionId`). Se usa un conflicto de estado ya existente hasta que el usuario decida
-    // el código público. NO es el 409 ANALYSIS_NOT_FINISHED, que sigue sin aprobar.
+    // DEC-RC-001 (aprobada): un Run visible sin projectVersionId responde 409 ANALYSIS_NOT_FINISHED.
     if (!run.projectVersionId) {
       throw new AppException(
-        ErrorCode.PROJECT_NOT_READY,
+        ErrorCode.ANALYSIS_NOT_FINISHED,
         'El AnalysisRun todavía no tiene una versión de análisis; reintenta cuando termine el snapshot.',
         HttpStatus.CONFLICT,
       );
     }
 
     const projectVersionId = run.projectVersionId;
+
+    // DEC-RC-001 (aprobada): un proyecto PHP responde 422 UNSUPPORTED_PROJECT, mismo código que los
+    // experimentos. WI-CORE-028 retirará este rechazo solo en la comparación.
+    await this.requireNotPhpVersion(projectVersionId);
+
+    const symbol = await this.requireComparableSymbol(run.id, dto.symbolFilePath, dto.symbolQualifiedName);
+
     const pollAfterMs = this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS);
 
     return this.idempotencyService.run({
@@ -213,10 +218,22 @@ export class RetrievalComparisonsService {
     return comparison;
   }
 
+  /** `422 UNSUPPORTED_PROJECT` si la versión analizada es PHP (DEC-RC-001). */
+  private async requireNotPhpVersion(projectVersionId: string): Promise<void> {
+    const version = await this.projectVersionsRepository.findById(projectVersionId);
+
+    if (version?.language === 'PHP') {
+      throw new AppException(
+        ErrorCode.UNSUPPORTED_PROJECT,
+        'La comparación de retrieval todavía no soporta proyectos PHP.',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+  }
+
   /**
    * Símbolo del Run por `(filePath, qualifiedName)`: `404` si no existe; `422` si no es METHOD o FUNCTION
-   * DIRECTLY_CHANGED. Un símbolo PHP no se rechaza aquí: DEC-RC-001 y WI-CORE-028 están pendientes. Sin
-   * chunks indexados, el job termina FAILED con RETRIEVAL_TARGET_UNRESOLVABLE.
+   * DIRECTLY_CHANGED. Sin chunks indexados, el job termina FAILED con RETRIEVAL_TARGET_UNRESOLVABLE.
    */
   private async requireComparableSymbol(analysisRunId: string, filePath: string, qualifiedName: string): Promise<AnalysisSymbol> {
     const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(analysisRunId);

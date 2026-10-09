@@ -60,6 +60,7 @@ describe('RetrievalComparisonsService', () => {
   let analysisSymbolsRepository: { findByAnalysisRun: ReturnType<typeof vi.fn> };
   let repository: { create: ReturnType<typeof vi.fn>; findById: ReturnType<typeof vi.fn> };
   let jobsService: { enqueue: ReturnType<typeof vi.fn> };
+  let projectVersions: { findById: ReturnType<typeof vi.fn> };
   let service: RetrievalComparisonsService;
 
   beforeEach(() => {
@@ -70,6 +71,7 @@ describe('RetrievalComparisonsService', () => {
       findById: vi.fn().mockResolvedValue({ id: 'cmp-1', analysisRunId: 'run-1', projectVersionId: 'version-1' }),
     };
     jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
+    projectVersions = { findById: vi.fn().mockResolvedValue({ id: 'version-1', language: 'TYPESCRIPT' }) };
     const { prisma } = makeIdempotencyPrisma();
     const config = { get: (_key: string, fallback: unknown) => fallback };
     service = new RetrievalComparisonsService(
@@ -79,6 +81,7 @@ describe('RetrievalComparisonsService', () => {
       jobsService as never,
       new IdempotencyService(prisma as never),
       config as never,
+      projectVersions as never,
     );
   });
 
@@ -178,28 +181,70 @@ describe('RetrievalComparisonsService', () => {
     expect(repository.create).not.toHaveBeenCalled();
   });
 
-  it('does not reject a PHP symbol by language (WI-CORE-028 and DEC-RC-001 pending): the job will decide', async () => {
+  it('answers 422 UNSUPPORTED_PROJECT for a PHP version (DEC-RC-001) and creates nothing', async () => {
+    projectVersions.findById.mockResolvedValue({ id: 'version-1', language: 'PHP' });
+
+    const error = await service.create(request, KEY, 'user-1').catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: ErrorCode.UNSUPPORTED_PROJECT });
+    expect((error as AppException).getStatus()).toBe(422);
+    expect(projectVersions.findById).toHaveBeenCalledWith('version-1');
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(jobsService.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('a PHP version is rejected before the symbol lookup (422 wins over 404 ANALYSIS_SYMBOL_NOT_FOUND)', async () => {
+    projectVersions.findById.mockResolvedValue({ id: 'version-1', language: 'PHP' });
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([]);
+
+    const error = await service.create(request, KEY, 'user-1').catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: ErrorCode.UNSUPPORTED_PROJECT });
+    expect(analysisSymbolsRepository.findByAnalysisRun).not.toHaveBeenCalled();
+  });
+
+  it('a PHP symbol inside a TypeScript version is not rejected by language: the job decides', async () => {
     analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([symbol({ language: 'PHP' })]);
 
     await expect(service.create(request, KEY, 'user-1')).resolves.toMatchObject({ status: 'PENDING' });
   });
 
-  it('a visible Run without projectVersionId answers a controlled 409 (DEC-RC-001 pending) and creates nothing', async () => {
+  it('a visible Run without projectVersionId answers 409 ANALYSIS_NOT_FINISHED before any other check, and creates nothing', async () => {
     analysisRunsService.getById.mockResolvedValue(run({ projectVersionId: null }));
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([]);
 
     const error = await service.create(request, KEY, 'user-1').catch((caught: unknown) => caught);
 
-    expect(error).toMatchObject({ code: ErrorCode.PROJECT_NOT_READY });
+    expect(error).toMatchObject({ code: ErrorCode.ANALYSIS_NOT_FINISHED });
     expect((error as AppException).getStatus()).toBe(409);
+    expect(analysisSymbolsRepository.findByAnalysisRun).not.toHaveBeenCalled();
+    expect(projectVersions.findById).not.toHaveBeenCalled();
     expect(repository.create).not.toHaveBeenCalled();
     expect(jobsService.enqueue).not.toHaveBeenCalled();
   });
 
-  it('does not use the ANALYSIS_NOT_FINISHED code for a Run without projectVersionId (DEC-RC-001 not approved)', async () => {
+  it('a missing Idempotency-Key wins over the 409 for a Run without projectVersionId', async () => {
     analysisRunsService.getById.mockResolvedValue(run({ projectVersionId: null }));
+
+    await expect(service.create(request, undefined, 'user-1')).rejects.toMatchObject({ code: ErrorCode.IDEMPOTENCY_KEY_REQUIRED });
+  });
+
+  it('a symbol missing from the Run answers 404 ANALYSIS_SYMBOL_NOT_FOUND after the version checks', async () => {
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([]);
 
     const error = await service.create(request, KEY, 'user-1').catch((caught: unknown) => caught);
 
-    expect(error).not.toMatchObject({ code: ErrorCode.ANALYSIS_NOT_FINISHED });
+    expect(error).toMatchObject({ code: ErrorCode.ANALYSIS_SYMBOL_NOT_FOUND });
+    expect(projectVersions.findById).toHaveBeenCalledTimes(1);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('the same key with a body that was rejected earlier does not create an idempotency record', async () => {
+    projectVersions.findById.mockResolvedValue({ id: 'version-1', language: 'PHP' });
+    await service.create(request, KEY, 'user-1').catch(() => undefined);
+
+    projectVersions.findById.mockResolvedValue({ id: 'version-1', language: 'TYPESCRIPT' });
+    await expect(service.create(request, KEY, 'user-1')).resolves.toMatchObject({ status: 'PENDING' });
+    expect(repository.create).toHaveBeenCalledTimes(1);
   });
 });
