@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExperimentsService } from './experiments.service.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { OpenAiLLMProvider } from '../providers/openai-llm.provider.js';
+import { AppException } from '../common/errors/app.exception.js';
 
 // WI-CORE-023 (Desviación 1): la configuración del experimento se resuelve y valida al crearlo, usando el
 // OpenAiLLMProvider real con un ConfigService falso. La API de OpenAI nunca se llama: se mockea el cliente.
@@ -69,7 +70,7 @@ function makeService(env: ReturnType<typeof makeEnv>) {
     } as never,
     {
       hasActiveVersion: vi.fn().mockResolvedValue(false),
-      findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED' }),
+      findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED', detectedFramework: 'VITEST' }),
     } as never,
     { findByIdForOwner: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'FUNCTION' }) } as never,
     experimentRunsRepository as never,
@@ -95,11 +96,13 @@ describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1)', 
     });
     const { service, experimentRunsRepository, jobsService, prisma } = makeService(env);
 
-    await expect(service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID)).rejects.toMatchObject({
+    const error = await service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(AppException);
+    expect((error as AppException).getStatus()).toBe(422);
+    expect(error).toMatchObject({
       code: 'REASONING_EFFORT_UNSUPPORTED',
-      model: 'gpt-6-luna',
-      requestedEffort: 'high',
-      supportedEfforts: ['low', 'xhigh'],
+      details: { model: 'gpt-6-luna', requestedEffort: 'high', supportedEfforts: ['low', 'xhigh'] },
     });
     expect(experimentRunsRepository.create).not.toHaveBeenCalled();
     expect(jobsService.enqueue).not.toHaveBeenCalled();
@@ -111,10 +114,12 @@ describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1)', 
     const env = makeEnv({});
     const { service, experimentRunsRepository, jobsService } = makeService(env);
 
-    await expect(service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID)).rejects.toMatchObject({
+    const error = await service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID).catch((caught: unknown) => caught);
+
+    expect((error as AppException).getStatus()).toBe(422);
+    expect(error).toMatchObject({
       code: 'REASONING_EFFORT_UNSUPPORTED',
-      model: 'gpt-6-luna',
-      supportedEfforts: [],
+      details: { model: 'gpt-6-luna', supportedEfforts: [] },
     });
     expect(experimentRunsRepository.create).not.toHaveBeenCalled();
     expect(jobsService.enqueue).not.toHaveBeenCalled();

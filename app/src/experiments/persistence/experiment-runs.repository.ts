@@ -13,6 +13,13 @@ import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
 import { accessibleProject } from '../../common/persistence/accessible-project.filter.js';
 import type { LLMEffectiveConfig } from '../../providers/llm-provider.interface.js';
 
+/** Presupuesto resuelto al crear el experimento (WI-CORE-025, INTEROP-2.7 §6.5.1). */
+export type ExperimentBudget = {
+  toolCallCap: number;
+  contextTokenBudget: number;
+  maxDurationMs: number;
+};
+
 export interface CreateExperimentRunInput {
   projectId: string;
   projectVersionId: string;
@@ -20,6 +27,13 @@ export interface CreateExperimentRunInput {
   totalRepetitions: number;
   /** Configuración efectiva resuelta una vez por experimento (WI-CORE-023). */
   modelConfig: LLMEffectiveConfig;
+  /** Semilla de aleatorización del orden por par, generada una vez al crear (WI-CORE-025). */
+  randomizationSeed: string;
+  budget: ExperimentBudget;
+  /** Perfil de ejecución del Sandbox, tomado de EXECUTION_PROFILE_BY_RUNNER (WI-CORE-025). */
+  executionProfile: string;
+  /** Runner detectado en la versión al crear (WI-CORE-025). */
+  runnerHint: 'JEST' | 'VITEST';
 }
 
 export interface ExperimentRepetitionInput {
@@ -44,6 +58,14 @@ export interface ExperimentRepetitionInput {
   toolCalls: number | null;
   filesInspected: number | null;
   trajectory: Prisma.InputJsonValue | undefined;
+  /** WI-CORE-025: identidad compartida por las dos estrategias de un par (opcional en escrituras previas). */
+  pairId?: string | null;
+  /** WI-CORE-025: 1 = primera posición del par, 2 = segunda. */
+  pairPosition?: number | null;
+  /** WI-CORE-025: número de intento del slot lógico (1 o 2). */
+  attempt?: number;
+  /** WI-CORE-025: false cuando el slot agotó el reintento externo sin evaluación técnica (default true). */
+  technicallyEvaluable?: boolean;
 }
 
 @Injectable()
@@ -54,11 +76,12 @@ export class ExperimentRunsRepository {
     input: CreateExperimentRunInput,
     tx?: Prisma.TransactionClient,
   ): Promise<ExperimentRun> {
-    const { modelConfig, ...columns } = input;
+    const { modelConfig, budget, ...columns } = input;
 
     return (tx ?? this.prisma).experimentRun.create({
       data: {
         ...columns,
+        budget: { ...budget },
         modelConfig: {
           provider: modelConfig.provider,
           model: modelConfig.model,

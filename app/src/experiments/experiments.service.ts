@@ -8,27 +8,78 @@ import { IdempotencyService } from '../common/idempotency/idempotency.service.js
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { ProjectVersionStatus, ExperimentStatus as PrismaExperimentStatus } from '../generated/prisma/enums.js';
-import { ExperimentRunsRepository } from './persistence/experiment-runs.repository.js';
+import { ExperimentRunsRepository, type ExperimentBudget } from './persistence/experiment-runs.repository.js';
 import { EXPERIMENT_JOB_TYPE, type ExperimentJobPayload } from './experiment-job.handler.js';
+import { generateRandomizationSeed } from './pair-order.js';
+import { EXECUTION_PROFILE_BY_RUNNER } from '../sandbox/sandbox-execution.service.js';
+import { LLMConfigurationError } from '../providers/llm-configuration.error.js';
 import type { CreateExperimentDto } from './dto/create-experiment.dto.js';
 import type {
   ExperimentAcceptedResponse,
+  ExperimentBudgetResponse,
+  ExperimentModelConfigResponse,
   ExperimentResultsResponse,
   ExperimentStatusResponse,
   FailureType,
   StrategyMetricsResponse,
 } from './dto/experiment.response.js';
 import type { ExperimentRepetition } from '../generated/prisma/client.js';
-import type { LLMProvider } from '../providers/llm-provider.interface.js';
+import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.interface.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
 
 const DEFAULT_POLL_AFTER_MS = 1500;
 const TOTAL_REPETITIONS = 6;
 const STRATEGIES = ['RAG', 'GENERALIST_AGENT'] as const;
+// Mismos defaults que usa el handler para estas claves de entorno (WI-CORE-025 persiste el presupuesto al crear).
+const DEFAULT_AGENT_MAX_TOOL_CALLS = 20;
+const DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS = 8000;
+const DEFAULT_GENERATION_TIMEOUT_MS = 120_000;
 
 function mean(values: Array<number | null>): number | null {
   const nonNull = values.filter((value): value is number => value !== null);
   return nonNull.length > 0 ? nonNull.reduce((sum, value) => sum + value, 0) / nonNull.length : null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** Filas previas a WI-CORE-023 no tienen modelConfig: se devuelve null, nunca valores inventados. */
+function toModelConfigResponse(raw: unknown): ExperimentModelConfigResponse | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const provider = asString(record.provider);
+  const model = asString(record.model);
+  if (provider === null || model === null) return null;
+
+  return {
+    provider,
+    model,
+    modelVersion: asString(record.modelVersion),
+    reasoningEffort: asString(record.reasoningEffort),
+    temperature: asFiniteNumber(record.temperature),
+    maxOutputTokens: asFiniteNumber(record.maxOutputTokens),
+  };
+}
+
+/** Presupuesto persistido al crear; null en corridas previas. */
+function toBudgetResponse(raw: unknown): ExperimentBudgetResponse | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const toolCallCap = asFiniteNumber(record.toolCallCap);
+  const contextTokenBudget = asFiniteNumber(record.contextTokenBudget);
+  const maxDurationMs = asFiniteNumber(record.maxDurationMs);
+  if (toolCallCap === null || contextTokenBudget === null || maxDurationMs === null) return null;
+
+  return { toolCallCap, contextTokenBudget, maxDurationMs };
+}
+
+function toPairPosition(value: number | null): 1 | 2 | null {
+  return value === 1 || value === 2 ? value : null;
 }
 
 function rate(repetitions: ExperimentRepetition[], predicate: (r: ExperimentRepetition) => boolean): number {
@@ -101,6 +152,18 @@ export class ExperimentsService {
       );
     }
 
+    // WI-CORE-025: el runner decide el perfil del Sandbox; PHP/PHPUnit o sin framework JEST|VITEST no se acepta
+    // y no se crea experimento ni job (antes fallaba dentro del job).
+    const runnerHint = version.detectedFramework;
+
+    if (runnerHint !== 'JEST' && runnerHint !== 'VITEST') {
+      throw new AppException(
+        ErrorCode.UNSUPPORTED_PROJECT,
+        'Los experimentos requieren un proyecto con Jest o Vitest detectado.',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
     const projectVersionId = project.currentVersionId;
 
     // WI-CORE-023 (Desviación 1): la LLMEffectiveConfig se resuelve y valida una única vez al crear el
@@ -112,8 +175,10 @@ export class ExperimentsService {
       scope: 'EXPERIMENT_CREATE',
       key: idempotencyKey,
       fingerprintInput: dto,
-      prepare: () => this.llmProvider.resolveEffectiveConfig(),
+      prepare: () => this.resolveModelConfig(),
       create: async (tx, modelConfig) => {
+        // WI-CORE-025: la semilla se genera dentro de la misma inserción (replay no la regenera), junto con
+        // el presupuesto, el perfil de ejecución y el runner.
         const run = await this.experimentRunsRepository.create(
           {
             projectId: dto.projectId,
@@ -121,6 +186,10 @@ export class ExperimentsService {
             targetId: dto.targetId,
             totalRepetitions: TOTAL_REPETITIONS,
             modelConfig,
+            randomizationSeed: generateRandomizationSeed(),
+            budget: this.resolveBudget(),
+            executionProfile: EXECUTION_PROFILE_BY_RUNNER[runnerHint],
+            runnerHint,
           },
           tx,
         );
@@ -180,6 +249,11 @@ export class ExperimentsService {
       failureMessage: run.failureMessage,
       startedAt: run.startedAt?.toISOString() ?? null,
       completedAt: run.completedAt?.toISOString() ?? null,
+      model: toModelConfigResponse(run.modelConfig),
+      budget: toBudgetResponse(run.budget),
+      executionProfile: run.executionProfile,
+      runnerHint: run.runnerHint,
+      randomizationSeed: run.randomizationSeed,
     };
   }
 
@@ -195,6 +269,7 @@ export class ExperimentsService {
     }
 
     const repetitions = await this.experimentRunsRepository.findRepetitions(experimentId);
+    const model = toModelConfigResponse(run.modelConfig);
 
     return {
       experimentId: run.id,
@@ -205,6 +280,7 @@ export class ExperimentsService {
         this.aggregateStrategy(
           strategy,
           repetitions.filter((repetition) => repetition.strategy === strategy),
+          model,
         ),
       ),
       repetitions: repetitions.map((repetition) => ({
@@ -214,12 +290,16 @@ export class ExperimentsService {
         failureType: (repetition.failureType ?? 'UNKNOWN') as FailureType,
         errorSummary: repetition.errorSummary,
         generationDurationMs: repetition.generationDurationMs ?? 0,
-        executionDurationMs: repetition.executionDurationMs ?? 0,
+        executionDurationMs: repetition.executionDurationMs,
         totalDurationMs: repetition.totalDurationMs ?? 0,
         inputTokens: repetition.inputTokens,
         outputTokens: repetition.outputTokens,
         totalTokens: repetition.totalTokens,
         estimatedCost: repetition.estimatedCost,
+        pairId: repetition.pairId,
+        pairPosition: toPairPosition(repetition.pairPosition),
+        attempt: repetition.attempt,
+        technicallyEvaluable: repetition.technicallyEvaluable,
       })),
       completedAt: (run.completedAt ?? new Date()).toISOString(),
     };
@@ -228,6 +308,7 @@ export class ExperimentsService {
   private aggregateStrategy(
     strategy: 'RAG' | 'GENERALIST_AGENT',
     repetitions: ExperimentRepetition[],
+    model: ExperimentModelConfigResponse | null,
   ): StrategyMetricsResponse {
     const failures: Partial<Record<FailureType, number>> = {};
 
@@ -257,6 +338,54 @@ export class ExperimentsService {
       toolCalls: roundOrNull(mean(repetitions.map((r) => r.toolCalls))),
       filesInspected: roundOrNull(mean(repetitions.map((r) => r.filesInspected))),
       failures,
+      modelVersion: model?.modelVersion ?? null,
+      reasoningEffort: model?.reasoningEffort ?? null,
+      temperature: model?.temperature ?? null,
+      maxOutputTokens: model?.maxOutputTokens ?? null,
+    };
+  }
+
+  /**
+   * WI-CORE-025: traduce la falla de configuración del proveedor a respuesta HTTP antes de crear el run.
+   * Nunca fuerza un esfuerzo ni degrada en silencio.
+   */
+  private async resolveModelConfig(): Promise<LLMEffectiveConfig> {
+    try {
+      return await this.llmProvider.resolveEffectiveConfig();
+    } catch (error) {
+      if (error instanceof LLMConfigurationError && error.code === 'REASONING_EFFORT_UNSUPPORTED') {
+        throw new AppException(
+          ErrorCode.REASONING_EFFORT_UNSUPPORTED,
+          `El modelo "${error.model}" no admite el esfuerzo de razonamiento solicitado.`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          {
+            model: error.model,
+            requestedEffort: error.requestedEffort,
+            supportedEfforts: error.supportedEfforts,
+          },
+        );
+      }
+
+      if (error instanceof LLMConfigurationError && error.code === 'MODEL_UNAVAILABLE') {
+        throw new AppException(
+          ErrorCode.LLM_PROVIDER_UNAVAILABLE,
+          'El modelo de experimentos no está disponible en este momento.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  private resolveBudget(): ExperimentBudget {
+    return {
+      toolCallCap: this.configService.get<number>('AGENT_MAX_TOOL_CALLS', DEFAULT_AGENT_MAX_TOOL_CALLS),
+      contextTokenBudget: this.configService.get<number>(
+        'RETRIEVAL_MAX_CONTEXT_TOKENS',
+        DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+      ),
+      maxDurationMs: this.configService.get<number>('GENERATION_TIMEOUT_MS', DEFAULT_GENERATION_TIMEOUT_MS),
     };
   }
 

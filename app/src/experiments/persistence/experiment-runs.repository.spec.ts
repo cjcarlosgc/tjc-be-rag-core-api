@@ -21,6 +21,10 @@ describe('ExperimentRunsRepository.create', () => {
         temperature: null,
         maxOutputTokens: 4000,
       },
+      randomizationSeed: 'c'.repeat(64),
+      budget: { toolCallCap: 20, contextTokenBudget: 8000, maxDurationMs: 120000 },
+      executionProfile: 'NODE_TYPESCRIPT',
+      runnerHint: 'JEST',
     });
 
     expect(createMock).toHaveBeenCalledWith({
@@ -29,6 +33,10 @@ describe('ExperimentRunsRepository.create', () => {
         projectVersionId: 'version-1',
         targetId: 'target-1',
         totalRepetitions: 6,
+        randomizationSeed: 'c'.repeat(64),
+        budget: { toolCallCap: 20, contextTokenBudget: 8000, maxDurationMs: 120000 },
+        executionProfile: 'NODE_TYPESCRIPT',
+        runnerHint: 'JEST',
         modelConfig: {
           provider: 'openai',
           model: 'gpt-6-luna',
@@ -39,6 +47,90 @@ describe('ExperimentRunsRepository.create', () => {
         },
       },
     });
+  });
+});
+
+describe('ExperimentRunsRepository pairing fields', () => {
+  it('insertRepetition persists pairId, pairPosition, attempt and technicallyEvaluable when provided', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'rep-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { create: createMock },
+    } as never);
+
+    await repository.insertRepetition('exp-1', {
+      repetition: 2,
+      strategy: 'RAG',
+      compiled: null,
+      executed: null,
+      passed: null,
+      valid: null,
+      failureType: null,
+      errorSummary: null,
+      generationDurationMs: 0,
+      executionDurationMs: null,
+      totalDurationMs: 0,
+      inputTokens: null,
+      outputTokens: null,
+      totalTokens: null,
+      estimatedCost: null,
+      retrievedChunks: null,
+      selectedChunks: null,
+      contextTokens: null,
+      toolCalls: null,
+      filesInspected: null,
+      trajectory: undefined,
+      pairId: 'pair-2',
+      pairPosition: 1,
+      attempt: 2,
+      technicallyEvaluable: false,
+    });
+
+    expect(createMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        experimentId: 'exp-1',
+        repetition: 2,
+        pairId: 'pair-2',
+        pairPosition: 1,
+        attempt: 2,
+        technicallyEvaluable: false,
+      }),
+    });
+  });
+
+  it('insertRepetition leaves pairing columns to their defaults when the caller does not provide them', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'rep-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { create: createMock },
+    } as never);
+
+    await repository.insertRepetition('exp-1', {
+      repetition: 1,
+      strategy: 'GENERALIST_AGENT',
+      compiled: null,
+      executed: null,
+      passed: null,
+      valid: null,
+      failureType: null,
+      errorSummary: null,
+      generationDurationMs: 0,
+      executionDurationMs: null,
+      totalDurationMs: 0,
+      inputTokens: null,
+      outputTokens: null,
+      totalTokens: null,
+      estimatedCost: null,
+      retrievedChunks: null,
+      selectedChunks: null,
+      contextTokens: null,
+      toolCalls: null,
+      filesInspected: null,
+      trajectory: undefined,
+    });
+
+    const data = createMock.mock.calls[0][0].data as Record<string, unknown>;
+    expect(data).not.toHaveProperty('pairId');
+    expect(data).not.toHaveProperty('pairPosition');
+    expect(data).not.toHaveProperty('technicallyEvaluable');
   });
 });
 
