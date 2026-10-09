@@ -43,3 +43,9 @@ Resultados:
 5. Flujo de producto (`generate` sin configuración, `gpt-4o-mini` por Responses): respuesta correcta, 11 tokens de entrada y 5 de salida.
 
 Cierra la deuda de verificación en vivo del flujo completo de WI-CORE-031. No cubre turnos reales del agente con contextos grandes (latencia/timeout) ni calidad del razonamiento.
+
+### Corrección del paso 5 del humo (2026-10-09)
+El paso 5 de la sección anterior estaba descrito de forma incorrecta como «`gpt-4o-mini`». La configuración local del usuario define `LLM_MODEL="gpt-5.6-luna"` y `LLM_REASONING_EFFORT="high"` para el flujo de producto; el humo borró `LLM_REASONING_EFFORT`, por lo que ese paso corrió con `gpt-5.6-luna` **sin** razonamiento. Se repitió con la configuración real del usuario y con el default del repositorio (`generate` sin configuración, por `/v1/responses`):
+- **A) Configuración real** (`gpt-5.6-luna`, esfuerzo `high`): respuesta correcta, 14 tokens de entrada y 5 de salida.
+- **B) `gpt-4o-mini` sin razonamiento** (default del repositorio): respuesta correcta, 15 tokens de entrada y 2 de salida.
+Ambas configuraciones del flujo de producto funcionan con el proveedor nuevo.
