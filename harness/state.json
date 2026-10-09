@@ -5910,7 +5910,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/features/011-context-traces/spec.md",
       "spec/features/011-context-traces/plan.md",
@@ -5937,12 +5937,15 @@
       }
     ],
     "transversalPaths": [],
-    "approved": false,
+    "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-TRACE-001",
+        "DEC-TRACE-002"
+      ],
+      "checkedAt": "2026-10-09T20:35:54.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
@@ -5950,12 +5953,41 @@
       "implementationAgent": null,
       "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "DECISION_REQUIRED",
+          "findings": [
+            "Criterios 1, 3 (salvo publication), 4 y la obligación de 021 suficientes; cortes A, B y C implementables.",
+            "DEC-TRACE-001 (origen de checkId: requiere enmendar GH-INTEROP en otro componente) y DEC-TRACE-002 (semántica de publication y freshness) están PROPOSED y NO decididas por el usuario: bloquean SOLO el corte D y el enlace publication/checkId.",
+            "Nota del leader: el validador no admite decisiones bloqueantes en W-IN_PROGRESS; ambas se registran en nonBlockingDecisionIds con ese alcance acotado y noBlockingDecisions pasa solo para los cortes A-C. El leader NO implementa el corte D ni inventa publication/checkId (null/NOT_APPLICABLE pendientes) ni cierra W-DONE sin que el usuario las resuelva."
+          ],
+          "blockers": [
+            "DEC-TRACE-001 (corte D)",
+            "DEC-TRACE-002 (corte D)"
+          ],
+          "filesAffected": [
+            "harness/reports/wi-core-026-sdd-verification.md",
+            "spec/features/011-context-traces/plan.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-026-sdd-verification.md",
+            "harness/reports/smart-v3-scope-approval.md"
+          ],
+          "recommendedNextStep": "Contract-reviewer sobre el diseño; implementar cortes A, B y C; consultar al usuario DEC-TRACE-001/002 antes del corte D.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -5963,7 +5995,7 @@
       "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -5994,9 +6026,17 @@
     },
     "evidence": [
       "harness/reports/wi-core-026-contract-sync-scope-review.md",
-      "harness/reports/smart-v3-scope-approval.md"
+      "harness/reports/smart-v3-scope-approval.md",
+      "harness/reports/wi-core-026-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-026-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-026-sdd-verification.md"
+      ]
+    }
   }
 }
