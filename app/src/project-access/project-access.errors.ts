@@ -64,7 +64,8 @@ export type ProjectResourceKind =
   | 'contextTrace'
   | 'testPublication'
   | 'functionalQuestion'
-  | 'testTarget';
+  | 'testTarget'
+  | 'retrievalComparison';
 
 export function resourceNotFound(
   resource: ProjectResourceKind,
@@ -113,6 +114,12 @@ export function resourceNotFound(
       return new AppException(
         ErrorCode.UNRESOLVABLE_TARGET,
         `No existe el target ${id}.`,
+        HttpStatus.NOT_FOUND,
+      );
+    case 'retrievalComparison':
+      return new AppException(
+        ErrorCode.RETRIEVAL_COMPARISON_NOT_FOUND,
+        `No existe una comparación de retrieval con id "${id}".`,
         HttpStatus.NOT_FOUND,
       );
   }

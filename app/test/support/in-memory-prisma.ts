@@ -45,6 +45,7 @@ const MODELS = [
   'experimentRun',
   'contextTrace',
   'testTarget',
+  'retrievalComparison',
   'generatedTestProposal',
   'analysisSymbol',
   'userGithubIdentity',

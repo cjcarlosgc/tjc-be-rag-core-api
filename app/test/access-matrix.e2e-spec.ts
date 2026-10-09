@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module.js';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter.js';
 import { ExperimentsService } from '../src/experiments/experiments.service.js';
 import { ContextTracesService } from '../src/context-traces/context-traces.service.js';
+import { RetrievalComparisonsService } from '../src/retrieval-comparisons/retrieval-comparisons.service.js';
 import { GITHUB_ACCESS_PORT } from '../src/github-app/github-access.port.js';
 import { GithubAppAuthService } from '../src/github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService } from '../src/github-app/github-repository-content.service.js';
@@ -60,6 +61,7 @@ interface Ids {
   publicationId: string;
   experimentId: string;
   contextTraceId: string;
+  retrievalComparisonId: string;
 }
 
 interface RouteCase {
@@ -113,6 +115,20 @@ const ROUTE_CASES: Record<string, RouteCase> = {
     body: (i) => ({ projectId: i.projectId, targetId: '00000000-0000-4000-8000-000000000002' }),
     notFound: PROJECT_404,
   },
+  'GET /retrieval-comparisons/{}': { url: (i) => `/retrieval-comparisons/${i.retrievalComparisonId}`, notFound: 'RETRIEVAL_COMPARISON_NOT_FOUND' },
+  'GET /retrieval-comparisons/{}/results': {
+    url: (i) => `/retrieval-comparisons/${i.retrievalComparisonId}/results`,
+    notFound: 'RETRIEVAL_COMPARISON_NOT_FOUND',
+  },
+  'GET /analysis-runs/{}/retrieval-comparisons': {
+    url: (i) => `/analysis-runs/${i.runId}/retrieval-comparisons`,
+    notFound: 'ANALYSIS_RUN_NOT_FOUND',
+  },
+  'POST /retrieval-comparisons': {
+    url: () => '/retrieval-comparisons',
+    body: (i) => ({ analysisRunId: i.runId, symbolFilePath: 'a.ts', symbolQualifiedName: 'A.b' }),
+    notFound: 'ANALYSIS_RUN_NOT_FOUND',
+  },
   'PATCH /projects/{}': { url: (i) => `/projects/${i.projectId}`, body: () => ({ name: 'renamed' }), notFound: PROJECT_404 },
   'DELETE /projects/{}': { url: (i) => `/projects/${i.projectId}`, notFound: PROJECT_404 },
 };
@@ -155,6 +171,15 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
           createRun: () => Promise.resolve({ experimentId: 'e' }),
           getStatus: () => Promise.resolve({ id: 'e' }),
           getResults: () => Promise.resolve({ id: 'e' }),
+        })
+        // WI-CORE-022: la idempotencia y las tablas de comparación no están en el Prisma en memoria; aquí
+        // solo importa que el guard (rol y 404 del recurso) deje pasar o no la petición.
+        .overrideProvider(RetrievalComparisonsService)
+        .useValue({
+          create: () => Promise.resolve({ analysisRunId: 'r', retrievalComparisonId: 'c', projectVersionId: 'v', status: 'PENDING', pollAfterMs: 1500 }),
+          getStatus: () => Promise.resolve({ id: 'c' }),
+          getResults: () => Promise.resolve({ retrievalComparisonId: 'c', modes: [] }),
+          listByAnalysisRun: () => Promise.resolve({ items: [], nextCursor: null }),
         })
         .overrideProvider(ContextTracesService)
         .useValue({
@@ -280,6 +305,13 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       failureMessage: null,
     });
     const experiment = prisma.insert('experimentRun', { projectId: project.id });
+    const comparison = prisma.insert('retrievalComparison', {
+      projectId: project.id,
+      analysisRunId: run.id,
+      projectVersionId: version.id,
+      status: 'COMPLETED',
+      symbol: { language: 'TYPESCRIPT', kind: 'FUNCTION', qualifiedName: 'A.b', filePath: 'a.ts', changeKind: 'DIRECTLY_CHANGED' },
+    });
     const contextTrace = prisma.insert('contextTrace', {
       projectId: project.id,
       projectVersionId: version.id,
@@ -294,6 +326,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       publicationId: publication.id as string,
       experimentId: experiment.id as string,
       contextTraceId: contextTrace.id as string,
+      retrievalComparisonId: comparison.id as string,
     };
   }
 
@@ -476,6 +509,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
           publicationId: MISSING_RESOURCE_ID,
           experimentId: MISSING_RESOURCE_ID,
           contextTraceId: MISSING_RESOURCE_ID,
+          retrievalComparisonId: MISSING_RESOURCE_ID,
         };
         const missing = await invoke(STRANGER, key, missingIds);
 
@@ -483,7 +517,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
         expect(missing.status).toBe(404);
         expect(hidden.body.code).toBe(routeCase.notFound);
         expect(missing.body.code).toBe(routeCase.notFound);
-        expect(hidden.body.message.replace(ids.projectId, 'X').replace(ids.runId, 'X').replace(ids.versionId, 'X').replace(ids.publicationId, 'X').replace(ids.experimentId, 'X')).toBe(
+        expect(hidden.body.message.replace(ids.projectId, 'X').replace(ids.runId, 'X').replace(ids.versionId, 'X').replace(ids.publicationId, 'X').replace(ids.experimentId, 'X').replace(ids.retrievalComparisonId, 'X')).toBe(
           missing.body.message.replace(MISSING_RESOURCE_ID, 'X'),
         );
       },

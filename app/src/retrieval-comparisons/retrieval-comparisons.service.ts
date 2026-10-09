@@ -9,10 +9,21 @@ import type { AnalysisSymbol, Prisma } from '../generated/prisma/client.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { RETRIEVAL_COMPARISON_JOB_TYPE, type RetrievalComparisonJobPayload } from './retrieval-comparison-job.handler.js';
 import { RetrievalComparisonsRepository } from './persistence/retrieval-comparisons.repository.js';
+import type { RetrievalComparison } from '../generated/prisma/client.js';
 import type { RetrievalGroundTruthItem } from './retrieval-comparison-metrics.js';
-import type { RetrievalComparisonAcceptedResponse } from './dto/retrieval-comparison.response.js';
+import type { Page } from '../common/dto/page.response.js';
+import {
+  toRetrievalComparisonPage,
+  toRetrievalComparisonStatusResponse,
+  toRetrievalModeResultResponse,
+  type RetrievalComparisonAcceptedResponse,
+  type RetrievalComparisonResultsResponse,
+  type RetrievalComparisonStatusResponse,
+} from './dto/retrieval-comparison.response.js';
 
 const DEFAULT_POLL_AFTER_MS = 1500;
+const DEFAULT_PAGE_LIMIT = 20;
+const MODE_ORDER: Record<string, number> = { SE: 0, SEM: 1 };
 
 /** Cuerpo de `POST /retrieval-comparisons` (INTEROP-2.7 §6.15). El DTO con validadores se añade en el controlador. */
 export interface CreateRetrievalComparisonRequest {
@@ -133,6 +144,73 @@ export class RetrievalComparisonsService {
         };
       },
     });
+  }
+
+  /** `GET /retrieval-comparisons/{id}`: el rol lo aplica el guard (Reader; no visible = 404). */
+  async getStatus(id: string): Promise<RetrievalComparisonStatusResponse> {
+    return toRetrievalComparisonStatusResponse(await this.requireComparison(id));
+  }
+
+  /**
+   * `GET /retrieval-comparisons/{id}/results`: `409 RETRIEVAL_COMPARISON_NOT_FINISHED` antes de un estado
+   * terminal. Una comparación FAILED no tiene resultados persistidos y responde `modes: []`.
+   */
+  async getResults(id: string): Promise<RetrievalComparisonResultsResponse> {
+    const comparison = await this.requireComparison(id);
+
+    if (comparison.status !== 'COMPLETED' && comparison.status !== 'FAILED') {
+      throw new AppException(
+        ErrorCode.RETRIEVAL_COMPARISON_NOT_FINISHED,
+        'La comparación de retrieval todavía no terminó.',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const results = await this.repository.findResults(comparison.id);
+
+    return {
+      retrievalComparisonId: comparison.id,
+      analysisRunId: comparison.analysisRunId,
+      projectVersionId: comparison.projectVersionId,
+      symbol: toRetrievalComparisonStatusResponse(comparison).symbol,
+      modes: results
+        .map(toRetrievalModeResultResponse)
+        .sort((a, b) => (MODE_ORDER[a.mode] ?? 0) - (MODE_ORDER[b.mode] ?? 0)),
+      completedAt: (comparison.completedAt ?? new Date()).toISOString(),
+    };
+  }
+
+  /**
+   * `GET /analysis-runs/{id}/retrieval-comparisons`: más reciente primero. Un Run inexistente o no visible
+   * responde el mismo `404` que `GET /analysis-runs/{id}` (se resuelve con `getById`).
+   */
+  async listByAnalysisRun(
+    analysisRunId: string,
+    query: { cursor?: string; limit?: number },
+    ownerUserId: string,
+  ): Promise<Page<RetrievalComparisonStatusResponse>> {
+    await this.analysisRunsService.getById(analysisRunId, ownerUserId);
+
+    const take = query.limit ?? DEFAULT_PAGE_LIMIT;
+    const rows = await this.repository.listByAnalysisRun(analysisRunId, take + 1, query.cursor);
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+
+    return toRetrievalComparisonPage({ items, nextCursor: hasMore ? items[items.length - 1].id : null });
+  }
+
+  private async requireComparison(id: string): Promise<RetrievalComparison> {
+    const comparison = await this.repository.findById(id);
+
+    if (!comparison) {
+      throw new AppException(
+        ErrorCode.RETRIEVAL_COMPARISON_NOT_FOUND,
+        `No existe una comparación de retrieval con id "${id}".`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return comparison;
   }
 
   /**

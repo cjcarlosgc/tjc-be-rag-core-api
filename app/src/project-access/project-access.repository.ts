@@ -326,6 +326,15 @@ export class ProjectAccessRepository {
             })
           )?.projectVersion.projectId ?? null
         );
+      case 'retrievalComparison':
+        return (
+          (
+            await this.prisma.retrievalComparison.findUnique({
+              where: { id },
+              select: { projectId: true },
+            })
+          )?.projectId ?? null
+        );
     }
   }
 
