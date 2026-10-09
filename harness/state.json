@@ -5612,7 +5612,8 @@
       "blockingDecisionIds": [],
       "nonBlockingDecisionIds": [
         "DEC-RC-001",
-        "DEC-RC-002"
+        "DEC-RC-002",
+        "DEC-RC-003"
       ],
       "checkedAt": "2026-10-09T17:57:22.000Z"
     },
@@ -5694,7 +5695,8 @@
     "evidence": [
       "harness/reports/wi-core-022-contract-sync-scope-review.md",
       "harness/reports/smart-v3-scope-approval.md",
-      "harness/reports/wi-core-022-sdd-verification.md"
+      "harness/reports/wi-core-022-sdd-verification.md",
+      "harness/reports/wi-core-022-failed-results-review.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
