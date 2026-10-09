@@ -95,6 +95,28 @@ class EnvironmentVariables {
   @IsString()
   LLM_REASONING_EFFORT?: string;
 
+  /** Experimentos (DEC-EXP-004): modelo confirmado contra la API al crear el experimento. */
+  @IsString()
+  EXPERIMENT_LLM_MODEL: string = 'gpt-6-luna';
+
+  /** Vacío = esfuerzo máximo común soportado por el modelo (efforts ∩ toolEfforts). */
+  @IsOptional()
+  @IsString()
+  EXPERIMENT_LLM_REASONING_EFFORT?: string;
+
+  @IsOptional()
+  @IsString()
+  EXPERIMENT_LLM_TEMPERATURE?: string;
+
+  @IsOptional()
+  @IsString()
+  EXPERIMENT_LLM_MAX_OUTPUT_TOKENS?: string;
+
+  /** JSON: [{"model","efforts","toolEfforts"}]; sin entrada para el modelo no se crea el experimento. */
+  @IsOptional()
+  @IsString()
+  LLM_SUPPORTED_COMBINATIONS?: string;
+
   @IsInt()
   @Min(1000)
   OPENAI_TIMEOUT_MS: number = 30_000;
@@ -277,7 +299,40 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
     );
   }
 
+  validateExperimentLlmSettings(validated);
+
   return validated;
+}
+
+function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
+  const temperature = validated.EXPERIMENT_LLM_TEMPERATURE;
+  if (temperature && !(Number.isFinite(Number(temperature)) && Number(temperature) >= 0 && Number(temperature) <= 2)) {
+    throw new Error('Configuración de entorno inválida: EXPERIMENT_LLM_TEMPERATURE debe estar entre 0 y 2.');
+  }
+
+  const maxOutputTokens = validated.EXPERIMENT_LLM_MAX_OUTPUT_TOKENS;
+  if (maxOutputTokens && !/^[1-9]\d*$/.test(maxOutputTokens)) {
+    throw new Error('Configuración de entorno inválida: EXPERIMENT_LLM_MAX_OUTPUT_TOKENS debe ser un entero positivo.');
+  }
+
+  const combinations = validated.LLM_SUPPORTED_COMBINATIONS;
+  if (combinations) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(combinations);
+    } catch {
+      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser JSON válido.');
+    }
+    const valid = Array.isArray(parsed) && parsed.every((item) =>
+      typeof item === 'object' && item !== null &&
+      typeof (item as { model?: unknown }).model === 'string' &&
+      Array.isArray((item as { efforts?: unknown }).efforts) &&
+      Array.isArray((item as { toolEfforts?: unknown }).toolEfforts),
+    );
+    if (!valid) {
+      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser [{"model","efforts","toolEfforts"}].');
+    }
+  }
 }
 
 function isAllowedGithubIntegrationUrl(value: string, allowHttpLoopback: boolean): boolean {
