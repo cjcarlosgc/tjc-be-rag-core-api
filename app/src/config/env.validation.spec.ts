@@ -191,4 +191,26 @@ describe('validateEnv', () => {
       ),
     ).toThrow(/DEC-WEB-AUTH-001/);
   });
+
+  it('accepts max and none in LLM_SUPPORTED_COMBINATIONS (WI-CORE-031)', () => {
+    const combinations = JSON.stringify([
+      {
+        model: 'gpt-6-luna',
+        efforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+        toolEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+      },
+    ]);
+
+    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).not.toThrow();
+  });
+
+  it('rejects an effort outside the reasoning scale in LLM_SUPPORTED_COMBINATIONS at startup', () => {
+    const combinations = JSON.stringify([
+      { model: 'gpt-6-luna', efforts: ['low', 'ultra'], toolEfforts: ['low'] },
+    ]);
+
+    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).toThrow(
+      /esfuerzos desconocidos \(ultra\)/,
+    );
+  });
 });

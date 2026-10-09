@@ -38,6 +38,20 @@ const COMBINATIONS = JSON.stringify([
     toolEfforts: ['low', 'medium'],
   },
   { model: 'model-b', efforts: ['low'], toolEfforts: ['low'] },
+  // Con `max` y `none` en ambos modos (WI-CORE-031).
+  {
+    model: 'model-c',
+    efforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+    toolEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+  },
+  // `max` solo en generate: el esfuerzo común máximo es xhigh.
+  {
+    model: 'model-d',
+    efforts: ['none', 'low', 'xhigh', 'max'],
+    toolEfforts: ['none', 'low', 'xhigh'],
+  },
+  // `minimal` listado pero por debajo de `low` en la escala.
+  { model: 'model-e', efforts: ['minimal', 'low'], toolEfforts: ['minimal', 'low'] },
 ]);
 
 function makeConfigService(overrides: Record<string, unknown> = {}) {
@@ -277,13 +291,97 @@ describe('OpenAiLLMProvider', () => {
       const provider = new OpenAiLLMProvider(makeConfigService());
       await provider.generate(
         'prompt',
-        makeConfig({ temperature: 0.2, maxOutputTokens: 4000 }),
+        makeConfig({
+          model: 'model-b',
+          reasoningEffort: null,
+          temperature: 0.2,
+          maxOutputTokens: 4000,
+        }),
+      );
+
+      const sent = createMock.mock.calls[0][0];
+      expect(sent).toMatchObject({ temperature: 0.2, max_output_tokens: 4000 });
+      expect(sent).not.toHaveProperty('reasoning');
+    });
+
+    it('sends temperature with effort none as before, with reasoning none and encrypted include', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(makeConfigService());
+      await provider.generate(
+        'prompt',
+        makeConfig({ model: 'model-c', reasoningEffort: 'none', temperature: 0.2 }),
+      );
+
+      expect(createMock.mock.calls[0][0]).toEqual({
+        model: 'model-c',
+        store: false,
+        input: [{ role: 'user', content: 'prompt' }],
+        reasoning: { effort: 'none' },
+        include: ['reasoning.encrypted_content'],
+        temperature: 0.2,
+      });
+    });
+
+    it('rejects temperature with active reasoning without calling the API', async () => {
+      const provider = new OpenAiLLMProvider(makeConfigService());
+
+      const call = provider.generate(
+        'prompt',
+        makeConfig({ reasoningEffort: 'medium', temperature: 0.2 }),
+      );
+
+      await expect(call).rejects.toBeInstanceOf(LLMConfigurationError);
+      await expect(call).rejects.toMatchObject({
+        code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
+        model: 'model-a',
+        requestedEffort: 'medium',
+        supportedEfforts: [],
+        temperature: 0.2,
+      });
+      await expect(call).rejects.toThrow(/no es compatible con razonamiento activo/);
+      expect(createMock).not.toHaveBeenCalled();
+    });
+
+    it('sends no temperature with active reasoning when the config has no temperature', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(makeConfigService());
+      await provider.generate(
+        'prompt',
+        makeConfig({ reasoningEffort: 'medium', temperature: null }),
+      );
+
+      const sent = createMock.mock.calls[0][0];
+      expect(sent).not.toHaveProperty('temperature');
+      expect(sent).toMatchObject({ reasoning: { effort: 'medium' } });
+    });
+
+    it('sends max as reasoning effort in generate when the combination lists it', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(makeConfigService());
+      await provider.generate(
+        'prompt',
+        makeConfig({ model: 'model-d', reasoningEffort: 'max' }),
       );
 
       expect(createMock.mock.calls[0][0]).toMatchObject({
-        temperature: 0.2,
-        max_output_tokens: 4000,
+        reasoning: { effort: 'max' },
+        include: ['reasoning.encrypted_content'],
       });
+    });
+
+    it('rejects minimal when the combination does not list it, although minimal is in the scale', async () => {
+      const provider = new OpenAiLLMProvider(makeConfigService());
+
+      await expect(
+        provider.generate('prompt', makeConfig({ model: 'model-c', reasoningEffort: 'minimal' })),
+      ).rejects.toMatchObject({
+        code: 'REASONING_EFFORT_UNSUPPORTED',
+        requestedEffort: 'minimal',
+      });
+      expect(createMock).not.toHaveBeenCalled();
     });
 
     it('omits reasoning, include and temperature when the config has null effort and temperature', async () => {
@@ -615,6 +713,73 @@ describe('OpenAiLLMProvider', () => {
       expect(createMock).not.toHaveBeenCalled();
     });
 
+    it('rejects temperature with active reasoning in generateWithTools without calling the API', async () => {
+      const provider = new OpenAiLLMProvider(makeConfigService());
+
+      await expect(
+        provider.generateWithTools(
+          [{ role: 'user', content: 'x' }],
+          TOOLS,
+          makeConfig({ reasoningEffort: 'medium', temperature: 0.2 }),
+        ),
+      ).rejects.toMatchObject({
+        code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
+        temperature: 0.2,
+      });
+      expect(createMock).not.toHaveBeenCalled();
+    });
+
+    it('sends temperature in generateWithTools with effort none', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(makeConfigService());
+      await provider.generateWithTools(
+        [{ role: 'user', content: 'x' }],
+        [],
+        makeConfig({ model: 'model-c', reasoningEffort: 'none', temperature: 0.2 }),
+      );
+
+      expect(createMock.mock.calls[0][0]).toMatchObject({
+        reasoning: { effort: 'none' },
+        temperature: 0.2,
+      });
+    });
+
+    it('sends max in generateWithTools when the combination lists it for tools', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(makeConfigService());
+      await provider.generateWithTools(
+        [{ role: 'user', content: 'x' }],
+        TOOLS,
+        makeConfig({ model: 'model-c', reasoningEffort: 'max' }),
+      );
+
+      expect(createMock.mock.calls[0][0]).toMatchObject({
+        tools: [READ_FILE_TOOL],
+        tool_choice: 'auto',
+        reasoning: { effort: 'max' },
+        include: ['reasoning.encrypted_content'],
+      });
+    });
+
+    it('rejects max in generateWithTools when only generate lists it', async () => {
+      const provider = new OpenAiLLMProvider(makeConfigService());
+
+      await expect(
+        provider.generateWithTools(
+          [{ role: 'user', content: 'x' }],
+          TOOLS,
+          makeConfig({ model: 'model-d', reasoningEffort: 'max' }),
+        ),
+      ).rejects.toMatchObject({
+        code: 'REASONING_EFFORT_UNSUPPORTED',
+        requestedEffort: 'max',
+        supportedEfforts: ['none', 'low', 'xhigh'],
+      });
+      expect(createMock).not.toHaveBeenCalled();
+    });
+
     it('refuses to send a tool whose schema does not meet the strict rules, as a programming error', async () => {
       const provider = new OpenAiLLMProvider(makeConfigService());
       const badTool: LLMToolDefinition = {
@@ -844,11 +1009,12 @@ describe('OpenAiLLMProvider', () => {
       });
     });
 
-    it('carries temperature and max output tokens when configured', async () => {
-      retrieveMock.mockResolvedValue({ id: 'model-a' });
+    it('carries temperature and max output tokens when configured with effort none', async () => {
+      retrieveMock.mockResolvedValue({ id: 'model-c' });
       const provider = new OpenAiLLMProvider(
         makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-a',
+          EXPERIMENT_LLM_MODEL: 'model-c',
+          EXPERIMENT_LLM_REASONING_EFFORT: 'none',
           EXPERIMENT_LLM_TEMPERATURE: '0.2',
           EXPERIMENT_LLM_MAX_OUTPUT_TOKENS: '4000',
         }),
@@ -856,8 +1022,101 @@ describe('OpenAiLLMProvider', () => {
 
       const config = await provider.resolveEffectiveConfig();
 
+      expect(config.reasoningEffort).toBe('none');
       expect(config.temperature).toBe(0.2);
       expect(config.maxOutputTokens).toBe(4000);
+    });
+
+    it('rejects a configured temperature when the resolved effort is active reasoning, without confirming the model', async () => {
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({
+          EXPERIMENT_LLM_MODEL: 'model-a',
+          EXPERIMENT_LLM_TEMPERATURE: '0.2',
+        }),
+      );
+
+      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
+        code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
+        model: 'model-a',
+        requestedEffort: 'medium',
+        supportedEfforts: [],
+        temperature: 0.2,
+      });
+      expect(retrieveMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a configured temperature when the requested effort is active reasoning', async () => {
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({
+          EXPERIMENT_LLM_MODEL: 'model-a',
+          EXPERIMENT_LLM_REASONING_EFFORT: 'low',
+          EXPERIMENT_LLM_TEMPERATURE: '1',
+        }),
+      );
+
+      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
+        code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
+        requestedEffort: 'low',
+        temperature: 1,
+      });
+      expect(retrieveMock).not.toHaveBeenCalled();
+    });
+
+    it('resolves max as the highest common effort when both modes list it', async () => {
+      retrieveMock.mockResolvedValue({ id: 'model-c' });
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-c' }),
+      );
+
+      const config = await provider.resolveEffectiveConfig();
+
+      expect(config).toEqual({
+        provider: 'openai',
+        model: 'model-c',
+        modelVersion: 'model-c',
+        reasoningEffort: 'max',
+        temperature: null,
+        maxOutputTokens: null,
+        endpoint: 'responses',
+      });
+    });
+
+    it('falls back to xhigh when max is listed only for generate', async () => {
+      retrieveMock.mockResolvedValue({ id: 'model-d' });
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-d' }),
+      );
+
+      const config = await provider.resolveEffectiveConfig();
+
+      expect(config.reasoningEffort).toBe('xhigh');
+    });
+
+    it('ranks minimal below low, so the highest common effort is low', async () => {
+      retrieveMock.mockResolvedValue({ id: 'model-e' });
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-e' }),
+      );
+
+      const config = await provider.resolveEffectiveConfig();
+
+      expect(config.reasoningEffort).toBe('low');
+    });
+
+    it('fails when the requested max is not common to both modes, without confirming the model', async () => {
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({
+          EXPERIMENT_LLM_MODEL: 'model-d',
+          EXPERIMENT_LLM_REASONING_EFFORT: 'max',
+        }),
+      );
+
+      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
+        code: 'REASONING_EFFORT_UNSUPPORTED',
+        requestedEffort: 'max',
+        supportedEfforts: ['none', 'low', 'xhigh'],
+      });
+      expect(retrieveMock).not.toHaveBeenCalled();
     });
 
     it('registers no efforts by default for gpt-6-luna: without LLM_SUPPORTED_COMBINATIONS it fails before confirming the model', async () => {

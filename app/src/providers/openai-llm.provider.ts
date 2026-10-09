@@ -21,18 +21,10 @@ import type {
   LLMToolsResult,
 } from './llm-provider.interface.js';
 import { createOpenAiClient } from './openai-client.factory.js';
+import { REASONING_EFFORT_SCALE } from './reasoning-effort.scale.js';
 import { strictToolSchemaViolations } from './strict-tool-schema.js';
 
 const DEFAULT_EXPERIMENT_MODEL = 'gpt-6-luna';
-/** Escala para elegir el esfuerzo máximo soportado (de menor a mayor). */
-const REASONING_EFFORT_SCALE = [
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-];
 /** Códigos de un Response con status `failed` que son fallo externo (WI-CORE-031). */
 const EXTERNAL_RESPONSE_ERROR_CODES = new Set([
   'server_error',
@@ -64,10 +56,18 @@ export class OpenAiLLMProvider implements LLMProvider {
     let model: string;
     let reasoningEffort: string | null;
 
+    let temperature: number | null = null;
     if (config) {
       this.assertSupported(config.model, config.reasoningEffort, 'efforts');
+      this.assertTemperatureCompatible(
+        config.model,
+        config.temperature,
+        config.reasoningEffort,
+        this.supportedEfforts(config.model, 'efforts'),
+      );
       model = config.model;
       reasoningEffort = config.reasoningEffort;
+      temperature = config.temperature;
     } else {
       model = this.configService.get<string>('LLM_MODEL', 'gpt-4o-mini');
       reasoningEffort =
@@ -79,9 +79,7 @@ export class OpenAiLLMProvider implements LLMProvider {
       store: false,
       input: [{ role: 'user', content: prompt }],
       ...reasoningParams(reasoningEffort),
-      ...(config?.temperature != null
-        ? { temperature: config.temperature }
-        : {}),
+      ...temperatureParam(temperature, reasoningEffort),
       ...(config?.maxOutputTokens != null
         ? { max_output_tokens: config.maxOutputTokens }
         : {}),
@@ -102,6 +100,12 @@ export class OpenAiLLMProvider implements LLMProvider {
     config: LLMEffectiveConfig,
   ): Promise<LLMToolsResult> {
     this.assertSupported(config.model, config.reasoningEffort, 'toolEfforts');
+    this.assertTemperatureCompatible(
+      config.model,
+      config.temperature,
+      config.reasoningEffort,
+      this.supportedEfforts(config.model, 'toolEfforts'),
+    );
 
     const params: ResponseCreateParamsNonStreaming = {
       model: config.model,
@@ -111,9 +115,7 @@ export class OpenAiLLMProvider implements LLMProvider {
         ? { tools: tools.map(toFunctionTool), tool_choice: 'auto' as const }
         : {}),
       ...reasoningParams(config.reasoningEffort),
-      ...(config.temperature != null
-        ? { temperature: config.temperature }
-        : {}),
+      ...temperatureParam(config.temperature, config.reasoningEffort),
       ...(config.maxOutputTokens != null
         ? { max_output_tokens: config.maxOutputTokens }
         : {}),
@@ -179,6 +181,11 @@ export class OpenAiLLMProvider implements LLMProvider {
       }
     }
 
+    const temperature = optionalNumber(
+      this.configService.get<string>('EXPERIMENT_LLM_TEMPERATURE'),
+    );
+    this.assertTemperatureCompatible(model, temperature, reasoningEffort, common);
+
     const modelVersion = await this.confirmModel(model);
 
     return {
@@ -186,9 +193,7 @@ export class OpenAiLLMProvider implements LLMProvider {
       model,
       modelVersion,
       reasoningEffort,
-      temperature: optionalNumber(
-        this.configService.get<string>('EXPERIMENT_LLM_TEMPERATURE'),
-      ),
+      temperature,
       maxOutputTokens: optionalNumber(
         this.configService.get<string>('EXPERIMENT_LLM_MAX_OUTPUT_TOKENS'),
       ),
@@ -202,7 +207,7 @@ export class OpenAiLLMProvider implements LLMProvider {
     kind: 'efforts' | 'toolEfforts',
   ): void {
     const combination = this.findCombination(model);
-    const supported = combination?.[kind] ?? [];
+    const supported = this.supportedEfforts(model, kind);
 
     if (
       !combination ||
@@ -215,6 +220,40 @@ export class OpenAiLLMProvider implements LLMProvider {
         supportedEfforts: supported,
       });
     }
+  }
+
+  /** Esfuerzos soportados por un modo; vacío si el modelo no tiene combinación. */
+  private supportedEfforts(
+    model: string,
+    kind: 'efforts' | 'toolEfforts',
+  ): string[] {
+    return this.findCombination(model)?.[kind] ?? [];
+  }
+
+  /**
+   * Con razonamiento activo el modelo rechaza `temperature` (400, R2 de WI-CORE-031). Si la
+   * configuración la pidió, falla de forma explícita: nunca la omite en silencio. `supported` son
+   * los esfuerzos del modo; en el error se informan solo los compatibles con temperatura.
+   */
+  private assertTemperatureCompatible(
+    model: string,
+    temperature: number | null,
+    effort: string | null,
+    supported: string[],
+  ): void {
+    if (temperature === null || !hasActiveReasoning(effort)) {
+      return;
+    }
+    throw new LLMConfigurationError(
+      {
+        code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
+        model,
+        requestedEffort: effort,
+        supportedEfforts: supported.filter((level) => !hasActiveReasoning(level)),
+        temperature,
+      },
+      `La temperatura ${temperature} no es compatible con razonamiento activo (esfuerzo "${effort}") del modelo "${model}"; use esfuerzo "none" o quite la temperatura.`,
+    );
   }
 
   private findCombination(model: string): LLMSupportedCombination | undefined {
@@ -332,6 +371,25 @@ function reasoningParams(
         reasoning: { effort: effort as ReasoningEffort },
         include: ['reasoning.encrypted_content'],
       };
+}
+
+/** Razonamiento activo: esfuerzo distinto de `null` y de `none` (WI-CORE-031, R2). */
+function hasActiveReasoning(effort: string | null): boolean {
+  return effort !== null && effort !== 'none';
+}
+
+/**
+ * `temperature` solo si no es `null` y no hay razonamiento activo. Con razonamiento activo el
+ * modelo responde 400, así que nunca se envía (la configuración pedida ya falló en
+ * `assertTemperatureCompatible`).
+ */
+function temperatureParam(
+  temperature: number | null,
+  effort: string | null,
+): Pick<ResponseCreateParamsNonStreaming, 'temperature'> {
+  return temperature !== null && !hasActiveReasoning(effort)
+    ? { temperature }
+    : {};
 }
 
 function highestEffort(efforts: string[]): string | null {

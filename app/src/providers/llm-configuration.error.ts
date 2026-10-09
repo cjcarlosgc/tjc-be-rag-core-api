@@ -1,10 +1,15 @@
-export type LLMConfigurationErrorCode = 'REASONING_EFFORT_UNSUPPORTED' | 'MODEL_UNAVAILABLE';
+export type LLMConfigurationErrorCode =
+  | 'REASONING_EFFORT_UNSUPPORTED'
+  | 'MODEL_UNAVAILABLE'
+  | 'TEMPERATURE_UNSUPPORTED_WITH_REASONING';
 
 export interface LLMConfigurationErrorDetails {
   code: LLMConfigurationErrorCode;
   model: string;
   requestedEffort: string | null;
   supportedEfforts: string[];
+  /** Solo para `TEMPERATURE_UNSUPPORTED_WITH_REASONING`: la temperatura pedida. */
+  temperature?: number | null;
 }
 
 /**
@@ -16,6 +21,7 @@ export class LLMConfigurationError extends Error {
   readonly model: string;
   readonly requestedEffort: string | null;
   readonly supportedEfforts: string[];
+  readonly temperature: number | null;
 
   constructor(details: LLMConfigurationErrorDetails, message?: string) {
     super(
@@ -27,5 +33,6 @@ export class LLMConfigurationError extends Error {
     this.model = details.model;
     this.requestedEffort = details.requestedEffort;
     this.supportedEfforts = details.supportedEfforts;
+    this.temperature = details.temperature ?? null;
   }
 }

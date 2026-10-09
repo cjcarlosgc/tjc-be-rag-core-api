@@ -17,6 +17,7 @@ import {
   DEFAULT_GENERATION_TIMEOUT_MS,
   DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
 } from './generation-budget.defaults.js';
+import { REASONING_EFFORT_SCALE } from '../providers/reasoning-effort.scale.js';
 
 class EnvironmentVariables {
   @IsIn(['development', 'production', 'test'])
@@ -367,6 +368,15 @@ function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
     );
     if (!valid) {
       throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser [{"model","efforts","toolEfforts"}].');
+    }
+    // Un nivel fuera de la escala (p. ej. un error tipográfico) falla en el arranque, no al crear el experimento.
+    const unknownEfforts = (parsed as Array<{ efforts: unknown[]; toolEfforts: unknown[] }>)
+      .flatMap((item) => [...item.efforts, ...item.toolEfforts])
+      .filter((effort) => typeof effort !== 'string' || !REASONING_EFFORT_SCALE.includes(effort));
+    if (unknownEfforts.length > 0) {
+      throw new Error(
+        `Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS contiene esfuerzos desconocidos (${unknownEfforts.map(String).join(', ')}); valores válidos: ${REASONING_EFFORT_SCALE.join(', ')}.`,
+      );
     }
   }
 }
