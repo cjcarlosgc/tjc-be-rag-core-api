@@ -295,7 +295,8 @@ export class AnalysisRunValidationJobHandler
           status: 'AVAILABLE',
           contextId,
         });
-        await this.recordExecution(run, proposalId, sandboxResult, 'AVAILABLE');
+        // Best-effort: un fallo al registrar la ejecución no degrada una propuesta ya válida (WI-CORE-026).
+        await this.recordExecutionBestEffort(run, proposalId, sandboxResult, 'AVAILABLE');
         return { symbol, kind: 'AVAILABLE' };
       }
 
@@ -424,6 +425,26 @@ export class AnalysisRunValidationJobHandler
       executionProfile: execution.executionProfile,
       outcome: toExecutionOutcome(kind),
     });
+  }
+
+  /**
+   * Variante best-effort para el camino de éxito: si el registro falla se loguea (solo el nombre del error,
+   * sin cuerpos ni secretos) y la propuesta AVAILABLE se conserva; la ejecución queda sin registrar.
+   */
+  private async recordExecutionBestEffort(
+    run: AnalysisRun,
+    proposalId: string,
+    execution: { executionId: string; executionProfile: string },
+    kind: ExecutionOutcomeKind,
+  ): Promise<void> {
+    try {
+      await this.recordExecution(run, proposalId, execution, kind);
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo registrar la ejecución ${execution.executionId} del AnalysisRun ${run.id} (${reason}); la propuesta sigue disponible.`,
+      );
+    }
   }
 
   /** Upsert por símbolo: devuelve el id de la propuesta, que liga la ejecución. */

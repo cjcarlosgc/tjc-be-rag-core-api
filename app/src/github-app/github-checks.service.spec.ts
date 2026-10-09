@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GithubChecksService } from './github-checks.service.js';
-import type { GithubIntegrationClient } from './github-integration.client.js';
+import { GithubIntegrationClient } from './github-integration.client.js';
 
 describe('GithubChecksService', () => {
   it('delegates a completed check to GitHub Integration', async () => {
@@ -25,7 +25,7 @@ describe('GithubChecksService', () => {
       title: 'Análisis exitoso',
       summary: 'todo bien',
       detailsUrl: 'https://console.example.com/projects/p1/runs/r1',
-    });
+    }, { tolerateUnreadableSuccessBody: true });
   });
 
   it('omits an absent details URL', async () => {
@@ -80,5 +80,26 @@ describe('GithubChecksService', () => {
 
     expect(first).toEqual({ checkId: 'chk-1' });
     expect(second).toEqual(first);
+  });
+
+  it('treats a 200 whose body is not JSON as checkId null without throwing, because the Check already exists', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('<html>ok</html>', { status: 200 }));
+    const config = { get: (key: string) => ({ GITHUB_INTEGRATION_API_BASE_URL: 'https://github-integration.example.test', CORE_TO_GITHUB_INTEGRATION_TOKEN: 'service-secret-token' })[key] };
+    const service = new GithubChecksService(new GithubIntegrationClient(config as never, fetcher));
+
+    await expect(
+      service.createCheckRun('999', 'org/repo', { name: 'n', headSha: 'h', conclusion: 'success', title: 't', summary: 's' }),
+    ).resolves.toEqual({ checkId: null });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps throwing for other HTTP errors and transport failures', async () => {
+    const config = { get: (key: string) => ({ GITHUB_INTEGRATION_API_BASE_URL: 'https://github-integration.example.test', CORE_TO_GITHUB_INTEGRATION_TOKEN: 'service-secret-token' })[key] };
+    const input = { name: 'n', headSha: 'h', conclusion: 'success' as const, title: 't', summary: 's' };
+    const serverError = new GithubChecksService(new GithubIntegrationClient(config as never, vi.fn<typeof fetch>().mockResolvedValue(new Response('boom', { status: 500 }))));
+    const transport = new GithubChecksService(new GithubIntegrationClient(config as never, vi.fn<typeof fetch>().mockRejectedValue(new TypeError('network'))));
+
+    await expect(serverError.createCheckRun('999', 'org/repo', input)).rejects.toMatchObject({ code: 'GITHUB_UPSTREAM_UNAVAILABLE', status: 500 });
+    await expect(transport.createCheckRun('999', 'org/repo', input)).rejects.toMatchObject({ code: 'GITHUB_UPSTREAM_UNAVAILABLE', status: undefined });
   });
 });

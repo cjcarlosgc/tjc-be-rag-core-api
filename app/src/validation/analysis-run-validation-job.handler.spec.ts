@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunValidationJobHandler } from './analysis-run-validation-job.handler.js';
 import { SandboxAcceptedExecutionError, SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
@@ -483,6 +484,27 @@ describe('AnalysisRunValidationJobHandler', () => {
         executionProfile: 'NODE_TYPESCRIPT',
         outcome: 'SUCCESS',
       });
+    });
+
+    it('keeps a valid proposal AVAILABLE and logs without failing when recording the execution fails', async () => {
+      const { handler, analysisTraceRepository, generatedTestProposalsRepository, analysisRunsService, analysisRunChecksService } = await setup();
+      analysisTraceRepository.upsertExecution.mockRejectedValueOnce(new Error('connection string postgresql://user:secret@host'));
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(handler.handle({ analysisRunId: 'run-1' }, 'job-1')).resolves.toBeUndefined();
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'AVAILABLE', failureSummary: null }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.objectContaining({ generatedTestsCount: 1 }),
+      );
+      expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(expect.objectContaining({ status: 'SUCCESS' }));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('exec-1'));
+      expect(warn.mock.calls.map((call) => String(call[0])).join(' ')).not.toContain('secret');
+      warn.mockRestore();
     });
 
     it('numbers the attempt after the continuations of the run (attemptCount + 1)', async () => {

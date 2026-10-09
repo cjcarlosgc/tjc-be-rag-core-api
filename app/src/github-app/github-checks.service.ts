@@ -35,16 +35,21 @@ export class GithubChecksService {
     repositoryName: string,
     input: CreateCheckRunInput,
   ): Promise<CreateCheckRunResult> {
-    const response = await this.integration.post<unknown>('/checks', {
-      installationId,
-      repositoryName,
-      name: input.name,
-      headSha: input.headSha,
-      conclusion: input.conclusion,
-      title: input.title,
-      summary: input.summary,
-      ...(input.detailsUrl ? { detailsUrl: input.detailsUrl } : {}),
-    });
+    // El Check ya existe cuando llega la respuesta: un 2xx con cuerpo ilegible no debe perder el checkId.
+    const response = await this.integration.post<unknown>(
+      '/checks',
+      {
+        installationId,
+        repositoryName,
+        name: input.name,
+        headSha: input.headSha,
+        conclusion: input.conclusion,
+        title: input.title,
+        summary: input.summary,
+        ...(input.detailsUrl ? { detailsUrl: input.detailsUrl } : {}),
+      },
+      { tolerateUnreadableSuccessBody: true },
+    );
 
     return { checkId: readCheckId(response) };
   }
