@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunValidationJobHandler } from './analysis-run-validation-job.handler.js';
 import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import { ContextBuilder } from '../retrieval/context-builder.service.js';
+import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import { countFunctionalRuleTokens } from '../retrieval/functional-rule-format.js';
 import type {
   AnalysisRun,
   AnalysisSymbol,
@@ -57,6 +60,26 @@ function buildVersion(overrides: Partial<ProjectVersion> = {}): ProjectVersion {
   return { id: 'version-1', detectedFramework: 'JEST', ...overrides } as ProjectVersion;
 }
 
+/** `GenerationContext` mínimo con la auditoría que `ContextBuilder` produce (WI-CORE-026). */
+function buildGenerationContext(overrides: Record<string, unknown> = {}) {
+  return {
+    target: { filePath: 'src/thing.ts', symbolName: 'Thing', methodName: 'doIt', targetType: 'METHOD', content: 'doIt() {}' },
+    relatedChunks: [],
+    functionalRules: [],
+    metadata: { language: 'typescript', framework: 'JEST' },
+    retrievedChunks: 0,
+    selectedChunks: 0,
+    contextTokens: 0,
+    audit: {
+      functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
+      target: { chunkIds: [], chunks: [], tokenCount: 0 },
+      candidates: [],
+      configuration: { minimumScore: 0, topK: 10, maxContextTokens: 1000, semanticWeight: 0.7, structuralWeight: 0.3 },
+    },
+    ...overrides,
+  };
+}
+
 function sandboxResult(overrides: Partial<{ status: string; facts: unknown; failure: unknown }> = {}) {
   return {
     status: 'COMPLETED',
@@ -97,7 +120,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       materialize: vi.fn().mockResolvedValue({ dir: workspaceDir, cleanup: workspaceCleanup }),
     };
     const retrievalService = { retrieve: vi.fn().mockResolvedValue({ targetChunks: [], candidates: [] }) };
-    const contextBuilder = { build: vi.fn().mockReturnValue({ retrievedChunks: 0, selectedChunks: 0, contextTokens: 0 }) };
+    const contextBuilder = { build: vi.fn().mockReturnValue(buildGenerationContext()) };
     const functionalRulesRetriever = { retrieve: vi.fn().mockResolvedValue([]) };
     const promptBuilder = { build: vi.fn().mockReturnValue('prompt') };
     const testFileMergeService = {
@@ -107,6 +130,10 @@ describe('AnalysisRunValidationJobHandler', () => {
     const sandboxExecutionService = { execute: vi.fn().mockResolvedValue(sandboxResult()) };
     const objectStorageService = { put: vi.fn().mockResolvedValue(undefined) };
     const generatedTestProposalsRepository = { create: vi.fn().mockResolvedValue({ id: 'proposal-1' }) };
+    const analysisTraceRepository = {
+      upsertRetrieval: vi.fn().mockResolvedValue({ id: 'retrieval-1' }),
+      upsertContext: vi.fn().mockResolvedValue({ id: 'context-1' }),
+    };
     const llmProvider = { generate: vi.fn().mockResolvedValue({ content: 'test content', inputTokens: 10, outputTokens: 20 }) };
     const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
 
@@ -129,6 +156,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       generatedTestProposalsRepository as never,
       analysisRunChecksService as never,
       llmProvider as never,
+      analysisTraceRepository as never,
     );
 
     analysisRunsRepository.findById.mockResolvedValue(buildRun());
@@ -153,6 +181,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       generatedTestProposalsRepository,
       llmProvider,
       analysisRunChecksService,
+      analysisTraceRepository,
       workspaceCleanup,
     };
   }
@@ -429,5 +458,132 @@ describe('AnalysisRunValidationJobHandler', () => {
       {},
       [rule],
     );
+  });
+
+  describe('trazas de retrieval y contexto (WI-CORE-026)', () => {
+    const chunk = {
+      id: 'chunk-target',
+      filePath: 'src/thing.ts',
+      symbolKind: 'METHOD',
+      symbolName: 'Thing',
+      parentSymbolName: 'Thing',
+      startLine: 1,
+      endLine: 3,
+      content: 'SECRETO_DE_CODIGO target',
+      tokenCount: 5,
+    };
+    const rule = {
+      knowledgeId: 'rule-1',
+      scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+      normalizedRule: 'TEXTO_REGLA_NO_PERSISTIDO',
+      scope: 'METHOD',
+      targetRef: 'src/thing.ts::Thing.doIt',
+      source: 'HUMAN_ANSWER',
+      provenance: { confirmedByUserId: 'user-1', confirmedRole: 'ADMIN', originHeadSha: 'head-1', sourceRef: 'ref-1' },
+    };
+
+    it('persists the retrieval and the context per target and links the context_id into the proposal', async () => {
+      const { handler, analysisTraceRepository, generatedTestProposalsRepository, retrievalService } = await setup();
+      retrievalService.retrieve.mockResolvedValue({
+        targetChunks: [chunk],
+        candidates: [{ chunk: { ...chunk, id: 'chunk-near', content: 'SECRETO_DE_CODIGO near' }, semanticScore: 0.9, structuralMatch: null }],
+      });
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertRetrieval).toHaveBeenCalledWith({
+        analysisRunId: 'run-1',
+        analysisSymbolId: 'symbol-1',
+        mode: 'SE',
+        config: { mode: 'SE', vectorTopK: 20, targetChunkIds: ['chunk-target'] },
+        candidates: [
+          expect.objectContaining({ chunkId: 'chunk-near', semanticScore: 0.9, structuralMatch: null }),
+        ],
+      });
+      expect(JSON.stringify(analysisTraceRepository.upsertRetrieval.mock.calls[0][0])).not.toContain('SECRETO_DE_CODIGO');
+      expect(analysisTraceRepository.upsertContext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          analysisRunId: 'run-1',
+          analysisSymbolId: 'symbol-1',
+          retrievalId: 'retrieval-1',
+          tokenBudget: 1000,
+          functionalRuleIds: [],
+          functionalRulesOmitted: 0,
+          omittedFunctionalRules: [],
+        }),
+      );
+      expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'AVAILABLE', contextId: 'context-1' }),
+      );
+    });
+
+    it('keeps the GenerationContext and the prompt unchanged by the trace persistence', async () => {
+      const context = await setup();
+      const generationContext = buildGenerationContext({ functionalRules: [rule] });
+      context.contextBuilder.build.mockReturnValue(generationContext);
+      const realPromptBuilder = new PromptBuilder();
+      context.promptBuilder.build.mockImplementation((ctx: never) => realPromptBuilder.build(ctx));
+      const before = structuredClone(generationContext);
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.promptBuilder.build).toHaveBeenCalledWith(generationContext);
+      expect(generationContext).toEqual(before);
+      expect(context.llmProvider.generate).toHaveBeenCalledWith(realPromptBuilder.build(before as never));
+    });
+
+    it('persists the functional rule omitted by TOKEN_BUDGET with its knowledgeId and reason, without rule text or provenance', async () => {
+      const context = await setup();
+      const kept = { ...rule, knowledgeId: 'rule-kept' };
+      // El presupuesto admite exactamente una regla: la segunda (mismo texto renderizado) queda omitida.
+      const budget = countFunctionalRuleTokens(kept);
+      const realBuilder = new ContextBuilder({
+        get: (key: string, fallback: unknown) => (key === 'RETRIEVAL_MAX_CONTEXT_TOKENS' ? budget : fallback),
+      } as never);
+      context.contextBuilder.build.mockImplementation((...args: unknown[]) =>
+        (realBuilder.build as (...a: unknown[]) => unknown).apply(realBuilder, args),
+      );
+      context.retrievalService.retrieve.mockResolvedValue({ targetChunks: [{ ...chunk, tokenCount: 0 }], candidates: [] });
+      context.functionalRulesRetriever.retrieve.mockResolvedValue([kept, { ...rule, knowledgeId: 'rule-omitted' }]);
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [contextArgs] = context.analysisTraceRepository.upsertContext.mock.calls[0];
+      expect(contextArgs).toMatchObject({
+        functionalRuleIds: ['rule-kept'],
+        functionalRulesRetrieved: 2,
+        functionalRulesSelected: 1,
+        functionalRulesOmitted: 1,
+        omittedFunctionalRules: [{ knowledgeId: 'rule-omitted', reason: 'TOKEN_BUDGET' }],
+      });
+      const serialized = JSON.stringify(contextArgs);
+      expect(serialized).not.toContain('TEXTO_REGLA_NO_PERSISTIDO');
+      expect(serialized).not.toContain('confirmedRole');
+      expect(serialized).not.toContain('user-1');
+    });
+
+    it('records no retrieval or context for a symbol that already has a test, and a null context_id when retrieval fails', async () => {
+      const { handler, analysisTraceRepository, generatedTestProposalsRepository, retrievalService } = await setup();
+      retrievalService.retrieve.mockRejectedValue(new Error('No se encontró un chunk indexado'));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertRetrieval).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertContext).not.toHaveBeenCalled();
+      expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', contextId: null }),
+      );
+    });
+
+    it('keeps the context_id of a generation failure after the context was persisted', async () => {
+      const { handler, llmProvider, generatedTestProposalsRepository } = await setup();
+      llmProvider.generate.mockRejectedValue(new Error('LLM caído'));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', contextId: 'context-1' }),
+      );
+    });
   });
 });

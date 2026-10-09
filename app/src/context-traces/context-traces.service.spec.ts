@@ -554,6 +554,35 @@ describe('ContextTracesService', () => {
     });
   });
 
+  it('does not expose the WI-CORE-026 functional rule evidence in the INTEROP §6.7 RAG detail', async () => {
+    const base = makeRagTrace([]);
+    const trace = {
+      ...base,
+      detail: {
+        ...(base.detail as object),
+        functionalRules: {
+          functionalRuleIds: ['rule-1'],
+          retrieved: 2,
+          selected: 1,
+          omitted: [{ knowledgeId: 'rule-2', reason: 'TOKEN_BUDGET' }],
+        },
+      },
+    };
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(trace),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+    const serialized = JSON.stringify(detail);
+
+    expect(detail.kind).toBe('RAG');
+    expect(serialized).not.toContain('functionalRules');
+    expect(serialized).not.toContain('rule-1');
+    expect(serialized).not.toContain('rule-2');
+  });
+
   it('accepts a RAG trace without candidates as a valid read', async () => {
     const { service } = makeService({
       reads: {

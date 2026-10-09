@@ -24,6 +24,9 @@ export interface RetrievalResult {
  */
 export type RetrievalMode = 'SE' | 'SEM';
 
+/** Top-K vectorial por defecto del retrieval del producto (WI-CORE-026 lo persiste en `analysis_retrievals.config`). */
+export const DEFAULT_VECTOR_TOP_K = 20;
+
 const SOURCE_EXTENSION_PATTERN = /\.(tsx?|jsx?|mjs|cjs)$/;
 
 function stripExtension(filePath: string): string {
@@ -55,7 +58,7 @@ export class RetrievalService {
   async retrieve(
     projectVersionId: string,
     target: RetrievalTarget,
-    vectorTopK = 20,
+    vectorTopK = DEFAULT_VECTOR_TOP_K,
     mode: RetrievalMode = 'SE',
   ): Promise<RetrievalResult> {
     const symbolKind = target.targetType === 'METHOD' ? 'METHOD' : 'FUNCTION';

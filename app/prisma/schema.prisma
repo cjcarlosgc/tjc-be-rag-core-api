@@ -340,6 +340,8 @@ model AnalysisRun {
   projectVersion              ProjectVersion?         @relation(fields: [projectVersionId], references: [id])
   symbols                     AnalysisSymbol[]
   retrievalComparisons        RetrievalComparison[]
+  analysisRetrievals          AnalysisRetrieval[]
+  analysisContexts            AnalysisContext[]
   functionalQuestions         FunctionalQuestion[]
   generatedTestProposals      GeneratedTestProposal[]
   testPublications            TestPublication[]
@@ -374,9 +376,60 @@ model AnalysisSymbol {
   /// `[{scenarioKind, scenarioKey, order, snippet}]`. La escribe el job de snapshot en el corte 3.
   behaviorConstructs Json?
   createdAt     DateTime               @default(now())
+  analysisRetrievals AnalysisRetrieval[]
+  analysisContexts   AnalysisContext[]
 
   @@index([analysisRunId])
   @@map("analysis_symbols")
+}
+
+/// WI-CORE-026 (HU12/HU15; INTEROP-2.7 §6.16): retrieval de un target de un AnalysisRun. `id` es el
+/// `retrieval_id`. `candidates` no contiene código: solo identificadores, ubicación y puntajes.
+model AnalysisRetrieval {
+  id               String          @id @default(uuid())
+  analysisRunId    String
+  analysisRun      AnalysisRun     @relation(fields: [analysisRunId], references: [id])
+  analysisSymbolId String
+  analysisSymbol   AnalysisSymbol  @relation(fields: [analysisSymbolId], references: [id])
+  mode             RetrievalMode
+  config           Json
+  candidates       Json
+  createdAt        DateTime        @default(now())
+  contexts         AnalysisContext[]
+
+  @@unique([analysisRunId, analysisSymbolId])
+  @@index([analysisRunId])
+  @@map("analysis_retrievals")
+}
+
+/// WI-CORE-026 (HU12/HU15; INTEROP-2.7 §6.16): contexto construido para un target. `id` es el
+/// `context_id`. Guarda los identificadores y conteos de la obligación de WI-CORE-021; la procedencia
+/// de las reglas no se duplica aquí y se reconstruye por `knowledgeId` desde FunctionalKnowledge.
+model AnalysisContext {
+  id                       String            @id @default(uuid())
+  analysisRunId            String
+  analysisRun              AnalysisRun       @relation(fields: [analysisRunId], references: [id])
+  analysisSymbolId         String
+  analysisSymbol           AnalysisSymbol    @relation(fields: [analysisSymbolId], references: [id])
+  retrievalId              String
+  retrieval                AnalysisRetrieval @relation(fields: [retrievalId], references: [id])
+  selectedChunkIds         String[]
+  discardedChunkIds        String[]
+  selectedTokens           Int
+  tokenBudget              Int
+  /// `knowledgeId` de las reglas incluidas en el contexto, en el orden determinista del retriever.
+  functionalRuleIds        String[]
+  functionalRulesRetrieved Int
+  functionalRulesSelected  Int
+  functionalRulesOmitted   Int
+  /// `[{knowledgeId, reason}]`; `reason` = `TOKEN_BUDGET`.
+  omittedFunctionalRules   Json
+  createdAt                DateTime          @default(now())
+  proposals                GeneratedTestProposal[]
+
+  @@unique([analysisRunId, analysisSymbolId])
+  @@index([analysisRunId])
+  @@map("analysis_contexts")
 }
 
 enum GeneratedTestProposalStatus {
@@ -404,6 +457,9 @@ model GeneratedTestProposal {
   contentSha256  String
   status         GeneratedTestProposalStatus
   failureSummary String?
+  /// WI-CORE-026: `context_id` del contexto con el que se generó la propuesta (null en Runs previos o si no hubo contexto).
+  contextId      String?
+  context        AnalysisContext?            @relation(fields: [contextId], references: [id])
   createdAt      DateTime                    @default(now())
 
   @@index([analysisRunId])

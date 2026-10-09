@@ -194,11 +194,13 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
                   content: '',
                 },
                 relatedChunks: [],
+                functionalRules: [],
                 metadata: { language: 'typescript', framework: 'VITEST' },
                 retrievedChunks: 0,
                 selectedChunks: 0,
                 contextTokens: 0,
                 audit: {
+                  functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
                   target: { chunkIds: [], chunks: [], tokenCount: 0 },
                   candidates: [],
                   configuration: {
@@ -231,11 +233,13 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
                   matchedVia: candidate.matchedVia,
                 },
               ],
+              functionalRules: [],
               metadata: { language: 'typescript', framework: 'VITEST' },
               retrievedChunks: 4,
               selectedChunks: 2,
               contextTokens: 123,
               audit: {
+                functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
                 target: {
                   chunkIds: ['target-chunk-1'],
                   chunks: [
@@ -880,11 +884,13 @@ describe('ExperimentJobHandler', () => {
           matchedVia: ['SEMANTIC', 'IMPORTS'],
         },
       ],
+      functionalRules: [],
       metadata: { language: 'typescript', framework: 'VITEST' },
       retrievedChunks: 4,
       selectedChunks: 1,
       contextTokens: 30,
       audit: {
+        functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
         target: {
           chunkIds: ['target-chunk-1'],
           chunks: [
@@ -1360,7 +1366,7 @@ describe('ExperimentJobHandler', () => {
     }
   });
 
-  it('keeps functional rules out of the persisted RAG trace and includes them only in the prompt', async () => {
+  it('persists rule ids and counts in the RAG trace without rule text or provenance, and includes the text only in the prompt', async () => {
     const ruleText = 'TEXTO_REGLA_CONFIDENCIAL_PARA_PROMPT';
     const rule = {
       knowledgeId: 'rule-1',
@@ -1394,11 +1400,20 @@ describe('ExperimentJobHandler', () => {
 
     const ragPrompts = deps.llmProvider.generate.mock.calls.map((call: unknown[]) => call[0] as string);
     expect(ragPrompts.some((prompt: string) => prompt.includes('Reglas funcionales') && prompt.includes(ruleText))).toBe(true);
-    for (const call of deps.contextTracesRepository.updateDetail.mock.calls) {
-      const serialized = JSON.stringify(call[1]);
+    // Solo los details RAG (forma con `candidates`); el detail del agente no lleva reglas.
+    const details = deps.contextTracesRepository.updateDetail.mock.calls
+      .map((call: unknown[]) => JSON.stringify(call[1]))
+      .filter((serialized: string) => serialized.includes('"candidates"'));
+    expect(details.length).toBeGreaterThan(0);
+    for (const serialized of details) {
+      // WI-CORE-026: el detail persiste los ids y conteos de reglas, nunca su texto ni su procedencia.
+      expect(serialized).toContain('"functionalRules"');
       expect(serialized).not.toContain(ruleText);
-      expect(serialized).not.toContain('functionalRules');
+      expect(serialized).not.toContain('confirmedRole');
+      expect(serialized).not.toContain('ADMIN');
+      expect(serialized).not.toContain('originHeadSha');
     }
+    expect(details.some((serialized: string) => serialized.includes('"functionalRuleIds":["rule-1"]'))).toBe(true);
   });
 
   describe('OE5 pareado y repetición externa (WI-CORE-025)', () => {

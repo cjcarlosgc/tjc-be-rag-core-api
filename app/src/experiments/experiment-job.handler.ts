@@ -63,6 +63,7 @@ import type { ExperimentRepetition, TestTarget } from '../generated/prisma/clien
 import { ContextTracesRepository } from '../context-traces/context-traces.repository.js';
 import type { BegunContextTraceAttempt } from '../context-traces/context-traces.repository.js';
 import type { GenerationContext } from '../retrieval/generation-context.js';
+import { toFunctionalRuleEvidence } from '../retrieval/functional-rule-evidence.js';
 import type { ExecutionProfile } from '../sandbox/sandbox.types.js';
 import {
   DEFAULT_AGENT_MAX_TOOL_CALLS,
@@ -1158,6 +1159,8 @@ export class ExperimentJobHandler
       selectedChunks: generationContext.selectedChunks,
       contextTokens: generationContext.contextTokens,
       configuration: audit.configuration,
+      // WI-CORE-026 (obligación de WI-CORE-021): ids, conteos y omitidas; sin procedencia ni texto de regla.
+      functionalRules: toFunctionalRuleEvidence(generationContext),
     } as Prisma.InputJsonValue;
   }
 

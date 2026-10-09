@@ -13,6 +13,8 @@ export interface CreateGeneratedTestProposalInput {
   contentSha256: string;
   status: GeneratedTestProposalStatus;
   failureSummary?: string;
+  /** WI-CORE-026: `context_id` del contexto usado para generar la propuesta. */
+  contextId?: string | null;
 }
 
 @Injectable()

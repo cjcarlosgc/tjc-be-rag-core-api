@@ -12,8 +12,9 @@ import { ProjectVersionsRepository } from '../project-versions/project-versions.
 import { TestTargetsRepository } from '../project-versions/persistence/test-targets.repository.js';
 import { zipDirectory } from '../project-versions/zip/zip-directory.util.js';
 import { GithubSnapshotMaterializerService } from '../snapshot-intelligence/github-snapshot-materializer.service.js';
-import { RetrievalService } from '../retrieval/retrieval.service.js';
+import { DEFAULT_VECTOR_TOP_K, RetrievalService, type RetrievalResult } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
+import type { GenerationContext } from '../retrieval/generation-context.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import { TestFileMergeService, coLocatedSpecPath } from '../generation/test-file-merge.service.js';
@@ -22,6 +23,8 @@ import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-
 import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import { GeneratedTestProposalsRepository } from './generated-test-proposals.repository.js';
+import { AnalysisTraceRepository } from '../analysis-runs/persistence/analysis-trace.repository.js';
+import { toAnalysisContextEvidence, toRetrievalEvidence } from '../analysis-runs/analysis-trace-evidence.util.js';
 import { toRetrievalTarget, findMatchingTestTarget } from './symbol-target.util.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
 import type { LLMProvider } from '../providers/llm-provider.interface.js';
@@ -87,6 +90,7 @@ export class AnalysisRunValidationJobHandler
     private readonly generatedTestProposalsRepository: GeneratedTestProposalsRepository,
     private readonly analysisRunChecksService: AnalysisRunChecksService,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
+    private readonly analysisTraceRepository: AnalysisTraceRepository,
   ) {}
 
   onModuleInit(): void {
@@ -171,6 +175,7 @@ export class AnalysisRunValidationJobHandler
             content: '',
             status: 'HELD',
             failureSummary: 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+            contextId: null,
           });
           outcomes.push({ symbol, kind: 'TECHNICAL_GENERATION_FAILURE' });
           continue;
@@ -226,6 +231,7 @@ export class AnalysisRunValidationJobHandler
     snapshotBuffer: Buffer;
   }): Promise<SymbolOutcome> {
     const { run, jobId, symbol, framework, workspace, snapshotKey, snapshotBuffer } = context;
+    let contextId: string | null = null;
 
     try {
       const retrievalTarget = toRetrievalTarget(symbol);
@@ -238,6 +244,7 @@ export class AnalysisRunValidationJobHandler
         {},
         functionalRules,
       );
+      contextId = await this.persistTraceEvidence(run, symbol, retrieval, generationContext);
       const prompt = this.promptBuilder.build(generationContext);
       const generation = await this.llmProvider.generate(prompt);
 
@@ -274,6 +281,7 @@ export class AnalysisRunValidationJobHandler
           relativePath,
           content: mergedContent,
           status: 'AVAILABLE',
+          contextId,
         });
         return { symbol, kind: 'AVAILABLE' };
       }
@@ -284,6 +292,7 @@ export class AnalysisRunValidationJobHandler
         content: mergedContent,
         status: 'HELD',
         failureSummary: outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
+        contextId,
       });
       return { symbol, kind };
     } catch (error) {
@@ -301,6 +310,7 @@ export class AnalysisRunValidationJobHandler
         content: '',
         status: 'HELD',
         failureSummary: summary,
+        contextId,
       });
       return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
     }
@@ -339,10 +349,54 @@ export class AnalysisRunValidationJobHandler
     return `${status}: ${available} propuesta(s) disponible(s), ${skipped} símbolo(s) ya cubiertos por tests existentes, ${mismatched} behavioral mismatch, ${failed} fallo(s) técnico(s) de generación.`;
   }
 
+  /**
+   * WI-CORE-026: persiste `analysis_retrievals` y `analysis_contexts` del target y devuelve el
+   * `context_id`. Lee el resultado y el `GenerationContext` sin mutarlos: el prompt no cambia.
+   */
+  private async persistTraceEvidence(
+    run: AnalysisRun,
+    symbol: AnalysisSymbol,
+    retrieval: RetrievalResult,
+    generationContext: GenerationContext,
+  ): Promise<string> {
+    const retrievalEvidence = toRetrievalEvidence(retrieval, DEFAULT_VECTOR_TOP_K);
+    const storedRetrieval = await this.analysisTraceRepository.upsertRetrieval({
+      analysisRunId: run.id,
+      analysisSymbolId: symbol.id,
+      mode: retrievalEvidence.config.mode,
+      config: retrievalEvidence.config,
+      candidates: retrievalEvidence.candidates,
+    });
+
+    const contextEvidence = toAnalysisContextEvidence(generationContext);
+    const storedContext = await this.analysisTraceRepository.upsertContext({
+      analysisRunId: run.id,
+      analysisSymbolId: symbol.id,
+      retrievalId: storedRetrieval.id,
+      selectedChunkIds: contextEvidence.selectedChunkIds,
+      discardedChunkIds: contextEvidence.discardedChunkIds,
+      selectedTokens: contextEvidence.selectedTokens,
+      tokenBudget: contextEvidence.tokenBudget,
+      functionalRuleIds: contextEvidence.functionalRules.functionalRuleIds,
+      functionalRulesRetrieved: contextEvidence.functionalRules.retrieved,
+      functionalRulesSelected: contextEvidence.functionalRules.selected,
+      functionalRulesOmitted: contextEvidence.functionalRules.omitted.length,
+      omittedFunctionalRules: contextEvidence.functionalRules.omitted,
+    });
+
+    return storedContext.id;
+  }
+
   private async persistProposal(
     run: AnalysisRun,
     symbol: AnalysisSymbol,
-    input: { relativePath: string; content: string; status: 'AVAILABLE' | 'HELD'; failureSummary?: string },
+    input: {
+      relativePath: string;
+      content: string;
+      status: 'AVAILABLE' | 'HELD';
+      failureSummary?: string;
+      contextId: string | null;
+    },
   ): Promise<void> {
     const storageKey = `analysis-runs/${run.id}/proposals/${randomUUID()}`;
     const buffer = Buffer.from(input.content, 'utf8');
@@ -358,6 +412,7 @@ export class AnalysisRunValidationJobHandler
       storageKey,
       contentSha256: createHash('sha256').update(buffer).digest('hex'),
       status: input.status,
+      contextId: input.contextId,
       ...(input.failureSummary ? { failureSummary: input.failureSummary } : {}),
     });
   }
