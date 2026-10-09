@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapSandboxResult } from './map-sandbox-result.js';
+import { mapSandboxResult, SANDBOX_TIMED_OUT_ERROR_SUMMARY } from './map-sandbox-result.js';
 import type { SandboxExecutionResult } from './sandbox.types.js';
 
 function makeFacts(overrides: Partial<SandboxExecutionResult['facts']> = {}) {
@@ -23,6 +23,15 @@ describe('mapSandboxResult', () => {
     const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [] });
 
     expect(outcome).toMatchObject({ status: 'FAILED', valid: false, failureType: 'INFRASTRUCTURE' });
+  });
+
+  it('keeps the timeout text only as errorSummary and exposes no timeout flag in the outcome (WI-CORE-025 (1))', () => {
+    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [] });
+
+    expect(outcome.errorSummary).toBe(SANDBOX_TIMED_OUT_ERROR_SUMMARY);
+    expect(Object.keys(outcome).sort()).toEqual(
+      ['compiled', 'errorSummary', 'executed', 'failureType', 'passed', 'status', 'valid'],
+    );
   });
 
   it('maps a FAILED status using the failure category', () => {

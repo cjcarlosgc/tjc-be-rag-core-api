@@ -754,6 +754,9 @@ model ExperimentRepetition {
   pairPosition         Int?
   /// WI-CORE-025: false cuando el slot agotó el reintento externo sin evaluación técnica; true por defecto.
   technicallyEvaluable Boolean                   @default(true)
+  /// WI-CORE-025: interno, no expuesto en DTO ni INTEROP. true cuando el Sandbox devolvió TIMED_OUT
+  /// (discriminador de la redelivery, en lugar del texto de errorSummary); null en filas previas o sin timeout.
+  sandboxTimedOut      Boolean?
   contextTraces        ContextTrace[]
   createdAt            DateTime                  @default(now())
 

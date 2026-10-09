@@ -552,5 +552,97 @@ describe('ExperimentsService', () => {
       expect(results.repetitionsPerStrategy).toBe(3);
       expect(results.completedAt).toBe('2026-01-01T00:00:00.000Z');
     });
+
+    it('excludes technically non-evaluable repetitions from rates, means and failures, keeping the response shape (WI-CORE-025 (5))', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1',
+        projectVersionId: 'version-1',
+        targetId: 'target-1',
+        status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([
+        {
+          repetition: 1, strategy: 'RAG', compiled: true, executed: true, passed: true, valid: true,
+          failureType: 'NONE', generationDurationMs: 100, executionDurationMs: 200, totalDurationMs: 300,
+          inputTokens: 100, outputTokens: 50, totalTokens: 150, estimatedCost: 0.01,
+          retrievedChunks: 4, selectedChunks: 2, contextTokens: 500, toolCalls: null, filesInspected: null,
+          technicallyEvaluable: true,
+        },
+        {
+          repetition: 2, strategy: 'RAG', compiled: true, executed: true, passed: false, valid: false,
+          failureType: 'TEST_ASSERTION', generationDurationMs: 120, executionDurationMs: 220, totalDurationMs: 340,
+          inputTokens: 110, outputTokens: 55, totalTokens: 165, estimatedCost: 0.011,
+          retrievedChunks: 6, selectedChunks: 3, contextTokens: 600, toolCalls: null, filesInspected: null,
+          technicallyEvaluable: true,
+        },
+        {
+          repetition: 3, strategy: 'RAG', compiled: null, executed: null, passed: null, valid: false,
+          failureType: 'INFRASTRUCTURE', generationDurationMs: 999_999, executionDurationMs: null, totalDurationMs: 999_999,
+          inputTokens: 9_999, outputTokens: 9_999, totalTokens: 19_998, estimatedCost: 9.9,
+          retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: null, filesInspected: null,
+          technicallyEvaluable: false,
+        },
+      ]);
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+      const rag = results.strategies.find((s) => s.strategy === 'RAG')!;
+
+      expect(rag.validRate).toBeCloseTo(1 / 2, 6);
+      expect(rag.compilationRate).toBe(1);
+      expect(rag.passedRate).toBeCloseTo(1 / 2, 6);
+      expect(rag.generationDurationMs).toBe(Math.round((100 + 120) / 2));
+      expect(rag.inputTokens).toBe(Math.round((100 + 110) / 2));
+      expect(rag.failures).toEqual({ NONE: 1, TEST_ASSERTION: 1 });
+      expect(Object.keys(rag).sort()).toEqual(
+        Object.keys(results.strategies.find((s) => s.strategy === 'GENERALIST_AGENT')!).sort(),
+      );
+      // La lista de repeticiones sigue mostrando todos los slots, con su bandera.
+      expect(results.repetitions.filter((r) => r.technicallyEvaluable === false)).toHaveLength(1);
+    });
+
+    it('answers zero rates and null means, never NaN, when every repetition of a strategy is non-evaluable (WI-CORE-025 (5))', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1',
+        projectVersionId: 'version-1',
+        targetId: 'target-1',
+        status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      const nonEvaluable = (repetition: number) => ({
+        repetition, strategy: 'GENERALIST_AGENT', compiled: null, executed: null, passed: null, valid: false,
+        failureType: 'INFRASTRUCTURE', generationDurationMs: 50, executionDurationMs: null, totalDurationMs: 50,
+        inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+        retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: 1, filesInspected: 0,
+        technicallyEvaluable: false,
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([1, 2, 3].map(nonEvaluable));
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+      const agent = results.strategies.find((s) => s.strategy === 'GENERALIST_AGENT')!;
+
+      for (const value of [
+        agent.validRate,
+        agent.compilationRate,
+        agent.executionRate,
+        agent.passedRate,
+        agent.generationDurationMs,
+        agent.executionDurationMs,
+        agent.totalDurationMs,
+      ]) {
+        expect(Number.isNaN(value)).toBe(false);
+      }
+      expect(agent.validRate).toBe(0);
+      expect(agent.compilationRate).toBe(0);
+      expect(agent.passedRate).toBe(0);
+      expect(agent.generationDurationMs).toBe(0);
+      expect(agent.inputTokens).toBeNull();
+      expect(agent.estimatedCost).toBeNull();
+      expect(agent.failures).toEqual({});
+    });
   });
 });

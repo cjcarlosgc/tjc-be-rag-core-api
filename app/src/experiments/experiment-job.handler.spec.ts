@@ -388,8 +388,9 @@ function attemptRow(
   state: 'COMPLETED' | 'FAILED' | 'RUNNING',
   failureType: string | null = null,
   errorSummary: string | null = null,
+  sandboxTimedOut: boolean | null = null,
 ) {
-  return { strategy, repetition, attempt, state, failureType, errorSummary };
+  return { strategy, repetition, attempt, state, failureType, errorSummary, sandboxTimedOut };
 }
 
 function failedCompilationResult() {
@@ -1229,19 +1230,17 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    // Cada slot agota su único reintento externo: 6 intentos 1 y 6 intentos 2, sin tercero.
+    // Run sin semilla (legacy, WI-CORE-025 (4)): un único intento por slot, sin reintento externo.
     expect(
       deps.experimentRunsRepository.updateRepetitionById,
-    ).toHaveBeenCalledTimes(12);
+    ).toHaveBeenCalledTimes(6);
     const anyCall =
       deps.experimentRunsRepository.updateRepetitionById.mock.calls[0];
     expect(anyCall[1]).toMatchObject({
       valid: false,
       failureType: 'INFRASTRUCTURE',
     });
-    expect(
-      writesOf(deps).filter((write) => write.technicallyEvaluable === false),
-    ).toHaveLength(6);
+    expect(writesOf(deps).every((write) => !('technicallyEvaluable' in write))).toBe(true);
     expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
       'exp-1',
     );
@@ -1482,6 +1481,73 @@ describe('ExperimentJobHandler', () => {
       expect(writes.every((write) => write.failureType === 'INFRASTRUCTURE')).toBe(true);
       expect(writes.every((write) => write.errorSummary === SANDBOX_TIMED_OUT_ERROR_SUMMARY)).toBe(true);
       expect(writes.every((write) => !('technicallyEvaluable' in write))).toBe(true);
+      // WI-CORE-025 (1): el discriminador interno es la columna, no el texto.
+      expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(true);
+    });
+
+    it('persists sandboxTimedOut only for TIMED_OUT, leaving it unset for other Sandbox outcomes', async () => {
+      const execute = vi
+        .fn()
+        .mockResolvedValueOnce(timedOutResult())
+        .mockResolvedValue(successfulSandboxResult());
+      const { deps } = makeDeps({
+        configService: sequentialConfig(),
+        sandboxExecutionService: { execute },
+      });
+      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+        seededRun(),
+      );
+
+      await makeHandler(deps).handle(payload, 'job-1');
+
+      const writes = writesOf(deps);
+      expect(writes[0]).toMatchObject({ sandboxTimedOut: true, failureType: 'INFRASTRUCTURE' });
+      expect(writes.slice(1).every((write) => !('sandboxTimedOut' in write))).toBe(true);
+    });
+
+    it('treats a generic Sandbox client error as infrastructure: one external retry with the :2 identity (WI-CORE-025 (2))', async () => {
+      const execute = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('socket hang up'))
+        .mockResolvedValue(successfulSandboxResult());
+      const { deps } = makeDeps({
+        configService: sequentialConfig(),
+        sandboxExecutionService: { execute },
+      });
+      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+        seededRun(),
+      );
+
+      await makeHandler(deps).handle(payload, 'job-1');
+
+      const [first, second] = pairOrder(SEED, 1);
+      const executions = executionsOf(deps);
+      expect(executions.slice(0, 3).map((execution) => execution.requestId)).toEqual([
+        sandboxExperimentRequestId('job-1', first, 1),
+        sandboxExperimentRequestId('job-1', first, 1, 2),
+        sandboxExperimentRequestId('job-1', second, 1),
+      ]);
+      const writes = writesOf(deps);
+      expect(writes[0]).toMatchObject({ failureType: 'INFRASTRUCTURE', valid: false });
+      expect(writes[0]).not.toHaveProperty('sandboxTimedOut');
+      expect(writes[0]).not.toHaveProperty('technicallyEvaluable');
+    });
+
+    it('does not retry a generic Sandbox client error on the second attempt and marks it technically non-evaluable', async () => {
+      const execute = vi.fn().mockRejectedValue(new Error('socket hang up'));
+      const { deps } = makeDeps({
+        configService: sequentialConfig(),
+        sandboxExecutionService: { execute },
+      });
+      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+        seededRun(),
+      );
+
+      await makeHandler(deps).handle(payload, 'job-1');
+
+      expect(execute).toHaveBeenCalledTimes(12);
+      const writes = writesOf(deps);
+      expect(writes.filter((write) => write.technicallyEvaluable === false)).toHaveLength(6);
     });
 
     it('retries an external LLM failure once and does not retry other LLM failures', async () => {
@@ -1494,6 +1560,10 @@ describe('ExperimentJobHandler', () => {
           resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
         },
       });
+      // El reintento externo solo aplica a runs con semilla (WI-CORE-025 (4)).
+      (external.deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+        seededRun(),
+      );
       await makeHandler(external.deps).handle(payload, 'job-1');
 
       expect(externalGenerate).toHaveBeenCalledTimes(6);
@@ -1512,6 +1582,9 @@ describe('ExperimentJobHandler', () => {
           resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
         },
       });
+      (notExternal.deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+        seededRun(),
+      );
       await makeHandler(notExternal.deps).handle(payload, 'job-2');
 
       expect(notExternalGenerate).toHaveBeenCalledTimes(3);
@@ -1580,7 +1653,7 @@ describe('ExperimentJobHandler', () => {
           updateRepetitionById: vi.fn(),
           refreshCompletedRepetitions: vi.fn(),
           findRepetitions: vi.fn().mockResolvedValue([
-            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', SANDBOX_TIMED_OUT_ERROR_SUMMARY),
+            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', SANDBOX_TIMED_OUT_ERROR_SUMMARY, true),
             attemptRow('RAG', 2, 1, 'COMPLETED'),
             attemptRow('RAG', 3, 1, 'COMPLETED'),
             attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
@@ -1653,6 +1726,124 @@ describe('ExperimentJobHandler', () => {
       for (const call of (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls) {
         expect(call[2]).toEqual({ toolCallCap: 20, contextTokenBudget: 8000 });
       }
+    });
+
+    it('on redelivery retries an external failure whose row has sandboxTimedOut NULL, even if its summary is the timeout text (WI-CORE-025 (1))', async () => {
+      const { deps } = makeDeps({
+        experimentRunsRepository: {
+          findById: vi.fn().mockResolvedValue(seededRun()),
+          markStarted: vi.fn(),
+          complete: vi.fn(),
+          markFailed: vi.fn(),
+          updateRepetitionById: vi.fn(),
+          refreshCompletedRepetitions: vi.fn(),
+          findRepetitions: vi.fn().mockResolvedValue([
+            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', SANDBOX_TIMED_OUT_ERROR_SUMMARY, null),
+            attemptRow('RAG', 2, 1, 'COMPLETED'),
+            attemptRow('RAG', 3, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+          ]),
+        },
+      });
+
+      await makeHandler(deps).handle(payload, 'job-2');
+
+      expect(
+        beginsOf(deps).map((begin) => `${begin.strategy}:${begin.repetition}`),
+      ).toEqual(['RAG:1']);
+      expect(executionsOf(deps)[0].requestId).toBe(sandboxExperimentRequestId('job-2', 'RAG', 1, 2));
+    });
+
+    it('on redelivery never starts a third attempt for a second-attempt RUNNING row, which is left untouched (orphan rule pending, WI-CORE-025 (3))', async () => {
+      const { deps } = makeDeps({
+        experimentRunsRepository: {
+          findById: vi.fn().mockResolvedValue(seededRun()),
+          markStarted: vi.fn(),
+          complete: vi.fn(),
+          markFailed: vi.fn(),
+          updateRepetitionById: vi.fn(),
+          refreshCompletedRepetitions: vi.fn(),
+          findRepetitions: vi.fn().mockResolvedValue([
+            attemptRow('RAG', 1, 2, 'RUNNING'),
+            attemptRow('RAG', 2, 1, 'COMPLETED'),
+            attemptRow('RAG', 3, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+          ]),
+        },
+      });
+
+      await makeHandler(deps).handle(payload, 'job-2');
+
+      expect(beginsOf(deps)).toHaveLength(0);
+      expect(executionsOf(deps)).toHaveLength(0);
+      expect(writesOf(deps)).toHaveLength(0);
+    });
+
+    it('legacy runs without seed execute one attempt per slot and never retry an external failure', async () => {
+      const execute = vi.fn().mockRejectedValue(new SandboxUnavailableError('down'));
+      const { deps } = makeDeps({ sandboxExecutionService: { execute } });
+      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'exp-1',
+        status: 'PENDING',
+        modelConfig: effectiveConfig,
+        randomizationSeed: null,
+        budget: null,
+        executionProfile: null,
+        runnerHint: null,
+      });
+
+      await makeHandler(deps).handle(payload, 'job-1');
+
+      expect(beginsOf(deps)).toHaveLength(6);
+      expect(execute).toHaveBeenCalledTimes(6);
+      // Identidad sin sufijo ':2' para los seis slots: el único intento de cada uno.
+      const expectedRequestIds = (['RAG', 'GENERALIST_AGENT'] as const).flatMap((strategy) =>
+        [1, 2, 3].map((repetition) => sandboxExperimentRequestId('job-1', strategy, repetition)),
+      );
+      expect(executionsOf(deps).map((execution) => execution.requestId).sort()).toEqual(
+        [...expectedRequestIds].sort(),
+      );
+      expect(writesOf(deps).every((write) => !('technicallyEvaluable' in write))).toBe(true);
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    });
+
+    it('legacy redelivery skips every slot that already has an attempt, without creating a retry', async () => {
+      const { deps } = makeDeps({
+        experimentRunsRepository: {
+          findById: vi.fn().mockResolvedValue({
+            id: 'exp-1',
+            status: 'PENDING',
+            modelConfig: effectiveConfig,
+            randomizationSeed: null,
+            budget: null,
+            executionProfile: null,
+            runnerHint: null,
+          }),
+          markStarted: vi.fn(),
+          complete: vi.fn(),
+          markFailed: vi.fn(),
+          updateRepetitionById: vi.fn(),
+          refreshCompletedRepetitions: vi.fn(),
+          findRepetitions: vi.fn().mockResolvedValue([
+            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', 'Sandbox no disponible.'),
+            attemptRow('RAG', 2, 1, 'COMPLETED'),
+            attemptRow('RAG', 3, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
+            attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+          ]),
+        },
+      });
+
+      await makeHandler(deps).handle(payload, 'job-2');
+
+      expect(beginsOf(deps)).toHaveLength(0);
+      expect(executionsOf(deps)).toHaveLength(0);
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
     });
   });
 });

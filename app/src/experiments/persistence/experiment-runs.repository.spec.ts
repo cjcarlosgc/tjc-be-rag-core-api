@@ -231,6 +231,69 @@ describe('ExperimentRunsRepository.updateRepetitionById', () => {
   });
 });
 
+describe('ExperimentRunsRepository sandboxTimedOut (WI-CORE-025 (1))', () => {
+  const baseMetrics = {
+    repetition: 1,
+    strategy: 'RAG' as const,
+    compiled: null,
+    executed: null,
+    passed: null,
+    valid: false,
+    failureType: 'INFRASTRUCTURE' as const,
+    errorSummary: 'La ejecución en el Sandbox agotó el tiempo límite.',
+    generationDurationMs: 100,
+    executionDurationMs: 200,
+    totalDurationMs: 300,
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+    estimatedCost: null,
+    retrievedChunks: null,
+    selectedChunks: null,
+    contextTokens: null,
+    toolCalls: null,
+    filesInspected: null,
+    trajectory: undefined,
+  };
+
+  it('updateRepetitionById persists sandboxTimedOut=true when the Sandbox timed out', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'repetition-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { update },
+    } as never);
+
+    await repository.updateRepetitionById(
+      'repetition-1',
+      { ...baseMetrics, sandboxTimedOut: true },
+      'FAILED',
+    );
+
+    expect(update.mock.calls[0][0].data).toMatchObject({ sandboxTimedOut: true, state: 'FAILED' });
+  });
+
+  it('updateRepetitionById leaves sandboxTimedOut untouched when the caller does not provide it', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'repetition-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { update },
+    } as never);
+
+    await repository.updateRepetitionById('repetition-1', baseMetrics, 'FAILED');
+
+    expect(update.mock.calls[0][0].data).not.toHaveProperty('sandboxTimedOut');
+  });
+
+  it('insertRepetition persists sandboxTimedOut when provided', async () => {
+    const create = vi.fn().mockResolvedValue({ id: 'repetition-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { create },
+    } as never);
+
+    await repository.insertRepetition('exp-1', { ...baseMetrics, sandboxTimedOut: true });
+
+    expect(create.mock.calls[0][0].data).toMatchObject({ experimentId: 'exp-1', sandboxTimedOut: true });
+  });
+});
+
 describe('ExperimentRunsRepository.refreshCompletedRepetitions', () => {
   it('counts distinct logical slots across retries instead of counting attempts', async () => {
     const terminalAttempts = Array.from({ length: 6 }, (_, index) => {

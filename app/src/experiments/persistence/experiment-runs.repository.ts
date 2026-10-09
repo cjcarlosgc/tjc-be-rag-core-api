@@ -66,6 +66,11 @@ export interface ExperimentRepetitionInput {
   attempt?: number;
   /** WI-CORE-025: false cuando el slot agotó el reintento externo sin evaluación técnica (default true). */
   technicallyEvaluable?: boolean;
+  /**
+   * WI-CORE-025: interno (no se expone en DTO ni INTEROP). `true` solo cuando el Sandbox devolvió
+   * TIMED_OUT; omitido en otros casos (queda NULL). Discriminador de la redelivery.
+   */
+  sandboxTimedOut?: boolean;
 }
 
 @Injectable()

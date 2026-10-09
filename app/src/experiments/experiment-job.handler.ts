@@ -36,7 +36,6 @@ import {
 } from '../sandbox/sandbox-execution.service.js';
 import {
   mapSandboxResult,
-  SANDBOX_TIMED_OUT_ERROR_SUMMARY,
   type FailureTypeValue,
 } from '../sandbox/map-sandbox-result.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
@@ -203,13 +202,15 @@ function buildLegacySchedule(): SlotIdentity[] {
 
 /**
  * Fallo externo persistido: FAILED con INFRASTRUCTURE (plan punto 7). El timeout del Sandbox
- * también persiste INFRASTRUCTURE, pero no es externo: se distingue por su resumen.
+ * también persiste INFRASTRUCTURE, pero no es externo: se distingue por la columna interna
+ * `sandboxTimedOut` (WI-CORE-025), nunca por el texto de `errorSummary`. Filas previas con NULL
+ * son «no TIMED_OUT conocido».
  */
 function isPersistedExternalFailure(row: ExperimentRepetition): boolean {
   return (
     row.state === ExperimentRepetitionState.FAILED &&
     row.failureType === 'INFRASTRUCTURE' &&
-    row.errorSummary !== SANDBOX_TIMED_OUT_ERROR_SUMMARY
+    row.sandboxTimedOut !== true
   );
 }
 
@@ -217,6 +218,8 @@ function isPersistedExternalFailure(row: ExperimentRepetition): boolean {
  * Intento con el que debe continuar un slot en esta corrida, o null si no corresponde
  * ejecutarlo (idempotencia de redelivery, plan punto 8). Nunca devuelve 3.
  * Un intento 1 huérfano en RUNNING se trata como interrumpido y continúa con el intento 2.
+ * Pendiente (WI-CORE-025 (3)): no hay confirmación de que no quede una ejecución viva; un RUNNING
+ * de intento 2 se omite sin cerrarlo (comportamiento actual).
  */
 function firstAttemptToRun(latest: ExperimentRepetition | undefined): 1 | 2 | null {
   if (!latest) return 1;
@@ -369,10 +372,12 @@ export class ExperimentJobHandler
           },
         );
       } else {
+        // Experimentos creados antes de WI-CORE-025 (sin semilla): sin orden pareado y sin
+        // reintento externo; cada slot tiene un único intento (ver runLegacySlot).
         await runWithConcurrencyLimit(
           buildLegacySchedule(),
           concurrency,
-          (slot) => this.runSlot(runContext, slot, latestOf(slot)),
+          (slot) => this.runLegacySlot(runContext, slot, latestOf(slot)),
         );
       }
 
@@ -440,6 +445,21 @@ export class ExperimentJobHandler
     if (firstAttempt === 1 && externalFailure) {
       await this.runAttempt({ ...context, ...slot, attempt: 2 });
     }
+  }
+
+  /**
+   * Slot de un experimento sin semilla (creado antes de WI-CORE-025): un único intento, sin
+   * reintento externo y sin identidad de par. Si ya existe cualquier intento para el slot
+   * (redelivery), se omite: no se crea un intento nuevo.
+   */
+  private async runLegacySlot(
+    context: RunContext,
+    slot: SlotIdentity,
+    latest: ExperimentRepetition | undefined,
+  ): Promise<void> {
+    if (latest) return;
+
+    await this.runAttempt({ ...context, ...slot, attempt: 1 });
   }
 
   /** Devuelve true si el intento terminó en fallo externo (plan punto 6). */
@@ -558,6 +578,7 @@ export class ExperimentJobHandler
         errorSummary: string | null;
       };
       let executionDurationMs: number;
+      let sandboxTimedOut = false;
 
       try {
         const sandboxResult = await this.sandboxExecutionService.execute({
@@ -586,11 +607,13 @@ export class ExperimentJobHandler
         });
         executionDurationMs = Date.now() - executionStart;
         const outcome = mapSandboxResult(sandboxResult);
+        // TIMED_OUT es fallo de la prueba generada, no externo: se persiste con la columna interna.
+        sandboxTimedOut = sandboxResult.status === 'TIMED_OUT';
         // Fallo externo del Sandbox: INFRASTRUCTURE salvo timeout (no es externo, WI-CORE-025).
         externalFailure =
           outcome.status === 'FAILED'
           && outcome.failureType === 'INFRASTRUCTURE'
-          && sandboxResult.status !== 'TIMED_OUT';
+          && !sandboxTimedOut;
 
         if (outcome.compiled === false) {
           this.logger.debug(
@@ -608,6 +631,9 @@ export class ExperimentJobHandler
           errorSummary: outcome.errorSummary,
         };
       } catch (error) {
+        // Cualquier excepción del cliente de Sandbox se trata como infraestructura (fallo externo con
+        // un único reintento), sea SandboxUnavailableError u otro error (red, respuesta inesperada).
+        // Decisión del usuario, WI-CORE-025 (2).
         executionDurationMs = Date.now() - executionStart;
         const sandboxErrorSummary =
           error instanceof SandboxUnavailableError
@@ -636,6 +662,7 @@ export class ExperimentJobHandler
         executionDurationMs,
         repetitionOutcome,
         externalFailure,
+        sandboxTimedOut,
       );
       finalized = true;
       return externalFailure;
@@ -1129,6 +1156,7 @@ export class ExperimentJobHandler
       errorSummary: string | null;
     },
     externalFailure: boolean,
+    sandboxTimedOut = false,
   ): Promise<void> {
     const totalTokens =
       generation.inputTokens !== null && generation.outputTokens !== null
@@ -1173,6 +1201,8 @@ export class ExperimentJobHandler
       trajectory: undefined,
       // Segundo fallo externo: la repetición no es evaluable técnicamente (plan punto 7).
       ...(context.attempt === 2 && externalFailure ? { technicallyEvaluable: false } : {}),
+      // Interno (WI-CORE-025): solo se escribe true en TIMED_OUT; el resto queda NULL.
+      ...(sandboxTimedOut ? { sandboxTimedOut: true } : {}),
     };
 
     const terminalState = outcome.status === 'FAILED' ? 'FAILED' : 'COMPLETED';

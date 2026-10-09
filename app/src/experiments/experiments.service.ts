@@ -308,9 +308,12 @@ export class ExperimentsService {
 
   private aggregateStrategy(
     strategy: 'RAG' | 'GENERALIST_AGENT',
-    repetitions: ExperimentRepetition[],
+    allRepetitions: ExperimentRepetition[],
     model: ExperimentModelConfigResponse | null,
   ): StrategyMetricsResponse {
+    // WI-CORE-025: un slot no evaluable (agotó el reintento externo) no entra en tasas, promedios
+    // ni conteo de fallos; cambia el denominador de las métricas, no la forma de StrategyMetricsResponse.
+    const repetitions = allRepetitions.filter((repetition) => repetition.technicallyEvaluable !== false);
     const failures: Partial<Record<FailureType, number>> = {};
 
     for (const repetition of repetitions) {

@@ -10,7 +10,11 @@ export type FailureTypeValue =
   | 'INFRASTRUCTURE'
   | 'UNKNOWN';
 
-/** Resumen de una ejecución que agotó el tiempo límite del Sandbox (no es fallo externo, WI-CORE-025). */
+/**
+ * Texto de `errorSummary` para una ejecución que agotó el tiempo límite del Sandbox (WI-CORE-025).
+ * Solo es texto para mostrar: el discriminador de timeout de la redelivery es la columna interna
+ * `ExperimentRepetition.sandboxTimedOut`, no este texto.
+ */
 export const SANDBOX_TIMED_OUT_ERROR_SUMMARY = 'La ejecución en el Sandbox agotó el tiempo límite.';
 
 export interface MappedSandboxOutcome {
