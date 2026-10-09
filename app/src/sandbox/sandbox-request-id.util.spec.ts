@@ -23,6 +23,16 @@ describe('sandbox request-id builders (DEC-IDEMP-001)', () => {
     expect(sandboxExperimentRequestId('job-1', 'GENERALIST_AGENT', 1)).not.toBe(a);
   });
 
+  it('experiment: attempt 1 keeps the original identity (no suffix)', () => {
+    expect(sandboxExperimentRequestId('job-1', 'RAG', 1, 1)).toBe(sandboxExperimentRequestId('job-1', 'RAG', 1));
+  });
+
+  it('experiment: attempt 2 is stable and distinct from attempt 1 (suffix :2)', () => {
+    const second = sandboxExperimentRequestId('job-1', 'RAG', 1, 2);
+    expect(second).toBe(sandboxExperimentRequestId('job-1', 'RAG', 1, 2));
+    expect(second).not.toBe(sandboxExperimentRequestId('job-1', 'RAG', 1));
+  });
+
   it('manual-retry: same retryJobId+targetId always yields the same requestId', () => {
     const a = sandboxManualRetryRequestId('retry-job-1', 'target-1');
     const b = sandboxManualRetryRequestId('retry-job-1', 'target-1');

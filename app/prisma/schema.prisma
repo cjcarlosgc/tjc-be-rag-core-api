@@ -703,6 +703,14 @@ model ExperimentRun {
   completedAt          DateTime?
   /// WI-CORE-023 (DEC-EXP-004): LLMEffectiveConfig resuelta una vez por experimento; null en corridas previas.
   modelConfig          Json?
+  /// WI-CORE-025 (HU17, OE5 pareado): semilla de aleatorización del orden por par; null en corridas previas.
+  randomizationSeed    String?
+  /// WI-CORE-025: presupuesto resuelto al crear (toolCallCap, contextTokenBudget, maxDurationMs); null en corridas previas.
+  budget               Json?
+  /// WI-CORE-025: perfil de ejecución del Sandbox persistido al crear; null en corridas previas.
+  executionProfile     String?
+  /// WI-CORE-025: runner detectado (JEST|VITEST) persistido al crear; null en corridas previas.
+  runnerHint           String?
   repetitions          ExperimentRepetition[]
   contextTraces        ContextTrace[]
   createdAt            DateTime               @default(now())
@@ -740,6 +748,12 @@ model ExperimentRepetition {
   toolCalls            Int?
   filesInspected       Int?
   trajectory           Json?
+  /// WI-CORE-025: identidad compartida por las dos estrategias de un mismo par; null en filas previas.
+  pairId               String?
+  /// WI-CORE-025: 1 = primera posición del par, 2 = segunda; null en filas previas.
+  pairPosition         Int?
+  /// WI-CORE-025: false cuando el slot agotó el reintento externo sin evaluación técnica; true por defecto.
+  technicallyEvaluable Boolean                   @default(true)
   contextTraces        ContextTrace[]
   createdAt            DateTime                  @default(now())
 

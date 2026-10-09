@@ -14,7 +14,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 
 // Keep the mapping exhaustive: adding a runner requires selecting its profile.
-const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {
+export const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {
   JEST: 'NODE_TYPESCRIPT',
   VITEST: 'NODE_TYPESCRIPT',
 };
