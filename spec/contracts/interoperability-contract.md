@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.7` es la versión documental vigente (preparada en `WI-CORE-017`). Sobre la base de `INTEROP-2.6` agrega el rol Writer (§6.13), la abstención auditada de `UNKNOWN` y la procedencia y escenarios de Functional Knowledge (§6.11), las extensiones de OE5 (§6.5.1), la comparación de retrieval OE2 (§6.15) y el trace operativo con exportación de evidencia (§6.16). Cada sección indica su estado: la abstención `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge (§6.11, aplicabilidad y conflicto por `scenarioKey`) y el rol Writer están implementados en Core (`WI-CORE-018`, `WI-CORE-019`, `WI-CORE-020`); lo demás sigue definido y pendiente de implementar y verificar según el WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.7` es la versión documental vigente (preparada en `WI-CORE-017`). Sobre la base de `INTEROP-2.6` agrega el rol Writer (§6.13), la abstención auditada de `UNKNOWN` y la procedencia y escenarios de Functional Knowledge (§6.11), las extensiones de OE5 (§6.5.1), la comparación de retrieval OE2 (§6.15) y el trace operativo con exportación de evidencia (§6.16). Cada sección indica su estado: la abstención `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge (§6.11, aplicabilidad y conflicto por `scenarioKey`) y el rol Writer están implementados en Core (`WI-CORE-018`, `WI-CORE-019`, `WI-CORE-020`), así como las extensiones de OE5 (§6.5.1; `WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`); lo demás sigue definido y pendiente de implementar y verificar según el WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -327,16 +327,18 @@ El contrato HTTP queda definido. `DEC-EXP-002` queda `APROBADO` (herramientas, l
 
 ### 6.5.1 Extensiones de OE5 (INTEROP-2.7)
 
-**Definido, pendiente de implementar y verificar** (`WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`). Bajo `DEC-EXP-FK-001`, `DEC-EXP-003` y `DEC-EXP-004`, OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información.
+**Implementado** en `WI-CORE-023`, `WI-CORE-024` y `WI-CORE-025` (2026-10-09). Bajo `DEC-EXP-FK-001`, `DEC-EXP-003` y `DEC-EXP-004`, OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información.
 
 - Ambos brazos comparten repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable. Por `DEC-EXP-004` el modelo es `gpt-6-luna` vía la API de OpenAI y el esfuerzo es el máximo soportado por el modelo y el runtime, idénticos en ambos brazos y registrados en la evidencia; el flujo de producto conserva su configuración actual. Core no degrada el razonamiento en silencio: si el proveedor no admite el esfuerzo pedido, el experimento falla al crearse en lugar de ejecutarse con otro. El esfuerzo y los parámetros efectivos se persisten.
 - RAG usa recuperación SE, `ContextBuilder` y el conocimiento funcional `ACTIVE` aplicable. El agente generalista explora en modo solo lectura, sin retriever RAG, sin `ContextBuilder` y sin conocimiento funcional persistente. Ninguno recibe el oráculo. El agente puede descubrir y leer las pruebas existentes; no se le entregan directamente ni se ocultan.
 - Herramientas permitidas del agente: `list_files`, `read_file`, `search_text` e `inspect_symbol`/referencias. Prohibidos: shell, Composer/PHPUnit/Jest/Vitest, escritura, Internet y GitHub API. Se persisten el tope de tool calls, el presupuesto de contexto, tokens, archivos y duración, y la secuencia observable de herramientas.
 - Diseño pareado: 3 repeticiones RAG y 3 GA forman 3 pares, cada repetición en sesión fresca. El orden dentro de cada par es aleatorio y reproducible a partir de `randomizationSeed`, que se persiste por experimento.
-- Reintentos: un fallo de la estrategia no tiene reintento de calidad; un fallo externo demostrado admite como máximo un reintento; un segundo fallo de infraestructura deja la repetición `technicallyEvaluable: false`.
+- Reintentos: un fallo de la estrategia no tiene reintento de calidad; un fallo externo demostrado admite como máximo un reintento; un segundo fallo de infraestructura deja la repetición `technicallyEvaluable: false`. Implementación en Core: son fallos externos solo el fallo del proveedor LLM por HTTP 5xx, 429 o error de conexión, la excepción del cliente de Sandbox (`SandboxUnavailableError` u otra) y el resultado `INFRASTRUCTURE` del Sandbox salvo `TIMED_OUT`. El reintento es único (intento 2, inmediato, sesión fresca, mismo `pairId` y `pairPosition`); la fila vigente de cada repetición es su último intento (`attempt` 1 o 2). `technicallyEvaluable` es `false` tras el segundo fallo externo o si el intento 2 queda interrumpido (huérfano). Los experimentos creados antes de OE5 (`randomizationSeed` `null`) conservan su comportamiento anterior: sin pareado ni reintento. El sufijo `:2` de la identidad Core→Sandbox (§3) es interno y solo informativo para los consumidores.
 - Ningún DTO declara un ganador. `validRate`, `passedRate` y similares son diagnóstico técnico y no se derivan en CF/CO (SYSTEM-2.6, «Calidad, métricas y evidencia»).
 - Autorización y errores: `POST /experiments` exige Writer y `Idempotency-Key`; los GET exigen Reader y un experimento inexistente o no visible responde el mismo `404` que ya devuelve `GET /experiments/{experimentId}`. Si el proveedor no admite el esfuerzo de razonamiento pedido, la creación responde `422 REASONING_EFFORT_UNSUPPORTED` y no se crea el experimento; `details` incluye `supportedEfforts: string[]` (esfuerzos admitidos por el modelo configurado). Si el modelo de experimentos no está disponible (`MODEL_UNAVAILABLE` interno), la creación responde `503 LLM_PROVIDER_UNAVAILABLE` (§4, dependencia de plataforma) y tampoco crea el experimento. `TIMED_OUT` del Sandbox es fallo de la prueba generada y no cuenta como fallo externo para el reintento.
-- PHP/PHPUnit (`PHP_LARAVEL_PHPUNIT`, `PHPUNIT`) sigue bloqueado para experimentos hasta que `WI-CORE-013` y la coordinación con el dueño de Sandbox estén resueltos.
+- PHP/PHPUnit (`PHP_LARAVEL_PHPUNIT`, `PHPUNIT`) sigue bloqueado para experimentos hasta que `WI-CORE-013` y la coordinación con el dueño de Sandbox estén resueltos: `POST /experiments` responde `422 UNSUPPORTED_PROJECT` y no crea el experimento ni encola el job cuando la versión es PHP o no tiene framework `JEST`/`VITEST` detectado. Precedencia: Core valida este `422` después de Writer, indexación, versión completada y target, y antes de resolver el modelo (`REASONING_EFFORT_UNSUPPORTED`/`503`).
+- Semántica observable de las métricas agregadas: `StrategyMetricsResponse` calcula `validRate`, `compilationRate`, `executionRate`, `passedRate`, los promedios y `failures` únicamente sobre las repeticiones con `technicallyEvaluable: true` (ese es el denominador; los slots no evaluables no entran). Sin slots evaluables, las tasas valen `0` y los promedios `0` (duraciones) o `null` (tokens, costo, chunks, herramientas, archivos) sin cambiar el tipo `number`: en ese caso `0` no significa 0 % válido sino «sin datos evaluables», y el consumidor lo distingue con `technicallyEvaluable` de `repetitions[]`. `ExperimentRepetitionResponse.executionDurationMs` es `null` cuando el Sandbox no ejecutó y en corridas previas (antes se emitía `0`); `StrategyMetricsResponse.executionDurationMs` sigue siendo `number`.
+- No se exponen campos internos de persistencia (por ejemplo la marca interna de `TIMED_OUT` ni el latido de intentos); los DTO solo contienen lo declarado en este contrato.
 
 ```ts
 interface ExperimentModelConfigResponse {
@@ -356,19 +358,20 @@ interface ExperimentBudgetResponse {
 
 // Campos que INTEROP-2.7 agrega a ExperimentStatusResponse (los consumidores ignoran campos desconocidos):
 interface ExperimentStatusV27Additions {
-  model: ExperimentModelConfigResponse
-  budget: ExperimentBudgetResponse
-  executionProfile: string
-  runnerHint: string
-  randomizationSeed: string
+  // null en corridas previas a OE5 (nunca valores inventados)
+  model: ExperimentModelConfigResponse | null
+  budget: ExperimentBudgetResponse | null
+  executionProfile: string | null
+  runnerHint: string | null
+  randomizationSeed: string | null
 }
 
 // Campos que INTEROP-2.7 agrega a ExperimentRepetitionResponse:
 interface ExperimentRepetitionV27Additions {
-  pairId: Id
-  pairPosition: 1 | 2 // posición de ejecución dentro del par, reproducible desde randomizationSeed
-  attempt: number // 1 o 2
-  technicallyEvaluable: boolean
+  pairId: Id | null // null en filas previas a OE5
+  pairPosition: 1 | 2 | null // posición de ejecución dentro del par, reproducible desde randomizationSeed; null en filas previas
+  attempt: number // 1 o 2; no nulo (1 en filas previas)
+  technicallyEvaluable: boolean // no nulo (true en filas previas)
 }
 ```
 

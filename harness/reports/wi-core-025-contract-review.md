@@ -58,3 +58,49 @@ status: C-PENDING
 Proceder con el corte 1 del implementer. Al cierre, aplicar los puntos 1-4 de «Texto al cierre» y emitir el Contract Sync anterior.
 
 filesAffected: spec/contracts/interoperability-contract.md (§3, §6.5, §6.5.1), harness/reports/wi-core-025-contract-review.md.
+
+---
+
+# Revisión final (cierre WI-CORE-025) — 2026-10-09
+
+## Veredicto: APPROVED (sin CHANGES_REQUIRED ni DECISION_REQUIRED)
+
+Verificado contra el código real (`experiment.response.ts`, `experiments.service.ts`, `experiment-job.handler.ts`, `openai-llm.provider.ts`, `map-sandbox-result.ts`, `ErrorCode`):
+- DTO: `model|budget|executionProfile|runnerHint|randomizationSeed` y `pairId|pairPosition` son `| null`; `attempt` y `technicallyEvaluable` no nulos; `executionDurationMs: number | null` en repetición (agregado sigue `number`).
+- 422 `REASONING_EFFORT_UNSUPPORTED` con `details.supportedEfforts` (más `model`, `requestedEffort`); `MODEL_UNAVAILABLE` -> 503 `LLM_PROVIDER_UNAVAILABLE`; 422 `UNSUPPORTED_PROJECT` (no JEST/VITEST) validado tras Writer, indexación, versión completada y target, antes de resolver el modelo.
+- Reintento: externos = LLM 5xx/429/conexión, excepción del cliente Sandbox, INFRASTRUCTURE salvo TIMED_OUT; único intento 2 (`:2`); legacy (sin `randomizationSeed`) sin pareado ni reintento.
+- Agregados: tasas/promedios/failures solo sobre `technicallyEvaluable`; sin slots: tasas 0, duraciones 0, resto `null`.
+- `sandboxTimedOut` y `lastHeartbeatAt` NO aparecen en ningún DTO ni en INTEROP.
+
+Observación no bloqueante (preexistente, commit c7a2fd8): el DTO emite `errorSummary: string | null` en `ExperimentRepetitionResponse` y INTEROP §6.5 no lo declara. Es aditivo (los consumidores ignoran campos desconocidos); se recomienda declararlo en un corte contractual futuro.
+
+## Ediciones aplicadas en spec/contracts/interoperability-contract.md
+1. Cabecera §6.5.1: «Implementado en WI-CORE-023, WI-CORE-024 y WI-CORE-025 (2026-10-09)».
+2. Línea 14: §6.5.1 agregado a lo implementado en Core; fuera de lo pendiente.
+3. `ExperimentStatusV27Additions` / `ExperimentRepetitionV27Additions` con `| null` según corresponde.
+4. Viñeta de reintentos ampliada (causas externas, intento 2, huérfano, legacy, `:2` informativo).
+5. Viñeta PHP: `422 UNSUPPORTED_PROJECT` y precedencia.
+6. Viñeta nueva de semántica de métricas agregadas (denominador `technicallyEvaluable`, 0 = sin datos evaluables) y de ausencia de campos internos.
+Sin bump de INTEROP/SYSTEM.
+
+## Contract Sync a Console (borrador)
+
+```
+id: CS-CORE-20261009-008
+type: CONTRACT_SYNC
+source: core
+sourceWorkItem: WI-CORE-025
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+sourceRevision: <commit del cierre>
+status: C-PENDING
+changed:
+ - INTEROP-2.7 §6.5.1 implementado (WI-CORE-023/024/025), sin cambio de versión. ExperimentStatusResponse agrega model, budget, executionProfile, runnerHint, randomizationSeed; ExperimentRepetitionResponse agrega pairId, pairPosition (1|2), attempt (1|2) y technicallyEvaluable. En corridas previas los cinco primeros y pairId/pairPosition vienen null; attempt=1 y technicallyEvaluable=true.
+ - Cambio observable: ExperimentRepetitionResponse.executionDurationMs es number|null (null si el Sandbox no ejecutó y en corridas previas; antes se emitía 0).
+ - Cambio de semántica: las tasas y promedios de StrategyMetricsResponse (validRate, compilationRate, executionRate, passedRate, duraciones, tokens, costo, chunks, herramientas, archivos, failures) se calculan solo sobre repeticiones con technicallyEvaluable=true (cambia el denominador). Sin slots evaluables: tasas 0 y promedios 0 (duraciones) o null; ese 0 significa "sin datos evaluables", no 0 % válido. El tipo number no cambia.
+ - POST /experiments: nuevos 422 REASONING_EFFORT_UNSUPPORTED (details.supportedEfforts: string[]) y 422 UNSUPPORTED_PROJECT (PHP o sin framework JEST/VITEST), y 503 LLM_PROVIDER_UNAVAILABLE si el modelo no está disponible; en todos no se crea experimento.
+ - Reintento: solo fallos externos (LLM 5xx/429/conexión; excepción del cliente de Sandbox; INFRASTRUCTURE salvo TIMED_OUT), un único intento 2 inmediato; tras el 2º fallo externo, o si el intento 2 queda huérfano, technicallyEvaluable=false. TIMED_OUT no se reintenta. Experimentos creados antes de OE5 no tienen pareado ni reintento. La identidad Core->Sandbox del intento 2 (sufijo ":2") es interna de Core, informativa, sin acción.
+ - Ningún DTO declara ganador; no se expone ningún campo interno.
+requiredAction (Console): importar y acusar el contrato; mostrar "—" (no 0) cuando executionDurationMs sea null y no formatear/sumar sin guardas; tolerar null en model, budget, executionProfile, runnerHint, randomizationSeed, pairId y pairPosition; mostrar technicallyEvaluable=false y attempt=2 sin declarar ganador y tratar tasas de strategies[] con el nuevo denominador (mostrar "sin datos evaluables" si todas las repeticiones de la estrategia son no evaluables); mostrar los 422/503 de creación (supportedEfforts en el primero; el 503 como error reintentable). Sin cambios en Sandbox ni GitHub Integration.
+```
