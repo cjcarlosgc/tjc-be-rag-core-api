@@ -1,5 +1,7 @@
 # async-jobs — Subtareas vigentes
 
-No hay una subtarea técnica seleccionable en este archivo para SDD 3.0. El comportamiento vigente está en `spec.md` y `plan.md`; la ejecución futura requiere una ST local y un WI registrado antes de comenzar.
+- [ ] **ST-CORE-037 · T-BACKLOGGED · WI-CORE-030 · HU17:** recuperar jobs sin `dedupeKey` (en particular de experimento) cuyo worker murió con el lock vencido, sin ejecución duplicada; reutiliza el latido por repetición de `WI-CORE-025` y respeta `JOBS_MAX_ATTEMPTS`. Origen: `IDEA-008`, a pedido del usuario (2026-10-09).
+
+El comportamiento vigente está en `spec.md` y `plan.md`; cualquier otra ejecución futura requiere una ST local y un WI registrado antes de comenzar.
 
 Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

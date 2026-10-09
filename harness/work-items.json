@@ -1476,6 +1476,41 @@
         "spec/contracts/interoperability-contract.md",
         "spec/features/018-php-laravel-support/spec.md"
       ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "id": "WI-CORE-030",
+      "title": "Recuperar jobs sin dedupeKey cuyo worker murió (experimentos)",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-037"
+      ],
+      "dependsOn": [
+        "WI-CORE-025"
+      ],
+      "acceptanceCriteria": [
+        "Un job de experimento (y cualquier job sin dedupeKey que lo requiera según el análisis SDD) cuyo worker murió con el lock vencido deja de quedar RUNNING para siempre: la cola lo libera y se redistribuye, sin ejecutar dos veces la misma repetición.",
+        "La decisión de qué intento RUNNING está huérfano reutiliza el latido por repetición de WI-CORE-025 (attempt-recovery); un latido vigente no se toca y respeta JOBS_MAX_ATTEMPTS.",
+        "El análisis SDD documenta por qué releaseStale solo libera jobs con dedupeKey (qué tipos de job no son idempotentes) y fija por tipo si se libera o no; no se amplía a tipos con efectos no idempotentes sin decisión del usuario.",
+        "Pruebas que reproducen la redistribución tras un lock vencido, la no duplicación con latido vigente y el límite de intentos; sin tiempos reales.",
+        "Sin cambio de contrato público esperado (contractImpact=false); si el análisis lo desmiente, se registra y se emite Contract Sync."
+      ],
+      "specPaths": [
+        "spec/transversal/async-jobs/spec.md",
+        "spec/transversal/async-jobs/plan.md",
+        "spec/transversal/async-jobs/tasks.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
     }
   ]
 }
