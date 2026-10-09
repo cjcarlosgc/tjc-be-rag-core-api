@@ -117,10 +117,20 @@ export class ExperimentRunsRepository {
     });
   }
 
+  /**
+   * Arranca (o reanuda tras un reintento) el run. Limpia el fallo y el cierre de un intento anterior
+   * (WI-CORE-030, H4): un run que pasó por `markFailed` y vuelve a ejecutarse no queda con `failureCode`.
+   */
   markStarted(id: string): Promise<ExperimentRun> {
     return this.prisma.experimentRun.update({
       where: { id },
-      data: { status: ExperimentStatus.RUNNING, startedAt: new Date() },
+      data: {
+        status: ExperimentStatus.RUNNING,
+        startedAt: new Date(),
+        failureCode: null,
+        failureMessage: null,
+        completedAt: null,
+      },
     });
   }
 
@@ -193,9 +203,15 @@ export class ExperimentRunsRepository {
         );
       }
 
+      // Limpia un fallo previo (WI-CORE-030, H4): un run COMPLETED no conserva failureCode/failureMessage.
       await tx.experimentRun.update({
         where: { id },
-        data: { status: ExperimentStatus.COMPLETED, completedAt: new Date() },
+        data: {
+          status: ExperimentStatus.COMPLETED,
+          completedAt: new Date(),
+          failureCode: null,
+          failureMessage: null,
+        },
       });
     });
   }
@@ -262,11 +278,15 @@ export class ExperimentRunsRepository {
     });
   }
 
-  updateRepetitionById(
+  /**
+   * Escribe el resultado final de un intento SOLO si sigue RUNNING (WI-CORE-030, H3): un intento ya
+   * cerrado (p. ej. liberado como interrumpido por otro worker) no se sobrescribe. Devuelve si escribió.
+   */
+  async updateRepetitionById(
     id: string,
     repetition: ExperimentRepetitionInput,
     state: 'COMPLETED' | 'FAILED',
-  ): Promise<ExperimentRepetition> {
+  ): Promise<boolean> {
     const {
       repetition: _logicalRepetition,
       strategy: _strategy,
@@ -274,14 +294,16 @@ export class ExperimentRunsRepository {
       ...metrics
     } = repetition;
 
-    return this.prisma.experimentRepetition.update({
-      where: { id },
+    const { count } = await this.prisma.experimentRepetition.updateMany({
+      where: { id, state: ExperimentRepetitionState.RUNNING },
       data: {
         ...metrics,
         state,
         ...(trajectory === undefined ? {} : { trajectory }),
       },
     });
+
+    return count > 0;
   }
 
   findRepetitions(experimentId: string): Promise<ExperimentRepetition[]> {

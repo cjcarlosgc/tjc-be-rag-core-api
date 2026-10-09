@@ -136,7 +136,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       markStarted: vi.fn(),
       complete: vi.fn(),
       markFailed: vi.fn(),
-      updateRepetitionById: vi.fn(),
+      updateRepetitionById: vi.fn().mockResolvedValue(true),
       refreshCompletedRepetitions: vi.fn(),
       findRepetitions: vi.fn().mockResolvedValue([]),
     },
@@ -1899,7 +1899,7 @@ function withRunRepository(
     markStarted: vi.fn(),
     complete: vi.fn(),
     markFailed: vi.fn(),
-    updateRepetitionById: vi.fn(),
+    updateRepetitionById: vi.fn().mockResolvedValue(true),
     closeInterruptedRepetition: vi.fn(),
     refreshCompletedRepetitions: vi.fn(),
     findRepetitions: vi.fn().mockResolvedValue(rows),
@@ -2189,6 +2189,21 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
     expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
     expect(beginsOf(deps)).toHaveLength(5);
     expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+  });
+});
+
+describe('ExperimentJobHandler H3 (WI-CORE-030): a closed repetition is not overwritten', () => {
+  it('when another worker already closed the attempt, its result is not written and neither its trace nor the counters are touched', async () => {
+    const { deps } = makeDeps();
+    (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+    await makeHandler(deps).handle(payload, 'job-h3');
+
+    expect(deps.experimentRunsRepository.updateRepetitionById).toHaveBeenCalled();
+    expect(deps.contextTracesRepository.finishTrace).not.toHaveBeenCalled();
+    expect(deps.contextTracesRepository.failTrace).not.toHaveBeenCalled();
+    expect(deps.contextTracesRepository.finishRepetition).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.refreshCompletedRepetitions).not.toHaveBeenCalled();
   });
 });
 

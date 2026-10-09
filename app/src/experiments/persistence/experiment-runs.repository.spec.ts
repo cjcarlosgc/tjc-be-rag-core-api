@@ -171,9 +171,9 @@ describe('ExperimentRunsRepository.findRepetitions', () => {
 
 describe('ExperimentRunsRepository.updateRepetitionById', () => {
   it('updates metrics and state on the attempt created by beginAttempt without persisting a second trajectory', async () => {
-    const update = vi.fn().mockResolvedValue({ id: 'repetition-1' });
+    const update = vi.fn().mockResolvedValue({ count: 1 });
     const repository = new ExperimentRunsRepository({
-      experimentRepetition: { update },
+      experimentRepetition: { updateMany: update },
     } as never);
 
     await repository.updateRepetitionById(
@@ -205,7 +205,7 @@ describe('ExperimentRunsRepository.updateRepetitionById', () => {
     );
 
     expect(update).toHaveBeenCalledWith({
-      where: { id: 'repetition-1' },
+      where: { id: 'repetition-1', state: 'RUNNING' },
       data: {
         compiled: true,
         executed: true,
@@ -227,6 +227,92 @@ describe('ExperimentRunsRepository.updateRepetitionById', () => {
         filesInspected: 1,
         state: 'COMPLETED',
       },
+    });
+  });
+
+  const metrics = {
+    repetition: 1,
+    strategy: 'RAG',
+    compiled: true,
+    executed: true,
+    passed: true,
+    valid: true,
+    failureType: null,
+    errorSummary: null,
+    generationDurationMs: 1,
+    executionDurationMs: 1,
+    totalDurationMs: 2,
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+    estimatedCost: null,
+    retrievedChunks: null,
+    selectedChunks: null,
+    contextTokens: null,
+    toolCalls: null,
+    filesInspected: null,
+    trajectory: undefined,
+  } as never;
+
+  it('H3 (WI-CORE-030): does not overwrite an attempt that is no longer RUNNING and reports that nothing was written', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { updateMany },
+    } as never);
+
+    const written = await repository.updateRepetitionById('repetition-1', metrics, 'FAILED');
+
+    expect(written).toBe(false);
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(updateMany.mock.calls[0][0].where).toEqual({ id: 'repetition-1', state: 'RUNNING' });
+  });
+});
+
+describe('ExperimentRunsRepository H4 (WI-CORE-030): a retried run does not keep the failure of a previous attempt', () => {
+  it('markStarted clears failureCode, failureMessage and completedAt', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'exp-1' });
+    const repository = new ExperimentRunsRepository({ experimentRun: { update } } as never);
+
+    await repository.markStarted('exp-1');
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'exp-1' },
+      data: {
+        status: 'RUNNING',
+        startedAt: expect.any(Date),
+        failureCode: null,
+        failureMessage: null,
+        completedAt: null,
+      },
+    });
+  });
+
+  it('complete clears failureCode and failureMessage left by a previous markFailed', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      experimentRun: {
+        findUnique: vi.fn().mockResolvedValue({ totalRepetitions: 1 }),
+        update: vi.fn().mockResolvedValue({ id: 'exp-1' }),
+      },
+      experimentRepetition: {
+        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue([{ strategy: 'RAG', repetition: 1 }]),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+    };
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await repository.complete('exp-1');
+
+    expect(tx.experimentRun.update).toHaveBeenCalledWith({
+      where: { id: 'exp-1' },
+      data: expect.objectContaining({
+        status: 'COMPLETED',
+        failureCode: null,
+        failureMessage: null,
+      }),
     });
   });
 });
@@ -257,9 +343,9 @@ describe('ExperimentRunsRepository sandboxTimedOut (WI-CORE-025 (1))', () => {
   };
 
   it('updateRepetitionById persists sandboxTimedOut=true when the Sandbox timed out', async () => {
-    const update = vi.fn().mockResolvedValue({ id: 'repetition-1' });
+    const update = vi.fn().mockResolvedValue({ count: 1 });
     const repository = new ExperimentRunsRepository({
-      experimentRepetition: { update },
+      experimentRepetition: { updateMany: update },
     } as never);
 
     await repository.updateRepetitionById(
@@ -272,9 +358,9 @@ describe('ExperimentRunsRepository sandboxTimedOut (WI-CORE-025 (1))', () => {
   });
 
   it('updateRepetitionById leaves sandboxTimedOut untouched when the caller does not provide it', async () => {
-    const update = vi.fn().mockResolvedValue({ id: 'repetition-1' });
+    const update = vi.fn().mockResolvedValue({ count: 1 });
     const repository = new ExperimentRunsRepository({
-      experimentRepetition: { update },
+      experimentRepetition: { updateMany: update },
     } as never);
 
     await repository.updateRepetitionById('repetition-1', baseMetrics, 'FAILED');

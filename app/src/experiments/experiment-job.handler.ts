@@ -1377,11 +1377,19 @@ export class ExperimentJobHandler
     };
 
     const terminalState = outcome.status === 'FAILED' ? 'FAILED' : 'COMPLETED';
-    await this.experimentRunsRepository.updateRepetitionById(
+    const written = await this.experimentRunsRepository.updateRepetitionById(
       begun.repetition.id,
       input,
       terminalState,
     );
+    if (!written) {
+      // WI-CORE-030 (H3): el intento ya estaba cerrado (liberado como interrumpido). No se cierra su
+      // traza ni se recalculan contadores: lo hizo quien lo cerró.
+      this.logger.warn(
+        `La repetición ${context.repetition} (${context.strategy}) ya estaba cerrada; su resultado no se escribe.`,
+      );
+      return;
+    }
     if (terminalState === 'FAILED') {
       await this.contextTracesRepository.failTrace(begun.trace.id);
     } else {
