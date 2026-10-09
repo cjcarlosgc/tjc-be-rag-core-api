@@ -5630,7 +5630,7 @@
             "El WI implementa exactamente INTEROP-2.7 §6.15; sin llamadas a OpenAI (ancla = embedding almacenado).",
             "DEC-RC-001 (validaciones de creación 409 ANALYSIS_NOT_FINISHED y 422 UNSUPPORTED_SYMBOL_KIND PHP) abierta: no aprobada por el usuario; bloquea solo ese punto y el cierre del WI.",
             "DEC-RC-002 aprobada por el usuario: retrieval-comparison entra en los jobs liberables (enmienda de DEC-JOBS-001).",
-            "Nota del leader: el validador no admite decisiones bloqueantes en W-IN_PROGRESS; DEC-RC-001 se registra en nonBlockingDecisionIds porque solo bloquea las dos validaciones de creación (no implementadas) y el cierre W-DONE: noBlockingDecisions queda G-NOT_RUN hasta que el usuario la resuelva."
+            "Nota del leader: el validador exige noBlockingDecisions G-PASSED desde W-IN_PROGRESS y no admite decisiones bloqueantes. DEC-RC-001 solo bloquea las dos validaciones de creación (no implementadas, marcadas pendientes), por eso se registra como no bloqueante del avance y noBlockingDecisions pasa con ese alcance acotado. El leader NO cerrará W-DONE mientras el usuario no resuelva DEC-RC-001 (condición manual, no aplicada por el validador)."
           ],
           "blockers": [
             "DEC-RC-001"
@@ -5664,7 +5664,7 @@
       "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -5701,6 +5701,9 @@
     "blockedReason": null,
     "gateEvidence": {
       "sddVerified": [
+        "harness/reports/wi-core-022-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
         "harness/reports/wi-core-022-sdd-verification.md"
       ]
     }
