@@ -23,7 +23,7 @@ import {
   coLocatedSpecPath,
 } from '../generation/test-file-merge.service.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
-import type { LLMProvider } from '../providers/llm-provider.interface.js';
+import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.interface.js';
 import { WorkspaceAgentTools } from '../generation/agent/workspace-agent-tools.js';
 import { GeneralistAgentService } from '../generation/agent/generalist-agent.service.js';
 import type {
@@ -162,6 +162,8 @@ export class ExperimentJobHandler
 
     try {
       await this.experimentRunsRepository.markStarted(payload.experimentId);
+      // Transitorio (WI-CORE-023 corte 2): una sola resolución por job, compartida por ambos brazos.
+      const config = await this.llmProvider.resolveEffectiveConfig();
 
       const [version, target] = await Promise.all([
         this.projectVersionsRepository.findById(payload.projectVersionId),
@@ -214,6 +216,7 @@ export class ExperimentJobHandler
             target,
             strategy,
             repetition,
+            config,
           }),
       );
 
@@ -243,6 +246,7 @@ export class ExperimentJobHandler
     target: TestTarget;
     strategy: Strategy;
     repetition: number;
+    config: LLMEffectiveConfig;
   }): Promise<void> {
     const begun = await this.contextTracesRepository.beginAttempt({
       experimentId: context.experimentId,
@@ -288,6 +292,7 @@ export class ExperimentJobHandler
                 context.projectVersionId,
                 context.target,
                 context.framework,
+                context.config,
               ),
               timeoutMs,
               'La generación RAG agotó el tiempo límite.',
@@ -298,6 +303,7 @@ export class ExperimentJobHandler
                 workspace.dir,
                 context.target,
                 context.framework,
+                context.config,
               ),
               timeoutMs,
               'La generación del agente generalista agotó el tiempo límite.',
@@ -469,6 +475,7 @@ export class ExperimentJobHandler
     projectVersionId: string,
     target: TestTarget,
     framework: 'JEST' | 'VITEST' | null,
+    config: LLMEffectiveConfig,
   ): Promise<GenerationOutcome> {
     const retrievalTarget: RetrievalTarget = {
       filePath: target.filePath,
@@ -497,7 +504,7 @@ export class ExperimentJobHandler
       this.makeRagDetail(generationContext),
     );
     const prompt = this.promptBuilder.build(generationContext);
-    const generation = await this.llmProvider.generate(prompt);
+    const generation = await this.llmProvider.generate(prompt, config);
 
     return {
       content: generation.content,
@@ -563,6 +570,7 @@ export class ExperimentJobHandler
     workspaceDir: string,
     target: TestTarget,
     framework: 'JEST' | 'VITEST' | null,
+    config: LLMEffectiveConfig,
   ): Promise<GenerationOutcome> {
     const trajectory: Prisma.InputJsonValue[] = [];
     const inspectedPaths = new Set<string>();
@@ -618,6 +626,7 @@ export class ExperimentJobHandler
       instructions,
       tools,
       maxToolCalls,
+      config,
       onToolStep,
     );
 

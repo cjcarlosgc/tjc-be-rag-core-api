@@ -1,45 +1,53 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { ErrorCode } from '../../common/errors/error-code.enum.js';
+import { LLMConfigurationError } from '../../providers/llm-configuration.error.js';
+import type { LLMEffectiveConfig } from '../../providers/llm-provider.interface.js';
+import { AGENT_TOOL_SCHEMAS } from './workspace-agent-tools.js';
 
-const createMock = vi.fn();
+const { GeneralistAgentService } = await import('./generalist-agent.service.js');
 
-vi.mock('openai', () => ({
-  default: class FakeOpenAI {
-    chat = { completions: { create: createMock } };
-  },
-}));
+const config: LLMEffectiveConfig = {
+  provider: 'openai',
+  model: 'gpt-6-luna',
+  modelVersion: 'gpt-6-luna-2026',
+  reasoningEffort: 'xhigh',
+  temperature: null,
+  maxOutputTokens: null,
+};
 
-const { GeneralistAgentService } =
-  await import('./generalist-agent.service.js');
-
-function makeConfigService(overrides: Record<string, unknown> = {}) {
+function makeProvider() {
   return {
-    get: (key: string, fallback?: unknown) =>
-      key in overrides ? overrides[key] : (fallback ?? undefined),
-  } as never;
+    generate: vi.fn(),
+    generateWithTools: vi.fn(),
+    resolveEffectiveConfig: vi.fn(),
+  };
 }
 
 function makeTools(
-  dispatchImpl: (
-    name: string,
-    args: Record<string, unknown>,
-  ) => Promise<string>,
+  dispatchImpl: (name: string, args: Record<string, unknown>) => Promise<string>,
 ) {
   return { dispatch: vi.fn(dispatchImpl) } as never;
 }
 
-function toolCallMessage(name: string, args: Record<string, unknown>) {
+function toolCallResponse(name: string, args: Record<string, unknown>, usage = { in: 1, out: 1 }) {
+  const toolCalls = [{ id: 'call-1', name, arguments: JSON.stringify(args) }];
   return {
-    role: 'assistant',
-    content: null,
-    tool_calls: [
-      {
-        id: 'call-1',
-        type: 'function',
-        function: { name, arguments: JSON.stringify(args) },
-      },
-    ],
+    content: '',
+    toolCalls,
+    assistantMessage: { role: 'assistant', content: null, toolCalls },
+    inputTokens: usage.in,
+    outputTokens: usage.out,
+  };
+}
+
+function finalResponse(content: string, usage = { in: 1, out: 1 }) {
+  return {
+    content,
+    toolCalls: [],
+    assistantMessage: { role: 'assistant', content },
+    inputTokens: usage.in,
+    outputTokens: usage.out,
   };
 }
 
@@ -47,28 +55,23 @@ function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+function toolMessages(call: unknown[]): unknown[] {
+  return (call[0] as Array<{ role: string; content?: unknown }>)
+    .filter((message) => message.role === 'tool')
+    .map((message) => message.content);
+}
+
 describe('GeneralistAgentService', () => {
   beforeEach(() => {
-    createMock.mockReset();
+    vi.clearAllMocks();
   });
 
   it('returns the final content directly when the model answers without tool calls', async () => {
-    createMock.mockResolvedValue({
-      choices: [
-        {
-          message: {
-            content: 'export function test() {}',
-            tool_calls: undefined,
-          },
-        },
-      ],
-      usage: { prompt_tokens: 20, completion_tokens: 10 },
-    });
+    const provider = makeProvider();
+    provider.generateWithTools.mockResolvedValue(finalResponse('export function test() {}', { in: 20, out: 10 }));
 
-    const service = new GeneralistAgentService(makeConfigService());
-    const tools = makeTools(async () => 'unused');
-
-    const result = await service.generate('prompt', tools, 5);
+    const service = new GeneralistAgentService(provider as never);
+    const result = await service.generate('prompt', makeTools(async () => 'unused'), 5, config);
 
     expect(result).toEqual({
       content: 'export function test() {}',
@@ -81,27 +84,11 @@ describe('GeneralistAgentService', () => {
   });
 
   it('executes tool calls, records the trajectory and tracks distinct files read', async () => {
-    createMock
-      .mockResolvedValueOnce({
-        choices: [{ message: toolCallMessage('list_files', {}) }],
-        usage: { prompt_tokens: 10, completion_tokens: 5 },
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: toolCallMessage('read_file', {
-              relativePath: 'src/foo.ts',
-            }),
-          },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 5 },
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          { message: { content: 'final test code', tool_calls: undefined } },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 5 },
-      });
+    const provider = makeProvider();
+    provider.generateWithTools
+      .mockResolvedValueOnce(toolCallResponse('list_files', {}, { in: 10, out: 5 }))
+      .mockResolvedValueOnce(toolCallResponse('read_file', { relativePath: 'src/foo.ts' }, { in: 10, out: 5 }))
+      .mockResolvedValueOnce(finalResponse('final test code', { in: 10, out: 5 }));
 
     const listResult = 'src/foo.ts';
     const readResult = 'content of foo';
@@ -121,17 +108,13 @@ describe('GeneralistAgentService', () => {
             ],
             discoveredFiles: ['src/foo.ts'],
           }
-        : {
-            result: readResult,
-            status: 'SUCCEEDED' as const,
-            observations: [],
-          },
+        : { result: readResult, status: 'SUCCEEDED' as const, observations: [] },
     );
     const tools = { dispatchWithObservations } as never;
     const callback = vi.fn();
 
-    const service = new GeneralistAgentService(makeConfigService());
-    const result = await service.generate('prompt', tools, 5, callback);
+    const service = new GeneralistAgentService(provider as never);
+    const result = await service.generate('prompt', tools, 5, config, callback);
 
     expect(result.content).toBe('final test code');
     expect(result.toolCallCount).toBe(2);
@@ -174,30 +157,15 @@ describe('GeneralistAgentService', () => {
       { step: result.trajectory[1], discoveredFiles: [] },
     ]);
     expect(JSON.stringify(result.trajectory[0])).not.toContain('src/foo.ts');
-    expect(
-      createMock.mock.calls[2][0].messages
-        .filter((message: { role: string }) => message.role === 'tool')
-        .map((message: { content?: unknown }) => message.content),
-    ).toEqual([listResult, readResult]);
+    expect(toolMessages(provider.generateWithTools.mock.calls[2])).toEqual([listResult, readResult]);
   });
 
   it('hashes the exact long tool result, bounds the stored summary, and sends the full result to the model', async () => {
     const longResult = 'source line\n'.repeat(250);
-    createMock
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: toolCallMessage('read_file', {
-              relativePath: 'src/foo.ts',
-            }),
-          },
-        ],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      })
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: 'done', tool_calls: undefined } }],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      });
+    const provider = makeProvider();
+    provider.generateWithTools
+      .mockResolvedValueOnce(toolCallResponse('read_file', { relativePath: 'src/foo.ts' }))
+      .mockResolvedValueOnce(finalResponse('done'));
     const tools = {
       dispatchWithObservations: vi.fn(async () => ({
         result: longResult,
@@ -206,151 +174,112 @@ describe('GeneralistAgentService', () => {
       })),
     } as never;
 
-    const service = new GeneralistAgentService(makeConfigService());
-    const response = await service.generate('prompt', tools, 5);
+    const service = new GeneralistAgentService(provider as never);
+    const response = await service.generate('prompt', tools, 5, config);
 
-    expect(response.trajectory[0].resultSummary).toBe(
-      longResult.slice(0, 2_000),
-    );
+    expect(response.trajectory[0].resultSummary).toBe(longResult.slice(0, 2_000));
     expect(response.trajectory[0].resultSha256).toBe(sha256(longResult));
     expect(response.trajectory[0].truncated).toBe(true);
-    expect(
-      createMock.mock.calls[1][0].messages
-        .filter((message: { role: string }) => message.role === 'tool')
-        .map((message: { content?: unknown }) => message.content),
-    ).toEqual([longResult]);
+    expect(toolMessages(provider.generateWithTools.mock.calls[1])).toEqual([longResult]);
   });
 
   it('records dispatch exceptions as FAILED and empty tool output as EMPTY', async () => {
-    createMock
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: toolCallMessage('read_file', {
-              relativePath: 'src/missing.ts',
-            }),
-          },
-        ],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          { message: toolCallMessage('search_text', { query: 'absent' }) },
-        ],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      })
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: 'done', tool_calls: undefined } }],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      });
+    const provider = makeProvider();
+    provider.generateWithTools
+      .mockResolvedValueOnce(toolCallResponse('read_file', { relativePath: 'src/missing.ts' }))
+      .mockResolvedValueOnce(toolCallResponse('search_text', { query: 'absent' }))
+      .mockResolvedValueOnce(finalResponse('done'));
     const tools = {
       dispatchWithObservations: vi
         .fn()
         .mockRejectedValueOnce(new Error('private source must not be logged'))
-        .mockResolvedValueOnce({
-          result: '',
-          status: 'EMPTY' as const,
-          observations: [],
-        }),
+        .mockResolvedValueOnce({ result: '', status: 'EMPTY' as const, observations: [] }),
     } as never;
-    const service = new GeneralistAgentService(makeConfigService());
 
-    const response = await service.generate('prompt', tools, 5);
+    const service = new GeneralistAgentService(provider as never);
+    const response = await service.generate('prompt', tools, 5, config);
 
     expect(
-      response.trajectory.map(({ status, resultSummary }) => [
-        status,
-        resultSummary,
-      ]),
+      response.trajectory.map(({ status, resultSummary }) => [status, resultSummary]),
     ).toEqual([
       ['FAILED', 'No se pudo ejecutar la herramienta.'],
       ['EMPTY', ''],
     ]);
-    expect(response.trajectory[0].resultSha256).toBe(
-      sha256('No se pudo ejecutar la herramienta.'),
-    );
-    expect(
-      createMock.mock.calls[2][0].messages
-        .filter((message: { role: string }) => message.role === 'tool')
-        .map((message: { content?: unknown }) => message.content),
-    ).toEqual(['No se pudo ejecutar la herramienta.', '']);
+    expect(response.trajectory[0].resultSha256).toBe(sha256('No se pudo ejecutar la herramienta.'));
+    expect(toolMessages(provider.generateWithTools.mock.calls[2])).toEqual([
+      'No se pudo ejecutar la herramienta.',
+      '',
+    ]);
   });
 
-  it('forces a final answer once maxToolCalls is reached', async () => {
-    createMock
-      .mockResolvedValueOnce({
-        choices: [{ message: toolCallMessage('search_text', { query: 'x' }) }],
-        usage: { prompt_tokens: 5, completion_tokens: 5 },
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: { content: 'forced final answer', tool_calls: undefined },
-          },
-        ],
-        usage: { prompt_tokens: 5, completion_tokens: 5 },
-      });
+  it('forces a final answer without tools once maxToolCalls is reached', async () => {
+    const provider = makeProvider();
+    provider.generateWithTools
+      .mockResolvedValueOnce(toolCallResponse('search_text', { query: 'x' }, { in: 5, out: 5 }))
+      .mockResolvedValueOnce(finalResponse('forced final answer', { in: 5, out: 5 }));
 
-    const tools = makeTools(async () => 'match found');
-    const service = new GeneralistAgentService(makeConfigService());
-
-    const result = await service.generate('prompt', tools, 1);
+    const service = new GeneralistAgentService(provider as never);
+    const result = await service.generate('prompt', makeTools(async () => 'match found'), 1, config);
 
     expect(result.content).toBe('forced final answer');
-    expect(createMock).toHaveBeenCalledTimes(2);
-    const lastCallArgs = createMock.mock.calls[1][0];
-    expect(lastCallArgs.messages.at(-1).content).toContain(
-      'límite de herramientas',
+    expect(provider.generateWithTools).toHaveBeenCalledTimes(2);
+    const [messages, tools] = provider.generateWithTools.mock.calls[1];
+    expect(messages.at(-1).content).toContain('límite de herramientas');
+    expect(tools).toEqual([]);
+  });
+
+  it('passes the same effective config to every call, including the final one, without forcing none', async () => {
+    const provider = makeProvider();
+    provider.generateWithTools
+      .mockResolvedValueOnce(toolCallResponse('list_files', {}))
+      .mockResolvedValueOnce(finalResponse('done'));
+
+    const service = new GeneralistAgentService(provider as never);
+    await service.generate('prompt', makeTools(async () => 'src/foo.ts'), 5, config);
+
+    for (const call of provider.generateWithTools.mock.calls) {
+      expect(call[2]).toBe(config);
+      expect(call[2].reasoningEffort).toBe('xhigh');
+    }
+  });
+
+  it('exposes the agent tool schemas to the provider as neutral definitions', async () => {
+    const provider = makeProvider();
+    provider.generateWithTools.mockResolvedValue(finalResponse('done'));
+
+    const service = new GeneralistAgentService(provider as never);
+    await service.generate('prompt', makeTools(async () => ''), 5, config);
+
+    const definitions = provider.generateWithTools.mock.calls[0][1] as Array<{ name: string }>;
+    expect(definitions.map((tool) => tool.name)).toEqual(
+      AGENT_TOOL_SCHEMAS.map((schema) => schema.function.name),
     );
   });
 
-  it('forces reasoning_effort "none" on tool-calling requests when a reasoning model is configured (OpenAI rejects tools+reasoning otherwise)', async () => {
-    createMock
-      .mockResolvedValueOnce({
-        choices: [{ message: toolCallMessage('list_files', {}) }],
-        usage: { prompt_tokens: 10, completion_tokens: 5 },
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          { message: { content: 'final test code', tool_calls: undefined } },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 5 },
-      });
+  it('propagates LLMConfigurationError unchanged without wrapping it', async () => {
+    const provider = makeProvider();
+    const configurationError = new LLMConfigurationError({
+      code: 'REASONING_EFFORT_UNSUPPORTED',
+      model: 'gpt-6-luna',
+      requestedEffort: 'xhigh',
+      supportedEfforts: ['low'],
+    });
+    provider.generateWithTools.mockRejectedValue(configurationError);
 
-    const tools = makeTools(async () => 'src/foo.ts');
-    const service = new GeneralistAgentService(
-      makeConfigService({ LLM_REASONING_EFFORT: 'high' }),
+    const service = new GeneralistAgentService(provider as never);
+
+    await expect(service.generate('prompt', makeTools(async () => ''), 3, config)).rejects.toBe(
+      configurationError,
     );
-
-    await service.generate('prompt', tools, 5);
-
-    expect(createMock.mock.calls[0][0]).toMatchObject({
-      tools: expect.anything(),
-      reasoning_effort: 'none',
-    });
-  });
-
-  it('never sends reasoning_effort when the configured model does not support it', async () => {
-    createMock.mockResolvedValue({
-      choices: [{ message: { content: 'x', tool_calls: undefined } }],
-      usage: { prompt_tokens: 1, completion_tokens: 1 },
-    });
-
-    const tools = makeTools(async () => '');
-    const service = new GeneralistAgentService(makeConfigService());
-
-    await service.generate('prompt', tools, 5);
-
-    expect(createMock.mock.calls[0][0]).not.toHaveProperty('reasoning_effort');
   });
 
   it('wraps a provider failure as LLM_PROVIDER_UNAVAILABLE', async () => {
-    createMock.mockRejectedValue(new Error('network down'));
+    const provider = makeProvider();
+    provider.generateWithTools.mockRejectedValue(new Error('network down'));
 
-    const tools = makeTools(async () => '');
-    const service = new GeneralistAgentService(makeConfigService());
+    const service = new GeneralistAgentService(provider as never);
 
-    await expect(service.generate('prompt', tools, 3)).rejects.toMatchObject({
+    await expect(service.generate('prompt', makeTools(async () => ''), 3, config)).rejects.toMatchObject({
       code: ErrorCode.LLM_PROVIDER_UNAVAILABLE,
     });
   });

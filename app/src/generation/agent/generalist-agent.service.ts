@@ -1,11 +1,15 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
-import type { ChatCompletionCreateParamsNonStreaming } from 'openai/resources/chat/completions.js';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { AppException } from '../../common/errors/app.exception.js';
 import { ErrorCode } from '../../common/errors/error-code.enum.js';
-import { createOpenAiClient } from '../../providers/openai-client.factory.js';
-import { createHash } from 'node:crypto';
+import { LLMConfigurationError } from '../../providers/llm-configuration.error.js';
+import type {
+  LLMEffectiveConfig,
+  LLMMessage,
+  LLMProvider,
+  LLMToolDefinition,
+} from '../../providers/llm-provider.interface.js';
+import { LLM_PROVIDER } from '../../providers/providers.constants.js';
 import {
   AGENT_TOOL_SCHEMAS,
   type AgentStepStatus,
@@ -52,6 +56,14 @@ export interface AgentGenerationResult {
 
 const MAX_RESULT_CHARS = 2000;
 
+const AGENT_TOOL_DEFINITIONS: LLMToolDefinition[] = AGENT_TOOL_SCHEMAS.map(
+  (schema) => ({
+    name: schema.function.name,
+    description: schema.function.description,
+    parameters: schema.function.parameters,
+  }),
+);
+
 function hashResult(result: string): string {
   return createHash('sha256').update(result, 'utf8').digest('hex');
 }
@@ -91,37 +103,26 @@ function safeParseJson(raw: string): Record<string, unknown> {
   }
 }
 
+/**
+ * Bucle de herramientas del agente generalista. Habla solo con LLMProvider:
+ * no conoce el SDK ni lee configuración del modelo. La configuración efectiva
+ * del experimento llega de fuera y se usa idéntica en cada llamada, incluida
+ * la final sin herramientas; nunca se fuerza `none` ni se cambia el esfuerzo.
+ */
 @Injectable()
 export class GeneralistAgentService {
   private readonly logger = new Logger(GeneralistAgentService.name);
-  private client: OpenAI | undefined;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider) {}
 
   async generate(
     instructions: string,
     tools: WorkspaceAgentTools,
     maxToolCalls: number,
+    config: LLMEffectiveConfig,
     onToolStep?: AgentToolStepCallback,
   ): Promise<AgentGenerationResult> {
-    const client = this.getClient();
-    const model = this.configService.get<string>('LLM_MODEL', 'gpt-4o-mini');
-    const reasoningEffort = this.configService.get<string>(
-      'LLM_REASONING_EFFORT',
-    );
-    // Los modelos con razonamiento no soportan function tools en
-    // /v1/chat/completions salvo que reasoning_effort sea 'none' (400
-    // invalid_request_error en caso contrario); un modelo sin razonamiento
-    // rechaza el campo por completo si se lo enviamos. Por eso solo se
-    // fuerza 'none' cuando el usuario configuró LLM_REASONING_EFFORT (señal
-    // de que el modelo sí soporta razonamiento); el resto de las llamadas
-    // (sin tools) sí usan el valor configurado normalmente.
-    const toolCallReasoningEffort:
-      ChatCompletionCreateParamsNonStreaming['reasoning_effort'] | undefined =
-      reasoningEffort ? 'none' : undefined;
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: 'user', content: instructions },
-    ];
+    const messages: LLMMessage[] = [{ role: 'user', content: instructions }];
     const trajectory: AgentTrajectoryStep[] = [];
     const filesInspected = new Set<string>();
     let stepNumber = 0;
@@ -130,25 +131,18 @@ export class GeneralistAgentService {
 
     try {
       for (let attempt = 0; attempt < maxToolCalls; attempt += 1) {
-        const response = await client.chat.completions.create({
-          model,
+        const response = await this.llmProvider.generateWithTools(
           messages,
-          tools: AGENT_TOOL_SCHEMAS,
-          tool_choice: 'auto',
-          ...(toolCallReasoningEffort
-            ? { reasoning_effort: toolCallReasoningEffort }
-            : {}),
-        });
+          AGENT_TOOL_DEFINITIONS,
+          config,
+        );
 
-        inputTokens += response.usage?.prompt_tokens ?? 0;
-        outputTokens += response.usage?.completion_tokens ?? 0;
+        inputTokens += response.inputTokens ?? 0;
+        outputTokens += response.outputTokens ?? 0;
 
-        const message = response.choices[0]?.message;
-        const toolCalls = message?.tool_calls;
-
-        if (!message || !toolCalls || toolCalls.length === 0) {
+        if (response.toolCalls.length === 0) {
           return {
-            content: message?.content ?? '',
+            content: response.content,
             trajectory,
             toolCallCount: trajectory.length,
             filesInspected: filesInspected.size,
@@ -157,14 +151,10 @@ export class GeneralistAgentService {
           };
         }
 
-        messages.push(message);
+        messages.push(response.assistantMessage);
 
-        for (const toolCall of toolCalls) {
-          if (toolCall.type !== 'function') {
-            continue;
-          }
-
-          const args = safeParseJson(toolCall.function.arguments);
+        for (const toolCall of response.toolCalls) {
+          const args = safeParseJson(toolCall.arguments);
           stepNumber += 1;
           let execution: AgentToolDispatchResult;
 
@@ -178,9 +168,9 @@ export class GeneralistAgentService {
               }
             ).dispatchWithObservations;
             execution = detailedDispatch
-              ? await detailedDispatch.call(tools, toolCall.function.name, args)
+              ? await detailedDispatch.call(tools, toolCall.name, args)
               : normalizeFallbackResult(
-                  await tools.dispatch(toolCall.function.name, args),
+                  await tools.dispatch(toolCall.name, args),
                 );
           } catch {
             // Dispatch exceptions are represented as a safe tool result. Never
@@ -192,10 +182,10 @@ export class GeneralistAgentService {
             };
           }
 
-          const summary = trajectorySummary(toolCall.function.name, execution);
+          const summary = trajectorySummary(toolCall.name, execution);
           const step: AgentTrajectoryStep = {
             step: stepNumber,
-            toolName: toolCall.function.name,
+            toolName: toolCall.name,
             arguments: args,
             status: execution.status,
             resultSummary: summary,
@@ -222,7 +212,7 @@ export class GeneralistAgentService {
           }
 
           if (
-            toolCall.function.name === 'read_file' &&
+            toolCall.name === 'read_file' &&
             typeof args.relativePath === 'string'
           ) {
             filesInspected.add(args.relativePath);
@@ -232,15 +222,14 @@ export class GeneralistAgentService {
           // value. The trajectory stores only a bounded summary and its hash.
           messages.push({
             role: 'tool',
-            tool_call_id: toolCall.id,
+            toolCallId: toolCall.id,
             content: execution.result,
           });
         }
       }
 
-      const finalResponse = await client.chat.completions.create({
-        model,
-        messages: [
+      const finalResponse = await this.llmProvider.generateWithTools(
+        [
           ...messages,
           {
             role: 'user',
@@ -248,19 +237,15 @@ export class GeneralistAgentService {
               'Alcanzaste el límite de herramientas disponibles. Responde ahora con el código final de la prueba: solo código TypeScript (imports + bloques de test), sin explicaciones ni más llamadas a herramientas.',
           },
         ],
-        ...(reasoningEffort
-          ? {
-              reasoning_effort:
-                reasoningEffort as ChatCompletionCreateParamsNonStreaming['reasoning_effort'],
-            }
-          : {}),
-      });
+        [],
+        config,
+      );
 
-      inputTokens += finalResponse.usage?.prompt_tokens ?? 0;
-      outputTokens += finalResponse.usage?.completion_tokens ?? 0;
+      inputTokens += finalResponse.inputTokens ?? 0;
+      outputTokens += finalResponse.outputTokens ?? 0;
 
       return {
-        content: finalResponse.choices[0]?.message?.content ?? '',
+        content: finalResponse.content,
         trajectory,
         toolCallCount: trajectory.length,
         filesInspected: filesInspected.size,
@@ -268,14 +253,15 @@ export class GeneralistAgentService {
         outputTokens,
       };
     } catch (error) {
-      if (error instanceof AppException) {
+      // La configuración no compatible se propaga tal cual; WI-CORE-025 la mapea.
+      if (error instanceof AppException || error instanceof LLMConfigurationError) {
         throw error;
       }
 
       const message =
         error instanceof Error ? error.message : 'Error desconocido.';
       this.logger.warn(
-        `Fallo al ejecutar el agente generalista con el modelo "${model}": ${message}`,
+        `Fallo al ejecutar el agente generalista con el modelo "${config.model}": ${message}`,
       );
 
       throw new AppException(
@@ -285,10 +271,5 @@ export class GeneralistAgentService {
         message,
       );
     }
-  }
-
-  private getClient(): OpenAI {
-    this.client ??= createOpenAiClient(this.configService);
-    return this.client;
   }
 }

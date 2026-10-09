@@ -41,6 +41,15 @@ function successfulSandboxResult() {
   };
 }
 
+const effectiveConfig = {
+  provider: 'openai' as const,
+  model: 'gpt-6-luna',
+  modelVersion: 'gpt-6-luna',
+  reasoningEffort: 'xhigh',
+  temperature: null,
+  maxOutputTokens: null,
+};
+
 function makeDeps(overrides: Record<string, unknown> = {}) {
   const cleanup = vi.fn().mockResolvedValue(undefined);
   let repetitionNumber = 0;
@@ -251,7 +260,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     promptBuilder: { build: vi.fn().mockReturnValue('prompt') },
     generalistAgentService: {
       generate: vi.fn().mockImplementation(async (...args: unknown[]) => {
-        const callback = args[3] as
+        const callback = args[4] as
           ((event: unknown) => Promise<void>) | undefined;
         if (callback) {
           await callback({
@@ -297,6 +306,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
         inputTokens: 100,
         outputTokens: 30,
       }),
+      resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
     },
     ...overrides,
   };
@@ -882,6 +892,7 @@ describe('ExperimentJobHandler', () => {
         generate: vi
           .fn()
           .mockRejectedValue(new Error('source text must not be stored')),
+        resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
       },
     });
     const handler = makeHandler(deps);
