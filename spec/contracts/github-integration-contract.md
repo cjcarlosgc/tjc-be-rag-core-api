@@ -1,6 +1,6 @@
-# GH-INTEROP-1.2 — Contrato de GitHub Integration
+# GH-INTEROP-1.3 — Contrato de GitHub Integration
 
-**Estado:** `GH-INTEROP-1.2` está implementado y cerrado localmente. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consume en `WI-CORE-011`; Console completó la sincronización y validación del corte previo en `WI-CONSOLE-008`. Los cierres no declaran despliegue ni cutover; la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
+**Estado:** `GH-INTEROP-1.3` (`WI-CORE-026`, `DEC-TRACE-001`) añade `checkId` a la respuesta de `POST /internal/v1/github/checks` (`200 { checkId: string }`); Core lo consume tolerando `204` (`checkId` null) y la implementación de GitHub Integration y los espejos quedan pendientes, sin despliegue ni cutover. Historia: `GH-INTEROP-1.2` está implementado y cerrado localmente. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consume en `WI-CORE-011`; Console completó la sincronización y validación del corte previo en `WI-CONSOLE-008`. Los cierres no declaran despliegue ni cutover; la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
 **Línea base:** SDD 3.0 para Core/Console; Sandbox sigue en 2.1 y su homologación está pendiente.
 **Autoridad:** RAG Core mantiene el original en este archivo; `tjc-be-github-integration-api` y Console espejan esta versión byte por byte.
 
@@ -251,6 +251,6 @@ Para `pull_request`, el servicio solo normaliza los campos enumerados. `pullRequ
 
 - `GET /health` expone liveness/readiness; readiness valida configuración local requerida, no depende de que GitHub esté disponible.
 - El servicio mapea límites de tasa, fallos de red y errores GitHub no verificables sin convertirlos en `NOT_FOUND`. Core traduce esos resultados a la conducta pública ya establecida (`GITHUB_VERIFICATION_UNAVAILABLE`, `NOT_AUTHORIZED`, etc.).
-- La migración conserva las respuestas y reglas de `SYSTEM-2.5` / `INTEROP-2.6` para rutas Core públicas. `GH-INTEROP-1.2` añade rutas de usuario Console→Integration, el callback privado Integration→Core y la fecha original verificable de creación del PR; no retira durante este corte las rutas equivalentes de Core. Cualquier cambio de rutas/DTOs compartidos requiere Contract Sync.
+- La migración conserva las respuestas y reglas de `SYSTEM-2.5` / `INTEROP-2.6` para rutas Core públicas. `GH-INTEROP-1.2` añade rutas de usuario Console→Integration, el callback privado Integration→Core y la fecha original verificable de creación del PR; `GH-INTEROP-1.3` añade `checkId` a la respuesta de Check; no retira durante este corte las rutas equivalentes de Core. Cualquier cambio de rutas/DTOs compartidos requiere Contract Sync.
 - Los nuevos IDs de Contract Sync usan un namespace de origen inequívoco (`CORE`, `CONSOLE`, `SANDBOX`, `GH`) y `sourceWorkItem` antes de que el servicio importe/publique eventos. Los IDs simples anteriores al corte 2026-09-25 siguen siendo legibles; no se reescriben. Esto no modifica el Harness local de Sandbox.
 - Ninguna actualización de URL/configuración de la GitHub App, secretos externos, deploy, DNS, Supabase o Sandbox está autorizada por este contrato. Esas acciones requieren solicitud explícita.
