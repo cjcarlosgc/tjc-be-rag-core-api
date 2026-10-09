@@ -15,6 +15,12 @@ export interface LLMEffectiveConfig {
   reasoningEffort: string | null;
   temperature: number | null;
   maxOutputTokens: number | null;
+  /**
+   * Endpoint interno del adaptador (WI-CORE-031). Lo escribe resolveEffectiveConfig y
+   * queda en ExperimentRun.modelConfig; es opcional para corridas anteriores y nunca
+   * forma parte de la respuesta de la API.
+   */
+  endpoint?: 'responses';
 }
 
 /** Definición neutral de herramienta; `parameters` es un JSON Schema. */

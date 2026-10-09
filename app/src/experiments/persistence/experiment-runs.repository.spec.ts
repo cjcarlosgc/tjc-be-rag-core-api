@@ -50,6 +50,70 @@ describe('ExperimentRunsRepository.create', () => {
   });
 });
 
+describe('ExperimentRunsRepository.create endpoint (WI-CORE-031)', () => {
+  const baseInput = {
+    projectId: 'project-1',
+    projectVersionId: 'version-1',
+    targetId: 'target-1',
+    totalRepetitions: 6,
+    randomizationSeed: 'd'.repeat(64),
+    budget: { toolCallCap: 20, contextTokenBudget: 8000, maxDurationMs: 120000 },
+    executionProfile: 'NODE_TYPESCRIPT' as const,
+    runnerHint: 'JEST' as const,
+  };
+
+  it('persists the internal endpoint inside the modelConfig JSON', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'exp-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRun: { create: createMock },
+    } as never);
+
+    await repository.create({
+      ...baseInput,
+      modelConfig: {
+        provider: 'openai',
+        model: 'gpt-6-luna',
+        modelVersion: 'gpt-6-luna-2026',
+        reasoningEffort: 'xhigh',
+        temperature: null,
+        maxOutputTokens: null,
+        endpoint: 'responses',
+      },
+    });
+
+    expect(createMock.mock.calls[0][0].data.modelConfig).toEqual({
+      provider: 'openai',
+      model: 'gpt-6-luna',
+      modelVersion: 'gpt-6-luna-2026',
+      reasoningEffort: 'xhigh',
+      temperature: null,
+      maxOutputTokens: null,
+      endpoint: 'responses',
+    });
+  });
+
+  it('does not write an endpoint key when the config carries none', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'exp-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRun: { create: createMock },
+    } as never);
+
+    await repository.create({
+      ...baseInput,
+      modelConfig: {
+        provider: 'openai',
+        model: 'gpt-6-luna',
+        modelVersion: 'gpt-6-luna-2026',
+        reasoningEffort: 'xhigh',
+        temperature: null,
+        maxOutputTokens: null,
+      },
+    });
+
+    expect(createMock.mock.calls[0][0].data.modelConfig).not.toHaveProperty('endpoint');
+  });
+});
+
 describe('ExperimentRunsRepository pairing fields', () => {
   it('insertRepetition persists pairId, pairPosition, attempt and technicallyEvaluable when provided', async () => {
     const createMock = vi.fn().mockResolvedValue({ id: 'rep-1' });

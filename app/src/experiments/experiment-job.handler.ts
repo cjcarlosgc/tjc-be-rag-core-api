@@ -160,6 +160,8 @@ function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
     reasoningEffort: typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort : null,
     temperature: typeof candidate.temperature === 'number' ? candidate.temperature : null,
     maxOutputTokens: typeof candidate.maxOutputTokens === 'number' ? candidate.maxOutputTokens : null,
+    // WI-CORE-031: corridas anteriores no tienen endpoint; solo se conserva el valor conocido.
+    ...(candidate.endpoint === 'responses' ? { endpoint: 'responses' as const } : {}),
   };
 }
 

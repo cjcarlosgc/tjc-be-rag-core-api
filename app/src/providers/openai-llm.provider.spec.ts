@@ -765,6 +765,7 @@ describe('OpenAiLLMProvider', () => {
         reasoningEffort: 'medium',
         temperature: null,
         maxOutputTokens: null,
+        endpoint: 'responses',
       });
     });
 

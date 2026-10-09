@@ -94,6 +94,7 @@ export class ExperimentRunsRepository {
           reasoningEffort: modelConfig.reasoningEffort,
           temperature: modelConfig.temperature,
           maxOutputTokens: modelConfig.maxOutputTokens,
+          ...(modelConfig.endpoint !== undefined ? { endpoint: modelConfig.endpoint } : {}),
         },
       },
     });

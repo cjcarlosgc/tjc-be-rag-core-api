@@ -408,6 +408,42 @@ describe('ExperimentsService', () => {
       });
     });
 
+    it('never exposes the internal endpoint of modelConfig in the API response (WI-CORE-031)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1',
+        projectId: 'project-1',
+        projectVersionId: 'version-1',
+        targetId: 'target-1',
+        status: 'PENDING',
+        completedRepetitions: 0,
+        totalRepetitions: 6,
+        failureCode: null,
+        failureMessage: null,
+        startedAt: null,
+        completedAt: null,
+        modelConfig: {
+          provider: 'openai',
+          model: 'gpt-6-luna',
+          modelVersion: 'gpt-6-luna-2026',
+          reasoningEffort: 'xhigh',
+          temperature: null,
+          maxOutputTokens: null,
+          endpoint: 'responses',
+        },
+        budget: { toolCallCap: 20, contextTokenBudget: 8000, maxDurationMs: 120000 },
+        executionProfile: 'NODE_TYPESCRIPT',
+        runnerHint: 'VITEST',
+        randomizationSeed: 'b'.repeat(64),
+      });
+      const service = makeService(deps);
+
+      const status = await service.getStatus('exp-1', OWNER_USER_ID);
+
+      expect(status.model).not.toHaveProperty('endpoint');
+      expect(JSON.stringify(status)).not.toContain('responses');
+    });
+
     it('answers null (never zero or invented values) for runs created before WI-CORE-023/025', async () => {
       const deps = makeDeps();
       deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({

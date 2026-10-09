@@ -472,6 +472,45 @@ describe('ExperimentJobHandler', () => {
     expect(deps.llmProvider.resolveEffectiveConfig).not.toHaveBeenCalled();
   });
 
+  it('passes the persisted internal endpoint to both arms, and runs created before WI-CORE-031 get none (WI-CORE-031)', async () => {
+    const { deps } = makeDeps();
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'exp-1',
+      status: 'PENDING',
+      modelConfig: { ...effectiveConfig, endpoint: 'responses' },
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const configs = [
+      ...(deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]),
+      ...(deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[3]),
+    ];
+    expect(configs).toHaveLength(6);
+    for (const config of configs) {
+      expect(config).toMatchObject({ endpoint: 'responses' });
+    }
+  });
+
+  it('does not invent an endpoint for a legacy persisted config without it (WI-CORE-031)', async () => {
+    const { deps } = makeDeps();
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'exp-1',
+      status: 'PENDING',
+      modelConfig: { ...effectiveConfig },
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const configs = (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]);
+    expect(configs).toHaveLength(3);
+    for (const config of configs) {
+      expect(config).not.toHaveProperty('endpoint');
+    }
+  });
+
   it('keeps the persisted config for all six repetitions even if the env or a new resolution would now yield another model (WI-CORE-023)', async () => {
     const { deps } = makeDeps({
       configService: {

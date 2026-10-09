@@ -148,6 +148,7 @@ describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1)', 
       reasoningEffort: 'xhigh',
       temperature: null,
       maxOutputTokens: null,
+      endpoint: 'responses',
     });
 
     // El entorno cambia después de crear el experimento: el combo desaparece y el modelo se reemplaza.

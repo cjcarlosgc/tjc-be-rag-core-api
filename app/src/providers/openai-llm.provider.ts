@@ -192,6 +192,7 @@ export class OpenAiLLMProvider implements LLMProvider {
       maxOutputTokens: optionalNumber(
         this.configService.get<string>('EXPERIMENT_LLM_MAX_OUTPUT_TOKENS'),
       ),
+      endpoint: 'responses',
     };
   }
 
