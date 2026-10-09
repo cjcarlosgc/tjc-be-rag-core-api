@@ -5720,6 +5720,26 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "APPROVED sin blockers ni importantes; 2 observaciones menores (M-1, M-2) registradas como IDEA-012.",
+            "Revisión delegada explícitamente por el usuario en chat; no sustituye la aprobación humana de alcance/decisiones."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-022-independent-review.md"
+          ],
+          "recommendedNextStep": "Cerrar WI-CORE-022.",
+          "executedBy": {
+            "agent": "reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -5728,7 +5748,7 @@
     "gates": {
       "sddVerified": "G-PASSED",
       "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
+      "independentReviewPassed": "G-PASSED",
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-PASSED",
       "canonicalContractSynced": "G-PASSED",
@@ -5816,7 +5836,9 @@
       "harness/reports/contract-sync-publish-cs-core-20261009-011.md",
       "harness/reports/wi-core-022-contract-final-review.md",
       "harness/reports/wi-core-022-contract-review.md",
-      "harness/reports/wi-core-022-failed-results-review.md"
+      "harness/reports/wi-core-022-failed-results-review.md",
+      "harness/reports/wi-core-022-independent-review.md",
+      "harness/reports/wi-core-022-closure.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -5847,6 +5869,9 @@
       ],
       "retryLimitRespected": [
         "harness/reports/wi-core-022-implementation.md"
+      ],
+      "independentReviewPassed": [
+        "harness/reports/wi-core-022-independent-review.md"
       ]
     }
   }
