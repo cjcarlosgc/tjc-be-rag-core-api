@@ -31,3 +31,15 @@ Con esto quedan despejados el riesgo R1 del SDD (compatibilidad `strict` de los 
 - **`max`:** aceptado en `/v1/responses` **sin y con herramientas** (`strict`); rechazado en `/v1/chat/completions` (lista de valores soportados allí: `none, low, medium, high, xhigh`). El SDK `openai` 7.8.0 tipa `ReasoningEffort` con `'max'`. Es el esfuerzo máximo real de `gpt-6-luna` (DEC-EXP-004: «el valor máximo que soporten el modelo y el runtime»), y solo existe en Responses. La escala del proveedor (`REASONING_EFFORT_SCALE`) termina en `xhigh`: `max` no está incluido.
 - **R2, `temperature`:** con `reasoning.effort=high` → 400 «Unsupported parameter: 'temperature' is not supported with this model»; con `effort=none` se acepta. Con razonamiento activo no puede enviarse `temperature`.
 - **R3, latencia (tarea de dificultad media sin herramientas: función TypeScript con pruebas):** `high` 7,5 s (516 tokens de razonamiento), `xhigh` 10,2 s (621), `max` 14,1 s (919). El timeout de 30 s es suficiente para una llamada así; un turno del agente con contexto grande o varias llamadas podría acercarse al límite.
+
+## Humo real del proveedor compilado (2026-10-09, HEAD 65003d9)
+**Autoriza:** el usuario, en chat («Sí, una corrida»). Se instanció `OpenAiLLMProvider` desde `app/dist` con la clave de `app/.env` (no se imprime) y `LLM_SUPPORTED_COMBINATIONS` definido solo en el proceso (`gpt-6-luna` con `none`…`max` en `efforts` y `toolEfforts`). Nota de método: el primer intento falló por un `ConfigService` falso que devolvía números como texto; no es un defecto del proveedor (en la aplicación, la validación de configuración los convierte).
+
+Resultados:
+1. `resolveEffectiveConfig()` → modelo `gpt-6-luna`, **esfuerzo `max`**, `temperature: null`, `endpoint: 'responses'` (confirmó el modelo contra la API).
+2. Bucle con las cuatro herramientas reales y razonamiento: turno 1 `[reasoning, function_call]` (`list_files`); turno 2 `[reasoning, function_call, function_call]` (`read_file` + `inspect_symbol`, en paralelo); turno 3 `[reasoning, message]` (respuesta final). El mensaje del asistente con sus `providerItems` (incluido el razonamiento cifrado) se reenvió tal cual en cada turno; totales de 1076 tokens de entrada y 268 de salida.
+3. Llamada final con `tools=[]` y el historial completo: correcta.
+4. `temperature` con razonamiento activo: falla de forma explícita (`LLMConfigurationError` / `TEMPERATURE_UNSUPPORTED_WITH_REASONING`) sin llamar a la API.
+5. Flujo de producto (`generate` sin configuración, `gpt-4o-mini` por Responses): respuesta correcta, 11 tokens de entrada y 5 de salida.
+
+Cierra la deuda de verificación en vivo del flujo completo de WI-CORE-031. No cubre turnos reales del agente con contextos grandes (latencia/timeout) ni calidad del razonamiento.
