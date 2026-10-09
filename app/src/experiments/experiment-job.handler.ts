@@ -606,7 +606,7 @@ export class ExperimentJobHandler
     const tools = new WorkspaceAgentTools(workspaceDir, poolFiles);
     const maxContextTokens = this.configService.get<number>(
       'RETRIEVAL_MAX_CONTEXT_TOKENS',
-      6000,
+      8000,
     );
     const maxToolCalls = this.configService.get<number>(
       'AGENT_MAX_TOOL_CALLS',

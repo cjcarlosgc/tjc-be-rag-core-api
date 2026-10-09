@@ -77,7 +77,7 @@ describe('ContextBuilder', () => {
     expect(context.audit?.configuration).toEqual({
       minimumScore: 0,
       topK: 10,
-      maxContextTokens: 6000,
+      maxContextTokens: 8000,
       semanticWeight: 0.7,
       structuralWeight: 0.3,
     });

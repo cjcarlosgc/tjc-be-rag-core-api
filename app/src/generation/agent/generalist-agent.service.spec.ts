@@ -8,7 +8,7 @@ import { AGENT_TOOL_SCHEMAS } from './workspace-agent-tools.js';
 
 const { GeneralistAgentService } = await import('./generalist-agent.service.js');
 
-function limits(toolCallCap: number, contextTokenBudget = 6000) {
+function limits(toolCallCap: number, contextTokenBudget = 8000) {
   return { toolCallCap, contextTokenBudget };
 }
 
@@ -90,7 +90,7 @@ describe('GeneralistAgentService', () => {
       outputTokens: 10,
       contextTokensDelivered: 0,
       toolCallCap: 5,
-      contextTokenBudget: 6000,
+      contextTokenBudget: 8000,
       capReached: false,
       truncatedSteps: 0,
     });

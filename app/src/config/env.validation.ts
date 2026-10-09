@@ -139,7 +139,7 @@ class EnvironmentVariables {
 
   @IsInt()
   @Min(1)
-  RETRIEVAL_MAX_CONTEXT_TOKENS: number = 6000;
+  RETRIEVAL_MAX_CONTEXT_TOKENS: number = 8000;
 
   @IsNumber()
   @Min(0)

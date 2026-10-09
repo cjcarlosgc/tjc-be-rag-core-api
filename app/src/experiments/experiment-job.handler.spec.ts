@@ -282,7 +282,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
           outputTokens: 15,
           contextTokensDelivered: 40,
           toolCallCap: 20,
-          contextTokenBudget: 6000,
+          contextTokenBudget: 8000,
           capReached: false,
           truncatedSteps: 1,
         };
@@ -942,7 +942,7 @@ describe('ExperimentJobHandler', () => {
     expect(finalDetail).toMatchObject({ toolCalls: 2, filesInspected: 1 });
     expect(finalDetail.budget).toEqual({
       toolCallCap: 20,
-      contextTokenBudget: 6000,
+      contextTokenBudget: 8000,
       contextTokensDelivered: 40,
       capReached: false,
       truncatedSteps: 1,
@@ -990,10 +990,10 @@ describe('ExperimentJobHandler', () => {
     expect(generateCalls.length).toBeGreaterThan(0);
     const [instructions, , limits] = generateCalls[0] as [string, unknown, unknown];
     expect(instructions).toContain('como máximo 20 llamadas a herramientas');
-    expect(instructions).toContain('como máximo 6000 tokens');
+    expect(instructions).toContain('como máximo 8000 tokens');
     expect(instructions).not.toMatch(/orientativo/i);
     expect(instructions).not.toMatch(/functional|oráculo|oracle/i);
-    expect(limits).toEqual({ toolCallCap: 20, contextTokenBudget: 6000 });
+    expect(limits).toEqual({ toolCallCap: 20, contextTokenBudget: 8000 });
   });
 
   it('retains RAG detail and marks the attempt failed when LLM generation fails afterward', async () => {
