@@ -1480,12 +1480,12 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "SMART V3",
       "caseIds": [],
-      "contractImpact": false,
-      "publishesContract": false,
+      "contractImpact": true,
+      "publishesContract": true,
       "id": "WI-CORE-030",
       "title": "Recuperar jobs sin dedupeKey cuyo worker murió (experimentos)",
       "storyIds": [
