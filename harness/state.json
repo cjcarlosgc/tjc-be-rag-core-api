@@ -4445,7 +4445,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/features/008-experimental-comparison/spec.md",
       "spec/features/008-experimental-comparison/plan.md",
@@ -4473,23 +4473,53 @@
     "transversalPaths": [],
     "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-EXP-002",
+        "DEC-EXP-003",
+        "DEC-EXP-004",
+        "DEC-EXP-FK-001"
+      ],
+      "checkedAt": "2026-10-09T02:40:00.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer-high",
+      "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "SPEC_VERIFIED sin bloqueos; contractImpact=false confirmado (trayectoria y budget en ContextTrace.detail JSONB interno, sin migración).",
+            "Ambigüedades cerradas en 008/plan.md: retiro del filtro de pruebas, tope por tool calls ejecutadas, presupuesto de contexto acumulado (cl100k), campos persistidos.",
+            "Interpretación a señalar al reviewer: 'cada resultado se trunca' se cerró como presupuesto acumulativo (paridad con RAG)."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/features/008-experimental-comparison/plan.md",
+            "spec/features/008-experimental-comparison/tasks.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-024-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar en tres cortes con implementer (low).",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -4497,7 +4527,7 @@
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -4519,9 +4549,17 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-024-contract-sync-scope-review.md"
+      "harness/reports/wi-core-024-contract-sync-scope-review.md",
+      "harness/reports/wi-core-024-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-024-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-024-sdd-verification.md"
+      ]
+    }
   }
 }
