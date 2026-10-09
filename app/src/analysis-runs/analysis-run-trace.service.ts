@@ -130,21 +130,26 @@ export class AnalysisRunTraceService {
         targetCount: targets.length,
       },
       targets,
-      publication: toPublication(latestPublication, run.checkId ?? null),
+      publication: toPublication(latestPublication, run.checkId ?? null, run.checkPublishedAt ?? null),
     };
   }
 }
 
 /**
- * `publication` (DEC-TRACE-002): PRESENT si hay Check o TestPublication; `freshness` solo de la
- * publicación más reciente (CURRENT con PUBLISHED, STALE con STALE, null en cualquier otro estado).
- * `checkId` es el id del Check del Run (corte D); sin él y sin TestPublication, NOT_APPLICABLE.
+ * `publication` (DEC-TRACE-002): PRESENT si hay Check publicado (con o sin id) o TestPublication;
+ * `freshness` solo de la publicación más reciente (CURRENT con PUBLISHED, STALE con STALE, null en
+ * cualquier otro estado). `checkId` es el id del Check o null (GitHub puede responder 204 sin id).
  */
-function toPublication(latest: PublicationRow | null, checkId: string | null): TracePublicationResponse {
+function toPublication(
+  latest: PublicationRow | null,
+  checkId: string | null,
+  checkPublishedAt: Date | null,
+): TracePublicationResponse {
   const freshness = latest?.status === 'PUBLISHED' ? 'CURRENT' : latest?.status === 'STALE' ? 'STALE' : null;
+  const hasCheck = checkId !== null || checkPublishedAt !== null;
 
   return {
-    status: checkId !== null || latest !== null ? 'PRESENT' : 'NOT_APPLICABLE',
+    status: hasCheck || latest !== null ? 'PRESENT' : 'NOT_APPLICABLE',
     checkId,
     companionBranch: latest?.branchName ?? null,
     companionPullRequestUrl: latest?.companionPullRequestUrl ?? null,

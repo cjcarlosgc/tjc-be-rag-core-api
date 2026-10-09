@@ -72,7 +72,24 @@ describe('AnalysisRunTraceService (WI-CORE-026, INTEROP-2.7 §6.16)', () => {
         makeSymbol({ id: 'symbol-imp', qualifiedName: 'Other.x', filePath: 'src/c.ts', changeKind: 'POTENTIALLY_IMPACTED' }),
       ],
       retrievals: [{ id: 'retrieval-a', analysisSymbolId: 'symbol-a' }],
-      contexts: [{ id: 'context-a', analysisSymbolId: 'symbol-a', functionalRuleIds: ['rule-1'] }],
+      contexts: [
+        {
+          id: 'context-a',
+          analysisRunId: 'run-1',
+          analysisSymbolId: 'symbol-a',
+          retrievalId: 'retrieval-a',
+          selectedChunkIds: ['chunk-1'],
+          discardedChunkIds: ['chunk-2'],
+          selectedTokens: 120,
+          tokenBudget: 200,
+          functionalRuleIds: ['rule-1'],
+          functionalRulesRetrieved: 3,
+          functionalRulesSelected: 1,
+          functionalRulesOmitted: 2,
+          omittedFunctionalRules: [{ knowledgeId: 'rule-omitted-secret', reason: 'TOKEN_BUDGET' }],
+          createdAt: new Date('2026-10-05T00:00:00Z'),
+        },
+      ],
       proposals: [{ id: 'proposal-a', analysisSymbolId: 'symbol-a' }],
       executions: [
         {
@@ -127,7 +144,6 @@ describe('AnalysisRunTraceService (WI-CORE-026, INTEROP-2.7 §6.16)', () => {
     expect(trace.targets[0]).toMatchObject({
       symbol: { language: 'TYPESCRIPT', kind: 'FUNCTION', qualifiedName: 'helper', filePath: 'src/a.ts', changeKind: 'DIRECTLY_CHANGED' },
       retrieval: { status: 'PRESENT', retrievalId: 'retrieval-a' },
-      context: { status: 'PRESENT', contextId: 'context-a', functionalRuleIds: ['rule-1'] },
       generation: { status: 'PRESENT', proposalIds: ['proposal-a'] },
       executions: {
         status: 'PRESENT',
@@ -137,6 +153,7 @@ describe('AnalysisRunTraceService (WI-CORE-026, INTEROP-2.7 §6.16)', () => {
         ],
       },
     });
+    expect(trace.targets[0].context).toEqual({ status: 'PRESENT', contextId: 'context-a', functionalRuleIds: ['rule-1'] });
     expect(trace.targets[1]).toEqual({
       symbol: expect.objectContaining({ qualifiedName: 'Thing.doIt' }),
       retrieval: { status: 'NOT_APPLICABLE', retrievalId: null },
@@ -156,10 +173,45 @@ describe('AnalysisRunTraceService (WI-CORE-026, INTEROP-2.7 §6.16)', () => {
     const serialized = JSON.stringify(trace);
     expect(serialized).not.toContain('CODIGO_NO_EXPUESTO');
     expect(serialized).not.toContain('behaviorConstructs');
-    expect(serialized).not.toContain('omitted');
+    expect(serialized).not.toContain('omittedFunctionalRules');
+    expect(serialized).not.toContain('functionalRulesRetrieved');
+    expect(serialized).not.toContain('functionalRulesSelected');
+    expect(serialized).not.toContain('functionalRulesOmitted');
+    expect(serialized).not.toContain('rule-omitted-secret');
+    expect(serialized).not.toContain('knowledgeId');
     expect(serialized).not.toContain('storageKey');
     expect(serialized).not.toContain('selectedChunkIds');
-    expect(serialized).not.toContain('knowledgeId');
+  });
+
+  it('orders targets in the same file by qualifiedName when the file path ties', async () => {
+    const { service } = makeService({
+      symbols: [
+        // Los ids van en orden inverso al nombre calificado: solo el desempate por qualifiedName da 'alpha' primero.
+        makeSymbol({ id: 'symbol-a-first-id', kind: 'FUNCTION', qualifiedName: 'zeta', filePath: 'src/same.ts' }),
+        makeSymbol({ id: 'symbol-z-last-id', kind: 'FUNCTION', qualifiedName: 'alpha', filePath: 'src/same.ts' }),
+      ],
+    });
+
+    const trace = await service.getTrace('run-1', 'user-1');
+
+    expect(trace.targets.map((target) => target.symbol.qualifiedName)).toEqual(['alpha', 'zeta']);
+  });
+
+  it('reports a Check published without id (GitHub 204) as publication PRESENT with checkId null', async () => {
+    const { service } = makeService({
+      run: makeRun({ checkId: null, checkPublishedAt: new Date('2026-10-05T10:00:00Z') }),
+    });
+
+    const result = await service.getTrace('run-1', 'user-1');
+
+    expect(result.publication).toEqual({
+      status: 'PRESENT',
+      checkId: null,
+      companionBranch: null,
+      companionPullRequestUrl: null,
+      sourceHeadSha: null,
+      freshness: null,
+    });
   });
 
   it('reports a run without DIRECTLY_CHANGED METHOD/FUNCTION targets as changeset NOT_APPLICABLE and publication NOT_APPLICABLE', async () => {

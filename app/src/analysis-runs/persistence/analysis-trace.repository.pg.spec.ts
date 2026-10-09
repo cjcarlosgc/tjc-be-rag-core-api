@@ -349,6 +349,130 @@ describe.skipIf(!url)('AnalysisTraceRepository against a local PostgreSQL (WI-CO
       expect(trace.publication).toMatchObject({ status: 'PRESENT', checkId: 'chk-pg-1', freshness: null });
     });
 
+    /** Servicio de trace sobre el repositorio real: el Run se relee de la base para cada caso. */
+    async function traceOf(runId: string) {
+      const run = await prisma.analysisRun.findUniqueOrThrow({ where: { id: runId } });
+      const service = new AnalysisRunTraceService(
+        { getById: async () => run } as never,
+        { findByAnalysisRun: (id: string) => prisma.analysisSymbol.findMany({ where: { analysisRunId: id } }) } as never,
+        repository as never,
+      );
+
+      return service.getTrace(runId, 'user-1');
+    }
+
+    it('reports publication PRESENT with checkId null when GitHub answered 204 and the mark was persisted (DEC-TRACE-002)', async () => {
+      const { runId } = await createRunWithSymbol();
+      await prisma.analysisRun.update({
+        where: { id: runId },
+        data: { status: 'SUCCESS', checkId: null, checkPublishedAt: new Date('2026-10-09T10:00:00Z') },
+      });
+
+      const trace = await traceOf(runId);
+
+      expect(trace.publication).toEqual({
+        status: 'PRESENT',
+        checkId: null,
+        companionBranch: null,
+        companionPullRequestUrl: null,
+        sourceHeadSha: null,
+        freshness: null,
+      });
+    });
+
+    it('reports publication PRESENT with the checkId and the mark when GitHub returned an id', async () => {
+      const { runId } = await createRunWithSymbol();
+      await prisma.analysisRun.update({
+        where: { id: runId },
+        data: { status: 'SUCCESS', checkId: 'chk-pg-2', checkPublishedAt: new Date('2026-10-09T10:00:00Z') },
+      });
+
+      const trace = await traceOf(runId);
+
+      expect(trace.publication).toMatchObject({ status: 'PRESENT', checkId: 'chk-pg-2', freshness: null });
+    });
+
+    it('reports publication PRESENT from a TestPublication alone, without any Check', async () => {
+      const { runId } = await createRunWithSymbol();
+      await prisma.analysisRun.update({ where: { id: runId }, data: { status: 'SUCCESS' } });
+      await prisma.testPublication.create({
+        data: {
+          analysisRunId: runId,
+          proposalIds: [],
+          sourceHeadSha: 'b'.repeat(40),
+          status: 'PUBLISHED',
+          branchName: 'rag/only-publication',
+          companionPullRequestUrl: 'https://github.com/owner/repo/pull/10',
+        },
+      });
+
+      const trace = await traceOf(runId);
+
+      expect(trace.publication).toEqual({
+        status: 'PRESENT',
+        checkId: null,
+        companionBranch: 'rag/only-publication',
+        companionPullRequestUrl: 'https://github.com/owner/repo/pull/10',
+        sourceHeadSha: 'b'.repeat(40),
+        freshness: 'CURRENT',
+      });
+    });
+
+    it('reports publication NOT_APPLICABLE when there is neither a Check mark, a checkId nor a TestPublication', async () => {
+      const { runId } = await createRunWithSymbol();
+      await prisma.analysisRun.update({ where: { id: runId }, data: { status: 'SUCCESS' } });
+
+      const trace = await traceOf(runId);
+
+      expect(trace.publication).toEqual({
+        status: 'NOT_APPLICABLE',
+        checkId: null,
+        companionBranch: null,
+        companionPullRequestUrl: null,
+        sourceHeadSha: null,
+        freshness: null,
+      });
+    });
+
+    it('exposes the context as status, contextId and functionalRuleIds only, from the full stored row (INTEROP §6.16)', async () => {
+      const { runId, symbolId } = await createRunWithSymbol();
+      await prisma.analysisRun.update({ where: { id: runId }, data: { status: 'SUCCESS' } });
+      const storedRetrieval = await repository.upsertRetrieval({
+        analysisRunId: runId,
+        analysisSymbolId: symbolId,
+        mode: 'SE',
+        config: { mode: 'SE', vectorTopK: DEFAULT_VECTOR_TOP_K, targetChunkIds: [] },
+        candidates: [],
+      });
+      const storedContext = await repository.upsertContext({
+        analysisRunId: runId,
+        analysisSymbolId: symbolId,
+        retrievalId: storedRetrieval.id,
+        selectedChunkIds: ['chunk-target'],
+        discardedChunkIds: ['chunk-near'],
+        selectedTokens: 5,
+        tokenBudget: 10,
+        functionalRuleIds: ['rule-1'],
+        functionalRulesRetrieved: 3,
+        functionalRulesSelected: 1,
+        functionalRulesOmitted: 2,
+        omittedFunctionalRules: [{ knowledgeId: 'rule-omitted-secret', reason: 'TOKEN_BUDGET' }],
+      });
+      const stored = await prisma.analysisContext.findUniqueOrThrow({ where: { id: storedContext.id } });
+      expect(stored).toMatchObject({ functionalRulesRetrieved: 3, functionalRulesOmitted: 2 });
+
+      const trace = await traceOf(runId);
+
+      expect(trace.targets[0]!.context).toEqual({ status: 'PRESENT', contextId: storedContext.id, functionalRuleIds: ['rule-1'] });
+      const serialized = JSON.stringify(trace);
+      expect(serialized).not.toContain('omittedFunctionalRules');
+      expect(serialized).not.toContain('functionalRulesRetrieved');
+      expect(serialized).not.toContain('functionalRulesSelected');
+      expect(serialized).not.toContain('functionalRulesOmitted');
+      expect(serialized).not.toContain('rule-omitted-secret');
+      expect(serialized).not.toContain('knowledgeId');
+    });
+
     it('builds the INTEROP §6.16 chain from the persisted rows of a finished run', async () => {
       const { runId, symbolId } = await createRunWithSymbol();
       await prisma.analysisRun.update({ where: { id: runId }, data: { status: 'SUCCESS' } });

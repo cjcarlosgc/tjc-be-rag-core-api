@@ -86,8 +86,12 @@ export class AnalysisRunsRepository {
   }
 
   /** WI-CORE-026 (corte D): guarda el id del Check publicado en GitHub para el Run. */
-  setCheckId(id: string, checkId: string): Promise<AnalysisRun> {
-    return this.prisma.analysisRun.update({ where: { id }, data: { checkId } });
+  /** WI-CORE-026: marca la publicación del Check (DEC-TRACE-002) y guarda su id solo si GitHub lo devolvió. */
+  markCheckPublished(id: string, checkId: string | null): Promise<AnalysisRun> {
+    return this.prisma.analysisRun.update({
+      where: { id },
+      data: { checkPublishedAt: new Date(), ...(checkId !== null ? { checkId } : {}) },
+    });
   }
 
   update(id: string, data: Prisma.AnalysisRunUpdateInput): Promise<AnalysisRun> {
