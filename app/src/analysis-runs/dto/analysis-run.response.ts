@@ -80,7 +80,7 @@ export function toAnalysisRunSummaryResponse(run: AnalysisRun): AnalysisRunSumma
   };
 }
 
-function toAnalysisSymbolResponse(symbol: AnalysisSymbol): AnalysisSymbolResponse {
+export function toAnalysisSymbolResponse(symbol: AnalysisSymbol): AnalysisSymbolResponse {
   return {
     language: symbol.language,
     kind: symbol.kind,

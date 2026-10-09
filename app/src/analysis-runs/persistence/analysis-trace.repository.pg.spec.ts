@@ -4,6 +4,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import type { CodeChunk } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import { AnalysisTraceRepository } from './analysis-trace.repository.js';
+import { AnalysisRunTraceService } from '../analysis-run-trace.service.js';
 import { GeneratedTestProposalsRepository } from '../../validation/generated-test-proposals.repository.js';
 import { ContextBuilder } from '../../retrieval/context-builder.service.js';
 import { countFunctionalRuleTokens } from '../../retrieval/functional-rule-format.js';
@@ -13,7 +14,7 @@ import { DEFAULT_VECTOR_TOP_K } from '../../retrieval/retrieval.service.js';
 import { toAnalysisContextEvidence, toRetrievalEvidence } from '../analysis-trace-evidence.util.js';
 
 /**
- * WI-CORE-026 (cortes A y B): SQL real de `analysis_retrievals`, `analysis_contexts`, la FK
+ * WI-CORE-026 (cortes A, B y C): SQL real de `analysis_retrievals`, `analysis_contexts`, la FK
  * `generated_test_proposals.contextId`, el upsert de propuestas por símbolo y `analysis_run_executions`
  * (idempotencia por `(proposalId, attempt)`), con el `ContextBuilder` real y la omisión por `TOKEN_BUDGET`.
  * Necesita un PostgreSQL LOCAL descartable con las migraciones aplicadas (incluida
@@ -328,6 +329,99 @@ describe.skipIf(!url)('AnalysisTraceRepository against a local PostgreSQL (WI-CO
           outcome: 'SUCCESS',
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('lectura del trace sobre filas reales (WI-CORE-026, corte C)', () => {
+    it('builds the INTEROP §6.16 chain from the persisted rows of a finished run', async () => {
+      const { runId, symbolId } = await createRunWithSymbol();
+      await prisma.analysisRun.update({ where: { id: runId }, data: { status: 'SUCCESS' } });
+      const run = await prisma.analysisRun.findUniqueOrThrow({ where: { id: runId } });
+
+      const storedRetrieval = await repository.upsertRetrieval({
+        analysisRunId: runId,
+        analysisSymbolId: symbolId,
+        mode: 'SE',
+        config: { mode: 'SE', vectorTopK: DEFAULT_VECTOR_TOP_K, targetChunkIds: [] },
+        candidates: [],
+      });
+      const storedContext = await repository.upsertContext({
+        analysisRunId: runId,
+        analysisSymbolId: symbolId,
+        retrievalId: storedRetrieval.id,
+        selectedChunkIds: [],
+        discardedChunkIds: [],
+        selectedTokens: 1,
+        tokenBudget: 10,
+        functionalRuleIds: ['rule-1'],
+        functionalRulesRetrieved: 1,
+        functionalRulesSelected: 1,
+        functionalRulesOmitted: 0,
+        omittedFunctionalRules: [],
+      });
+      const proposal = await proposals.upsertForSymbol({
+        analysisRunId: runId,
+        analysisSymbolId: symbolId,
+        relativePath: 'src/thing.spec.ts',
+        symbolLanguage: 'TYPESCRIPT',
+        symbolKind: 'METHOD',
+        qualifiedName: 'Thing.doIt',
+        filePath: 'src/thing.ts',
+        storageKey: `analysis-runs/${runId}/proposals/${crypto.randomUUID()}`,
+        contentSha256: '9'.repeat(64),
+        status: 'AVAILABLE',
+        contextId: storedContext.id,
+        failureSummary: null,
+      });
+      await repository.upsertExecution({ analysisRunId: runId, proposalId: proposal.id, executionId: 'exec-2', attempt: 2, executionProfile: 'NODE_TYPESCRIPT', outcome: 'SUCCESS' });
+      await repository.upsertExecution({ analysisRunId: runId, proposalId: proposal.id, executionId: 'exec-1', attempt: 1, executionProfile: 'NODE_TYPESCRIPT', outcome: 'BEHAVIORAL_MISMATCH' });
+      await prisma.testPublication.create({
+        data: {
+          analysisRunId: runId,
+          proposalIds: [proposal.id],
+          sourceHeadSha: 'b'.repeat(40),
+          status: 'PUBLISHED',
+          branchName: 'rag/x',
+          companionPullRequestUrl: 'https://github.com/owner/repo/pull/9',
+        },
+      });
+
+      const service = new AnalysisRunTraceService(
+        { getById: async () => run } as never,
+        { findByAnalysisRun: (id: string) => prisma.analysisSymbol.findMany({ where: { analysisRunId: id } }) } as never,
+        repository as never,
+      );
+      const trace = await service.getTrace(runId, 'user-1');
+
+      expect(trace).toMatchObject({
+        analysisRunId: runId,
+        repositoryName: 'owner/repo',
+        pullRequestNumber: 1,
+        headSha: 'b'.repeat(40),
+        changeset: { status: 'PRESENT', targetCount: 1 },
+      });
+      expect(trace.targets).toHaveLength(1);
+      expect(trace.targets[0]).toMatchObject({
+        symbol: { qualifiedName: 'Thing.doIt', filePath: 'src/thing.ts', kind: 'METHOD' },
+        retrieval: { status: 'PRESENT', retrievalId: storedRetrieval.id },
+        context: { status: 'PRESENT', contextId: storedContext.id, functionalRuleIds: ['rule-1'] },
+        generation: { status: 'PRESENT', proposalIds: [proposal.id] },
+        executions: {
+          status: 'PRESENT',
+          items: [
+            { executionId: 'exec-1', proposalId: proposal.id, attempt: 1, executionProfile: 'NODE_TYPESCRIPT', outcome: 'BEHAVIORAL_MISMATCH' },
+            { executionId: 'exec-2', proposalId: proposal.id, attempt: 2, executionProfile: 'NODE_TYPESCRIPT', outcome: 'SUCCESS' },
+          ],
+        },
+      });
+      expect(trace.publication).toEqual({
+        status: 'PRESENT',
+        checkId: null,
+        companionBranch: 'rag/x',
+        companionPullRequestUrl: 'https://github.com/owner/repo/pull/9',
+        sourceHeadSha: 'b'.repeat(40),
+        freshness: 'CURRENT',
+      });
     });
   });
 });

@@ -1,6 +1,8 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { AnalysisRunsService } from './analysis-runs.service.js';
 import { AnalysisSymbolsRepository } from './persistence/analysis-symbols.repository.js';
+import { AnalysisRunTraceService } from './analysis-run-trace.service.js';
+import type { AnalysisRunTraceResponse } from './dto/analysis-run-trace.response.js';
 import { ListAnalysisRunsQueryDto } from './dto/list-analysis-runs-query.dto.js';
 import {
   toAnalysisRunDetailResponse,
@@ -17,6 +19,7 @@ export class AnalysisRunsController {
   constructor(
     private readonly analysisRunsService: AnalysisRunsService,
     private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
+    private readonly analysisRunTraceService: AnalysisRunTraceService,
   ) {}
 
   @Get('projects/:projectId/analysis-runs')
@@ -64,5 +67,15 @@ export class AnalysisRunsController {
     const run = await this.analysisRunsService.getById(id, userId);
     const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(run.id);
     return toAnalysisRunDetailResponse(run, symbols);
+  }
+
+  /** WI-CORE-026 (INTEROP-2.7 §6.16): trace operativo; 409 EVIDENCE_NOT_FINISHED en QUEUED y PROCESSING. */
+  @Get('analysis-runs/:id/trace')
+  @RequireProjectRole('READER', ProjectTargets.param('analysisRun', 'id'))
+  async getTrace(
+    @Param('id') id: string,
+    @CurrentUserId() userId: string,
+  ): Promise<AnalysisRunTraceResponse> {
+    return this.analysisRunTraceService.getTrace(id, userId);
   }
 }

@@ -71,7 +71,8 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   entry('READER', 'GET', '/retrieval-comparisons/{id}/results', '.../results', 'READER'),
   entry('READER', 'GET', '/retrieval-comparisons/{id}/evidence', '.../evidence', 'READER', false),
   entry('READER', 'GET', '/analysis-runs/{id}/retrieval-comparisons', 'GET /analysis-runs/{id}/retrieval-comparisons', 'READER'),
-  entry('READER', 'GET', '/analysis-runs/{id}/trace', 'GET /analysis-runs/{id}/trace', 'READER', false),
+  // WI-CORE-026: trace operativo implementado en Core (INTEROP-2.7 §6.16).
+  entry('READER', 'GET', '/analysis-runs/{id}/trace', 'GET /analysis-runs/{id}/trace', 'READER'),
   entry('READER', 'GET', '/analysis-runs/{id}/evidence', 'GET /analysis-runs/{id}/evidence', 'READER', false),
   entry('READER', 'GET', '/experiments/{id}/evidence', 'GET /experiments/{id}/evidence', 'READER', false),
   entry('READER', 'WS', 'subscribe:project-version', 'subscribe:project-version', 'READER'),

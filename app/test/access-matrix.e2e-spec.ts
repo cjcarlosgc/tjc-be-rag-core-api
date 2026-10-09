@@ -87,6 +87,7 @@ const ROUTE_CASES: Record<string, RouteCase> = {
   'GET /analysis-runs/{}/context-questions': { url: (i) => `/analysis-runs/${i.runId}/context-questions`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
   'GET /projects/{}/functional-knowledge': { url: (i) => `/projects/${i.projectId}/functional-knowledge`, notFound: PROJECT_404 },
   'GET /analysis-runs/{}/test-proposals': { url: (i) => `/analysis-runs/${i.runId}/test-proposals`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
+  'GET /analysis-runs/{}/trace': { url: (i) => `/analysis-runs/${i.runId}/trace`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
   'GET /test-publications/{}': { url: (i) => `/test-publications/${i.publicationId}`, notFound: 'TEST_PUBLICATION_NOT_FOUND' },
   'GET /experiments/{}': { url: (i) => `/experiments/${i.experimentId}`, notFound: 'EXPERIMENT_NOT_FOUND' },
   'GET /experiments/{}/results': { url: (i) => `/experiments/${i.experimentId}/results`, notFound: 'EXPERIMENT_NOT_FOUND' },

@@ -73,6 +73,62 @@ export class AnalysisTraceRepository {
     });
   }
 
+  /** Lecturas del trace (WI-CORE-026, corte C). Todas filtran por el Run; ninguna devuelve contenido de código. */
+  findRetrievalsByRun(analysisRunId: string) {
+    return this.prisma.analysisRetrieval.findMany({
+      where: { analysisRunId },
+      select: { id: true, analysisSymbolId: true },
+    });
+  }
+
+  findContextsByRun(analysisRunId: string) {
+    return this.prisma.analysisContext.findMany({
+      where: { analysisRunId },
+      select: { id: true, analysisSymbolId: true, functionalRuleIds: true },
+    });
+  }
+
+  findProposalsByRun(analysisRunId: string) {
+    return this.prisma.generatedTestProposal.findMany({
+      where: { analysisRunId, analysisSymbolId: { not: null } },
+      select: { id: true, analysisSymbolId: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /** Ejecuciones del Run en orden de intento; el símbolo se obtiene por la propuesta. */
+  findExecutionsByRun(analysisRunId: string) {
+    return this.prisma.analysisRunExecution.findMany({
+      where: { analysisRunId },
+      select: {
+        id: true,
+        proposalId: true,
+        executionId: true,
+        attempt: true,
+        executionProfile: true,
+        outcome: true,
+        proposal: { select: { analysisSymbolId: true } },
+      },
+      orderBy: [{ attempt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /** Publicaciones de companion PR del Run, la más reciente primero (empate por id). */
+  findTestPublicationsByRun(analysisRunId: string) {
+    return this.prisma.testPublication.findMany({
+      where: { analysisRunId },
+      select: {
+        id: true,
+        status: true,
+        branchName: true,
+        companionPullRequestUrl: true,
+        sourceHeadSha: true,
+        createdAt: true,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+  }
+
   upsertContext(input: UpsertAnalysisContextInput): Promise<AnalysisContext> {
     const { analysisRunId, analysisSymbolId, ...fields } = input;
 
