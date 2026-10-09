@@ -12,6 +12,7 @@ function makeContext(overrides: Partial<GenerationContext> = {}): GenerationCont
       content: 'bar(): number { return 1; }',
     },
     relatedChunks: [],
+    functionalRules: [],
     metadata: { language: 'typescript', framework: 'VITEST' },
     retrievedChunks: 0,
     selectedChunks: 0,
@@ -76,5 +77,53 @@ describe('PromptBuilder', () => {
     const prompt = builder.build(makeContext({ metadata: { language: 'typescript', framework: null } }));
 
     expect(prompt).toContain('Jest o Vitest');
+  });
+
+  it('presents functional rules in their own block after the code and before the related context', () => {
+    const builder = new PromptBuilder();
+    const prompt = builder.build(
+      makeContext({
+        relatedChunks: [
+          {
+            filePath: 'src/other.ts',
+            symbolKind: 'FUNCTION',
+            symbolName: 'other',
+            parentSymbolName: null,
+            content: 'function other() {}',
+            score: 0.8,
+            matchedVia: ['SEMANTIC'],
+          },
+        ],
+        functionalRules: [
+          {
+            knowledgeId: 'rule-1',
+            scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+            normalizedRule: 'Devuelve 1 siempre.',
+            scope: 'METHOD',
+            targetRef: 'src/foo.ts::Foo.bar',
+            source: 'HUMAN_ANSWER',
+            provenance: {
+              confirmedByUserId: 'user-secret',
+              confirmedRole: 'ADMIN',
+              originHeadSha: 'head-sha',
+              sourceRef: null,
+            },
+          },
+        ],
+      }),
+    );
+
+    const rulesIndex = prompt.indexOf('Reglas funcionales');
+    expect(rulesIndex).toBeGreaterThan(prompt.indexOf('Código objetivo:'));
+    expect(rulesIndex).toBeLessThan(prompt.indexOf('Contexto relacionado del mismo proyecto:'));
+    expect(prompt).toContain('- [EXPECTED_RESULT:aaaaaaaaaaaaaaaa] Devuelve 1 siempre.');
+    expect(prompt).toContain('confirmada por rol ADMIN');
+    expect(prompt).not.toContain('user-secret');
+  });
+
+  it('omits the functional rules block when there are no rules', () => {
+    const prompt = new PromptBuilder().build(makeContext());
+
+    expect(prompt).not.toContain('Reglas funcionales');
   });
 });

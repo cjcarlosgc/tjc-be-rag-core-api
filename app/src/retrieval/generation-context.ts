@@ -64,6 +64,8 @@ export interface GenerationContextTarget {
 export interface GenerationContext {
   target: GenerationContextTarget;
   relatedChunks: ContextChunk[];
+  /** Reglas funcionales incluidas en el prompt (las que caben en el presupuesto, en orden). */
+  functionalRules: FunctionalRule[];
   metadata: GenerationContextMetadata;
   retrievedChunks: number;
   selectedChunks: number;
@@ -115,6 +117,8 @@ export interface GenerationContextAuditFunctionalRules {
 }
 
 export interface GenerationContextAudit {
+  /** Evidence about functional rules. Never serialized into ContextTrace (WI-CORE-021). */
+  functionalRules: GenerationContextAuditFunctionalRules;
   target: {
     chunkIds: string[];
     chunks: GenerationContextAuditChunk[];

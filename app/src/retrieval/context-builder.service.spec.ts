@@ -6,6 +6,8 @@ import type {
   RetrievalResult,
 } from './retrieval.service.js';
 import type { CodeChunk } from '../generated/prisma/client.js';
+import type { FunctionalRule } from './generation-context.js';
+import { countFunctionalRuleTokens, renderFunctionalRule } from './functional-rule-format.js';
 
 function makeConfigService(overrides: Record<string, number> = {}) {
   return {
@@ -368,5 +370,96 @@ describe('ContextBuilder', () => {
       'src/small.ts',
     ]);
     expect(context.contextTokens).toBe(15);
+  });
+});
+
+function makeRule(overrides: Partial<FunctionalRule> = {}): FunctionalRule {
+  return {
+    knowledgeId: 'rule-1',
+    scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+    normalizedRule: 'Devuelve 1 cuando el valor es válido.',
+    scope: 'SYMBOL',
+    targetRef: 'src/foo.ts::foo',
+    source: 'HUMAN_ANSWER',
+    provenance: {
+      confirmedByUserId: 'user-secret',
+      confirmedRole: 'MAINTAINER',
+      originHeadSha: 'head-sha',
+      sourceRef: null,
+    },
+    ...overrides,
+  };
+}
+
+describe('ContextBuilder functional rules (WI-CORE-021)', () => {
+  const targetResult: RetrievalResult = {
+    targetChunks: [makeChunk({ id: 'target', content: 'function foo() {}', tokenCount: 10 })],
+    candidates: [
+      makeCandidate({
+        chunk: makeChunk({ id: 'related', filePath: 'src/related.ts', symbolName: 'helper', tokenCount: 10 }),
+        semanticScore: 0.9,
+      }),
+    ],
+  };
+
+  it('includes all rules in the given order and counts them with the chunk tokenizer', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const first = makeRule({ knowledgeId: 'rule-a' });
+    const second = makeRule({ knowledgeId: 'rule-b', scenarioKey: 'BOUNDARY:bbbbbbbbbbbbbbbb' });
+
+    const context = builder.build(targetResult, target, { framework: null }, {}, [first, second]);
+
+    expect(context.functionalRules.map((rule) => rule.knowledgeId)).toEqual(['rule-a', 'rule-b']);
+    const ruleTokens = countFunctionalRuleTokens(first) + countFunctionalRuleTokens(second);
+    expect(context.audit?.functionalRules).toEqual({
+      retrieved: 2,
+      selected: 2,
+      tokenCount: ruleTokens,
+      omitted: [],
+    });
+    expect(context.contextTokens).toBe(10 + ruleTokens + 10);
+  });
+
+  it('subtracts rule tokens before chunks and omits rules that do not fit, keeping the ones that do', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const fits = makeRule({ knowledgeId: 'rule-fits', normalizedRule: 'Sí.' });
+    const huge = makeRule({
+      knowledgeId: 'rule-huge',
+      normalizedRule: Array.from({ length: 400 }, (_, index) => `palabra${index}`).join(' '),
+    });
+    const tail = makeRule({ knowledgeId: 'rule-tail', normalizedRule: 'No.' });
+    const budget = 10 + countFunctionalRuleTokens(fits) + countFunctionalRuleTokens(tail);
+
+    const context = builder.build(targetResult, target, { framework: null }, { maxContextTokens: budget }, [
+      fits,
+      huge,
+      tail,
+    ]);
+
+    expect(context.functionalRules.map((rule) => rule.knowledgeId)).toEqual(['rule-fits', 'rule-tail']);
+    expect(context.audit?.functionalRules.omitted).toEqual([
+      {
+        knowledgeId: 'rule-huge',
+        tokenCount: countFunctionalRuleTokens(huge),
+        reason: 'TOKEN_BUDGET',
+      },
+    ]);
+    expect(context.audit?.functionalRules.selected).toBe(2);
+    expect(context.relatedChunks).toEqual([]);
+    expect(context.audit?.candidates[0]).toMatchObject({ decision: 'DISCARDED', discardReason: 'TOKEN_BUDGET' });
+  });
+
+  it('never exposes the confirming user identifier in the rendered rule', () => {
+    expect(renderFunctionalRule(makeRule())).not.toContain('user-secret');
+    expect(renderFunctionalRule(makeRule())).toContain('confirmada por rol MAINTAINER');
+  });
+
+  it('reports zero retrieved rules when none are passed', () => {
+    const builder = new ContextBuilder(makeConfigService());
+
+    const context = builder.build(targetResult, target, { framework: null });
+
+    expect(context.functionalRules).toEqual([]);
+    expect(context.audit?.functionalRules).toEqual({ retrieved: 0, selected: 0, tokenCount: 0, omitted: [] });
   });
 });

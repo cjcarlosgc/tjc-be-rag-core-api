@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { GenerationContext } from '../retrieval/generation-context.js';
+import { renderFunctionalRule } from '../retrieval/functional-rule-format.js';
 
 @Injectable()
 export class PromptBuilder {
@@ -19,6 +20,14 @@ export class PromptBuilder {
       })
       .join('\n\n');
 
+    // Bloque separado del código: son decisiones funcionales aprobadas, no fragmentos del repositorio.
+    const functionalRulesSection =
+      context.functionalRules.length > 0
+        ? `Reglas funcionales (conocimiento aprobado del proyecto; no son código):\n${context.functionalRules
+            .map(renderFunctionalRule)
+            .join('\n')}`
+        : null;
+
     const frameworkLine = context.metadata.framework
       ? `Usa el framework de pruebas ${context.metadata.framework}.`
       : 'Usa Jest o Vitest, el que ya use el proyecto (sintaxis compatible con ambos si no puedes determinarlo).';
@@ -31,6 +40,7 @@ export class PromptBuilder {
       '```ts',
       context.target.content,
       '```',
+      functionalRulesSection,
       relatedSections.length > 0 ? `Contexto relacionado del mismo proyecto:\n${relatedSections}` : null,
       'Responde ÚNICAMENTE con código TypeScript válido (imports + bloques de prueba). No incluyas explicaciones ni comentarios de proceso. No envuelvas la respuesta en fences de markdown.',
     ];

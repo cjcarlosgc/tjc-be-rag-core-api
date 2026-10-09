@@ -3,11 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import type { RetrievalResult } from './retrieval.service.js';
 import type {
   ContextChunk,
+  FunctionalRule,
   GenerationContextAuditCandidate,
+  GenerationContextAuditFunctionalRuleOmission,
   GenerationContext,
   RetrievalTarget,
   StructuralMatch,
 } from './generation-context.js';
+import { countFunctionalRuleTokens } from './functional-rule-format.js';
 
 export interface ContextBuilderOptions {
   minimumScore?: number;
@@ -40,6 +43,7 @@ export class ContextBuilder {
     target: RetrievalTarget,
     metadata: { framework: 'JEST' | 'VITEST' | null },
     options: ContextBuilderOptions = {},
+    functionalRules: FunctionalRule[] = [],
   ): GenerationContext {
     const config = this.resolveConfig(options);
     const targetContent = result.targetChunks
@@ -121,8 +125,31 @@ export class ContextBuilder {
       return traceCandidate;
     });
 
-    const relatedChunks: ContextChunk[] = [];
+    // Reglas funcionales antes que los chunks: se cuentan con el mismo tokenizador y en el orden
+    // recibido (createdAt, knowledgeId). Las que no caben se omiten y constan en audit.
+    const selectedRules: FunctionalRule[] = [];
+    const omittedRules: GenerationContextAuditFunctionalRuleOmission[] = [];
     let contextTokens = targetTokens;
+    let functionalRuleTokens = 0;
+
+    for (const rule of functionalRules) {
+      const tokenCount = countFunctionalRuleTokens(rule);
+
+      if (contextTokens + tokenCount > config.maxContextTokens) {
+        omittedRules.push({
+          knowledgeId: rule.knowledgeId,
+          tokenCount,
+          reason: 'TOKEN_BUDGET',
+        });
+        continue;
+      }
+
+      contextTokens += tokenCount;
+      functionalRuleTokens += tokenCount;
+      selectedRules.push(rule);
+    }
+
+    const relatedChunks: ContextChunk[] = [];
 
     for (const entry of topKEntries) {
       const tokenCount = entry.candidate.chunk.tokenCount ?? 0;
@@ -157,11 +184,18 @@ export class ContextBuilder {
         content: targetContent,
       },
       relatedChunks,
+      functionalRules: selectedRules,
       metadata: { language: 'typescript', framework: metadata.framework },
       retrievedChunks: result.candidates.length,
       selectedChunks: relatedChunks.length,
       contextTokens,
       audit: {
+        functionalRules: {
+          retrieved: functionalRules.length,
+          selected: selectedRules.length,
+          tokenCount: functionalRuleTokens,
+          omitted: omittedRules,
+        },
         target: {
           chunkIds: result.targetChunks.map((chunk) => chunk.id),
           chunks: result.targetChunks.map((chunk) => ({
