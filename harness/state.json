@@ -4167,200 +4167,271 @@
         ]
       },
       "closedAt": "2026-10-09T01:50:00.000Z"
+    },
+    {
+      "id": "WI-CORE-023",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-030"
+      ],
+      "caseIds": [],
+      "sprint": "SMART V3",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo confina el SDK de OpenAI al adaptador de LLMProvider y unifica la configuración efectiva.",
+          "report": "harness/reports/wi-core-023-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-023-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-EXP-002",
+          "DEC-EXP-003",
+          "DEC-EXP-004",
+          "DEC-EXP-FK-001"
+        ],
+        "checkedAt": "2026-10-09T01:55:00.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "SPEC_VERIFIED sin bloqueos; contractImpact=false confirmado (modelConfig interno).",
+              "Ambiguedades (tipos neutrales, generateWithTools, LLMEffectiveConfig, LLM_SUPPORTED_COMBINATIONS, LLMConfigurationError, confirmacion del modelo, persistencia ExperimentRun.modelConfig) cerradas en plan.md de providers.",
+              "WI-CORE-025 no debe repetir la migracion de modelConfig."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/transversal/providers/plan.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-023-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Implementar en tres cortes con implementer (low); escalar a implementer-high si el bucle del agente complica las specs.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Tres cortes (b13a64a, c9c1ef0, be81ac2) y reporte ed57e80: LLMProvider con generateWithTools y resolveEffectiveConfig, GeneralistAgentService sin SDK, ExperimentRun.modelConfig con el mismo config en ambos brazos.",
+              "lint, test (1372), build y e2e (222) verdes con URL inalcanzable; M1 solo providers/, M2 sin cambio contractual.",
+              "Desviaciones a confirmar por el reviewer: corridas con modelConfig NULL resuelven la config al ejecutar el job; modelo sin entrada en LLM_SUPPORTED_COMBINATIONS lanza REASONING_EFFORT_UNSUPPORTED con supportedEfforts vacio; el brazo RAG del experimento usa EXPERIMENT_LLM_MODEL (DEC-EXP-004). Migracion no validada contra Postgres."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/providers",
+              "app/src/generation/agent",
+              "app/src/experiments",
+              "app/src/config",
+              "app/prisma"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-023-implementation.md"
+            ],
+            "recommendedNextStep": "Revision humana del diff y la evidencia.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Desviación 1: auditoría confirma resolución única al crear; brecha de replay idempotente corregida con el hook prepare de IdempotencyService.run.",
+              "Pruebas: una sola resolución, falla previa a la creación con el proveedor real, repeticiones con config persistida pese a cambios de entorno, replay sin re-resolver, sin esfuerzos de gpt-6-luna adivinados.",
+              "Migración 20261008160000 validada en PostgreSQL 14.18 local desechable (pgvector sustituido por shim; limitaciones documentadas), cluster eliminado."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/common/idempotency",
+              "app/src/experiments",
+              "app/src/providers",
+              "app/.env.example"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-023-user-review.md",
+              "harness/reports/wi-core-023-closure.md"
+            ],
+            "recommendedNextStep": "Cierre tras veredicto del Human Reviewer.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Veredicto del usuario en chat: APPROVED condicionado a corregir la Desviación 1 y validar la migración en un PostgreSQL desechable.",
+              "Desviaciones 2, 3 y 4 aprobadas (REASONING_EFFORT_UNSUPPORTED sin fallback; EXPERIMENT_LLM_MODEL solo en el experimento; referencia técnica SDK 7.8.0).",
+              "Condiciones cumplidas: resolución única al crear con replay seguro y migración validada en PostgreSQL 14.18 local con shim de pgvector."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src",
+              "app/prisma",
+              "harness/work-items.json",
+              "spec/features/008-experimental-comparison"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-023-user-review.md"
+            ],
+            "recommendedNextStep": "Registrar el cierre; precondiciones de despliegue abiertas: validar esfuerzos de gpt-6-luna con el runtime/API y la migración en el Postgres real. WI-CORE-025 no repite la persistencia de modelConfig."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-023",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-09T01:46:30.622Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-023",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-09T02:10:00.000Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-023",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-09T02:10:00.000Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-023",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-09T02:30:00.000Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-023-contract-sync-scope-review.md",
+        "harness/reports/wi-core-023-sdd-verification.md",
+        "harness/reports/wi-core-023-implementation.md",
+        "harness/reports/wi-core-023-user-review.md",
+        "harness/reports/wi-core-023-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-023-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-023-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-023-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-023-implementation.md",
+          "harness/reports/wi-core-023-closure.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-023-contract-sync-checkpoints.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-023-user-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-023-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-09T02:30:00.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-023",
-    "component": "CORE",
-    "workItemType": "PRODUCT",
-    "storyIds": [
-      "HU17"
-    ],
-    "taskIds": [
-      "ST-CORE-030"
-    ],
-    "caseIds": [],
-    "sprint": "SMART V3",
-    "status": "W-IN_REVIEW",
-    "specPaths": [
-      "spec/transversal/providers/spec.md",
-      "spec/transversal/providers/plan.md",
-      "spec/transversal/providers/tasks.md",
-      "spec/features/008-experimental-comparison/spec.md",
-      "spec/features/008-experimental-comparison/plan.md",
-      "spec/features/008-experimental-comparison/tasks.md"
-    ],
-    "contractSyncReview": [
-      {
-        "eventId": "CS-20260920-001",
-        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo confina el SDK de OpenAI al adaptador de LLMProvider y unifica la configuración efectiva.",
-        "report": "harness/reports/wi-core-023-contract-sync-scope-review.md"
-      },
-      {
-        "eventId": "CS-20260921-003",
-        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
-        "disposition": "NOT_RELEVANT",
-        "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
-        "report": "harness/reports/wi-core-023-contract-sync-scope-review.md"
-      }
-    ],
-    "transversalPaths": [],
-    "approved": true,
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-EXP-002",
-        "DEC-EXP-003",
-        "DEC-EXP-004",
-        "DEC-EXP-FK-001"
-      ],
-      "checkedAt": "2026-10-09T01:55:00.000Z"
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer",
-      "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": "human-reviewer",
-      "handoffs": [
-        {
-          "agent": "sdd-analyst",
-          "status": "APPROVED",
-          "findings": [
-            "SPEC_VERIFIED sin bloqueos; contractImpact=false confirmado (modelConfig interno).",
-            "Ambiguedades (tipos neutrales, generateWithTools, LLMEffectiveConfig, LLM_SUPPORTED_COMBINATIONS, LLMConfigurationError, confirmacion del modelo, persistencia ExperimentRun.modelConfig) cerradas en plan.md de providers.",
-            "WI-CORE-025 no debe repetir la migracion de modelConfig."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "spec/transversal/providers/plan.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-023-sdd-verification.md"
-          ],
-          "recommendedNextStep": "Implementar en tres cortes con implementer (low); escalar a implementer-high si el bucle del agente complica las specs.",
-          "executedBy": {
-            "agent": "sdd-analyst",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        },
-        {
-          "agent": "implementer",
-          "status": "APPROVED",
-          "findings": [
-            "Tres cortes (841c659, aa984ec, b75ed03) y reporte 2660a32: LLMProvider con generateWithTools y resolveEffectiveConfig, GeneralistAgentService sin SDK, ExperimentRun.modelConfig con el mismo config en ambos brazos.",
-            "lint, test (1372), build y e2e (222) verdes con URL inalcanzable; M1 solo providers/, M2 sin cambio contractual.",
-            "Desviaciones a confirmar por el reviewer: corridas con modelConfig NULL resuelven la config al ejecutar el job; modelo sin entrada en LLM_SUPPORTED_COMBINATIONS lanza REASONING_EFFORT_UNSUPPORTED con supportedEfforts vacio; el brazo RAG del experimento usa EXPERIMENT_LLM_MODEL (DEC-EXP-004). Migracion no validada contra Postgres."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "app/src/providers",
-            "app/src/generation/agent",
-            "app/src/experiments",
-            "app/src/config",
-            "app/prisma"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-023-implementation.md"
-          ],
-          "recommendedNextStep": "Revision humana del diff y la evidencia.",
-          "executedBy": {
-            "agent": "implementer",
-            "configuredModel": "claude-haiku-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        }
-      ],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-NOT_APPLICABLE",
-      "canonicalContractSynced": "G-NOT_APPLICABLE",
-      "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-PASSED",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
-    },
-    "coordination": {
-      "contractImpact": false,
-      "publishesContract": false,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-023",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-09T01:46:30.622Z"
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "workItem": "WI-CORE-023",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-09T02:10:00.000Z"
-        },
-        {
-          "checkpoint": "before-review",
-          "workItem": "WI-CORE-023",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-09T02:10:00.000Z"
-        }
-      ],
-      "publishedSyncIds": [],
-      "pendingRelevantSyncIds": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-023-contract-sync-scope-review.md",
-      "harness/reports/wi-core-023-sdd-verification.md",
-      "harness/reports/wi-core-023-implementation.md"
-    ],
-    "blockedReason": null,
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-023-sdd-verification.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-023-sdd-verification.md"
-      ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-023-implementation.md"
-      ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-023-implementation.md"
-      ],
-      "interopSyncChecked": [
-        "harness/reports/wi-core-023-contract-sync-checkpoints.md"
-      ]
-    }
-  }
+  "activeWorkItem": null
 }

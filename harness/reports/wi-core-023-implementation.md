@@ -14,9 +14,9 @@ Sin bloqueos. No se requirió ninguna decisión nueva; las ambigüedades menores
 
 | Corte | Commit | Mensaje |
 |---|---|---|
-| 1 | `841c659` | feat(providers): interfaz LLMProvider con generateWithTools y configuración efectiva |
-| 2 | `aa984ec` | feat(agente): GeneralistAgentService sobre LLMProvider sin SDK de OpenAI |
-| 3 | `b75ed03` | feat(experimentos): persistir modelConfig por corrida y mismo config en ambos brazos |
+| 1 | `b13a64a` | feat(providers): interfaz LLMProvider con generateWithTools y configuración efectiva |
+| 2 | `c9c1ef0` | feat(agente): GeneralistAgentService sobre LLMProvider sin SDK de OpenAI |
+| 3 | `be81ac2` | feat(experimentos): persistir modelConfig por corrida y mismo config en ambos brazos |
 | Cierre | (este commit) | test(harness): informe de evidencia de implementación WI-CORE-023 |
 
 Cada commit lleva `Refs: HU17` y `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
@@ -83,7 +83,7 @@ Contract Sync: el checkpoint PULL no se ejecutó aquí. Corresponde al leader an
 - Confirmar la verificación de la API del SDK con Context7 si se requiere como evidencia.
 - Validar la migración en un Postgres desechable antes de cualquier despliegue.
 - Establecer `LLM_SUPPORTED_COMBINATIONS` en el entorno con valores verificados del runtime. Sin esa variable, `createRun` falla con `REASONING_EFFORT_UNSUPPORTED`.
-- Revisar el diff de los commits `841c659`, `aa984ec`, `b75ed03` antes de cualquier push. No se hizo push.
+- Revisar el diff de los commits `b13a64a`, `c9c1ef0`, `be81ac2` antes de cualquier push. No se hizo push.
 
 ## Recomendación siguiente
 
