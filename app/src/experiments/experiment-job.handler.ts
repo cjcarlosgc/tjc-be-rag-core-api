@@ -57,7 +57,7 @@ import {
   type ExperimentBudget,
   type ExperimentRepetitionInput,
 } from './persistence/experiment-runs.repository.js';
-import { ExperimentStatus } from '../generated/prisma/enums.js';
+import { ExperimentRepetitionState, ExperimentStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { ExperimentRepetition, TestTarget } from '../generated/prisma/client.js';
 import { ContextTracesRepository } from '../context-traces/context-traces.repository.js';
@@ -85,6 +85,8 @@ type Strategy = 'RAG' | 'GENERALIST_AGENT';
 const STRATEGIES: Strategy[] = ['RAG', 'GENERALIST_AGENT'];
 const REPETITIONS_PER_STRATEGY = 3;
 export const EXPERIMENT_JOB_TYPE = 'experiment-run';
+/** `failureCode` del run cuando el job agota sus intentos por un worker caído (WI-CORE-030). */
+export const EXPERIMENT_WORKER_LOST_FAILURE_CODE = 'EXPERIMENT_WORKER_LOST';
 
 /** Identidad lógica de un slot (estrategia + repetición) y de su par (WI-CORE-025). */
 interface SlotIdentity {
@@ -409,6 +411,40 @@ export class ExperimentJobHandler
       );
       throw error;
     }
+  }
+
+  /**
+   * Gancho de cierre (WI-CORE-030, DEC-JOBS-001): el job agotó sus intentos sin que `handle()` pudiera
+   * cerrar el experimento (worker caído, o liberación sin ejecución). Cierra las repeticiones RUNNING
+   * huérfanas (sin reintento posterior, así que no son evaluables) y, si el run no es ya terminal,
+   * lo marca FAILED con `EXPERIMENT_WORKER_LOST`. Nunca reprograma ni reejecuta un intento.
+   */
+  async onExhausted(payload: ExperimentJobPayload, reason: string): Promise<void> {
+    const orphans = (await this.experimentRunsRepository.findRepetitions(payload.experimentId)).filter(
+      (row) => row.state === ExperimentRepetitionState.RUNNING,
+    );
+
+    for (const row of orphans) {
+      await this.experimentRunsRepository.closeInterruptedRepetition(row.id, {
+        errorSummary: row.errorSummary ?? INTERRUPTED_ATTEMPT_SUMMARY,
+        technicallyEvaluable: false,
+      });
+    }
+    if (orphans.length > 0) {
+      await this.experimentRunsRepository.refreshCompletedRepetitions(payload.experimentId);
+    }
+
+    // Un run ya FAILED conserva su código real (p. ej. EXPERIMENT_FAILED de un error de handle()).
+    const run = await this.experimentRunsRepository.findById(payload.experimentId);
+    if (!run || run.status === ExperimentStatus.COMPLETED || run.status === ExperimentStatus.FAILED) {
+      return;
+    }
+
+    await this.experimentRunsRepository.markFailed(
+      payload.experimentId,
+      EXPERIMENT_WORKER_LOST_FAILURE_CODE,
+      reason,
+    );
   }
 
   /**

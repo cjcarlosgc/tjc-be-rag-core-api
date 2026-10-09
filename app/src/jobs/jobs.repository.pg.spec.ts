@@ -196,14 +196,14 @@ for (const zone of ZONES) {
         const stale = (await repository.claimNext('dead-worker'))!;
         await age(stale.id, 3_600);
 
-        expect(await repository.releaseStale(600_000)).toBe(1);
+        expect((await repository.releaseStale(600_000)).released).toBe(1);
         expect((await rows())[0]).toMatchObject({ status: 'PENDING', attempts: 1, lockedBy: null });
 
         await prisma.job.updateMany({ data: { availableAt: new Date(0) } }); // saltar el backoff
         const again = (await repository.claimNext('dead-worker'))!;
         await insert();
         await age(again.id, 3_600);
-        expect(await repository.releaseStale(600_000)).toBe(1);
+        expect((await repository.releaseStale(600_000)).released).toBe(1);
         expect((await rows()).find((row) => row.id === again.id)?.status).toBe('COMPLETED');
       });
 
@@ -215,8 +215,78 @@ for (const zone of ZONES) {
         expect(claimed.id).toBe(other.id);
         await age(claimed.id, 36_000);
 
-        expect(await repository.releaseStale(600_000)).toBe(0);
+        expect((await repository.releaseStale(600_000)).released).toBe(0);
         expect((await rows()).map((row) => row.status)).toEqual(['RUNNING', 'RUNNING']);
+      });
+
+      it('releases a stale experiment-run without dedupeKey: it consumes an attempt and returns to PENDING with backoff (WI-CORE-030)', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 1, exhausted: [] });
+        expect((await rows())[0]).toMatchObject({ status: 'PENDING', attempts: 1, lockedBy: null });
+      });
+
+      it('redistributes a released experiment-run to another worker once its backoff has passed', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+        await repository.releaseStale(600_000);
+        expect(await repository.claimNext('worker-b')).toBeNull(); // backoff
+
+        await prisma.job.updateMany({ data: { availableAt: new Date(0) } }); // saltar el backoff
+        expect(await repository.claimNext('worker-b')).toMatchObject({
+          id: job.id,
+          type: 'experiment-run',
+          lockedBy: 'worker-b',
+          attempts: 1,
+        });
+      });
+
+      it('does not release a stale experiment-run whose lock was renewed by touchLock (live worker, WI-CORE-030)', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 3);
+        const job = (await repository.claimNext('worker-a'))!;
+        await age(job.id, 3_600);
+        expect(await repository.touchLock(job.id, 'worker-a')).toBe(true);
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 0, exhausted: [] });
+        expect((await rows())[0]).toMatchObject({ status: 'RUNNING', attempts: 0, lockedBy: 'worker-a' });
+      });
+
+      it('does not release any stale untyped job outside the list: snapshot-analysis, functional-continuation, analysis-run-validation, test-publication (DEC-JOBS-001)', async () => {
+        const untyped = ['snapshot-analysis', 'functional-continuation', 'analysis-run-validation', 'test-publication'];
+        for (const type of untyped) {
+          await repository.create(type, {}, 3);
+        }
+        const claimed = [];
+        for (let index = 0; index < untyped.length; index += 1) {
+          claimed.push((await repository.claimNext('dead-worker'))!);
+        }
+        for (const job of claimed) {
+          await age(job.id, 36_000);
+        }
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 0, exhausted: [] });
+        expect((await rows()).map((row) => row.status)).toEqual(['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING']);
+      });
+
+      it('an experiment-run at maxAttempts is FAILED and reported as exhausted, so its handler can close the run (WI-CORE-030)', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 1);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        const result = await repository.releaseStale(600_000);
+
+        expect(result.released).toBe(1);
+        expect(result.exhausted).toEqual([
+          expect.objectContaining({ id: job.id, type: 'experiment-run', payload: { experimentId: 'exp-1' } }),
+        ]);
+        expect((await rows())[0]).toMatchObject({
+          status: 'FAILED',
+          attempts: 1,
+          lastError: 'Lock obsoleto: el worker que lo reclamó dejó de responder.',
+        });
       });
     });
 

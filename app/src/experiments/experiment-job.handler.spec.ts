@@ -2191,3 +2191,71 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
     expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
   });
 });
+
+describe('ExperimentJobHandler onExhausted (WI-CORE-030, DEC-JOBS-001)', () => {
+  const LOST = 'Lock obsoleto: el worker que lo reclamó dejó de responder.';
+
+  it('closes the orphaned RUNNING repetitions and marks the run FAILED with EXPERIMENT_WORKER_LOST, without executing anything', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository(
+        [rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1', true), ...COMPLETED_OTHERS],
+        { findById: vi.fn().mockResolvedValue(seededRun({ status: 'RUNNING' })) },
+      ),
+    });
+
+    await makeHandler(deps).onExhausted(payload, LOST);
+
+    expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledTimes(1);
+    expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledWith('row-rag-1', {
+      errorSummary: expect.any(String),
+      technicallyEvaluable: false,
+    });
+    expect(repoOf(deps).refreshCompletedRepetitions).toHaveBeenCalledWith('exp-1');
+    expect(repoOf(deps).markFailed).toHaveBeenCalledWith('exp-1', 'EXPERIMENT_WORKER_LOST', LOST);
+    expect(beginsOf(deps)).toHaveLength(0);
+    expect(executionsOf(deps)).toHaveLength(0);
+  });
+
+  it('marks a PENDING run whose worker died before starting it FAILED with EXPERIMENT_WORKER_LOST', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([], {
+        findById: vi.fn().mockResolvedValue(seededRun({ status: 'PENDING' })),
+      }),
+    });
+
+    await makeHandler(deps).onExhausted(payload, LOST);
+
+    expect(repoOf(deps).markFailed).toHaveBeenCalledWith('exp-1', 'EXPERIMENT_WORKER_LOST', LOST);
+    expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
+  });
+
+  it('keeps the real failure code of a run already FAILED by handle() (it does not overwrite EXPERIMENT_FAILED)', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([...COMPLETED_OTHERS], {
+        findById: vi.fn().mockResolvedValue(seededRun({ status: 'FAILED' })),
+      }),
+    });
+
+    await makeHandler(deps).onExhausted(payload, LOST);
+
+    expect(repoOf(deps).markFailed).not.toHaveBeenCalled();
+    expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
+    expect(repoOf(deps).refreshCompletedRepetitions).not.toHaveBeenCalled();
+  });
+
+  it('never touches a COMPLETED run and does nothing when the run no longer exists', async () => {
+    const completed = makeDeps({
+      experimentRunsRepository: withRunRepository([...COMPLETED_OTHERS], {
+        findById: vi.fn().mockResolvedValue(seededRun({ status: 'COMPLETED' })),
+      }),
+    });
+    await makeHandler(completed.deps).onExhausted(payload, LOST);
+    expect(repoOf(completed.deps).markFailed).not.toHaveBeenCalled();
+
+    const missing = makeDeps({
+      experimentRunsRepository: withRunRepository([], { findById: vi.fn().mockResolvedValue(null) }),
+    });
+    await expect(makeHandler(missing.deps).onExhausted(payload, LOST)).resolves.toBeUndefined();
+    expect(repoOf(missing.deps).markFailed).not.toHaveBeenCalled();
+  });
+});

@@ -44,7 +44,7 @@ describe('JobsService', () => {
       complete: vi.fn(),
       fail: vi.fn(),
       reschedule: vi.fn(),
-      releaseStale: vi.fn().mockResolvedValue(0),
+      releaseStale: vi.fn().mockResolvedValue({ released: 0, exhausted: [] }),
       insertDeduped: vi.fn(),
       updatePendingPayload: vi.fn(),
       touchLock: vi.fn().mockResolvedValue(true),
@@ -252,6 +252,75 @@ describe('JobsService', () => {
 
       await vi.advanceTimersByTimeAsync(60_000);
       expect(repository.touchLock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('exhausted jobs hook (WI-CORE-030, DEC-JOBS-001)', () => {
+    const experimentJob: Job = { ...baseJob, type: 'experiment-run', payload: { experimentId: 'exp-1' } };
+
+    it('calls onExhausted of the handler for each job the sweep leaves FAILED terminal', async () => {
+      repository.releaseStale.mockResolvedValue({ released: 1, exhausted: [experimentJob] });
+      repository.claimNext.mockResolvedValue(null);
+      const onExhausted = vi.fn().mockResolvedValue(undefined);
+      service.registerHandler({ type: 'experiment-run', handle: vi.fn(), onExhausted });
+
+      await service.runOnce();
+
+      expect(onExhausted).toHaveBeenCalledWith({ experimentId: 'exp-1' }, expect.stringContaining('Lock obsoleto'));
+    });
+
+    it('does not call onExhausted when the sweep only releases the lock and attempts remain', async () => {
+      repository.releaseStale.mockResolvedValue({ released: 1, exhausted: [] });
+      repository.claimNext.mockResolvedValue(null);
+      const onExhausted = vi.fn();
+      service.registerHandler({ type: 'experiment-run', handle: vi.fn(), onExhausted });
+
+      await service.runOnce();
+
+      expect(onExhausted).not.toHaveBeenCalled();
+    });
+
+    it('calls onExhausted with the error message when a handler failure leaves the job FAILED terminal', async () => {
+      repository.claimNext.mockResolvedValue(experimentJob);
+      repository.fail.mockResolvedValue('terminal');
+      const onExhausted = vi.fn().mockResolvedValue(undefined);
+      service.registerHandler({
+        type: 'experiment-run',
+        handle: vi.fn().mockRejectedValue(new Error('boom')),
+        onExhausted,
+      });
+
+      await service.runOnce();
+
+      expect(onExhausted).toHaveBeenCalledWith(experimentJob.payload, 'boom');
+    });
+
+    it('does not call onExhausted when the failure is retried', async () => {
+      repository.claimNext.mockResolvedValue(baseJob);
+      repository.fail.mockResolvedValue('retry');
+      const onExhausted = vi.fn();
+      service.registerHandler({
+        type: 'demo',
+        handle: vi.fn().mockRejectedValue(new Error('boom')),
+        onExhausted,
+      });
+
+      await service.runOnce();
+
+      expect(onExhausted).not.toHaveBeenCalled();
+    });
+
+    it('a failing onExhausted is logged and does not stop the sweep or the claim', async () => {
+      repository.releaseStale.mockResolvedValue({ released: 1, exhausted: [experimentJob] });
+      repository.claimNext.mockResolvedValue(null);
+      service.registerHandler({
+        type: 'experiment-run',
+        handle: vi.fn(),
+        onExhausted: vi.fn().mockRejectedValue(new Error('db down')),
+      });
+
+      await expect(service.runOnce()).resolves.toBeUndefined();
+      expect(repository.claimNext).toHaveBeenCalled();
     });
   });
 });

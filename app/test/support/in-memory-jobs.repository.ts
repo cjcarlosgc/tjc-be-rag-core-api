@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { FailOutcome, InsertDedupedJobInput } from '../../src/jobs/jobs.repository.js';
+import {
+  RELEASABLE_UNKEYED_JOB_TYPES,
+  STALE_LOCK_REASON,
+  type FailOutcome,
+  type InsertDedupedJobInput,
+  type ReleaseStaleResult,
+} from '../../src/jobs/jobs.repository.js';
 import type { Job, Prisma } from '../../src/generated/prisma/client.js';
 
 const DEFAULT_STALE_LOCK_MS = 600_000;
@@ -129,16 +135,29 @@ export class InMemoryJobsRepository {
     return Promise.resolve();
   }
 
-  releaseStale(staleLockMs = DEFAULT_STALE_LOCK_MS): Promise<number> {
+  /** Mismo criterio que el SQL: con `dedupeKey` o de un tipo de `RELEASABLE_UNKEYED_JOB_TYPES`. */
+  async releaseStale(staleLockMs = DEFAULT_STALE_LOCK_MS): Promise<ReleaseStaleResult> {
     const stale = this.jobs.filter(
-      (job) => job.status === 'RUNNING' && job.dedupeKey !== null && job.lockedAt !== null && job.lockedAt.getTime() <= this.nowMs - staleLockMs,
+      (job) =>
+        job.status === 'RUNNING' &&
+        (job.dedupeKey !== null || RELEASABLE_UNKEYED_JOB_TYPES.includes(job.type)) &&
+        job.lockedAt !== null &&
+        job.lockedAt.getTime() <= this.nowMs - staleLockMs,
     );
 
+    let released = 0;
+    const exhausted: Job[] = [];
     for (const job of stale) {
-      void this.fail({ ...job }, 'Lock obsoleto: el worker que lo reclamó dejó de responder.');
+      const outcome = await this.fail({ ...job }, STALE_LOCK_REASON);
+      if (outcome !== 'lost') {
+        released += 1;
+      }
+      if (outcome === 'terminal') {
+        exhausted.push(job);
+      }
     }
 
-    return Promise.resolve(stale.length);
+    return { released, exhausted };
   }
 
   expedite(dedupeKey: string): Promise<number> {

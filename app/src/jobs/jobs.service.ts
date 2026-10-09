@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_STALE_LOCK_MS, JobsRepository } from './jobs.repository.js';
+import { DEFAULT_STALE_LOCK_MS, JobsRepository, STALE_LOCK_REASON } from './jobs.repository.js';
 import { RescheduleJobError } from './reschedule-job.error.js';
 import type { JobHandler } from './job-handler.interface.js';
 import type { Job, Prisma } from '../generated/prisma/client.js';
@@ -128,7 +128,11 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
 
         const message = error instanceof Error ? error.message : 'Error desconocido en el job.';
         this.logger.error(`Job ${job.id} (${job.type}) falló: ${message}`);
-        await this.jobsRepository.fail(job, message);
+        const outcome = await this.jobsRepository.fail(job, message);
+
+        if (outcome === 'terminal') {
+          await this.notifyExhausted(job, message);
+        }
       }
     } finally {
       this.polling = false;
@@ -190,13 +194,37 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     this.lastStaleSweepAt = now;
 
     try {
-      const released = await this.jobsRepository.releaseStale(this.staleLockMs);
+      const { released, exhausted } = await this.jobsRepository.releaseStale(this.staleLockMs);
 
       if (released > 0) {
-        this.logger.warn(`Se liberaron ${released} lock(s) obsoleto(s) de jobs con dedupeKey.`);
+        this.logger.warn(`Se liberaron ${released} lock(s) obsoleto(s) de jobs con dedupeKey o tipo liberable.`);
+      }
+
+      for (const job of exhausted) {
+        await this.notifyExhausted(job, STALE_LOCK_REASON);
       }
     } catch (error) {
       this.logger.error(`No se pudieron liberar los locks obsoletos: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Invoca el gancho `onExhausted` del handler del tipo cuando el job quedó FAILED terminal (WI-CORE-030).
+   * Un error del gancho se registra y no interrumpe el barrido ni el reclamo.
+   */
+  private async notifyExhausted(job: Job, reason: string): Promise<void> {
+    const handler = this.handlers.get(job.type);
+
+    if (!handler?.onExhausted) {
+      return;
+    }
+
+    try {
+      await handler.onExhausted(job.payload, reason);
+    } catch (error) {
+      this.logger.error(
+        `El cierre del job ${job.id} (${job.type}) falló: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

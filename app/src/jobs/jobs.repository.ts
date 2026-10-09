@@ -22,6 +22,26 @@ export const DEFAULT_STALE_LOCK_MS = 600_000;
  */
 export type FailOutcome = 'terminal' | 'retry' | 'discarded' | 'lost';
 
+/**
+ * Tipos SIN `dedupeKey` cuyo lock obsoleto sí se libera (WI-CORE-030, DEC-JOBS-001). Solo
+ * `experiment-run`: tiene una reentrada diseñada (intentos por slot, latido por repetición). Los demás
+ * tipos sin clave tienen gates de estado o escrituras externas y NO se liberan. Constante de código,
+ * no configurable por entorno.
+ */
+export const RELEASABLE_UNKEYED_JOB_TYPES: readonly string[] = Object.freeze(['experiment-run']);
+
+/** Motivo con el que se libera un lock obsoleto (también en `JobHandler.onExhausted`). */
+export const STALE_LOCK_REASON = 'Lock obsoleto: el worker que lo reclamó dejó de responder.';
+
+/**
+ * Resultado de `releaseStale`: cuántos locks obsoletos se liberaron (sin contar los perdidos por
+ * fencing) y los jobs que quedaron FAILED terminal al liberarse (agotaron `maxAttempts`).
+ */
+export interface ReleaseStaleResult {
+  released: number;
+  exhausted: Job[];
+}
+
 export interface InsertDedupedJobInput {
   type: string;
   payload: Prisma.InputJsonValue;
@@ -206,27 +226,37 @@ export class JobsRepository {
   }
 
   /**
-   * Libera los locks `RUNNING` obsoletos (worker caído) SOLO de jobs con `dedupeKey` (los
-   * de acceso, cortos y acotados por presupuesto): un tipo sin clave puede tardar más que
-   * el umbral y reclamarlo lo ejecutaría dos veces. Cada uno consume un intento (vuelve a
-   * `PENDING` con backoff, o `FAILED` sin intentos) y respeta el índice único parcial:
-   * si ya hay un `PENDING` con su clave, el obsoleto se descarta. Devuelve cuántos liberó.
+   * Libera los locks `RUNNING` obsoletos (worker caído) de los jobs con `dedupeKey` (los de acceso,
+   * cortos y acotados por presupuesto) y de los tipos de `RELEASABLE_UNKEYED_JOB_TYPES` (hoy solo
+   * `experiment-run`, WI-CORE-030, DEC-JOBS-001). Un latido de job vigente (`touchLock`) no es obsoleto.
+   * Cada liberación consume un intento vía `fail` (vuelve a `PENDING` con backoff, o queda `FAILED` si
+   * agotó `maxAttempts`) y respeta el índice único parcial: si ya hay un `PENDING` con su clave, el
+   * obsoleto se descarta. Devuelve cuántos liberó y cuáles quedaron `FAILED` terminal.
    */
-  async releaseStale(staleLockMs = DEFAULT_STALE_LOCK_MS, limit = 50): Promise<number> {
+  async releaseStale(staleLockMs = DEFAULT_STALE_LOCK_MS, limit = 50): Promise<ReleaseStaleResult> {
     const staleSeconds = staleLockMs / 1000;
     const stale = await this.prisma.$queryRaw<Job[]>`
       SELECT * FROM "jobs"
-      WHERE "status" = 'RUNNING' AND "dedupeKey" IS NOT NULL
+      WHERE "status" = 'RUNNING'
+        AND ("dedupeKey" IS NOT NULL OR "type" = ANY(${RELEASABLE_UNKEYED_JOB_TYPES}))
         AND "lockedAt" <= ${UTC_NOW} - make_interval(secs => ${staleSeconds}::double precision)
       ORDER BY "lockedAt"
       LIMIT ${limit};
     `;
 
+    let released = 0;
+    const exhausted: Job[] = [];
     for (const job of stale) {
-      await this.fail(job, 'Lock obsoleto: el worker que lo reclamó dejó de responder.');
+      const outcome = await this.fail(job, STALE_LOCK_REASON);
+      if (outcome !== 'lost') {
+        released += 1;
+      }
+      if (outcome === 'terminal') {
+        exhausted.push(job);
+      }
     }
 
-    return stale.length;
+    return { released, exhausted };
   }
 
   /**
