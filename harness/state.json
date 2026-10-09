@@ -3945,7 +3945,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/features/004-rag-retrieval-context/spec.md",
       "spec/features/004-rag-retrieval-context/plan.md",
@@ -3973,23 +3973,52 @@
     "transversalPaths": [],
     "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-FK-001",
+        "DEC-FK-003",
+        "DEC-FK-004",
+        "DEC-EXP-FK-001"
+      ],
+      "checkedAt": "2026-10-09T00:50:00.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer-high",
+      "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "Ninguna decisión PENDING/PROPOSED alcanza el WI; contractImpact=false confirmado (GenerationContext es interno; INTEROP/SYSTEM ya describen functionalRules).",
+            "Ambigüedades (llamadores de build, targetRef, forma de procedencia y audit, tokenizador, presupuesto, prueba de payload Sandbox) cerradas como detalle técnico en plan.md de 004.",
+            "Sin riesgos de datos ni migración."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/features/004-rag-retrieval-context/plan.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-021-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar en tres cortes con implementer (low); escalar a implementer-high solo si el cableado de handlers se complica.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -3997,7 +4026,7 @@
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -4022,9 +4051,17 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-021-contract-sync-scope-review.md"
+      "harness/reports/wi-core-021-contract-sync-scope-review.md",
+      "harness/reports/wi-core-021-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-021-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-021-sdd-verification.md"
+      ]
+    }
   }
 }
