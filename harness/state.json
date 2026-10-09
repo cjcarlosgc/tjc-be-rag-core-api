@@ -4181,7 +4181,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/transversal/providers/spec.md",
       "spec/transversal/providers/plan.md",
@@ -4224,7 +4224,7 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
+      "reviewAgent": "human-reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -4248,6 +4248,33 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Tres cortes (841c659, aa984ec, b75ed03) y reporte 2660a32: LLMProvider con generateWithTools y resolveEffectiveConfig, GeneralistAgentService sin SDK, ExperimentRun.modelConfig con el mismo config en ambos brazos.",
+            "lint, test (1372), build y e2e (222) verdes con URL inalcanzable; M1 solo providers/, M2 sin cambio contractual.",
+            "Desviaciones a confirmar por el reviewer: corridas con modelConfig NULL resuelven la config al ejecutar el job; modelo sin entrada en LLM_SUPPORTED_COMBINATIONS lanza REASONING_EFFORT_UNSUPPORTED con supportedEfforts vacio; el brazo RAG del experimento usa EXPERIMENT_LLM_MODEL (DEC-EXP-004). Migracion no validada contra Postgres."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/providers",
+            "app/src/generation/agent",
+            "app/src/experiments",
+            "app/src/config",
+            "app/prisma"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-023-implementation.md"
+          ],
+          "recommendedNextStep": "Revision humana del diff y la evidencia.",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -4255,13 +4282,13 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -4281,6 +4308,32 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-09T01:46:30.622Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-023",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T02:10:00.000Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-023",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T02:10:00.000Z"
         }
       ],
       "publishedSyncIds": [],
@@ -4288,7 +4341,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-023-contract-sync-scope-review.md",
-      "harness/reports/wi-core-023-sdd-verification.md"
+      "harness/reports/wi-core-023-sdd-verification.md",
+      "harness/reports/wi-core-023-implementation.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -4297,6 +4351,15 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-023-sdd-verification.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-023-implementation.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-023-implementation.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-023-contract-sync-checkpoints.md"
       ]
     }
   }
