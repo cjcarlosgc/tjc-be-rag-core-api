@@ -15,6 +15,7 @@ import {
 } from '../project-versions/zip/zip-extraction.service.js';
 import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
+import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import type { RetrievalTarget } from '../retrieval/generation-context.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import {
@@ -134,6 +135,7 @@ export class ExperimentJobHandler
     private readonly testTargetsRepository: TestTargetsRepository,
     private readonly retrievalService: RetrievalService,
     private readonly contextBuilder: ContextBuilder,
+    private readonly functionalRulesRetriever: FunctionalRulesRetriever,
     private readonly promptBuilder: PromptBuilder,
     private readonly generalistAgentService: GeneralistAgentService,
     private readonly fileDiscoveryService: FileDiscoveryService,
@@ -282,6 +284,7 @@ export class ExperimentJobHandler
           ? await withTimeout(
               this.runRagArm(
                 begun.trace.id,
+                context.projectId,
                 context.projectVersionId,
                 context.target,
                 context.framework,
@@ -462,6 +465,7 @@ export class ExperimentJobHandler
 
   private async runRagArm(
     traceId: string,
+    projectId: string,
     projectVersionId: string,
     target: TestTarget,
     framework: 'JEST' | 'VITEST' | null,
@@ -476,10 +480,17 @@ export class ExperimentJobHandler
       projectVersionId,
       retrievalTarget,
     );
+    // Las reglas funcionales solo llegan al brazo RAG: el agente generalista no las recibe (DEC-EXP-FK-001).
+    const functionalRules = await this.functionalRulesRetriever.retrieve(
+      projectId,
+      retrievalTarget,
+    );
     const generationContext = this.contextBuilder.build(
       retrieval,
       retrievalTarget,
       { framework },
+      {},
+      functionalRules,
     );
     await this.contextTracesRepository.updateDetail(
       traceId,
@@ -526,6 +537,8 @@ export class ExperimentJobHandler
         { targetChunks: [], candidates: [] },
         target,
         { framework: context.framework },
+        {},
+        [],
       );
       await this.contextTracesRepository.updateDetail(
         traceId,

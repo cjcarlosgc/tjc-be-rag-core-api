@@ -1,3 +1,5 @@
+import { ContextBuilder } from '../retrieval/context-builder.service.js';
+import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentJobHandler } from './experiment-job.handler.js';
 import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
@@ -152,6 +154,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
         targetChunks: [{ id: 'target-chunk-1' }],
         candidates: [{ chunk: { id: 'candidate-chunk-1' } }],
       }),
+    },
+    functionalRulesRetriever: {
+      retrieve: vi.fn().mockResolvedValue([]),
     },
     contextBuilder: {
       build: vi
@@ -310,6 +315,7 @@ function makeHandler(
     deps.testTargetsRepository as never,
     deps.retrievalService as never,
     deps.contextBuilder as never,
+    deps.functionalRulesRetriever as never,
     deps.promptBuilder as never,
     deps.generalistAgentService as never,
     deps.fileDiscoveryService as never,
@@ -1082,5 +1088,77 @@ describe('ExperimentJobHandler', () => {
       expect.stringContaining('No existe el target'),
     );
     expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+  });
+
+  it('gives functional rules only to the RAG arm and passes them to the context builder (WI-CORE-021)', async () => {
+    const rule = {
+      knowledgeId: 'rule-1',
+      scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+      normalizedRule: 'Regla de prueba.',
+      scope: 'METHOD',
+      targetRef: 'src/foo.ts::foo',
+      source: 'HUMAN_ANSWER',
+      provenance: { confirmedByUserId: null, confirmedRole: null, originHeadSha: null, sourceRef: null },
+    };
+    const { deps } = makeDeps({
+      functionalRulesRetriever: { retrieve: vi.fn().mockResolvedValue([rule]) },
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    expect(deps.functionalRulesRetriever.retrieve).toHaveBeenCalledTimes(3);
+    expect(deps.functionalRulesRetriever.retrieve).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({ filePath: 'src/foo.ts' }),
+    );
+    const withRules = deps.contextBuilder.build.mock.calls.filter(
+      (call: unknown[]) => (call[4] as unknown[]).length > 0,
+    );
+    expect(withRules).toHaveLength(3);
+    for (const call of withRules) {
+      expect(call[4]).toEqual([rule]);
+    }
+  });
+
+  it('keeps functional rules out of the persisted RAG trace and includes them only in the prompt', async () => {
+    const ruleText = 'TEXTO_REGLA_CONFIDENCIAL_PARA_PROMPT';
+    const rule = {
+      knowledgeId: 'rule-1',
+      scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+      normalizedRule: ruleText,
+      scope: 'METHOD',
+      targetRef: 'src/foo.ts::foo',
+      source: 'HUMAN_ANSWER',
+      provenance: { confirmedByUserId: null, confirmedRole: 'ADMIN', originHeadSha: null, sourceRef: null },
+    };
+    const chunk = {
+      id: 'target-chunk-1',
+      filePath: 'src/foo.ts',
+      symbolKind: 'FUNCTION',
+      symbolName: 'foo',
+      parentSymbolName: null,
+      startLine: 1,
+      endLine: 3,
+      content: 'target content',
+      tokenCount: 5,
+    };
+    const { deps } = makeDeps({
+      retrievalService: { retrieve: vi.fn().mockResolvedValue({ targetChunks: [chunk], candidates: [] }) },
+      functionalRulesRetriever: { retrieve: vi.fn().mockResolvedValue([rule]) },
+      contextBuilder: new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never),
+      promptBuilder: new PromptBuilder(),
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const ragPrompts = deps.llmProvider.generate.mock.calls.map((call: unknown[]) => call[0] as string);
+    expect(ragPrompts.some((prompt: string) => prompt.includes('Reglas funcionales') && prompt.includes(ruleText))).toBe(true);
+    for (const call of deps.contextTracesRepository.updateDetail.mock.calls) {
+      const serialized = JSON.stringify(call[1]);
+      expect(serialized).not.toContain(ruleText);
+      expect(serialized).not.toContain('functionalRules');
+    }
   });
 });

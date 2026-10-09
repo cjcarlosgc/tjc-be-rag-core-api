@@ -98,6 +98,7 @@ describe('AnalysisRunValidationJobHandler', () => {
     };
     const retrievalService = { retrieve: vi.fn().mockResolvedValue({ targetChunks: [], candidates: [] }) };
     const contextBuilder = { build: vi.fn().mockReturnValue({ retrievedChunks: 0, selectedChunks: 0, contextTokens: 0 }) };
+    const functionalRulesRetriever = { retrieve: vi.fn().mockResolvedValue([]) };
     const promptBuilder = { build: vi.fn().mockReturnValue('prompt') };
     const testFileMergeService = {
       applyCreate: vi.fn((content: string) => `created:${content}`),
@@ -120,6 +121,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       githubSnapshotMaterializerService as never,
       retrievalService as never,
       contextBuilder as never,
+      functionalRulesRetriever as never,
       promptBuilder as never,
       testFileMergeService as never,
       sandboxExecutionService as never,
@@ -143,6 +145,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       githubSnapshotMaterializerService,
       retrievalService,
       contextBuilder,
+      functionalRulesRetriever,
       promptBuilder,
       testFileMergeService,
       sandboxExecutionService,
@@ -398,5 +401,33 @@ describe('AnalysisRunValidationJobHandler', () => {
     await expect(handler.handle({ analysisRunId: 'run-1' }, 'job-1')).rejects.toThrow('storage down');
 
     expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('retrieves the functional rules of the run project per symbol and passes them to the context builder', async () => {
+    const { handler, functionalRulesRetriever, contextBuilder } = await setup();
+    const rule = {
+      knowledgeId: 'rule-1',
+      scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+      normalizedRule: 'Devuelve true.',
+      scope: 'METHOD',
+      targetRef: 'src/thing.ts::Thing.doIt',
+      source: 'HUMAN_ANSWER',
+      provenance: { confirmedByUserId: null, confirmedRole: 'ADMIN', originHeadSha: null, sourceRef: null },
+    };
+    functionalRulesRetriever.retrieve.mockResolvedValue([rule]);
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    expect(functionalRulesRetriever.retrieve).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({ filePath: 'src/thing.ts', symbolName: 'Thing', methodName: 'doIt', targetType: 'METHOD' }),
+    );
+    expect(contextBuilder.build).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      {},
+      [rule],
+    );
   });
 });

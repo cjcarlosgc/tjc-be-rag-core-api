@@ -14,6 +14,7 @@ import { zipDirectory } from '../project-versions/zip/zip-directory.util.js';
 import { GithubSnapshotMaterializerService } from '../snapshot-intelligence/github-snapshot-materializer.service.js';
 import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
+import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import { TestFileMergeService, coLocatedSpecPath } from '../generation/test-file-merge.service.js';
 import { SandboxExecutionService, SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
@@ -78,6 +79,7 @@ export class AnalysisRunValidationJobHandler
     private readonly githubSnapshotMaterializerService: GithubSnapshotMaterializerService,
     private readonly retrievalService: RetrievalService,
     private readonly contextBuilder: ContextBuilder,
+    private readonly functionalRulesRetriever: FunctionalRulesRetriever,
     private readonly promptBuilder: PromptBuilder,
     private readonly testFileMergeService: TestFileMergeService,
     private readonly sandboxExecutionService: SandboxExecutionService,
@@ -228,7 +230,14 @@ export class AnalysisRunValidationJobHandler
     try {
       const retrievalTarget = toRetrievalTarget(symbol);
       const retrieval = await this.retrievalService.retrieve(run.projectVersionId!, retrievalTarget);
-      const generationContext = this.contextBuilder.build(retrieval, retrievalTarget, { framework });
+      const functionalRules = await this.functionalRulesRetriever.retrieve(run.projectId, retrievalTarget);
+      const generationContext = this.contextBuilder.build(
+        retrieval,
+        retrievalTarget,
+        { framework },
+        {},
+        functionalRules,
+      );
       const prompt = this.promptBuilder.build(generationContext);
       const generation = await this.llmProvider.generate(prompt);
 

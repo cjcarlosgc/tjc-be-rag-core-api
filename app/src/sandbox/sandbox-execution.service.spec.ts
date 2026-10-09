@@ -301,4 +301,68 @@ describe('SandboxExecutionService', () => {
       }),
     ).rejects.toBeInstanceOf(SandboxUnavailableError);
   });
+
+  it('never sends functional rules to Sandbox: the posted body has only the execution contract keys (WI-CORE-021)', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: 'COMPLETED',
+          facts: {
+            runner: 'VITEST',
+            compiled: true,
+            executed: true,
+            passed: true,
+            totalTests: 1,
+            passedTests: 1,
+            failedTests: 0,
+            skippedTests: 0,
+            testCases: [],
+            testCasesTruncated: false,
+          },
+          failure: null,
+          stageDurations: [],
+        }),
+      );
+    const objectStorageService = {
+      put: vi.fn().mockResolvedValue(undefined),
+      presignGet: vi.fn().mockResolvedValue('https://signed.example/download'),
+    };
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+
+    await service.execute({
+      requestId: 'request-1',
+      testRunId: 'run-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip-bytes'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'VITEST',
+      // Simula un llamador que intentara colar reglas: el servicio no debe reenviarlas.
+      functionalRules: [{ knowledgeId: 'rule-1', normalizedRule: 'REGLA_NO_PERMITIDA' }],
+    } as never);
+
+    const postedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(Object.keys(postedBody).sort()).toEqual(
+      [
+        'artifacts',
+        'executionProfile',
+        'projectVersionId',
+        'requestId',
+        'runnerHint',
+        'scope',
+        'snapshot',
+        'targetIds',
+        'testRunId',
+      ].sort(),
+    );
+    const serialized = JSON.stringify(postedBody);
+    expect(serialized).not.toContain('functionalRules');
+    expect(serialized).not.toContain('REGLA_NO_PERMITIDA');
+  });
 });
