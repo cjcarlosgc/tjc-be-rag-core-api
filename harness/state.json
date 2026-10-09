@@ -4445,7 +4445,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/features/008-experimental-comparison/spec.md",
       "spec/features/008-experimental-comparison/plan.md",
@@ -4488,7 +4488,7 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
+      "reviewAgent": "human-reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -4513,6 +4513,34 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Cortes A-C: pruebas existentes visibles, tope por tool calls ejecutadas con llamada final sin herramientas, presupuesto de contexto acumulado (cl100k) y detail.budget persistido; corte D: RETRIEVAL_MAX_CONTEXT_TOKENS 6000 a 8000 por decisión del usuario.",
+            "lint, test (1392), build y e2e (222) verdes con URL inalcanzable; contractImpact=false.",
+            "Interpretaciones a confirmar: presupuesto acumulativo, marcador de truncado fuera de contextTokens, list_files truncated=true con CHAR_LIMIT, recorte de 20.000 caracteres en read_file, sin prueba directa del constructor en el handler; el 8000 afecta al RAG de producto."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/generation/agent",
+            "app/src/experiments",
+            "app/src/config",
+            "app/src/retrieval",
+            "app/.env.example",
+            "CHANGELOG.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-024-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión humana del diff y la evidencia.",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -4520,13 +4548,13 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -4543,6 +4571,32 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-09T02:26:41.976Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-024",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T02:50:02.137Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-024",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T02:50:10.144Z"
         }
       ],
       "publishedSyncIds": [],
@@ -4550,7 +4604,9 @@
     },
     "evidence": [
       "harness/reports/wi-core-024-contract-sync-scope-review.md",
-      "harness/reports/wi-core-024-sdd-verification.md"
+      "harness/reports/wi-core-024-sdd-verification.md",
+      "harness/reports/wi-core-024-implementation.md",
+      "harness/reports/wi-core-024-contract-sync-checkpoints.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -4559,6 +4615,15 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-024-sdd-verification.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-024-implementation.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-024-implementation.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-024-contract-sync-checkpoints.md"
       ]
     }
   }
