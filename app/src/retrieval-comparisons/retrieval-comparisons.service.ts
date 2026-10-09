@@ -157,13 +157,22 @@ export class RetrievalComparisonsService {
   }
 
   /**
-   * `GET /retrieval-comparisons/{id}/results`: `409 RETRIEVAL_COMPARISON_NOT_FINISHED` antes de un estado
-   * terminal. Una comparación FAILED no tiene resultados persistidos y responde `modes: []`.
+   * `GET /retrieval-comparisons/{id}/results` (DEC-RC-003, aprobada): `409 RETRIEVAL_COMPARISON_NOT_FINISHED`
+   * en PENDING/RUNNING; `409 RETRIEVAL_COMPARISON_FAILED` en FAILED (sin resultados que servir; el fallo
+   * se lee del status). Solo COMPLETED responde 200 con exactamente SE y SEM. `completedAt` no se inventa.
    */
   async getResults(id: string): Promise<RetrievalComparisonResultsResponse> {
     const comparison = await this.requireComparison(id);
 
-    if (comparison.status !== 'COMPLETED' && comparison.status !== 'FAILED') {
+    if (comparison.status === 'FAILED') {
+      throw new AppException(
+        ErrorCode.RETRIEVAL_COMPARISON_FAILED,
+        'La comparación de retrieval terminó en fallo; no hay resultados que consultar.',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    if (comparison.status !== 'COMPLETED') {
       throw new AppException(
         ErrorCode.RETRIEVAL_COMPARISON_NOT_FINISHED,
         'La comparación de retrieval todavía no terminó.',
@@ -181,7 +190,7 @@ export class RetrievalComparisonsService {
       modes: results
         .map(toRetrievalModeResultResponse)
         .sort((a, b) => (MODE_ORDER[a.mode] ?? 0) - (MODE_ORDER[b.mode] ?? 0)),
-      completedAt: (comparison.completedAt ?? new Date()).toISOString(),
+      completedAt: comparison.completedAt ? comparison.completedAt.toISOString() : null,
     };
   }
 

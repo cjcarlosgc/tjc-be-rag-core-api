@@ -67,7 +67,7 @@ export interface RetrievalComparisonResultsResponse {
   symbol: AnalysisSymbolResponse;
   /** Exactamente SE y SEM en una comparación COMPLETED; vacío en FAILED (no hubo resultados persistidos). */
   modes: RetrievalModeResultResponse[];
-  completedAt: string;
+  completedAt: string | null;
 }
 
 /** El snapshot `symbol` se escribe al crear con la forma de `AnalysisSymbolResponse` (ver el servicio). */

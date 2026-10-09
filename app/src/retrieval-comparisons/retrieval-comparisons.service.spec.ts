@@ -58,7 +58,7 @@ function makeIdempotencyPrisma() {
 describe('RetrievalComparisonsService', () => {
   let analysisRunsService: { getById: ReturnType<typeof vi.fn> };
   let analysisSymbolsRepository: { findByAnalysisRun: ReturnType<typeof vi.fn> };
-  let repository: { create: ReturnType<typeof vi.fn>; findById: ReturnType<typeof vi.fn> };
+  let repository: { create: ReturnType<typeof vi.fn>; findById: ReturnType<typeof vi.fn>; findResults: ReturnType<typeof vi.fn> };
   let jobsService: { enqueue: ReturnType<typeof vi.fn> };
   let projectVersions: { findById: ReturnType<typeof vi.fn> };
   let service: RetrievalComparisonsService;
@@ -69,6 +69,7 @@ describe('RetrievalComparisonsService', () => {
     repository = {
       create: vi.fn().mockResolvedValue({ id: 'cmp-1', analysisRunId: 'run-1', projectVersionId: 'version-1' }),
       findById: vi.fn().mockResolvedValue({ id: 'cmp-1', analysisRunId: 'run-1', projectVersionId: 'version-1' }),
+      findResults: vi.fn().mockResolvedValue([]),
     };
     jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
     projectVersions = { findById: vi.fn().mockResolvedValue({ id: 'version-1', language: 'TYPESCRIPT' }) };
@@ -246,5 +247,56 @@ describe('RetrievalComparisonsService', () => {
     projectVersions.findById.mockResolvedValue({ id: 'version-1', language: 'TYPESCRIPT' });
     await expect(service.create(request, KEY, 'user-1')).resolves.toMatchObject({ status: 'PENDING' });
     expect(repository.create).toHaveBeenCalledTimes(1);
+  });
+
+  describe('getResults (DEC-RC-003)', () => {
+    const cmp = (overrides: Record<string, unknown>) => ({
+      id: 'cmp-1',
+      analysisRunId: 'run-1',
+      projectVersionId: 'version-1',
+      symbol: { language: 'TYPESCRIPT', kind: 'FUNCTION', qualifiedName: 'foo', filePath: 'src/foo.ts', changeKind: 'DIRECTLY_CHANGED' },
+      status: 'PENDING',
+      failureCode: null,
+      failureMessage: null,
+      completedAt: null,
+      ...overrides,
+    });
+
+    it.each(['PENDING', 'RUNNING'])('answers RETRIEVAL_COMPARISON_NOT_FINISHED (409) while %s', async (status) => {
+      repository.findById.mockResolvedValue(cmp({ status }));
+
+      const error = await service.getResults('cmp-1').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(AppException);
+      expect((error as AppException).code).toBe(ErrorCode.RETRIEVAL_COMPARISON_NOT_FINISHED);
+      expect((error as AppException).getStatus()).toBe(409);
+      expect(repository.findResults).not.toHaveBeenCalled();
+    });
+
+    it('answers RETRIEVAL_COMPARISON_FAILED (409) for FAILED, without reading results', async () => {
+      repository.findById.mockResolvedValue(cmp({ status: 'FAILED', failureCode: 'RETRIEVAL_TARGET_UNRESOLVABLE' }));
+
+      const error = await service.getResults('cmp-1').catch((e: unknown) => e);
+
+      expect((error as AppException).code).toBe(ErrorCode.RETRIEVAL_COMPARISON_FAILED);
+      expect((error as AppException).getStatus()).toBe(409);
+      expect(repository.findResults).not.toHaveBeenCalled();
+    });
+
+    it('returns completedAt as the persisted ISO string for COMPLETED', async () => {
+      repository.findById.mockResolvedValue(cmp({ status: 'COMPLETED', completedAt: new Date('2026-10-09T12:00:00.000Z') }));
+      repository.findResults.mockResolvedValue([]);
+
+      await expect(service.getResults('cmp-1')).resolves.toMatchObject({ completedAt: '2026-10-09T12:00:00.000Z', modes: [] });
+    });
+
+    it('returns completedAt null for COMPLETED without a timestamp (no new Date() is invented)', async () => {
+      repository.findById.mockResolvedValue(cmp({ status: 'COMPLETED', completedAt: null }));
+      repository.findResults.mockResolvedValue([]);
+
+      const result = await service.getResults('cmp-1');
+
+      expect(result.completedAt).toBeNull();
+    });
   });
 });

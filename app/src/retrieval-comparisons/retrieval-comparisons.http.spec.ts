@@ -284,10 +284,13 @@ describe('Retrieval comparisons HTTP contract (INTEROP-2.7 §6.15)', () => {
   });
 
   describe('GET /retrieval-comparisons/{id}/results', () => {
-    it('answers 409 RETRIEVAL_COMPARISON_NOT_FINISHED before a terminal state', async () => {
+    it.each(['PENDING', 'RUNNING'])('answers 409 RETRIEVAL_COMPARISON_NOT_FINISHED while %s', async (status) => {
+      repository.findById.mockResolvedValue(comparisonRow({ status }));
+
       const response = await request(server()).get(`/retrieval-comparisons/${CMP_ID}/results`).expect(409);
 
       expect(response.body.code).toBe(ErrorCode.RETRIEVAL_COMPARISON_NOT_FINISHED);
+      expect(repository.findResults).not.toHaveBeenCalled();
     });
 
     it('answers 200 with exactly the SE and SEM modes once COMPLETED', async () => {
@@ -318,14 +321,37 @@ describe('Retrieval comparisons HTTP contract (INTEROP-2.7 §6.15)', () => {
       expect(response.body.symbol).toEqual(symbolRow);
     });
 
-    it('answers 200 with no modes for a FAILED comparison (no results were persisted)', async () => {
+    it('answers 409 RETRIEVAL_COMPARISON_FAILED for a FAILED comparison, with no results read', async () => {
       repository.findById.mockResolvedValue(
-        comparisonRow({ status: 'FAILED', failureCode: 'RETRIEVAL_TARGET_UNRESOLVABLE', completedAt: new Date('2026-10-09T12:00:00.000Z') }),
+        comparisonRow({
+          status: 'FAILED',
+          failureCode: 'RETRIEVAL_TARGET_UNRESOLVABLE',
+          failureMessage: 'No se pudo resolver el objetivo.',
+          completedAt: new Date('2026-10-09T12:00:00.000Z'),
+        }),
       );
+
+      const response = await request(server()).get(`/retrieval-comparisons/${CMP_ID}/results`).expect(409);
+
+      expect(response.body.code).toBe(ErrorCode.RETRIEVAL_COMPARISON_FAILED);
+      expect(repository.findResults).not.toHaveBeenCalled();
+    });
+
+    it('answers 409 RETRIEVAL_COMPARISON_FAILED for a FAILED comparison without completedAt', async () => {
+      repository.findById.mockResolvedValue(comparisonRow({ status: 'FAILED', failureCode: 'RETRIEVAL_COMPARISON_WORKER_LOST', completedAt: null }));
+
+      const response = await request(server()).get(`/retrieval-comparisons/${CMP_ID}/results`).expect(409);
+
+      expect(response.body.code).toBe(ErrorCode.RETRIEVAL_COMPARISON_FAILED);
+    });
+
+    it('answers 200 with completedAt null when the row has none (no timestamp is invented)', async () => {
+      repository.findById.mockResolvedValue(comparisonRow({ status: 'COMPLETED', completedAt: null }));
+      repository.findResults.mockResolvedValue([]);
 
       const response = await request(server()).get(`/retrieval-comparisons/${CMP_ID}/results`).expect(200);
 
-      expect(response.body.modes).toEqual([]);
+      expect(response.body.completedAt).toBeNull();
     });
   });
 
