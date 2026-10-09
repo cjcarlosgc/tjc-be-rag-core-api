@@ -5323,7 +5323,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/transversal/providers/spec.md",
       "spec/transversal/providers/plan.md",
@@ -5348,25 +5348,55 @@
       }
     ],
     "transversalPaths": [],
-    "approved": false,
+    "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-EXP-004"
+      ],
+      "checkedAt": "2026-10-09T16:33:55.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "SPEC_VERIFIED sin decisiones nuevas ni blockers; contractImpact=false confirmado (incluida la forma del campo model).",
+            "Solo openai-llm.provider.ts usa chat.completions; strict exige additionalProperties:false en AGENT_TOOL_SCHEMAS; providerItems opaco en LLMMessage; max_output_tokens incluye razonamiento; status failed/incomplete en HTTP 200.",
+            "R1 despejado por prueba real del agente principal; R2 (temperature) y R3 (timeout xhigh) sin probar en vivo."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-031-sdd-verification.md",
+            "spec/transversal/providers/plan.md",
+            "spec/transversal/providers/spec.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-031-sdd-verification.md",
+            "harness/reports/wi-core-031-scope-approval.md",
+            "harness/reports/wi-core-031-responses-probe.md"
+          ],
+          "recommendedNextStep": "implementer-high por 3 cortes: adaptador Responses; bucle y regresión de producto; endpoint en modelConfig y .env.example.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -5374,7 +5404,7 @@
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -5397,9 +5427,17 @@
     },
     "evidence": [
       "harness/reports/wi-core-031-contract-sync-scope-review.md",
-      "harness/reports/wi-core-031-scope-approval.md"
+      "harness/reports/wi-core-031-scope-approval.md",
+      "harness/reports/wi-core-031-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-031-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-031-scope-approval.md"
+      ]
+    }
   }
 }
