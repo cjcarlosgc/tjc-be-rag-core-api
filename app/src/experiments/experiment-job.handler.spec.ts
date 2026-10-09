@@ -7,6 +7,7 @@ import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.j
 import { SANDBOX_TIMED_OUT_ERROR_SUMMARY } from '../sandbox/map-sandbox-result.js';
 import { LLMProviderUnavailableError } from '../providers/llm-provider-unavailable.error.js';
 import { experimentPairId, pairOrder } from './pair-order.js';
+import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
 
 function makeTarget(overrides: Record<string, unknown> = {}) {
   return {
@@ -1756,7 +1757,7 @@ describe('ExperimentJobHandler', () => {
       expect(executionsOf(deps)[0].requestId).toBe(sandboxExperimentRequestId('job-2', 'RAG', 1, 2));
     });
 
-    it('on redelivery never starts a third attempt for a second-attempt RUNNING row, which is left untouched (orphan rule pending, WI-CORE-025 (3))', async () => {
+    it('on redelivery with a live-heartbeat second-attempt RUNNING row, touches nothing and reschedules the job (WI-CORE-025 (3c), iii)', async () => {
       const { deps } = makeDeps({
         experimentRunsRepository: {
           findById: vi.fn().mockResolvedValue(seededRun()),
@@ -1764,9 +1765,10 @@ describe('ExperimentJobHandler', () => {
           complete: vi.fn(),
           markFailed: vi.fn(),
           updateRepetitionById: vi.fn(),
+          closeInterruptedRepetition: vi.fn(),
           refreshCompletedRepetitions: vi.fn(),
           findRepetitions: vi.fn().mockResolvedValue([
-            attemptRow('RAG', 1, 2, 'RUNNING'),
+            { ...attemptRow('RAG', 1, 2, 'RUNNING'), lastHeartbeatAt: new Date(), createdAt: new Date() },
             attemptRow('RAG', 2, 1, 'COMPLETED'),
             attemptRow('RAG', 3, 1, 'COMPLETED'),
             attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
@@ -1776,11 +1778,15 @@ describe('ExperimentJobHandler', () => {
         },
       });
 
-      await makeHandler(deps).handle(payload, 'job-2');
+      await expect(makeHandler(deps).handle(payload, 'job-2')).rejects.toBeInstanceOf(RescheduleJobError);
 
       expect(beginsOf(deps)).toHaveLength(0);
       expect(executionsOf(deps)).toHaveLength(0);
       expect(writesOf(deps)).toHaveLength(0);
+      expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
+      expect(deps.experimentRunsRepository.markStarted).not.toHaveBeenCalled();
+      expect(deps.experimentRunsRepository.markFailed).not.toHaveBeenCalled();
+      expect(deps.experimentRunsRepository.complete).not.toHaveBeenCalled();
     });
 
     it('legacy runs without seed execute one attempt per slot and never retry an external failure', async () => {
@@ -1845,5 +1851,343 @@ describe('ExperimentJobHandler', () => {
       expect(executionsOf(deps)).toHaveLength(0);
       expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
     });
+  });
+});
+
+/** Cede el control a las promesas pendientes sin usar timers reales. */
+async function flushMicrotasks(rounds = 200): Promise<void> {
+  for (let index = 0; index < rounds; index += 1) {
+    await Promise.resolve();
+  }
+}
+
+/** Acceso tipado al repositorio simulado (los métodos nuevos no están en el tipo inferido de makeDeps). */
+function repoOf(deps: ReturnType<typeof makeDeps>['deps']): Record<string, ReturnType<typeof vi.fn>> {
+  return deps.experimentRunsRepository as unknown as Record<string, ReturnType<typeof vi.fn>>;
+}
+
+function configWith(values: Record<string, unknown>) {
+  return {
+    get: (key: string, fallback?: unknown) => (key in values ? values[key] : fallback),
+  };
+}
+
+/** Fila de último intento con latido vencido (1 h) o vigente, según `expired`. */
+function rowWithHeartbeat(
+  base: ReturnType<typeof attemptRow>,
+  id: string,
+  expired: boolean,
+) {
+  const stamp = expired ? new Date(Date.now() - 3_600_000) : new Date();
+  return { ...base, id, lastHeartbeatAt: stamp, createdAt: stamp };
+}
+
+const COMPLETED_OTHERS = [
+  attemptRow('RAG', 2, 1, 'COMPLETED'),
+  attemptRow('RAG', 3, 1, 'COMPLETED'),
+  attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+  attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
+  attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+];
+
+function withRunRepository(
+  rows: unknown[],
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    findById: vi.fn().mockResolvedValue(seededRun()),
+    markStarted: vi.fn(),
+    complete: vi.fn(),
+    markFailed: vi.fn(),
+    updateRepetitionById: vi.fn(),
+    closeInterruptedRepetition: vi.fn(),
+    refreshCompletedRepetitions: vi.fn(),
+    findRepetitions: vi.fn().mockResolvedValue(rows),
+    ...extra,
+  };
+}
+
+describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
+  it('waits for every in-flight slot before rejecting, then rethrows the first error (A)', async () => {
+    let releaseInFlight!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseInFlight = resolve;
+    });
+    let inFlightReached!: () => void;
+    const reached = new Promise<void>((resolve) => {
+      inFlightReached = resolve;
+    });
+    let inFlightFinished = false;
+    const { deps } = makeDeps({
+      configService: configWith({ EXPERIMENT_REPETITION_CONCURRENCY: 2 }),
+      sandboxExecutionService: {
+        execute: vi.fn(async () => {
+          inFlightReached();
+          await gate;
+          inFlightFinished = true;
+          return successfulSandboxResult();
+        }),
+      },
+    });
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+    // El primer slot del par 1 falla al abrir el intento; el par 2 queda en vuelo.
+    const beginAttempt = deps.contextTracesRepository.beginAttempt as ReturnType<typeof vi.fn>;
+    beginAttempt.mockImplementation(async (input: Record<string, unknown>) => {
+      if (input.repetition === 1) {
+        throw new Error('boom-begin');
+      }
+      return {
+        repetition: { id: `rep-${String(input.strategy)}-${String(input.repetition)}`, ...input },
+        trace: { id: `trace-${String(input.repetition)}` },
+      };
+    });
+
+    let settled = false;
+    const handling = makeHandler(deps).handle(payload, 'job-race').then(
+      () => {
+        settled = true;
+        return undefined;
+      },
+      (error: unknown) => {
+        settled = true;
+        return error;
+      },
+    );
+
+    await reached;
+    await flushMicrotasks();
+    expect(settled).toBe(false);
+
+    releaseInFlight();
+    const outcome = await handling;
+
+    expect(inFlightFinished).toBe(true);
+    expect(outcome).toBeInstanceOf(Error);
+    expect((outcome as Error).message).toBe('boom-begin');
+    expect(deps.experimentRunsRepository.complete).not.toHaveBeenCalled();
+  });
+
+  it('renews the heartbeat while an attempt runs and clears its timer afterwards (3c)', async () => {
+    vi.useFakeTimers();
+    try {
+      let releaseSandbox!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        releaseSandbox = resolve;
+      });
+      let sandboxEntered!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        sandboxEntered = resolve;
+      });
+      const touch = vi.fn().mockResolvedValue({ count: 1 });
+      const { deps } = makeDeps({
+        configService: configWith({ EXPERIMENT_REPETITION_CONCURRENCY: 1, EXPERIMENT_HEARTBEAT_INTERVAL_MS: 15_000 }),
+        sandboxExecutionService: {
+          execute: vi.fn(async () => {
+            sandboxEntered();
+            await gate;
+            return successfulSandboxResult();
+          }),
+        },
+      });
+      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+      repoOf(deps).touchRepetitionHeartbeat = touch;
+
+      const handling = makeHandler(deps).handle(payload, 'job-hb');
+      await entered;
+      await flushMicrotasks();
+      vi.advanceTimersByTime(15_000);
+      await flushMicrotasks();
+      vi.advanceTimersByTime(15_000);
+      await flushMicrotasks();
+
+      expect(touch).toHaveBeenCalledTimes(2);
+      expect(touch.mock.calls[0][0]).toBe('repetition-1');
+      expect(touch.mock.calls[0][1]).toBeInstanceOf(Date);
+
+      releaseSandbox();
+      await handling;
+
+      const callsAfterRun = touch.mock.calls.length;
+      vi.advanceTimersByTime(120_000);
+      await flushMicrotasks();
+      expect(touch.mock.calls.length).toBe(callsAfterRun);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a failing heartbeat write is absorbed and does not stop the attempt (3c)', async () => {
+    vi.useFakeTimers();
+    try {
+      let releaseSandbox!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        releaseSandbox = resolve;
+      });
+      let sandboxEntered!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        sandboxEntered = resolve;
+      });
+      const touch = vi.fn().mockRejectedValue(new Error('db down'));
+      const { deps } = makeDeps({
+        configService: configWith({ EXPERIMENT_REPETITION_CONCURRENCY: 1, EXPERIMENT_HEARTBEAT_INTERVAL_MS: 15_000 }),
+        sandboxExecutionService: {
+          execute: vi.fn(async () => {
+            sandboxEntered();
+            await gate;
+            return successfulSandboxResult();
+          }),
+        },
+      });
+      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+      repoOf(deps).touchRepetitionHeartbeat = touch;
+
+      const handling = makeHandler(deps).handle(payload, 'job-hb-fail');
+      await entered;
+      vi.advanceTimersByTime(15_000);
+      await flushMicrotasks();
+      expect(touch).toHaveBeenCalled();
+
+      releaseSandbox();
+      await expect(handling).resolves.toBeUndefined();
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('an expired RUNNING attempt 1 is closed and rerun as attempt 2 with the same pair identity (3c, i)', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([
+        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', true),
+        ...COMPLETED_OTHERS,
+      ]),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-3c-1');
+
+    const close = repoOf(deps).closeInterruptedRepetition as ReturnType<typeof vi.fn>;
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledWith('row-rag-1-a1', { errorSummary: expect.any(String) });
+    expect(deps.experimentRunsRepository.refreshCompletedRepetitions).toHaveBeenCalledWith('exp-1');
+
+    const begins = beginsOf(deps).filter((begin) => begin.strategy === 'RAG' && begin.repetition === 1);
+    expect(begins).toHaveLength(1);
+    expect(begins[0].pairId).toBe(experimentPairId('exp-1', 1));
+
+    const requestIds = executionsOf(deps).map((execution) => execution.requestId);
+    expect(requestIds).toContain(sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 2));
+    expect(requestIds).not.toContain(sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 1));
+    expect(requestIds.filter((id) => id === sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 2))).toHaveLength(1);
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+  });
+
+  it('an expired RUNNING attempt 2 is closed as INFRASTRUCTURE, not technically evaluable, with no third attempt (3c, ii)', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([
+        rowWithHeartbeat(attemptRow('RAG', 1, 2, 'RUNNING'), 'row-rag-1-a2', true),
+        ...COMPLETED_OTHERS,
+      ]),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-3c-2');
+
+    const close = repoOf(deps).closeInterruptedRepetition as ReturnType<typeof vi.fn>;
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledWith('row-rag-1-a2', {
+      errorSummary: expect.any(String),
+      technicallyEvaluable: false,
+    });
+    expect(beginsOf(deps).filter((begin) => begin.strategy === 'RAG' && begin.repetition === 1)).toHaveLength(0);
+    const requestIds = executionsOf(deps).map((execution) => execution.requestId);
+    for (const attempt of [1, 2, 3]) {
+      expect(requestIds).not.toContain(sandboxExperimentRequestId('job-3c-2', 'RAG', 1, attempt));
+    }
+    expect(writesOf(deps)).toHaveLength(0);
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+  });
+
+  it('a rerun of an expired attempt 1 that also fails externally stops at attempt 2 (3c, i and ii)', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([
+        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', true),
+        ...COMPLETED_OTHERS,
+      ]),
+      sandboxExecutionService: {
+        execute: vi.fn().mockRejectedValue(new SandboxUnavailableError('down')),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-3c-3');
+
+    const begins = beginsOf(deps).filter((begin) => begin.strategy === 'RAG' && begin.repetition === 1);
+    expect(begins).toHaveLength(1);
+    const requestIds = executionsOf(deps).map((execution) => execution.requestId);
+    expect(requestIds.filter((id) => id === sandboxExperimentRequestId('job-3c-3', 'RAG', 1, 2))).toHaveLength(1);
+    expect(requestIds).not.toContain(sandboxExperimentRequestId('job-3c-3', 'RAG', 1, 3));
+
+    const ragOne = writesOf(deps).filter((write) => write.strategy === 'RAG' && write.repetition === 1);
+    expect(ragOne).toHaveLength(1);
+    expect(ragOne[0].technicallyEvaluable).toBe(false);
+  });
+
+  it('a live RUNNING attempt 1 reschedules the whole job without closing or duplicating anything (3c, iii)', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([
+        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', false),
+        ...COMPLETED_OTHERS,
+      ]),
+    });
+
+    const error = await makeHandler(deps).handle(payload, 'job-3c-4').catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(RescheduleJobError);
+    expect((error as RescheduleJobError).delayMs).toBeGreaterThan(0);
+    expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
+    expect(beginsOf(deps)).toHaveLength(0);
+    expect(executionsOf(deps)).toHaveLength(0);
+    expect(deps.experimentRunsRepository.markStarted).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.markFailed).not.toHaveBeenCalled();
+  });
+
+  it('a live RUNNING row in any slot blocks the closing of an expired slot elsewhere (3c, iii)', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([
+        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', true),
+        rowWithHeartbeat(attemptRow('GENERALIST_AGENT', 2, 1, 'RUNNING'), 'row-agent-2-a1', false),
+        attemptRow('RAG', 2, 1, 'COMPLETED'),
+        attemptRow('RAG', 3, 1, 'COMPLETED'),
+        attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+        attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+      ]),
+    });
+
+    await expect(makeHandler(deps).handle(payload, 'job-3c-5')).rejects.toBeInstanceOf(RescheduleJobError);
+    expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
+    expect(beginsOf(deps)).toHaveLength(0);
+  });
+
+  it('a legacy run without seed never reschedules and keeps its single attempt per slot', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository([
+        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'COMPLETED'), 'row-rag-1', false),
+      ], {
+        findById: vi.fn().mockResolvedValue({
+          id: 'exp-1',
+          status: 'PENDING',
+          modelConfig: effectiveConfig,
+          randomizationSeed: null,
+          budget: null,
+          executionProfile: null,
+          runnerHint: null,
+        }),
+      }),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-legacy');
+
+    expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
+    expect(beginsOf(deps)).toHaveLength(5);
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
   });
 });

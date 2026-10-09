@@ -155,10 +155,85 @@ export class ExperimentRunsRepository {
     });
   }
 
-  complete(id: string): Promise<ExperimentRun> {
-    return this.prisma.experimentRun.update({
-      where: { id },
-      data: { status: ExperimentStatus.COMPLETED, completedAt: new Date() },
+  /**
+   * Marca COMPLETED solo si todos los slots lógicos (`totalRepetitions`) tienen un intento terminal
+   * y no queda ninguna repetición RUNNING (WI-CORE-025 (3c), guardia). Se serializa con
+   * `refreshCompletedRepetitions` por el bloqueo de la fila del experimento.
+   */
+  complete(id: string): Promise<void> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "experiment_runs" WHERE "id" = ${id} FOR UPDATE`;
+
+      const run = await tx.experimentRun.findUnique({
+        where: { id },
+        select: { totalRepetitions: true },
+      });
+      const running = await tx.experimentRepetition.count({
+        where: { experimentId: id, state: ExperimentRepetitionState.RUNNING },
+      });
+      const terminalAttempts = await tx.experimentRepetition.findMany({
+        where: {
+          experimentId: id,
+          state: {
+            in: [
+              ExperimentRepetitionState.COMPLETED,
+              ExperimentRepetitionState.FAILED,
+            ],
+          },
+        },
+        select: { strategy: true, repetition: true },
+      });
+      const terminalSlots = new Set(
+        terminalAttempts.map(({ strategy, repetition }) => `${strategy}:${repetition}`),
+      ).size;
+
+      if (!run || running > 0 || terminalSlots < run.totalRepetitions) {
+        throw new Error(
+          'El experimento no puede quedar COMPLETED: faltan slots lógicos terminales o hay repeticiones RUNNING.',
+        );
+      }
+
+      await tx.experimentRun.update({
+        where: { id },
+        data: { status: ExperimentStatus.COMPLETED, completedAt: new Date() },
+      });
+    });
+  }
+
+  /** Renueva el latido de un intento que sigue RUNNING. Un intento ya cerrado no se toca. */
+  touchRepetitionHeartbeat(id: string, at: Date): Promise<Prisma.BatchPayload> {
+    return this.prisma.experimentRepetition.updateMany({
+      where: { id, state: ExperimentRepetitionState.RUNNING },
+      data: { lastHeartbeatAt: at },
+    });
+  }
+
+  /**
+   * Cierra como FAILED/INFRASTRUCTURE un intento RUNNING con latido vencido (WI-CORE-025 (3c)).
+   * Solo fija estado, tipo de fallo, resumen y, si se pide, `technicallyEvaluable: false`; el resto de
+   * columnas y la evidencia de la traza se conservan. La traza en CAPTURING pasa a FAILED.
+   */
+  async closeInterruptedRepetition(
+    id: string,
+    options: { errorSummary: string; technicallyEvaluable?: false },
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.experimentRepetition.updateMany({
+        where: { id, state: ExperimentRepetitionState.RUNNING },
+        data: {
+          state: ExperimentRepetitionState.FAILED,
+          failureType: 'INFRASTRUCTURE',
+          errorSummary: options.errorSummary,
+          ...(options.technicallyEvaluable === false ? { technicallyEvaluable: false } : {}),
+        },
+      });
+
+      if (count === 0) return;
+
+      await tx.contextTrace.updateMany({
+        where: { experimentRepetitionId: id, state: 'CAPTURING' },
+        data: { state: 'FAILED' },
+      });
     });
   }
 

@@ -61,6 +61,7 @@ describe('ContextTracesRepository', () => {
         state: 'RUNNING',
         pairId: null,
         pairPosition: null,
+        lastHeartbeatAt: expect.any(Date),
       },
     });
     expect(tx.contextTrace.updateMany).toHaveBeenCalledWith({

@@ -757,6 +757,10 @@ model ExperimentRepetition {
   /// WI-CORE-025: interno, no expuesto en DTO ni INTEROP. true cuando el Sandbox devolvió TIMED_OUT
   /// (discriminador de la redelivery, en lugar del texto de errorSummary); null en filas previas o sin timeout.
   sandboxTimedOut      Boolean?
+  /// WI-CORE-025 (HU17): interno, no expuesto en DTO ni INTEROP. Latido del intento en curso (se escribe
+  /// al iniciarlo y se renueva mientras corre); un RUNNING con latido vencido es un intento interrumpido.
+  /// NULL solo en filas previas a la migración (se evalúan por createdAt).
+  lastHeartbeatAt      DateTime?
   contextTraces        ContextTrace[]
   createdAt            DateTime                  @default(now())
 

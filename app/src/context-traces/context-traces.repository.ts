@@ -77,6 +77,8 @@ export class ContextTracesRepository {
           state: 'RUNNING',
           pairId,
           pairPosition,
+          // Latido inicial del intento (WI-CORE-025 (3c)); se renueva mientras corre.
+          lastHeartbeatAt: new Date(),
         },
       });
 

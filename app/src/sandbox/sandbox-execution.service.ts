@@ -10,8 +10,8 @@ import type {
 } from './sandbox.types.js';
 
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
-const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
-const DEFAULT_MAX_POLL_ATTEMPTS = 120;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 
 // Keep the mapping exhaustive: adding a runner requires selecting its profile.
 export const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {

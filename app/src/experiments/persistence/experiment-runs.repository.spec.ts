@@ -371,3 +371,120 @@ describe('ExperimentRunsRepository.refreshCompletedRepetitions', () => {
     });
   });
 });
+
+describe('ExperimentRunsRepository recovery (WI-CORE-025 (3c))', () => {
+  function makeTx(overrides: { running?: number; terminal?: Array<{ strategy: string; repetition: number }>; totalRepetitions?: number } = {}) {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      experimentRun: {
+        findUnique: vi.fn().mockResolvedValue({ totalRepetitions: overrides.totalRepetitions ?? 6 }),
+        update: vi.fn().mockResolvedValue({ id: 'exp-1' }),
+        updateMany: vi.fn(),
+      },
+      experimentRepetition: {
+        count: vi.fn().mockResolvedValue(overrides.running ?? 0),
+        findMany: vi.fn().mockResolvedValue(overrides.terminal ?? []),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      contextTrace: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+      experimentRepetition: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    };
+    return { tx, prisma };
+  }
+
+  const sixTerminal = [
+    ...[1, 2, 3].map((repetition) => ({ strategy: 'RAG', repetition })),
+    ...[1, 2, 3].map((repetition) => ({ strategy: 'GENERALIST_AGENT', repetition })),
+  ];
+
+  it('complete marks COMPLETED only when all six logical slots are terminal and nothing is RUNNING', async () => {
+    const { tx, prisma } = makeTx({ terminal: sixTerminal });
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await repository.complete('exp-1');
+
+    expect(tx.experimentRepetition.count).toHaveBeenCalledWith({
+      where: { experimentId: 'exp-1', state: 'RUNNING' },
+    });
+    expect(tx.experimentRun.update).toHaveBeenCalledWith({
+      where: { id: 'exp-1' },
+      data: expect.objectContaining({ status: 'COMPLETED' }),
+    });
+  });
+
+  it('complete never marks COMPLETED while a repetition is still RUNNING', async () => {
+    const { tx, prisma } = makeTx({ running: 1, terminal: sixTerminal });
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await expect(repository.complete('exp-1')).rejects.toThrow('RUNNING');
+    expect(tx.experimentRun.update).not.toHaveBeenCalled();
+  });
+
+  it('complete never marks COMPLETED when a logical slot has no terminal attempt', async () => {
+    const { tx, prisma } = makeTx({ terminal: sixTerminal.slice(1) });
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await expect(repository.complete('exp-1')).rejects.toThrow('slots lógicos');
+    expect(tx.experimentRun.update).not.toHaveBeenCalled();
+  });
+
+  it('touchRepetitionHeartbeat renews only an attempt that is still RUNNING', async () => {
+    const { prisma } = makeTx();
+    const repository = new ExperimentRunsRepository(prisma as never);
+    const at = new Date('2026-10-09T12:00:00.000Z');
+
+    await repository.touchRepetitionHeartbeat('rep-1', at);
+
+    expect(prisma.experimentRepetition.updateMany).toHaveBeenCalledWith({
+      where: { id: 'rep-1', state: 'RUNNING' },
+      data: { lastHeartbeatAt: at },
+    });
+  });
+
+  it('closeInterruptedRepetition closes a RUNNING attempt as INFRASTRUCTURE and keeps the rest of its columns', async () => {
+    const { tx, prisma } = makeTx();
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await repository.closeInterruptedRepetition('rep-2', {
+      errorSummary: 'interrumpido',
+      technicallyEvaluable: false,
+    });
+
+    expect(tx.experimentRepetition.updateMany).toHaveBeenCalledWith({
+      where: { id: 'rep-2', state: 'RUNNING' },
+      data: {
+        state: 'FAILED',
+        failureType: 'INFRASTRUCTURE',
+        errorSummary: 'interrumpido',
+        technicallyEvaluable: false,
+      },
+    });
+    expect(tx.contextTrace.updateMany).toHaveBeenCalledWith({
+      where: { experimentRepetitionId: 'rep-2', state: 'CAPTURING' },
+      data: { state: 'FAILED' },
+    });
+  });
+
+  it('closeInterruptedRepetition of the first attempt does not touch technicallyEvaluable', async () => {
+    const { tx, prisma } = makeTx();
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await repository.closeInterruptedRepetition('rep-1', { errorSummary: 'interrumpido' });
+
+    const data = tx.experimentRepetition.updateMany.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty('technicallyEvaluable');
+  });
+
+  it('closeInterruptedRepetition is a no-op when the attempt is no longer RUNNING', async () => {
+    const { tx, prisma } = makeTx();
+    tx.experimentRepetition.updateMany.mockResolvedValue({ count: 0 });
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await repository.closeInterruptedRepetition('rep-1', { errorSummary: 'interrumpido' });
+
+    expect(tx.contextTrace.updateMany).not.toHaveBeenCalled();
+  });
+});

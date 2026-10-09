@@ -8,3 +8,8 @@
 export const DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS = 8000;
 export const DEFAULT_AGENT_MAX_TOOL_CALLS = 20;
 export const DEFAULT_GENERATION_TIMEOUT_MS = 120_000;
+/**
+ * Intervalo del latido por repetición en curso (WI-CORE-025, HU17). Debe quedar muy por debajo del
+ * umbral de vencimiento: el umbral efectivo nunca es menor que 3 × este intervalo.
+ */
+export const DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS = 15_000;

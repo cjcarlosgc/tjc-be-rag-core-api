@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import {
   DEFAULT_AGENT_MAX_TOOL_CALLS,
+  DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS,
   DEFAULT_GENERATION_TIMEOUT_MS,
   DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
 } from './generation-budget.defaults.js';
@@ -188,6 +189,20 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   EXPERIMENT_REPETITION_CONCURRENCY: number = 3;
+
+  /** Intervalo (ms) del latido de cada repetición en curso (WI-CORE-025, HU17). */
+  @IsInt()
+  @Min(1000)
+  EXPERIMENT_HEARTBEAT_INTERVAL_MS: number = DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS;
+
+  /**
+   * Umbral (ms) sin latido para considerar vencido un intento RUNNING. Vacío = calculado
+   * (GENERATION_TIMEOUT del run + tiempo HTTP máximo del Sandbox); nunca menor que 3 × intervalo.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  EXPERIMENT_HEARTBEAT_STALE_MS?: number;
 
   @IsNumber()
   @Min(0)

@@ -39,13 +39,25 @@ import {
   type FailureTypeValue,
 } from '../sandbox/map-sandbox-result.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
+import {
+  DEFAULT_MAX_POLL_ATTEMPTS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+} from '../sandbox/sandbox-execution.service.js';
+import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
+import {
+  remainingUntilExpiryMs,
+  resolveHeartbeatStaleMs,
+  resolveSlotAction,
+  sandboxHttpBoundMs,
+  type SlotAction,
+} from './attempt-recovery.js';
 import { estimateCost } from './cost-calculator.js';
 import {
   ExperimentRunsRepository,
   type ExperimentBudget,
   type ExperimentRepetitionInput,
 } from './persistence/experiment-runs.repository.js';
-import { ExperimentRepetitionState, ExperimentStatus } from '../generated/prisma/enums.js';
+import { ExperimentStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { ExperimentRepetition, TestTarget } from '../generated/prisma/client.js';
 import { ContextTracesRepository } from '../context-traces/context-traces.repository.js';
@@ -54,6 +66,7 @@ import type { GenerationContext } from '../retrieval/generation-context.js';
 import type { ExecutionProfile } from '../sandbox/sandbox.types.js';
 import {
   DEFAULT_AGENT_MAX_TOOL_CALLS,
+  DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS,
   DEFAULT_GENERATION_TIMEOUT_MS,
   DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
 } from '../config/generation-budget.defaults.js';
@@ -148,26 +161,42 @@ function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
   };
 }
 
-async function runWithConcurrencyLimit<T>(
+/**
+ * Ejecuta `items` con a lo sumo `concurrency` corridas simultáneas y no rechaza hasta que TODAS las
+ * corridas en vuelo terminen (WI-CORE-025 (3c)): si un slot falla, no se lanzan slots nuevos, se espera
+ * a los que ya corren y entonces se relanza el primer error. Así un job nunca se reprograma con un
+ * slot todavía vivo dentro del proceso.
+ */
+export async function runWithConcurrencyLimit<T>(
   items: T[],
   concurrency: number,
   worker: (item: T) => Promise<void>,
 ): Promise<void> {
   let cursor = 0;
+  const failure: { failed: boolean; error: unknown } = { failed: false, error: undefined };
 
   async function runNext(): Promise<void> {
-    const index = cursor;
-    cursor += 1;
-    if (index >= items.length) {
-      return;
+    while (!failure.failed && cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        await worker(items[index]);
+      } catch (error) {
+        if (!failure.failed) {
+          failure.failed = true;
+          failure.error = error;
+        }
+        return;
+      }
     }
-    await worker(items[index]);
-    await runNext();
   }
 
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, runNext),
-  );
+  const lanes = Array.from({ length: Math.min(concurrency, items.length) }, () => runNext());
+  await Promise.allSettled(lanes);
+
+  if (failure.failed) {
+    throw failure.error;
+  }
 }
 
 function slotKey(strategy: string, repetition: number): string {
@@ -200,37 +229,9 @@ function buildLegacySchedule(): SlotIdentity[] {
   );
 }
 
-/**
- * Fallo externo persistido: FAILED con INFRASTRUCTURE (plan punto 7). El timeout del Sandbox
- * también persiste INFRASTRUCTURE, pero no es externo: se distingue por la columna interna
- * `sandboxTimedOut` (WI-CORE-025), nunca por el texto de `errorSummary`. Filas previas con NULL
- * son «no TIMED_OUT conocido».
- */
-function isPersistedExternalFailure(row: ExperimentRepetition): boolean {
-  return (
-    row.state === ExperimentRepetitionState.FAILED &&
-    row.failureType === 'INFRASTRUCTURE' &&
-    row.sandboxTimedOut !== true
-  );
-}
-
-/**
- * Intento con el que debe continuar un slot en esta corrida, o null si no corresponde
- * ejecutarlo (idempotencia de redelivery, plan punto 8). Nunca devuelve 3.
- * Un intento 1 huérfano en RUNNING se trata como interrumpido y continúa con el intento 2.
- * Pendiente (WI-CORE-025 (3)): no hay confirmación de que no quede una ejecución viva; un RUNNING
- * de intento 2 se omite sin cerrarlo (comportamiento actual).
- */
-function firstAttemptToRun(latest: ExperimentRepetition | undefined): 1 | 2 | null {
-  if (!latest) return 1;
-  if (
-    latest.attempt === 1 &&
-    (latest.state === ExperimentRepetitionState.RUNNING || isPersistedExternalFailure(latest))
-  ) {
-    return 2;
-  }
-  return null;
-}
+/** Resumen persistido al cerrar un intento cuyo latido venció (WI-CORE-025 (3c)). */
+const INTERRUPTED_ATTEMPT_SUMMARY =
+  'El intento quedó interrumpido: su latido venció antes de terminar.';
 
 /** Valores ausentes (`null` o no presentes en corridas previas) no son error: usan la versión actual. */
 function parseRunnerHint(value: string | null | undefined): 'JEST' | 'VITEST' | null {
@@ -298,6 +299,28 @@ export class ExperimentJobHandler
     }
 
     try {
+      const budget = this.resolveBudget(run.budget);
+      const staleMs = this.heartbeatStaleMs(budget);
+      // Último intento por slot: decide qué se omite, reanuda o reprograma al reentrar el job.
+      const latestBySlot = new Map(
+        (await this.experimentRunsRepository.findRepetitions(payload.experimentId)).map(
+          (row) => [slotKey(row.strategy, row.repetition), row] as const,
+        ),
+      );
+      const latestOf = (slot: SlotIdentity) =>
+        latestBySlot.get(slotKey(slot.strategy, slot.repetition));
+      const pairSchedule = run.randomizationSeed
+        ? buildPairSchedule(payload.experimentId, run.randomizationSeed)
+        : null;
+
+      if (pairSchedule) {
+        // Antes de tocar nada: si algún intento tiene latido vigente, no se duplica ni se cierra nada.
+        this.assertNoInFlightAttempt(
+          pairSchedule.flat().map((slot) => latestOf(slot)),
+          staleMs,
+        );
+      }
+
       await this.experimentRunsRepository.markStarted(payload.experimentId);
       // Misma configuración para ambos brazos: la persistida al crear el experimento.
       // Corridas previas sin modelConfig (NULL) usan la resolución por defecto.
@@ -343,34 +366,22 @@ export class ExperimentJobHandler
         framework: parseRunnerHint(run.runnerHint) ?? detectedFramework,
         target,
         config,
-        budget: this.resolveBudget(run.budget),
+        budget,
         executionProfile: parseExecutionProfile(run.executionProfile),
       };
       const concurrency = this.configService.get<number>(
         'EXPERIMENT_REPETITION_CONCURRENCY',
         3,
       );
-      // Último intento por slot: decide qué se omite al reentrar el job (redelivery).
-      const latestBySlot = new Map(
-        (await this.experimentRunsRepository.findRepetitions(payload.experimentId)).map(
-          (row) => [slotKey(row.strategy, row.repetition), row] as const,
-        ),
-      );
-      const latestOf = (slot: SlotIdentity) =>
-        latestBySlot.get(slotKey(slot.strategy, slot.repetition));
 
-      if (run.randomizationSeed) {
+      if (pairSchedule) {
         // OE5 pareado: los pares 1..3 corren con concurrencia limitada; dentro de cada par
         // las dos posiciones son estrictamente secuenciales y el reintento va antes de la siguiente.
-        await runWithConcurrencyLimit(
-          buildPairSchedule(payload.experimentId, run.randomizationSeed),
-          concurrency,
-          async (pair) => {
-            for (const slot of pair) {
-              await this.runSlot(runContext, slot, latestOf(slot));
-            }
-          },
-        );
+        await runWithConcurrencyLimit(pairSchedule, concurrency, async (pair) => {
+          for (const slot of pair) {
+            await this.runSlot(runContext, slot, latestOf(slot), staleMs);
+          }
+        });
       } else {
         // Experimentos creados antes de WI-CORE-025 (sin semilla): sin orden pareado y sin
         // reintento externo; cada slot tiene un único intento (ver runLegacySlot).
@@ -383,6 +394,10 @@ export class ExperimentJobHandler
 
       await this.experimentRunsRepository.complete(payload.experimentId);
     } catch (error) {
+      // Reprogramación por latido vigente: el experimento sigue en curso, no es un fallo (no FAILED).
+      if (error instanceof RescheduleJobError) {
+        throw error;
+      }
       const message =
         error instanceof Error
           ? error.message
@@ -437,14 +452,131 @@ export class ExperimentJobHandler
     context: RunContext,
     slot: SlotIdentity,
     latest: ExperimentRepetition | undefined,
+    staleMs: number,
   ): Promise<void> {
-    const firstAttempt = firstAttemptToRun(latest);
-    if (firstAttempt === null) return;
+    const action = resolveSlotAction(latest, Date.now(), staleMs);
+    await this.applySlotAction(context, slot, action, staleMs);
+  }
 
-    const externalFailure = await this.runAttempt({ ...context, ...slot, attempt: firstAttempt });
-    if (firstAttempt === 1 && externalFailure) {
-      await this.runAttempt({ ...context, ...slot, attempt: 2 });
+  /**
+   * Ejecuta la decisión de `resolveSlotAction` (WI-CORE-025 (3c)). Nunca crea un tercer intento:
+   * el intento 2 solo se cierra cuando su latido venció.
+   */
+  private async applySlotAction(
+    context: RunContext,
+    slot: SlotIdentity,
+    action: SlotAction<ExperimentRepetition>,
+    staleMs: number,
+  ): Promise<void> {
+    switch (action.kind) {
+      case 'SKIP':
+        return;
+      case 'IN_FLIGHT':
+        throw this.liveAttemptReschedule([action.row], Date.now(), staleMs);
+      case 'CLOSE_EXPIRED_SECOND':
+        await this.closeInterruptedAttempt(context.experimentId, action.row, 2);
+        return;
+      case 'RUN': {
+        if (action.expiredAttempt) {
+          await this.closeInterruptedAttempt(context.experimentId, action.expiredAttempt, 1);
+        }
+        const externalFailure = await this.runAttempt({ ...context, ...slot, attempt: action.attempt });
+        if (action.attempt === 1 && externalFailure) {
+          await this.runAttempt({ ...context, ...slot, attempt: 2 });
+        }
+        return;
+      }
     }
+  }
+
+  /** Cierra un intento cuyo latido venció y recalcula el contador de slots terminales. */
+  private async closeInterruptedAttempt(
+    experimentId: string,
+    row: ExperimentRepetition,
+    attempt: 1 | 2,
+  ): Promise<void> {
+    await this.experimentRunsRepository.closeInterruptedRepetition(row.id, {
+      errorSummary: row.errorSummary ?? INTERRUPTED_ATTEMPT_SUMMARY,
+      // Solo el intento 2 queda sin evaluación técnica: el 1 todavía deja paso al reintento.
+      ...(attempt === 2 ? { technicallyEvaluable: false as const } : {}),
+    });
+    await this.experimentRunsRepository.refreshCompletedRepetitions(experimentId);
+    this.logger.warn(`Intento ${attempt} interrumpido (latido vencido) de un slot pareado.`);
+  }
+
+  /**
+   * Si algún último intento está RUNNING con latido vigente, el job se reprograma sin tocar nada
+   * (WI-CORE-025 (3c), punto iii). Solo se consideran slots pareados.
+   */
+  private assertNoInFlightAttempt(
+    latestRows: Array<ExperimentRepetition | undefined>,
+    staleMs: number,
+  ): void {
+    const nowMs = Date.now();
+    const inFlight = latestRows.flatMap((latest) => {
+      const action = resolveSlotAction(latest, nowMs, staleMs);
+      return action.kind === 'IN_FLIGHT' ? [action.row] : [];
+    });
+    if (inFlight.length > 0) {
+      throw this.liveAttemptReschedule(inFlight, nowMs, staleMs);
+    }
+  }
+
+  /**
+   * Reprograma el job sin consumir un intento (RescheduleJobError, JobsService) para reintentarlo
+   * cuando el latido vigente más cercano pueda haber vencido, sin esperar menos que el intervalo.
+   */
+  private liveAttemptReschedule(
+    rows: ExperimentRepetition[],
+    nowMs: number,
+    staleMs: number,
+  ): RescheduleJobError {
+    const intervalMs = this.heartbeatIntervalMs();
+    const untilExpiryMs = Math.min(
+      ...rows.map((row) => remainingUntilExpiryMs(row, nowMs, staleMs)),
+    );
+    return new RescheduleJobError(
+      Math.min(staleMs, Math.max(intervalMs, untilExpiryMs)),
+      'Hay una repetición pareada de este experimento con latido vigente; el job se reintenta más tarde.',
+    );
+  }
+
+  private heartbeatIntervalMs(): number {
+    return this.configService.get<number>(
+      'EXPERIMENT_HEARTBEAT_INTERVAL_MS',
+      DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS,
+    );
+  }
+
+  /** Umbral de vencimiento del latido para este run (WI-CORE-025 (3c), punto iv). */
+  private heartbeatStaleMs(budget: ExperimentBudget): number {
+    return resolveHeartbeatStaleMs({
+      configuredMs: this.configService.get<number | undefined>('EXPERIMENT_HEARTBEAT_STALE_MS'),
+      intervalMs: this.heartbeatIntervalMs(),
+      generationTimeoutMs: budget.maxDurationMs,
+      sandboxHttpBoundMs: sandboxHttpBoundMs(
+        this.configService.get<number>('SANDBOX_REQUEST_TIMEOUT_MS', DEFAULT_REQUEST_TIMEOUT_MS),
+        this.configService.get<number>('SANDBOX_MAX_POLL_ATTEMPTS', DEFAULT_MAX_POLL_ATTEMPTS),
+      ),
+    });
+  }
+
+  /**
+   * Latido de un intento mientras corre: un temporizador con `unref` que renueva
+   * `lastHeartbeatAt`. Devuelve la función que lo detiene (se llama en el `finally` del intento).
+   * Un fallo al escribir el latido se registra y no interrumpe la generación.
+   */
+  private startHeartbeat(repetitionId: string): () => void {
+    const timer = setInterval(() => {
+      void Promise.resolve()
+        .then(() => this.experimentRunsRepository.touchRepetitionHeartbeat(repetitionId, new Date()))
+        .catch(() => {
+          this.logger.warn('No se pudo renovar el latido de una repetición en curso.');
+        });
+    }, this.heartbeatIntervalMs());
+    timer.unref?.();
+
+    return () => clearInterval(timer);
   }
 
   /**
@@ -475,6 +607,8 @@ export class ExperimentJobHandler
       pairId: context.pairId,
       pairPosition: context.pairPosition,
     });
+    // Latido mientras el intento corre; se detiene en el `finally` (WI-CORE-025 (3c)).
+    const stopHeartbeat = this.startHeartbeat(begun.repetition.id);
     let workspace: ExtractedWorkspace | undefined;
     const generationStart = Date.now();
     let generationDurationMs = 0;
@@ -699,6 +833,7 @@ export class ExperimentJobHandler
       }
       return externalFailure;
     } finally {
+      stopHeartbeat();
       if (workspace) {
         try {
           await workspace.cleanup();
