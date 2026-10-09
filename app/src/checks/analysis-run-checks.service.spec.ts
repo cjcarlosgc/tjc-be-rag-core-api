@@ -34,14 +34,17 @@ const binding: RepositoryBinding = {
 describe('AnalysisRunChecksService', () => {
   let service: AnalysisRunChecksService;
   let repositoryBindingsRepository: { findForRun: ReturnType<typeof vi.fn> };
-  let analysisRunsRepository: { findById: ReturnType<typeof vi.fn> };
+  let analysisRunsRepository: { findById: ReturnType<typeof vi.fn>; setCheckId: ReturnType<typeof vi.fn> };
   let githubChecksService: { createCheckRun: ReturnType<typeof vi.fn> };
   let configService: { get: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    analysisRunsRepository = { findById: vi.fn().mockImplementation(async (id: string) => buildRun({ id })) };
+    analysisRunsRepository = {
+      findById: vi.fn().mockImplementation(async (id: string) => buildRun({ id })),
+      setCheckId: vi.fn().mockResolvedValue(buildRun()),
+    };
     repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
-    githubChecksService = { createCheckRun: vi.fn().mockResolvedValue(undefined) };
+    githubChecksService = { createCheckRun: vi.fn().mockResolvedValue({ checkId: null }) };
     configService = {
       get: vi.fn((key: string, fallback?: unknown) => {
         if (key === 'GITHUB_CHECK_NAME') return fallback ?? 'RAG Core Analysis';
@@ -110,6 +113,29 @@ describe('AnalysisRunChecksService', () => {
 
   it('never throws when publishing the check fails (best-effort)', async () => {
     githubChecksService.createCheckRun.mockRejectedValue(new Error('GitHub API 403'));
+
+    await expect(service.publishForRun(buildRun())).resolves.toBeUndefined();
+  });
+
+  it('persists the checkId returned by GitHub Integration on the run (WI-CORE-026)', async () => {
+    githubChecksService.createCheckRun.mockResolvedValue({ checkId: 'chk-42' });
+
+    await service.publishForRun(buildRun({ id: 'run-9' }));
+
+    expect(analysisRunsRepository.setCheckId).toHaveBeenCalledWith('run-9', 'chk-42');
+  });
+
+  it('does not persist a checkId when GitHub Integration did not return one (204 transition)', async () => {
+    githubChecksService.createCheckRun.mockResolvedValue({ checkId: null });
+
+    await service.publishForRun(buildRun());
+
+    expect(analysisRunsRepository.setCheckId).not.toHaveBeenCalled();
+  });
+
+  it('stays best-effort when persisting the checkId fails', async () => {
+    githubChecksService.createCheckRun.mockResolvedValue({ checkId: 'chk-42' });
+    analysisRunsRepository.setCheckId.mockRejectedValue(new Error('db down'));
 
     await expect(service.publishForRun(buildRun())).resolves.toBeUndefined();
   });

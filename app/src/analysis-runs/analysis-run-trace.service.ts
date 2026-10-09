@@ -130,7 +130,7 @@ export class AnalysisRunTraceService {
         targetCount: targets.length,
       },
       targets,
-      publication: toPublication(latestPublication, null),
+      publication: toPublication(latestPublication, run.checkId ?? null),
     };
   }
 }
@@ -138,7 +138,7 @@ export class AnalysisRunTraceService {
 /**
  * `publication` (DEC-TRACE-002): PRESENT si hay Check o TestPublication; `freshness` solo de la
  * publicación más reciente (CURRENT con PUBLISHED, STALE con STALE, null en cualquier otro estado).
- * `checkId` queda null hasta la columna del corte D.
+ * `checkId` es el id del Check del Run (corte D); sin él y sin TestPublication, NOT_APPLICABLE.
  */
 function toPublication(latest: PublicationRow | null, checkId: string | null): TracePublicationResponse {
   const freshness = latest?.status === 'PUBLISHED' ? 'CURRENT' : latest?.status === 'STALE' ? 'STALE' : null;

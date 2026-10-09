@@ -333,6 +333,22 @@ describe.skipIf(!url)('AnalysisTraceRepository against a local PostgreSQL (WI-CO
   });
 
   describe('lectura del trace sobre filas reales (WI-CORE-026, corte C)', () => {
+    it('reads the checkId column persisted on the run (corte D) into publication', async () => {
+      const { runId } = await createRunWithSymbol();
+      await prisma.analysisRun.update({ where: { id: runId }, data: { status: 'SUCCESS', checkId: 'chk-pg-1' } });
+      const run = await prisma.analysisRun.findUniqueOrThrow({ where: { id: runId } });
+      const service = new AnalysisRunTraceService(
+        { getById: async () => run } as never,
+        { findByAnalysisRun: (id: string) => prisma.analysisSymbol.findMany({ where: { analysisRunId: id } }) } as never,
+        repository as never,
+      );
+
+      const trace = await service.getTrace(runId, 'user-1');
+
+      expect(run.checkId).toBe('chk-pg-1');
+      expect(trace.publication).toMatchObject({ status: 'PRESENT', checkId: 'chk-pg-1', freshness: null });
+    });
+
     it('builds the INTEROP §6.16 chain from the persisted rows of a finished run', async () => {
       const { runId, symbolId } = await createRunWithSymbol();
       await prisma.analysisRun.update({ where: { id: runId }, data: { status: 'SUCCESS' } });

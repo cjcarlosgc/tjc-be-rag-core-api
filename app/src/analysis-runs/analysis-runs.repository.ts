@@ -85,6 +85,11 @@ export class AnalysisRunsRepository {
     });
   }
 
+  /** WI-CORE-026 (corte D): guarda el id del Check publicado en GitHub para el Run. */
+  setCheckId(id: string, checkId: string): Promise<AnalysisRun> {
+    return this.prisma.analysisRun.update({ where: { id }, data: { checkId } });
+  }
+
   update(id: string, data: Prisma.AnalysisRunUpdateInput): Promise<AnalysisRun> {
     if (data.current === false || data.status === 'OBSOLETE') {
       return this.prisma.$transaction(async (tx) => {

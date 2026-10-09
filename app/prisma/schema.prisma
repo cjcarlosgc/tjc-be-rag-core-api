@@ -350,6 +350,8 @@ model AnalysisRun {
   actionRequiredCount         Int                     @default(0)
   generatedTestsCount         Int                     @default(0)
   resultSummary               String?
+  /// WI-CORE-026 (corte D; GH-INTEROP 1.3): id del Check publicado en GitHub para este Run. Null si no se publicó o si GitHub Integration no devolvió id.
+  checkId                     String?
   completedAt                 DateTime?
   createdAt                   DateTime                @default(now())
   updatedAt                   DateTime                @updatedAt

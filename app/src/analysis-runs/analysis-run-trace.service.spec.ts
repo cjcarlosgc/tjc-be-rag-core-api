@@ -224,6 +224,21 @@ describe('AnalysisRunTraceService (WI-CORE-026, INTEROP-2.7 §6.16)', () => {
     expect(trace.findExecutionsByRun).not.toHaveBeenCalled();
   });
 
+  it('reports a Check alone as publication PRESENT with checkId, and companion fields null (DEC-TRACE-002)', async () => {
+    const { service } = makeService({ run: makeRun({ checkId: 'chk-7' }) });
+
+    const result = await service.getTrace('run-1', 'user-1');
+
+    expect(result.publication).toEqual({
+      status: 'PRESENT',
+      checkId: 'chk-7',
+      companionBranch: null,
+      companionPullRequestUrl: null,
+      sourceHeadSha: null,
+      freshness: null,
+    });
+  });
+
   it('exposes STALE freshness only for a STALE publication and null for any other state', async () => {
     for (const [status, freshness] of [
       ['STALE', 'STALE'],

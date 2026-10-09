@@ -49,14 +49,23 @@ export class AnalysisRunChecksService {
         return;
       }
 
-      await this.githubChecksService.createCheckRun(binding.installationId, binding.repositoryName, {
-        name: this.configService.get<string>('GITHUB_CHECK_NAME', DEFAULT_CHECK_NAME),
-        headSha: currentRun.headSha,
-        conclusion,
-        title: buildCheckTitle(currentRun.status),
-        summary: currentRun.resultSummary ?? buildCheckTitle(currentRun.status),
-        ...(this.buildDetailsUrl(currentRun) ? { detailsUrl: this.buildDetailsUrl(currentRun)! } : {}),
-      });
+      const { checkId } = await this.githubChecksService.createCheckRun(
+        binding.installationId,
+        binding.repositoryName,
+        {
+          name: this.configService.get<string>('GITHUB_CHECK_NAME', DEFAULT_CHECK_NAME),
+          headSha: currentRun.headSha,
+          conclusion,
+          title: buildCheckTitle(currentRun.status),
+          summary: currentRun.resultSummary ?? buildCheckTitle(currentRun.status),
+          ...(this.buildDetailsUrl(currentRun) ? { detailsUrl: this.buildDetailsUrl(currentRun)! } : {}),
+        },
+      );
+
+      // WI-CORE-026: el id persiste para que el trace lo exponga. Sigue siendo best-effort (catch abajo).
+      if (checkId !== null) {
+        await this.analysisRunsRepository.setCheckId(currentRun.id, checkId);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido publicando el Check.';
       this.logger.warn(`No se pudo publicar el Check de GitHub para AnalysisRun ${run.id}: ${message}`);
