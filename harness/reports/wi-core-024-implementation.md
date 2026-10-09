@@ -6,12 +6,10 @@ Modelo: implementer · configurado claude-haiku-5-5 · atendido unknown · esfue
 ## Commits (locales)
 | Corte | Commit | Contenido |
 |---|---|---|
-| A | `d062668` | `WorkspaceAgentTools` sin filtro de pruebas existentes; descripciones y mensajes; enumeración de herramientas |
-| B | `dfc3f58` | tope por tool calls ejecutadas (`AGENT_MAX_TOOL_CALLS`, `@Max(100)`), presupuesto de contexto acumulado en tokens cl100k, campos por paso |
-| C | `29b64de` | handler sin `testFilePaths`, `detail.budget` en `ContextTrace.detail`, instrucciones con tope y presupuesto reales |
-| D | `701a3d8` | `RETRIEVAL_MAX_CONTEXT_TOKENS` 6000 a 8000 (decisión del usuario) |
+| A+B+C | `0a5f3d2` | cortes A, B y C unidos en un commit por pedido del revisor (cada commit compila): `WorkspaceAgentTools` sin filtro de pruebas, tope por tool calls ejecutadas con presupuesto acumulado en tokens cl100k, `detail.budget` persistido y handler sin `testFilePaths` |
+| D | `727920c` | `RETRIEVAL_MAX_CONTEXT_TOKENS` 6000 a 8000 (decisión del usuario) |
 
-A y B solos no compilan (el handler se ajusta en C); el árbol compila desde `29b64de`. Pueden unirse si el revisor lo prefiere.
+Los cortes A, B y C se unieron en un único commit (árbol idéntico al anterior); los commits previos d062668, dfc3f58 y 29b64de dejaron de existir.
 
 ## Interpretaciones a confirmar por el reviewer
 1. «Cada resultado se trunca para no superar contextTokenBudget» se interpretó como presupuesto **acumulativo** (paridad con RAG). Un tope por resultado sería un ajuste menor.
