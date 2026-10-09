@@ -5956,16 +5956,14 @@
       "handoffs": [
         {
           "agent": "sdd-analyst",
-          "status": "DECISION_REQUIRED",
+          "status": "APPROVED",
           "findings": [
             "Criterios 1, 3 (salvo publication), 4 y la obligación de 021 suficientes; cortes A, B y C implementables.",
             "DEC-TRACE-001 (origen de checkId: requiere enmendar GH-INTEROP en otro componente) y DEC-TRACE-002 (semántica de publication y freshness) están PROPOSED y NO decididas por el usuario: bloquean SOLO el corte D y el enlace publication/checkId.",
-            "Nota del leader: el validador no admite decisiones bloqueantes en W-IN_PROGRESS; ambas se registran en nonBlockingDecisionIds con ese alcance acotado y noBlockingDecisions pasa solo para los cortes A-C. El leader NO implementa el corte D ni inventa publication/checkId (null/NOT_APPLICABLE pendientes) ni cierra W-DONE sin que el usuario las resuelva."
+            "Nota del leader: el validador no admite decisiones bloqueantes en W-IN_PROGRESS; ambas se registran en nonBlockingDecisionIds con ese alcance acotado y noBlockingDecisions pasa solo para los cortes A-C. El leader NO implementa el corte D ni inventa publication/checkId (null/NOT_APPLICABLE pendientes) ni cierra W-DONE sin que el usuario las resuelva.",
+            "DEC-TRACE-001 y DEC-TRACE-002 APROBADAS por el usuario en chat (2026-10-09); ya no hay decisiones pendientes y se retira la condición de cierre."
           ],
-          "blockers": [
-            "DEC-TRACE-001 (corte D)",
-            "DEC-TRACE-002 (corte D)"
-          ],
+          "blockers": [],
           "filesAffected": [
             "harness/reports/wi-core-026-sdd-verification.md",
             "spec/features/011-context-traces/plan.md"
@@ -6027,7 +6025,8 @@
     "evidence": [
       "harness/reports/wi-core-026-contract-sync-scope-review.md",
       "harness/reports/smart-v3-scope-approval.md",
-      "harness/reports/wi-core-026-sdd-verification.md"
+      "harness/reports/wi-core-026-sdd-verification.md",
+      "harness/reports/wi-core-026-contract-review.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
