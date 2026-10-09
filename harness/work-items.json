@@ -1271,7 +1271,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1502,7 +1502,8 @@
         "La decisión de qué intento RUNNING está huérfano reutiliza el latido por repetición de WI-CORE-025 (attempt-recovery); un latido vigente no se toca y respeta JOBS_MAX_ATTEMPTS.",
         "El análisis SDD documenta por qué releaseStale solo libera jobs con dedupeKey (qué tipos de job no son idempotentes) y fija por tipo si se libera o no; no se amplía a tipos con efectos no idempotentes sin decisión del usuario.",
         "Pruebas que reproducen la redistribución tras un lock vencido, la no duplicación con latido vigente y el límite de intentos; sin tiempos reales.",
-        "Sin cambio de contrato público esperado (contractImpact=false); si el análisis lo desmiente, se registra y se emite Contract Sync."
+        "Sin cambio de contrato público esperado (contractImpact=false); si el análisis lo desmiente, se registra y se emite Contract Sync.",
+        "Endurecimiento heredado de la revisión independiente de WI-CORE-025 (H3 y parte de H4): updateRepetitionById lleva una guarda de estado (solo actualiza filas en RUNNING) para que un worker zombi no sobrescriba una fila ya cerrada en redelivery; y markStarted/complete() de ExperimentRunsRepository limpian failureCode/failureMessage para que un experimento que pasó por markFailed y luego completa en un retry no termine COMPLETED con failureCode puesto. Con pruebas de cada caso."
       ],
       "specPaths": [
         "spec/transversal/async-jobs/spec.md",
