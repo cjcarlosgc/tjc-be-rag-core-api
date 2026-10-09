@@ -6019,14 +6019,18 @@
           "checkedAt": "2026-10-09T20:32:09.797Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261009-012"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
       "harness/reports/wi-core-026-contract-sync-scope-review.md",
       "harness/reports/smart-v3-scope-approval.md",
       "harness/reports/wi-core-026-sdd-verification.md",
-      "harness/reports/wi-core-026-contract-review.md"
+      "harness/reports/wi-core-026-contract-review.md",
+      "harness/reports/contract-sync-publish-cs-core-20261009-012.md",
+      "harness/reports/wi-core-026-gh-interop-review.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
