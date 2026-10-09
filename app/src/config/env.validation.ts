@@ -56,6 +56,14 @@ class EnvironmentVariables {
   @Min(1000)
   JOBS_STALE_LOCK_MS: number = 600_000;
 
+  /**
+   * Intervalo (ms) del latido del lock de cada job en curso (WI-CORE-030, DEC-JOBS-002). Debe ser
+   * como máximo `JOBS_STALE_LOCK_MS / 3`, o un worker vivo podría parecer caído.
+   */
+  @IsInt()
+  @Min(1000)
+  JOBS_HEARTBEAT_INTERVAL_MS: number = 60_000;
+
   /** Siembra y ejecuta la reconciliación horaria de acceso (HU61); `false` la desactiva (local/tests). */
   @IsBoolean()
   ACCESS_RECONCILIATION_ENABLED: boolean = true;
@@ -317,6 +325,13 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   if (validated.NODE_ENV === 'production' && validated.AUTH_BYPASS_ENABLED) {
     throw new Error(
       'Configuración de entorno inválida: AUTH_BYPASS_ENABLED no puede estar activo con NODE_ENV=production (DEC-WEB-AUTH-001).',
+    );
+  }
+
+  // WI-CORE-030 (DEC-JOBS-002): el latido debe renovar el lock al menos tres veces antes de que venza.
+  if (validated.JOBS_HEARTBEAT_INTERVAL_MS * 3 > validated.JOBS_STALE_LOCK_MS) {
+    throw new Error(
+      'Configuración de entorno inválida: JOBS_HEARTBEAT_INTERVAL_MS debe ser ≤ JOBS_STALE_LOCK_MS / 3.',
     );
   }
 

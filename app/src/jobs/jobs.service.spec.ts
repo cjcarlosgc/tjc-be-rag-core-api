@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JobsService } from './jobs.service.js';
 import { JobsRepository } from './jobs.repository.js';
 import { RescheduleJobError } from './reschedule-job.error.js';
@@ -17,6 +17,7 @@ describe('JobsService', () => {
     releaseStale: ReturnType<typeof vi.fn>;
     insertDeduped: ReturnType<typeof vi.fn>;
     updatePendingPayload: ReturnType<typeof vi.fn>;
+    touchLock: ReturnType<typeof vi.fn>;
   };
   let config: Record<string, unknown>;
 
@@ -46,6 +47,7 @@ describe('JobsService', () => {
       releaseStale: vi.fn().mockResolvedValue(0),
       insertDeduped: vi.fn(),
       updatePendingPayload: vi.fn(),
+      touchLock: vi.fn().mockResolvedValue(true),
     };
     config = {};
 
@@ -89,7 +91,7 @@ describe('JobsService', () => {
     await service.runOnce();
 
     expect(handle).toHaveBeenCalledWith(baseJob.payload, baseJob.id);
-    expect(repository.complete).toHaveBeenCalledWith(baseJob.id);
+    expect(repository.complete).toHaveBeenCalledWith(baseJob);
   });
 
   it('fails (with retry) when the registered handler throws', async () => {
@@ -165,6 +167,91 @@ describe('JobsService', () => {
       expect(repository.reschedule).toHaveBeenCalledWith(job, 120_000, 'GitHub no verificable', { deferrals: 2 });
       expect(repository.fail).not.toHaveBeenCalled();
       expect(repository.complete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('lock heartbeat (WI-CORE-030, DEC-JOBS-002)', () => {
+    /** Handler controlable: `finish()` resuelve el `handle` en curso. */
+    function gatedHandler() {
+      let finish!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { finish, handle: vi.fn(() => gate) };
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('renews the lock every JOBS_HEARTBEAT_INTERVAL_MS while the handler runs, and stops when it finishes', async () => {
+      vi.useFakeTimers();
+      config.JOBS_HEARTBEAT_INTERVAL_MS = 15_000;
+      repository.claimNext.mockResolvedValue(baseJob);
+      const handler = gatedHandler();
+      service.registerHandler({ type: 'demo', handle: handler.handle });
+
+      const running = service.runOnce();
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(repository.touchLock).toHaveBeenCalledTimes(1);
+      expect(repository.touchLock).toHaveBeenCalledWith('job-1', expect.any(String));
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(repository.touchLock).toHaveBeenCalledTimes(3);
+
+      handler.finish();
+      await running;
+      expect(repository.complete).toHaveBeenCalledWith(baseJob);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(repository.touchLock).toHaveBeenCalledTimes(3);
+    });
+
+    it('defaults to renewing every 60 seconds', async () => {
+      vi.useFakeTimers();
+      repository.claimNext.mockResolvedValue(baseJob);
+      const handler = gatedHandler();
+      service.registerHandler({ type: 'demo', handle: handler.handle });
+
+      const running = service.runOnce();
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(repository.touchLock).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(repository.touchLock).toHaveBeenCalledTimes(1);
+
+      handler.finish();
+      await running;
+    });
+
+    it('a failed renewal is logged and does not interrupt the handler', async () => {
+      vi.useFakeTimers();
+      config.JOBS_HEARTBEAT_INTERVAL_MS = 15_000;
+      repository.touchLock.mockRejectedValue(new Error('db down'));
+      repository.claimNext.mockResolvedValue(baseJob);
+      const handler = gatedHandler();
+      service.registerHandler({ type: 'demo', handle: handler.handle });
+
+      const running = service.runOnce();
+      await vi.advanceTimersByTimeAsync(30_000);
+      handler.finish();
+      await running;
+
+      expect(repository.touchLock).toHaveBeenCalledTimes(2);
+      expect(repository.complete).toHaveBeenCalledWith(baseJob);
+      expect(repository.fail).not.toHaveBeenCalled();
+    });
+
+    it('stops renewing when the handler fails, and the failure still goes to fail()', async () => {
+      vi.useFakeTimers();
+      config.JOBS_HEARTBEAT_INTERVAL_MS = 15_000;
+      repository.claimNext.mockResolvedValue(baseJob);
+      service.registerHandler({ type: 'demo', handle: vi.fn().mockRejectedValue(new Error('boom')) });
+
+      await service.runOnce();
+      expect(repository.fail).toHaveBeenCalledWith(baseJob, 'boom');
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(repository.touchLock).not.toHaveBeenCalled();
     });
   });
 });

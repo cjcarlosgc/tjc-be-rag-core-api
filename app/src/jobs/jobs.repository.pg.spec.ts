@@ -82,8 +82,8 @@ for (const zone of ZONES) {
       });
 
       it('a COMPLETED row does not block either', async () => {
-        const id = (await insert())!;
-        await repository.complete(id);
+        await insert();
+        await repository.complete((await repository.claimNext('worker-a'))!);
         expect(await insert()).toEqual(expect.any(String));
       });
 
@@ -122,7 +122,7 @@ for (const zone of ZONES) {
         expect(next).toMatchObject({ type: 'snapshot-analysis', dedupeKey: null });
         expect(await repository.claimNext('worker-b')).toBeNull(); // el PENDING con la clave espera
 
-        await repository.complete(first.id);
+        await repository.complete(first);
         expect(await repository.claimNext('worker-b')).toMatchObject({ dedupeKey: KEY, status: 'RUNNING' });
       });
 
@@ -242,6 +242,63 @@ for (const zone of ZONES) {
       const all = await rows();
       expect(all.find((row) => row.status === 'PENDING')?.payload).toEqual({ afterBindingId: 'b-9' });
       expect(all.find((row) => row.id === running.id)?.payload).toEqual({ n: 1 });
+    });
+
+    describe('lock heartbeat and fencing (WI-CORE-030, DEC-JOBS-002)', () => {
+      it('touchLock renews the lockedAt of a RUNNING job held by this worker', async () => {
+        await insert();
+        const job = (await repository.claimNext('worker-a'))!;
+        await age(job.id, 3_600);
+
+        expect(await repository.touchLock(job.id, 'worker-a')).toBe(true);
+
+        const [row] = await rows();
+        expect(Date.now() - row.lockedAt!.getTime()).toBeLessThan(60_000);
+      });
+
+      it('touchLock writes nothing when the lock belongs to another worker or the job is no longer RUNNING', async () => {
+        await insert();
+        const job = (await repository.claimNext('worker-a'))!;
+        await prisma.job.update({ where: { id: job.id }, data: { lockedBy: 'worker-b' } });
+        await age(job.id, 3_600);
+
+        expect(await repository.touchLock(job.id, 'worker-a')).toBe(false);
+        expect((await rows())[0].lockedAt!.getTime()).toBeLessThan(Date.now() - 3_000_000);
+
+        await repository.complete({ ...job, lockedBy: 'worker-b' });
+        expect(await repository.touchLock(job.id, 'worker-b')).toBe(false);
+      });
+
+      it('a zombie worker whose lock was reclaimed cannot complete, fail, reschedule or renew the job', async () => {
+        await insert();
+        const zombie = (await repository.claimNext('worker-a'))!;
+        await prisma.job.update({ where: { id: zombie.id }, data: { lockedBy: 'worker-b' } });
+
+        await repository.complete(zombie);
+        expect(await repository.fail(zombie, 'zombi')).toBe('lost');
+        await repository.reschedule(zombie, 120_000, 'zombi');
+        expect(await repository.touchLock(zombie.id, 'worker-a')).toBe(false);
+
+        expect(await rows()).toEqual([
+          expect.objectContaining({ status: 'RUNNING', attempts: 0, lockedBy: 'worker-b', lastError: null }),
+        ]);
+      });
+
+      it('fail reports retry while attempts remain and terminal when the last attempt is spent', async () => {
+        await insert();
+        let job = (await repository.claimNext('w'))!;
+        expect(await repository.fail(job, 'uno')).toBe('retry');
+
+        await prisma.job.updateMany({ data: { availableAt: new Date(0) } });
+        job = (await repository.claimNext('w'))!;
+        expect(await repository.fail(job, 'dos')).toBe('retry');
+
+        await prisma.job.updateMany({ data: { availableAt: new Date(0) } });
+        job = (await repository.claimNext('w'))!;
+        expect(job.attempts).toBe(2);
+        expect(await repository.fail(job, 'tres')).toBe('terminal');
+        expect((await rows())[0]).toMatchObject({ status: 'FAILED', attempts: 3, lockedBy: null });
+      });
     });
   });
 }

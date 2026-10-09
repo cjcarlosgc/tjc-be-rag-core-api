@@ -4,10 +4,13 @@ import { randomUUID } from 'node:crypto';
 import { DEFAULT_STALE_LOCK_MS, JobsRepository } from './jobs.repository.js';
 import { RescheduleJobError } from './reschedule-job.error.js';
 import type { JobHandler } from './job-handler.interface.js';
-import type { Prisma } from '../generated/prisma/client.js';
+import type { Job, Prisma } from '../generated/prisma/client.js';
 
 /** Cada cuánto, como máximo, se barren los locks obsoletos (un poll por segundo no debe consultarlo). */
 const STALE_SWEEP_INTERVAL_MS = 30_000;
+
+/** Intervalo por defecto del latido del lock de un job en curso (`JOBS_HEARTBEAT_INTERVAL_MS`). */
+export const DEFAULT_HEARTBEAT_INTERVAL_MS = 60_000;
 
 @Injectable()
 export class JobsService implements OnModuleInit, OnModuleDestroy {
@@ -115,8 +118,8 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        await handler.handle(job.payload, job.id);
-        await this.jobsRepository.complete(job.id);
+        await this.runHandler(handler, job);
+        await this.jobsRepository.complete(job);
       } catch (error) {
         if (error instanceof RescheduleJobError) {
           await this.jobsRepository.reschedule(job, error.delayMs, error.reason, error.payload);
@@ -130,6 +133,46 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.polling = false;
     }
+  }
+
+  /**
+   * Ejecuta el handler con el latido del lock activo: el latido arranca antes de `handle()` y se
+   * detiene en `finally`, también si el handler falla o si se reprograma.
+   */
+  private async runHandler(handler: JobHandler, job: Job): Promise<void> {
+    const stopHeartbeat = this.startJobHeartbeat(job);
+
+    try {
+      await handler.handle(job.payload, job.id);
+    } finally {
+      stopHeartbeat();
+    }
+  }
+
+  /**
+   * Latido del lock de un job en curso (DEC-JOBS-002): renueva `lockedAt` cada
+   * `JOBS_HEARTBEAT_INTERVAL_MS` para que un handler lento no parezca un worker caído. Un fallo al
+   * escribir se registra y no interrumpe el handler. Devuelve la función que detiene el latido.
+   */
+  private startJobHeartbeat(job: Job): () => void {
+    const intervalMs = this.configService.get<number>('JOBS_HEARTBEAT_INTERVAL_MS', DEFAULT_HEARTBEAT_INTERVAL_MS);
+    const timer = setInterval(() => {
+      void Promise.resolve()
+        .then(() => this.jobsRepository.touchLock(job.id, this.workerId))
+        .then((renewed) => {
+          if (!renewed) {
+            this.logger.warn(`Job ${job.id} (${job.type}): el lock ya no pertenece a este worker; no se renueva.`);
+          }
+        })
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `No se pudo renovar el lock del job ${job.id} (${job.type}): ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+    }, intervalMs);
+    timer.unref?.();
+
+    return () => clearInterval(timer);
   }
 
   /**

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { InsertDedupedJobInput } from '../../src/jobs/jobs.repository.js';
+import type { FailOutcome, InsertDedupedJobInput } from '../../src/jobs/jobs.repository.js';
 import type { Job, Prisma } from '../../src/generated/prisma/client.js';
 
 const DEFAULT_STALE_LOCK_MS = 600_000;
@@ -89,25 +89,43 @@ export class InMemoryJobsRepository {
     return Promise.resolve({ ...candidate });
   }
 
-  complete(jobId: string): Promise<void> {
-    Object.assign(this.byId(jobId), { status: 'COMPLETED', lockedAt: null, lockedBy: null });
+  /** Renueva el lock solo si el job sigue RUNNING con ese worker (latido, DEC-JOBS-002). */
+  touchLock(jobId: string, workerId: string): Promise<boolean> {
+    const row = this.jobs.find((job) => job.id === jobId);
+    if (!row || row.status !== 'RUNNING' || row.lockedBy !== workerId) {
+      return Promise.resolve(false);
+    }
+    Object.assign(row, { lockedAt: this.now(), updatedAt: this.now() });
+    return Promise.resolve(true);
+  }
+
+  /** Fencing (DEC-JOBS-002): solo escribe si el job sigue RUNNING con el `lockedBy` del que lo reclamó. */
+  complete(job: Job): Promise<void> {
+    if (this.owns(job)) {
+      Object.assign(this.byId(job.id), { status: 'COMPLETED', lockedAt: null, lockedBy: null });
+    }
     return Promise.resolve();
   }
 
-  fail(job: Job, errorMessage: string, forceTerminal = false): Promise<void> {
+  fail(job: Job, errorMessage: string, forceTerminal = false): Promise<FailOutcome> {
+    if (!this.owns(job)) {
+      return Promise.resolve('lost');
+    }
+
     const attempts = job.attempts + 1;
 
     if (forceTerminal || attempts >= job.maxAttempts) {
       Object.assign(this.byId(job.id), { attempts, status: 'FAILED', lastError: errorMessage, lockedAt: null, lockedBy: null });
-      return Promise.resolve();
+      return Promise.resolve('terminal');
     }
 
-    this.returnToPending(job, attempts, Math.min(2 ** attempts * 1000, 60_000), errorMessage);
-    return Promise.resolve();
+    return Promise.resolve(this.returnToPending(job, attempts, Math.min(2 ** attempts * 1000, 60_000), errorMessage));
   }
 
   reschedule(job: Job, delayMs: number, reason: string, payload?: Prisma.InputJsonValue): Promise<void> {
-    this.returnToPending(job, job.attempts, delayMs, reason, payload);
+    if (this.owns(job)) {
+      this.returnToPending(job, job.attempts, delayMs, reason, payload);
+    }
     return Promise.resolve();
   }
 
@@ -144,14 +162,19 @@ export class InMemoryJobsRepository {
     );
   }
 
+  private owns(job: Job): boolean {
+    const row = this.jobs.find((candidate) => candidate.id === job.id);
+    return row !== undefined && row.status === 'RUNNING' && row.lockedBy === job.lockedBy;
+  }
+
   /** Nota N1: no vuelve a PENDING si ya hay otro PENDING con la misma clave (índice único parcial): se descarta. */
-  private returnToPending(job: Job, attempts: number, delayMs: number, reason: string, payload?: Prisma.InputJsonValue): void {
+  private returnToPending(job: Job, attempts: number, delayMs: number, reason: string, payload?: Prisma.InputJsonValue): 'retry' | 'discarded' {
     const row = this.byId(job.id);
     const collides = row.dedupeKey !== null && this.pending(row.dedupeKey).some((other) => other.id !== row.id);
 
     if (collides) {
       Object.assign(row, { attempts, status: 'COMPLETED', lastError: `Descartado: ya existe un PENDING con la misma dedupeKey (${reason}).`, lockedAt: null, lockedBy: null });
-      return;
+      return 'discarded';
     }
 
     Object.assign(row, {
@@ -163,6 +186,7 @@ export class InMemoryJobsRepository {
       availableAt: new Date(this.nowMs + delayMs),
       ...(payload === undefined ? {} : { payload }),
     });
+    return 'retry';
   }
 
   private byId(id: string): Job {
