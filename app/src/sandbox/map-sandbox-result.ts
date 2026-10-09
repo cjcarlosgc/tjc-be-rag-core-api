@@ -10,6 +10,9 @@ export type FailureTypeValue =
   | 'INFRASTRUCTURE'
   | 'UNKNOWN';
 
+/** Resumen de una ejecución que agotó el tiempo límite del Sandbox (no es fallo externo, WI-CORE-025). */
+export const SANDBOX_TIMED_OUT_ERROR_SUMMARY = 'La ejecución en el Sandbox agotó el tiempo límite.';
+
 export interface MappedSandboxOutcome {
   status: 'VALID' | 'INVALID' | 'FAILED';
   compiled: boolean | null;
@@ -34,7 +37,7 @@ export function mapSandboxResult(result: SandboxExecutionResult): MappedSandboxO
       passed: result.facts?.passed ?? null,
       valid: false,
       failureType: 'INFRASTRUCTURE',
-      errorSummary: 'La ejecución en el Sandbox agotó el tiempo límite.',
+      errorSummary: SANDBOX_TIMED_OUT_ERROR_SUMMARY,
     };
   }
 

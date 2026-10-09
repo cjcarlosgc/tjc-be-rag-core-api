@@ -1,17 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { HttpException } from '@nestjs/common';
+import { APIConnectionError, APIConnectionTimeoutError, APIError } from 'openai';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { LLMConfigurationError } from './llm-configuration.error.js';
+import { LLMProviderUnavailableError } from './llm-provider-unavailable.error.js';
 import type { LLMEffectiveConfig } from './llm-provider.interface.js';
 
 const createMock = vi.fn();
 const retrieveMock = vi.fn();
 
-vi.mock('openai', () => ({
-  default: class FakeOpenAI {
-    chat = { completions: { create: createMock } };
-    models = { retrieve: retrieveMock };
-  },
-}));
+// Se conservan las clases reales de error del SDK para clasificar fallos (WI-CORE-025).
+vi.mock('openai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('openai')>();
+  return {
+    ...actual,
+    default: class FakeOpenAI {
+      chat = { completions: { create: createMock } };
+      models = { retrieve: retrieveMock };
+    },
+  };
+});
 
 const { OpenAiLLMProvider } = await import('./openai-llm.provider.js');
 
@@ -422,6 +430,79 @@ describe('OpenAiLLMProvider', () => {
 
       expect(createMock.mock.calls[0][0]).toMatchObject({ model: 'model-a', reasoning_effort: 'medium' });
       expect(retrieveMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('clasificación externa de fallos del proveedor (WI-CORE-025)', () => {
+    async function failureOf(error: unknown, operation: 'generate' | 'generateWithTools' = 'generate') {
+      createMock.mockRejectedValue(error);
+      const provider = new OpenAiLLMProvider(makeConfigService());
+      const call =
+        operation === 'generate'
+          ? provider.generate('prompt')
+          : provider.generateWithTools([{ role: 'user', content: 'prompt' }], [], makeConfig());
+      return call.then(
+        () => {
+          throw new Error('expected a failure');
+        },
+        (caught: unknown) => caught,
+      );
+    }
+
+    it('marks HTTP 5xx, HTTP 429 and connection or timeout errors as external', async () => {
+      const externals = [
+        APIError.generate(500, undefined, 'server down', new Headers()),
+        APIError.generate(503, undefined, 'unavailable', new Headers()),
+        APIError.generate(429, undefined, 'rate limited', new Headers()),
+        new APIConnectionError({ message: 'socket hang up' }),
+        new APIConnectionTimeoutError({ message: 'request timed out' }),
+      ];
+
+      for (const error of externals) {
+        const caught = await failureOf(error);
+        expect(caught).toBeInstanceOf(LLMProviderUnavailableError);
+        expect((caught as LLMProviderUnavailableError).externalFailure).toBe(true);
+      }
+    });
+
+    it('does not mark other 4xx, invalid responses or unrecognized errors as external', async () => {
+      const notExternals = [
+        APIError.generate(400, undefined, 'bad request', new Headers()),
+        APIError.generate(401, undefined, 'unauthorized', new Headers()),
+        APIError.generate(404, undefined, 'model not found', new Headers()),
+        APIError.generate(422, undefined, 'unprocessable', new Headers()),
+        new Error('respuesta inválida'),
+      ];
+
+      for (const error of notExternals) {
+        const caught = await failureOf(error);
+        expect(caught).toBeInstanceOf(LLMProviderUnavailableError);
+        expect((caught as LLMProviderUnavailableError).externalFailure).toBe(false);
+      }
+    });
+
+    it('keeps the public contract unchanged: code, 503 status and details', async () => {
+      const error = APIError.generate(500, undefined, 'server down', new Headers());
+
+      const caught = (await failureOf(error)) as HttpException & { code: string; details: unknown };
+
+      expect(caught.code).toBe(ErrorCode.LLM_PROVIDER_UNAVAILABLE);
+      expect(caught.getStatus()).toBe(503);
+      expect(caught.getResponse()).toMatchObject({
+        code: ErrorCode.LLM_PROVIDER_UNAVAILABLE,
+        message: 'El proveedor de LLM no respondió correctamente.',
+        details: error.message,
+      });
+      expect(caught.details).toBe(error.message);
+    });
+
+    it('classifies failures of generateWithTools the same way', async () => {
+      const transport = await failureOf(new APIConnectionError({ message: 'reset' }), 'generateWithTools');
+      const invalid = await failureOf(new Error('bad payload'), 'generateWithTools');
+
+      expect((transport as LLMProviderUnavailableError).externalFailure).toBe(true);
+      expect((invalid as LLMProviderUnavailableError).externalFailure).toBe(false);
+      expect(transport).toMatchObject({ code: ErrorCode.LLM_PROVIDER_UNAVAILABLE });
     });
   });
 });

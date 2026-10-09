@@ -59,6 +59,8 @@ describe('ContextTracesRepository', () => {
         repetition: 2,
         attempt: 1,
         state: 'RUNNING',
+        pairId: null,
+        pairPosition: null,
       },
     });
     expect(tx.contextTrace.updateMany).toHaveBeenCalledWith({
@@ -73,6 +75,41 @@ describe('ContextTracesRepository', () => {
     expect(result).toMatchObject({
       repetition: { id: 'repetition-1', attempt: 1 },
       trace: { id: 'trace-1', attempt: 1 },
+    });
+  });
+
+  it('copies the pair identity onto the first attempt when it is given (WI-CORE-025)', async () => {
+    const { repository, tx } = makeRepository();
+
+    await repository.beginAttempt({ ...input, pairId: 'pair-7', pairPosition: 2 });
+
+    expect(tx.experimentRepetition.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attempt: 1, pairId: 'pair-7', pairPosition: 2 }),
+    });
+  });
+
+  it('lets the retry reuse the pair identity of the previous attempt and retires its trace (WI-CORE-025)', async () => {
+    const { repository, tx } = makeRepository();
+    tx.experimentRepetition.findFirst.mockResolvedValue({ attempt: 1, pairId: 'pair-7', pairPosition: 1 });
+    tx.experimentRepetition.create.mockResolvedValue({ id: 'repetition-2', attempt: 2 });
+    tx.contextTrace.create.mockResolvedValue({ id: 'trace-2', attempt: 2 });
+
+    await repository.beginAttempt(input);
+
+    expect(tx.experimentRepetition.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attempt: 2, pairId: 'pair-7', pairPosition: 1 }),
+    });
+    expect(tx.contextTrace.updateMany).toHaveBeenCalledWith({
+      where: {
+        experimentId: 'experiment-1',
+        strategy: 'RAG',
+        repetition: 2,
+        current: true,
+      },
+      data: { current: false },
+    });
+    expect(tx.contextTrace.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attempt: 2, current: true }),
     });
   });
 

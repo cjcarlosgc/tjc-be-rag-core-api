@@ -11,6 +11,11 @@ import {
   Min,
   validateSync,
 } from 'class-validator';
+import {
+  DEFAULT_AGENT_MAX_TOOL_CALLS,
+  DEFAULT_GENERATION_TIMEOUT_MS,
+  DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+} from './generation-budget.defaults.js';
 
 class EnvironmentVariables {
   @IsIn(['development', 'production', 'test'])
@@ -139,7 +144,7 @@ class EnvironmentVariables {
 
   @IsInt()
   @Min(1)
-  RETRIEVAL_MAX_CONTEXT_TOKENS: number = 8000;
+  RETRIEVAL_MAX_CONTEXT_TOKENS: number = DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS;
 
   @IsNumber()
   @Min(0)
@@ -174,11 +179,11 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   @Max(100)
-  AGENT_MAX_TOOL_CALLS: number = 20;
+  AGENT_MAX_TOOL_CALLS: number = DEFAULT_AGENT_MAX_TOOL_CALLS;
 
   @IsInt()
   @Min(1000)
-  GENERATION_TIMEOUT_MS: number = 120_000;
+  GENERATION_TIMEOUT_MS: number = DEFAULT_GENERATION_TIMEOUT_MS;
 
   @IsInt()
   @Min(1)

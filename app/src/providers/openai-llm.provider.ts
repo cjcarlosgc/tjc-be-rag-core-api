@@ -1,10 +1,9 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
+import OpenAI, { APIConnectionError, APIError } from 'openai';
 import type { ChatCompletionCreateParamsNonStreaming } from 'openai/resources/chat/completions.js';
-import { AppException } from '../common/errors/app.exception.js';
-import { ErrorCode } from '../common/errors/error-code.enum.js';
 import { LLMConfigurationError } from './llm-configuration.error.js';
+import { LLMProviderUnavailableError } from './llm-provider-unavailable.error.js';
 import type {
   LLMEffectiveConfig,
   LLMGenerationResult,
@@ -208,12 +207,7 @@ export class OpenAiLLMProvider implements LLMProvider {
       const message = error instanceof Error ? error.message : 'Error desconocido.';
       this.logger.warn(`Fallo al generar con el modelo "${model}": ${message}`);
 
-      throw new AppException(
-        ErrorCode.LLM_PROVIDER_UNAVAILABLE,
-        'El proveedor de LLM no respondió correctamente.',
-        HttpStatus.SERVICE_UNAVAILABLE,
-        message,
-      );
+      throw new LLMProviderUnavailableError(message, isExternalProviderFailure(error));
     }
   }
 
@@ -221,6 +215,19 @@ export class OpenAiLLMProvider implements LLMProvider {
     this.client ??= createOpenAiClient(this.configService);
     return this.client;
   }
+}
+
+/**
+ * Clasificación externa para reintentos de experimentos (WI-CORE-025, plan punto 6):
+ * error de conexión o timeout de red del SDK, HTTP 429 o HTTP 5xx. Otros 4xx, respuestas
+ * inválidas y errores no reconocidos no son externos.
+ */
+function isExternalProviderFailure(error: unknown): boolean {
+  if (error instanceof APIConnectionError) return true;
+  if (error instanceof APIError) {
+    return error.status === 429 || (typeof error.status === 'number' && error.status >= 500);
+  }
+  return false;
 }
 
 function highestEffort(efforts: string[]): string | null {

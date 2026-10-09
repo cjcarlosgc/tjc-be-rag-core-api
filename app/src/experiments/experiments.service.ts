@@ -13,6 +13,11 @@ import { EXPERIMENT_JOB_TYPE, type ExperimentJobPayload } from './experiment-job
 import { generateRandomizationSeed } from './pair-order.js';
 import { EXECUTION_PROFILE_BY_RUNNER } from '../sandbox/sandbox-execution.service.js';
 import { LLMConfigurationError } from '../providers/llm-configuration.error.js';
+import {
+  DEFAULT_AGENT_MAX_TOOL_CALLS,
+  DEFAULT_GENERATION_TIMEOUT_MS,
+  DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+} from '../config/generation-budget.defaults.js';
 import type { CreateExperimentDto } from './dto/create-experiment.dto.js';
 import type {
   ExperimentAcceptedResponse,
@@ -30,10 +35,6 @@ import { LLM_PROVIDER } from '../providers/providers.constants.js';
 const DEFAULT_POLL_AFTER_MS = 1500;
 const TOTAL_REPETITIONS = 6;
 const STRATEGIES = ['RAG', 'GENERALIST_AGENT'] as const;
-// Mismos defaults que usa el handler para estas claves de entorno (WI-CORE-025 persiste el presupuesto al crear).
-const DEFAULT_AGENT_MAX_TOOL_CALLS = 20;
-const DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS = 8000;
-const DEFAULT_GENERATION_TIMEOUT_MS = 120_000;
 
 function mean(values: Array<number | null>): number | null {
   const nonNull = values.filter((value): value is number => value !== null);

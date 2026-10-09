@@ -11,6 +11,7 @@ import type {
   StructuralMatch,
 } from './generation-context.js';
 import { countFunctionalRuleTokens } from './functional-rule-format.js';
+import { DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS } from '../config/generation-budget.defaults.js';
 
 export interface ContextBuilderOptions {
   minimumScore?: number;
@@ -30,7 +31,6 @@ interface ResolvedConfig {
 
 const DEFAULT_MINIMUM_SCORE = 0;
 const DEFAULT_TOP_K = 10;
-const DEFAULT_MAX_CONTEXT_TOKENS = 8000;
 const DEFAULT_SEMANTIC_WEIGHT = 0.7;
 const DEFAULT_STRUCTURAL_WEIGHT = 0.3;
 
@@ -232,7 +232,7 @@ export class ContextBuilder {
         options.maxContextTokens ??
         this.configService.get<number>(
           'RETRIEVAL_MAX_CONTEXT_TOKENS',
-          DEFAULT_MAX_CONTEXT_TOKENS,
+          DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
         ),
       semanticWeight:
         options.semanticWeight ??

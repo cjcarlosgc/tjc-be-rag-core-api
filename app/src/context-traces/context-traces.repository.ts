@@ -10,6 +10,10 @@ export interface BeginContextTraceAttemptInput {
   strategy: 'RAG' | 'GENERALIST_AGENT';
   kind: 'RAG' | 'AGENT';
   repetition: number;
+  /** WI-CORE-025: identidad del par; si se omite, el intento hereda la del intento anterior. */
+  pairId?: string | null;
+  /** WI-CORE-025: 1 = primera posición del par, 2 = segunda. */
+  pairPosition?: number | null;
 }
 
 export interface BegunContextTraceAttempt {
@@ -62,6 +66,8 @@ export class ContextTracesRepository {
         orderBy: { attempt: 'desc' },
       });
       const attempt = (previous?.attempt ?? 0) + 1;
+      const pairId = input.pairId ?? previous?.pairId ?? null;
+      const pairPosition = input.pairPosition ?? previous?.pairPosition ?? null;
       const repetition = await tx.experimentRepetition.create({
         data: {
           experimentId: input.experimentId,
@@ -69,6 +75,8 @@ export class ContextTracesRepository {
           repetition: input.repetition,
           attempt,
           state: 'RUNNING',
+          pairId,
+          pairPosition,
         },
       });
 

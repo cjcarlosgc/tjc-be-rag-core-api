@@ -76,7 +76,7 @@ export class SandboxExecutionService {
       artifacts,
       scope: request.scope,
       targetIds: request.targetIds,
-      executionProfile: EXECUTION_PROFILE_BY_RUNNER[request.runnerHint],
+      executionProfile: request.executionProfile ?? EXECUTION_PROFILE_BY_RUNNER[request.runnerHint],
       runnerHint: request.runnerHint,
     };
 

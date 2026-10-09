@@ -75,4 +75,6 @@ export interface SandboxExecutionRequest {
   scope: 'TARGET' | 'BATCH';
   targetIds: string[];
   runnerHint: 'JEST' | 'VITEST';
+  /** Perfil persistido al crear el experimento (WI-CORE-025); si se omite se deriva de runnerHint. */
+  executionProfile?: ExecutionProfile;
 }

@@ -182,6 +182,35 @@ describe('SandboxExecutionService', () => {
     expect(postedBody.runnerHint).toBe('JEST');
   });
 
+  it('sends the executionProfile persisted on the experiment when the request carries it (WI-CORE-025)', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-profile', pollAfterMs: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'COMPLETED', facts: null, failure: null, stageDurations: [] }),
+      );
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    await service.execute({
+      requestId: 'request-profile',
+      testRunId: 'run-profile',
+      projectVersionId: 'version-profile',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip-bytes'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'VITEST',
+      executionProfile: 'NODE_TYPESCRIPT',
+    });
+
+    const postedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(postedBody.executionProfile).toBe('NODE_TYPESCRIPT');
+    expect(postedBody.runnerHint).toBe('VITEST');
+  });
+
   it('never leaks the signed download URL into a thrown error message (redaction)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
 
