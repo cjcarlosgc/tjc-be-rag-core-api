@@ -23,12 +23,17 @@ export const DEFAULT_STALE_LOCK_MS = 600_000;
 export type FailOutcome = 'terminal' | 'retry' | 'discarded' | 'lost';
 
 /**
- * Tipos SIN `dedupeKey` cuyo lock obsoleto sí se libera (WI-CORE-030, DEC-JOBS-001). Solo
- * `experiment-run`: tiene una reentrada diseñada (intentos por slot, latido por repetición). Los demás
+ * Tipos SIN `dedupeKey` cuyo lock obsoleto sí se libera. `experiment-run` (WI-CORE-030, DEC-JOBS-001):
+ * tiene una reentrada diseñada (intentos por slot, latido por repetición). `retrieval-comparison`
+ * (WI-CORE-022, DEC-RC-002, aprobada por el usuario como enmienda documentada de DEC-JOBS-001): su
+ * handler es solo de retrieval, idempotente, y escribe por upsert `(comparisonId, mode)`. Los demás
  * tipos sin clave tienen gates de estado o escrituras externas y NO se liberan. Constante de código,
  * no configurable por entorno.
  */
-export const RELEASABLE_UNKEYED_JOB_TYPES: readonly string[] = Object.freeze(['experiment-run']);
+export const RELEASABLE_UNKEYED_JOB_TYPES: readonly string[] = Object.freeze([
+  'experiment-run',
+  'retrieval-comparison',
+]);
 
 /** Motivo con el que se libera un lock obsoleto (también en `JobHandler.onExhausted`). */
 export const STALE_LOCK_REASON = 'Lock obsoleto: el worker que lo reclamó dejó de responder.';
@@ -227,8 +232,8 @@ export class JobsRepository {
 
   /**
    * Libera los locks `RUNNING` obsoletos (worker caído) de los jobs con `dedupeKey` (los de acceso,
-   * cortos y acotados por presupuesto) y de los tipos de `RELEASABLE_UNKEYED_JOB_TYPES` (hoy solo
-   * `experiment-run`, WI-CORE-030, DEC-JOBS-001). Un latido de job vigente (`touchLock`) no es obsoleto.
+   * cortos y acotados por presupuesto) y de los tipos de `RELEASABLE_UNKEYED_JOB_TYPES` (hoy
+   * `experiment-run`, WI-CORE-030, DEC-JOBS-001; y `retrieval-comparison`, DEC-RC-002). Un latido de job vigente (`touchLock`) no es obsoleto.
    * Cada liberación consume un intento vía `fail` (vuelve a `PENDING` con backoff, o queda `FAILED` si
    * agotó `maxAttempts`) y respeta el índice único parcial: si ya hay un `PENDING` con su clave, el
    * obsoleto se descarta. Devuelve cuántos liberó y cuáles quedaron `FAILED` terminal.

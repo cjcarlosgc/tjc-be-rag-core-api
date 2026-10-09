@@ -8,7 +8,7 @@ import { ErrorCode } from '../errors/error-code.enum.js';
 import { canonicalJsonStringify } from '../canonical-json.util.js';
 
 /** DEC-IDEMP-001 / spec/transversal/persistence/spec.md */
-export type IdempotencyScope = 'TEST_RUN_CREATE' | 'EXPERIMENT_CREATE' | 'TARGET_RETRY';
+export type IdempotencyScope = 'TEST_RUN_CREATE' | 'EXPERIMENT_CREATE' | 'TARGET_RETRY' | 'RETRIEVAL_COMPARISON_CREATE';
 
 export interface IdempotencyRunParams<T, P = undefined> {
   scope: IdempotencyScope;
@@ -122,7 +122,11 @@ export class IdempotencyService {
     return rebuildResponse(existing.operationId);
   }
 
-  private validateKey(key: string | undefined): string {
+  /**
+   * Valida el header `Idempotency-Key` (`400` si falta o no es un UUID). Público para que un servicio
+   * que necesite validar la clave antes de sus propias comprobaciones lo haga en el mismo orden.
+   */
+  validateKey(key: string | undefined): string {
     if (!key) {
       throw new AppException(
         ErrorCode.IDEMPOTENCY_KEY_REQUIRED,

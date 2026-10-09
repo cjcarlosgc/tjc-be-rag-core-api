@@ -228,6 +228,36 @@ for (const zone of ZONES) {
         expect((await rows())[0]).toMatchObject({ status: 'PENDING', attempts: 1, lockedBy: null });
       });
 
+      it('releases a stale retrieval-comparison without dedupeKey: it consumes an attempt and returns to PENDING (WI-CORE-022, DEC-RC-002)', async () => {
+        await repository.create('retrieval-comparison', { retrievalComparisonId: 'cmp-1' }, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 1, exhausted: [] });
+        expect((await rows())[0]).toMatchObject({ status: 'PENDING', attempts: 1, lockedBy: null });
+      });
+
+      it('a stale retrieval-comparison that exhausted its attempts is reported as exhausted and FAILED (WI-CORE-022)', async () => {
+        await repository.create('retrieval-comparison', { retrievalComparisonId: 'cmp-2' }, 1);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        const result = await repository.releaseStale(600_000);
+
+        expect(result.released).toBe(1);
+        expect(result.exhausted.map((row) => row.id)).toEqual([job.id]);
+        expect((await rows())[0]).toMatchObject({ status: 'FAILED', lockedBy: null });
+      });
+
+      it('does not release a stale functional-continuation (not in RELEASABLE_UNKEYED_JOB_TYPES): it stays RUNNING', async () => {
+        await repository.create('functional-continuation', {}, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        expect((await repository.releaseStale(600_000)).released).toBe(0);
+        expect((await rows())[0]).toMatchObject({ status: 'RUNNING' });
+      });
+
       it('redistributes a released experiment-run to another worker once its backoff has passed', async () => {
         await repository.create('experiment-run', { experimentId: 'exp-1' }, 3);
         const job = (await repository.claimNext('dead-worker'))!;

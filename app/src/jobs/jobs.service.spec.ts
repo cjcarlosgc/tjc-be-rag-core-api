@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JobsService } from './jobs.service.js';
-import { JobsRepository } from './jobs.repository.js';
+import { JobsRepository, RELEASABLE_UNKEYED_JOB_TYPES } from './jobs.repository.js';
 import { RescheduleJobError } from './reschedule-job.error.js';
 import type { Job } from '../generated/prisma/client.js';
 
@@ -321,6 +321,43 @@ describe('JobsService', () => {
 
       await expect(service.runOnce()).resolves.toBeUndefined();
       expect(repository.claimNext).toHaveBeenCalled();
+    });
+  });
+
+  describe('retrieval-comparison releasable lock (WI-CORE-022, DEC-RC-002)', () => {
+    const comparisonJob: Job = {
+      ...baseJob,
+      type: 'retrieval-comparison',
+      payload: { retrievalComparisonId: 'cmp-1' },
+    };
+
+    it('lists retrieval-comparison among the releasable unkeyed types, and keeps the other four untouched', () => {
+      expect(RELEASABLE_UNKEYED_JOB_TYPES).toEqual(['experiment-run', 'retrieval-comparison']);
+      for (const type of ['snapshot-analysis', 'functional-continuation', 'analysis-run-validation', 'test-publication']) {
+        expect(RELEASABLE_UNKEYED_JOB_TYPES).not.toContain(type);
+      }
+    });
+
+    it('calls onExhausted of the retrieval-comparison handler when a stale lock exhausts its attempts', async () => {
+      repository.releaseStale.mockResolvedValue({ released: 1, exhausted: [comparisonJob] });
+      repository.claimNext.mockResolvedValue(null);
+      const onExhausted = vi.fn().mockResolvedValue(undefined);
+      service.registerHandler({ type: 'retrieval-comparison', handle: vi.fn(), onExhausted });
+
+      await service.runOnce();
+
+      expect(onExhausted).toHaveBeenCalledWith({ retrievalComparisonId: 'cmp-1' }, expect.stringContaining('Lock obsoleto'));
+    });
+
+    it('does not call onExhausted while a released retrieval-comparison still has attempts', async () => {
+      repository.releaseStale.mockResolvedValue({ released: 1, exhausted: [] });
+      repository.claimNext.mockResolvedValue(null);
+      const onExhausted = vi.fn();
+      service.registerHandler({ type: 'retrieval-comparison', handle: vi.fn(), onExhausted });
+
+      await service.runOnce();
+
+      expect(onExhausted).not.toHaveBeenCalled();
     });
   });
 });

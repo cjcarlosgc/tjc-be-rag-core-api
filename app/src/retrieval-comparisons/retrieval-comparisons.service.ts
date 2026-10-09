@@ -1,0 +1,166 @@
+import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
+import { AnalysisSymbolsRepository } from '../analysis-runs/persistence/analysis-symbols.repository.js';
+import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
+import { AppException } from '../common/errors/app.exception.js';
+import { ErrorCode } from '../common/errors/error-code.enum.js';
+import type { AnalysisSymbol, Prisma } from '../generated/prisma/client.js';
+import { JobsService } from '../jobs/jobs.service.js';
+import { RETRIEVAL_COMPARISON_JOB_TYPE, type RetrievalComparisonJobPayload } from './retrieval-comparison-job.handler.js';
+import { RetrievalComparisonsRepository } from './persistence/retrieval-comparisons.repository.js';
+import type { RetrievalGroundTruthItem } from './retrieval-comparison-metrics.js';
+import type { RetrievalComparisonAcceptedResponse } from './dto/retrieval-comparison.response.js';
+
+const DEFAULT_POLL_AFTER_MS = 1500;
+
+/** Cuerpo de `POST /retrieval-comparisons` (INTEROP-2.7 §6.15). El DTO con validadores se añade en el controlador. */
+export interface CreateRetrievalComparisonRequest {
+  analysisRunId: string;
+  symbolFilePath: string;
+  symbolQualifiedName: string;
+  groundTruth?: RetrievalGroundTruthItem[];
+}
+
+/** Snapshot `AnalysisSymbolResponse` del símbolo, persistido al crear. */
+function toSymbolSnapshot(symbol: AnalysisSymbol): Prisma.InputJsonObject {
+  return {
+    language: symbol.language,
+    kind: symbol.kind,
+    qualifiedName: symbol.qualifiedName,
+    filePath: symbol.filePath,
+    changeKind: symbol.changeKind,
+  };
+}
+
+/**
+ * Creación de comparaciones de retrieval (WI-CORE-022). Solo valida, persiste y encola; el trabajo
+ * lo hace `RetrievalComparisonJobHandler`. No cambia el `AnalysisRun`.
+ */
+@Injectable()
+export class RetrievalComparisonsService {
+  constructor(
+    private readonly analysisRunsService: AnalysisRunsService,
+    private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
+    private readonly repository: RetrievalComparisonsRepository,
+    private readonly jobsService: JobsService,
+    private readonly idempotencyService: IdempotencyService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  /**
+   * Orden de validación (§6.15): el rol y el `404` del Run ya los aplicó el guard y `getById`; luego la
+   * `Idempotency-Key` (400); el `404` del símbolo; el `422` de tipo; y la idempotencia al final.
+   */
+  async create(
+    dto: CreateRetrievalComparisonRequest,
+    idempotencyKey: string | undefined,
+    ownerUserId: string,
+  ): Promise<RetrievalComparisonAcceptedResponse> {
+    const run = await this.analysisRunsService.getById(dto.analysisRunId, ownerUserId);
+    this.idempotencyService.validateKey(idempotencyKey);
+
+    const symbol = await this.requireComparableSymbol(run.id, dto.symbolFilePath, dto.symbolQualifiedName);
+
+    // DEC-RC-001 pendiente: un Run visible sin projectVersionId no puede aceptarse (la respuesta `202`
+    // exige `projectVersionId`). Se usa un conflicto de estado ya existente hasta que el usuario decida
+    // el código público. NO es el 409 ANALYSIS_NOT_FINISHED, que sigue sin aprobar.
+    if (!run.projectVersionId) {
+      throw new AppException(
+        ErrorCode.PROJECT_NOT_READY,
+        'El AnalysisRun todavía no tiene una versión de análisis; reintenta cuando termine el snapshot.',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const projectVersionId = run.projectVersionId;
+    const pollAfterMs = this.configService.get<number>('INDEXING_POLL_AFTER_MS', DEFAULT_POLL_AFTER_MS);
+
+    return this.idempotencyService.run({
+      scope: 'RETRIEVAL_COMPARISON_CREATE',
+      key: idempotencyKey,
+      fingerprintInput: dto,
+      create: async (tx) => {
+        const comparison = await this.repository.create(
+          {
+            analysisRunId: run.id,
+            projectId: run.projectId,
+            projectVersionId,
+            symbol: toSymbolSnapshot(symbol),
+            idempotencyKey: idempotencyKey ?? null,
+            groundTruth: dto.groundTruth ?? null,
+          },
+          tx,
+        );
+
+        const payload: RetrievalComparisonJobPayload = {
+          retrievalComparisonId: comparison.id,
+          projectId: run.projectId,
+          projectVersionId,
+          analysisRunId: run.id,
+        };
+        // Sin dedupeKey: cada creación es una comparación distinta; el replay lo resuelve el idempotency record.
+        await this.jobsService.enqueue(RETRIEVAL_COMPARISON_JOB_TYPE, { ...payload }, tx);
+
+        return {
+          operationId: comparison.id,
+          response: {
+            analysisRunId: run.id,
+            retrievalComparisonId: comparison.id,
+            projectVersionId,
+            status: 'PENDING' as const,
+            pollAfterMs,
+          },
+        };
+      },
+      rebuildResponse: async (operationId) => {
+        const comparison = await this.repository.findById(operationId);
+
+        if (!comparison) {
+          throw new AppException(
+            ErrorCode.RETRIEVAL_COMPARISON_NOT_FOUND,
+            `No existe la comparación de retrieval ${operationId}.`,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+
+        return {
+          analysisRunId: comparison.analysisRunId,
+          retrievalComparisonId: comparison.id,
+          projectVersionId: comparison.projectVersionId,
+          status: 'PENDING' as const,
+          pollAfterMs,
+        };
+      },
+    });
+  }
+
+  /**
+   * Símbolo del Run por `(filePath, qualifiedName)`: `404` si no existe; `422` si no es METHOD o FUNCTION
+   * DIRECTLY_CHANGED. Un símbolo PHP no se rechaza aquí: DEC-RC-001 y WI-CORE-028 están pendientes. Sin
+   * chunks indexados, el job termina FAILED con RETRIEVAL_TARGET_UNRESOLVABLE.
+   */
+  private async requireComparableSymbol(analysisRunId: string, filePath: string, qualifiedName: string): Promise<AnalysisSymbol> {
+    const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(analysisRunId);
+    const symbol = symbols.find((candidate) => candidate.filePath === filePath && candidate.qualifiedName === qualifiedName);
+
+    if (!symbol) {
+      throw new AppException(
+        ErrorCode.ANALYSIS_SYMBOL_NOT_FOUND,
+        `No existe el símbolo "${qualifiedName}" en "${filePath}" dentro del AnalysisRun.`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const comparable = (symbol.kind === 'METHOD' || symbol.kind === 'FUNCTION') && symbol.changeKind === 'DIRECTLY_CHANGED';
+    if (!comparable) {
+      throw new AppException(
+        ErrorCode.UNSUPPORTED_SYMBOL_KIND,
+        'La comparación de retrieval solo acepta un símbolo METHOD o FUNCTION DIRECTLY_CHANGED.',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    return symbol;
+  }
+}
