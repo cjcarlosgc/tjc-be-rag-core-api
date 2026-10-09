@@ -3945,7 +3945,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/features/004-rag-retrieval-context/spec.md",
       "spec/features/004-rag-retrieval-context/plan.md",
@@ -3988,7 +3988,7 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
+      "reviewAgent": "human-reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -4012,6 +4012,34 @@
             "servedModel": "unknown",
             "effort": "low"
           }
+        },
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Tres cortes (b36408a, ab30546, 2e17a46): tipos y FunctionalRulesRetriever; presupuesto, audit y bloque «Reglas funcionales»; cableado en validación y brazo RAG de experimentos, con pruebas de ContextTrace y de payload a Sandbox.",
+            "lint, test (1352), build y e2e (222) verdes con URL inalcanzable.",
+            "Desviaciones declaradas: quinto parámetro de build, contadores en audit, confirmedByUserId omitido del prompt, encabezado fuera del presupuesto."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/retrieval",
+            "app/src/functional-knowledge",
+            "app/src/generation",
+            "app/src/validation",
+            "app/src/experiments",
+            "app/src/sandbox"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-021-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión humana del diff y la evidencia.",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -4019,13 +4047,13 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -4045,6 +4073,32 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-09T00:40:34.780Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-021",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T00:51:14.308Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-021",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-09T00:51:14.429Z"
         }
       ],
       "publishedSyncIds": [],
@@ -4052,7 +4106,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-021-contract-sync-scope-review.md",
-      "harness/reports/wi-core-021-sdd-verification.md"
+      "harness/reports/wi-core-021-sdd-verification.md",
+      "harness/reports/wi-core-021-implementation.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -4061,6 +4116,15 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-021-sdd-verification.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-021-implementation.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-021-implementation.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-021-contract-sync-checkpoints.md"
       ]
     }
   }
