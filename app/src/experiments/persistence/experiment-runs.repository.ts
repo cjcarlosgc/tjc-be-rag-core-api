@@ -11,12 +11,15 @@ import {
 } from '../../generated/prisma/enums.js';
 import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
 import { accessibleProject } from '../../common/persistence/accessible-project.filter.js';
+import type { LLMEffectiveConfig } from '../../providers/llm-provider.interface.js';
 
 export interface CreateExperimentRunInput {
   projectId: string;
   projectVersionId: string;
   targetId: string;
   totalRepetitions: number;
+  /** Configuración efectiva resuelta una vez por experimento (WI-CORE-023). */
+  modelConfig: LLMEffectiveConfig;
 }
 
 export interface ExperimentRepetitionInput {
@@ -51,7 +54,21 @@ export class ExperimentRunsRepository {
     input: CreateExperimentRunInput,
     tx?: Prisma.TransactionClient,
   ): Promise<ExperimentRun> {
-    return (tx ?? this.prisma).experimentRun.create({ data: input });
+    const { modelConfig, ...columns } = input;
+
+    return (tx ?? this.prisma).experimentRun.create({
+      data: {
+        ...columns,
+        modelConfig: {
+          provider: modelConfig.provider,
+          model: modelConfig.model,
+          modelVersion: modelConfig.modelVersion,
+          reasoningEffort: modelConfig.reasoningEffort,
+          temperature: modelConfig.temperature,
+          maxOutputTokens: modelConfig.maxOutputTokens,
+        },
+      },
+    });
   }
 
   /**

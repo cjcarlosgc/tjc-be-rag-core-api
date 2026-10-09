@@ -369,6 +369,48 @@ describe('ExperimentJobHandler', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('passes the same config persisted on the run to both arms (WI-CORE-023)', async () => {
+    const { deps } = makeDeps();
+    const persisted = { ...effectiveConfig, reasoningEffort: 'high', modelVersion: 'gpt-6-luna-2026' };
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'exp-1',
+      status: 'PENDING',
+      modelConfig: persisted,
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    const ragConfigs = (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]);
+    const agentConfigs = (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[3],
+    );
+    expect(ragConfigs).toHaveLength(3);
+    expect(agentConfigs).toHaveLength(3);
+    for (const config of [...ragConfigs, ...agentConfigs]) {
+      expect(config).toEqual(persisted);
+    }
+    expect(deps.llmProvider.resolveEffectiveConfig).not.toHaveBeenCalled();
+  });
+
+  it('resolves the default config for a legacy run whose modelConfig is NULL', async () => {
+    const { deps } = makeDeps();
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'exp-1',
+      status: 'PENDING',
+      modelConfig: null,
+    });
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    expect(deps.llmProvider.resolveEffectiveConfig).toHaveBeenCalledTimes(1);
+    expect((deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls[0][1]).toEqual(effectiveConfig);
+    expect((deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls[0][3]).toEqual(
+      effectiveConfig,
+    );
+  });
+
   it('runs 3 repetitions per strategy (6 total), using RAG and the agent for their respective arms', async () => {
     const { deps, cleanup } = makeDeps();
     const handler = makeHandler(deps);

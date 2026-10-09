@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
@@ -19,6 +19,8 @@ import type {
   StrategyMetricsResponse,
 } from './dto/experiment.response.js';
 import type { ExperimentRepetition } from '../generated/prisma/client.js';
+import type { LLMProvider } from '../providers/llm-provider.interface.js';
+import { LLM_PROVIDER } from '../providers/providers.constants.js';
 
 const DEFAULT_POLL_AFTER_MS = 1500;
 const TOTAL_REPETITIONS = 6;
@@ -43,6 +45,7 @@ export class ExperimentsService {
     private readonly jobsService: JobsService,
     private readonly configService: ConfigService,
     private readonly idempotencyService: IdempotencyService,
+    @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
   ) {}
 
   async createRun(
@@ -100,6 +103,10 @@ export class ExperimentsService {
 
     const projectVersionId = project.currentVersionId;
 
+    // WI-CORE-023: una sola resolución por experimento, antes de la transacción idempotente.
+    // Un error de configuración (LLMConfigurationError) se propaga sin crear el run.
+    const modelConfig = await this.llmProvider.resolveEffectiveConfig();
+
     return this.idempotencyService.run({
       scope: 'EXPERIMENT_CREATE',
       key: idempotencyKey,
@@ -111,6 +118,7 @@ export class ExperimentsService {
             projectVersionId,
             targetId: dto.targetId,
             totalRepetitions: TOTAL_REPETITIONS,
+            modelConfig,
           },
           tx,
         );

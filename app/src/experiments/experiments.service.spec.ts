@@ -2,8 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { ExperimentsService } from './experiments.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { LLMConfigurationError } from '../providers/llm-configuration.error.js';
+import type { LLMEffectiveConfig } from '../providers/llm-provider.interface.js';
 
 const OWNER_USER_ID = 'user-1';
+
+const EFFECTIVE_CONFIG: LLMEffectiveConfig = {
+  provider: 'openai',
+  model: 'gpt-6-luna',
+  modelVersion: 'gpt-6-luna-2026',
+  reasoningEffort: 'xhigh',
+  temperature: null,
+  maxOutputTokens: null,
+};
 
 function makeDeps(overrides: Record<string, unknown> = {}) {
   return {
@@ -24,6 +35,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     },
     jobsService: { enqueue: vi.fn().mockResolvedValue('job-1') },
     configService: { get: (key: string, fallback?: unknown) => fallback },
+    llmProvider: {
+      resolveEffectiveConfig: vi.fn().mockResolvedValue(EFFECTIVE_CONFIG),
+    },
     idempotencyService: {
       run: vi.fn(
         async ({
@@ -46,6 +60,7 @@ function makeService(deps: ReturnType<typeof makeDeps>): ExperimentsService {
     deps.jobsService as never,
     deps.configService as never,
     deps.idempotencyService as never,
+    deps.llmProvider as never,
   );
 }
 
@@ -176,6 +191,7 @@ describe('ExperimentsService', () => {
           projectVersionId: 'version-1',
           targetId: 'target-1',
           totalRepetitions: 6,
+          modelConfig: EFFECTIVE_CONFIG,
         },
         undefined,
       );
@@ -185,6 +201,44 @@ describe('ExperimentsService', () => {
         undefined,
       );
       expect(result).toMatchObject({ experimentId: 'exp-1', projectVersionId: 'version-1', status: 'PENDING' });
+    });
+
+    it('resolves the effective LLM config once, before the idempotent transaction, and persists it', async () => {
+      const deps = makeDeps();
+      const service = makeService(deps);
+
+      await service.createRun({ projectId: 'project-1', targetId: 'target-1' }, 'key-1', OWNER_USER_ID);
+
+      expect(deps.llmProvider.resolveEffectiveConfig).toHaveBeenCalledTimes(1);
+      const resolveOrder = deps.llmProvider.resolveEffectiveConfig.mock.invocationCallOrder[0];
+      const idempotencyOrder = deps.idempotencyService.run.mock.invocationCallOrder[0];
+      expect(resolveOrder).toBeLessThan(idempotencyOrder);
+      expect(deps.experimentRunsRepository.create.mock.calls[0][0]).toMatchObject({
+        modelConfig: EFFECTIVE_CONFIG,
+      });
+    });
+
+    it('propagates LLMConfigurationError without creating the run or enqueuing the job', async () => {
+      const deps = makeDeps({
+        llmProvider: {
+          resolveEffectiveConfig: vi.fn().mockRejectedValue(
+            new LLMConfigurationError({
+              code: 'REASONING_EFFORT_UNSUPPORTED',
+              model: 'gpt-6-luna',
+              requestedEffort: 'high',
+              supportedEfforts: ['low'],
+            }),
+          ),
+        },
+      });
+      const service = makeService(deps);
+
+      await expect(
+        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: 'REASONING_EFFORT_UNSUPPORTED' });
+      expect(deps.idempotencyService.run).not.toHaveBeenCalled();
+      expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
+      expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
     });
 
     it('delegates to IdempotencyService with the idempotency key, the EXPERIMENT_CREATE scope and the dto as fingerprint (DEC-IDEMP-001)', async () => {

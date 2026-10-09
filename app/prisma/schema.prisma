@@ -701,6 +701,8 @@ model ExperimentRun {
   failureMessage       String?
   startedAt            DateTime?
   completedAt          DateTime?
+  /// WI-CORE-023 (DEC-EXP-004): LLMEffectiveConfig resuelta una vez por experimento; null en corridas previas.
+  modelConfig          Json?
   repetitions          ExperimentRepetition[]
   contextTraces        ContextTrace[]
   createdAt            DateTime               @default(now())

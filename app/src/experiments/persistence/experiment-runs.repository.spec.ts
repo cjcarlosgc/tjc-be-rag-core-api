@@ -1,6 +1,47 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentRunsRepository } from './experiment-runs.repository.js';
 
+describe('ExperimentRunsRepository.create', () => {
+  it('persists the effective LLM config in the modelConfig column as a plain JSON object', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'exp-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRun: { create: createMock },
+    } as never);
+
+    await repository.create({
+      projectId: 'project-1',
+      projectVersionId: 'version-1',
+      targetId: 'target-1',
+      totalRepetitions: 6,
+      modelConfig: {
+        provider: 'openai',
+        model: 'gpt-6-luna',
+        modelVersion: 'gpt-6-luna-2026',
+        reasoningEffort: 'xhigh',
+        temperature: null,
+        maxOutputTokens: 4000,
+      },
+    });
+
+    expect(createMock).toHaveBeenCalledWith({
+      data: {
+        projectId: 'project-1',
+        projectVersionId: 'version-1',
+        targetId: 'target-1',
+        totalRepetitions: 6,
+        modelConfig: {
+          provider: 'openai',
+          model: 'gpt-6-luna',
+          modelVersion: 'gpt-6-luna-2026',
+          reasoningEffort: 'xhigh',
+          temperature: null,
+          maxOutputTokens: 4000,
+        },
+      },
+    });
+  });
+});
+
 describe('ExperimentRunsRepository.findRepetitions', () => {
   it('returns only the latest attempt for each strategy and repetition', async () => {
     const findMany = vi.fn().mockResolvedValue([

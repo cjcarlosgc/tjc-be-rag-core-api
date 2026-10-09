@@ -86,6 +86,27 @@ function withTimeout<T>(
  * suma latencia sin necesidad: el tiempo total pasa a ser el de los lotes
  * concurrentes en vez de la suma de las 6.
  */
+function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
+  const candidate = value as Partial<Record<keyof LLMEffectiveConfig, unknown>> | null;
+  if (
+    typeof candidate !== 'object' ||
+    candidate === null ||
+    candidate.provider !== 'openai' ||
+    typeof candidate.model !== 'string' ||
+    typeof candidate.modelVersion !== 'string'
+  ) {
+    throw new Error('modelConfig del experimento no es válido.');
+  }
+  return {
+    provider: 'openai',
+    model: candidate.model,
+    modelVersion: candidate.modelVersion,
+    reasoningEffort: typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort : null,
+    temperature: typeof candidate.temperature === 'number' ? candidate.temperature : null,
+    maxOutputTokens: typeof candidate.maxOutputTokens === 'number' ? candidate.maxOutputTokens : null,
+  };
+}
+
 async function runWithConcurrencyLimit<T>(
   items: T[],
   concurrency: number,
@@ -162,8 +183,12 @@ export class ExperimentJobHandler
 
     try {
       await this.experimentRunsRepository.markStarted(payload.experimentId);
-      // Transitorio (WI-CORE-023 corte 2): una sola resolución por job, compartida por ambos brazos.
-      const config = await this.llmProvider.resolveEffectiveConfig();
+      // Misma configuración para ambos brazos: la persistida al crear el experimento.
+      // Corridas previas sin modelConfig (NULL) usan la resolución por defecto.
+      const config =
+        run.modelConfig === null || run.modelConfig === undefined
+          ? await this.llmProvider.resolveEffectiveConfig()
+          : parseEffectiveConfig(run.modelConfig);
 
       const [version, target] = await Promise.all([
         this.projectVersionsRepository.findById(payload.projectVersionId),
