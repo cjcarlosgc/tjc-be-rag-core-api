@@ -6920,15 +6920,36 @@
             "servedModel": "unknown",
             "effort": "high"
           }
+        },
+        {
+          "agent": "reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "APPROVED en el ciclo 1 de 2: 0 blockers, 0 importantes, 4 menores; 27 mutaciones detectadas; 104/104 specs pg en PG 14 desechable; sin fugas de excerpt/groundTruth/testCases/knowledgeId.",
+            "Revisión por el Modo fuera de casa (awayMode, activado por el usuario); no sustituye decisiones DEC ni aprobaciones de alcance/contrato.",
+            "Menores: sourceRevision de CS-014/CS-015 anterior a las correcciones finales de texto (nota registrada); 275f687 rojo en el spec pg hasta 29505f2; comentario obsoleto (limpiado); IDEA-018."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-027-independent-review.md"
+          ],
+          "recommendedNextStep": "Cerrar WI-CORE-027.",
+          "executedBy": {
+            "agent": "reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
         }
       ],
-      "reviewCycles": 0,
+      "reviewCycles": 1,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
       "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
+      "independentReviewPassed": "G-PASSED",
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-PASSED",
       "canonicalContractSynced": "G-PASSED",
@@ -7017,7 +7038,9 @@
       "harness/reports/wi-core-027-contract-review-c.md",
       "harness/reports/wi-core-027-implementation.md",
       "harness/reports/contract-sync-publish-cs-core-20261009-014.md",
-      "harness/reports/contract-sync-publish-cs-core-20261009-015.md"
+      "harness/reports/contract-sync-publish-cs-core-20261009-015.md",
+      "harness/reports/wi-core-027-independent-review.md",
+      "harness/reports/wi-core-027-closure.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -7050,6 +7073,9 @@
       ],
       "retryLimitRespected": [
         "harness/reports/wi-core-027-implementation.md"
+      ],
+      "independentReviewPassed": [
+        "harness/reports/wi-core-027-independent-review.md"
       ]
     }
   },

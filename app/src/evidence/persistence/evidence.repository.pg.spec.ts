@@ -127,8 +127,8 @@ describe.skipIf(!url)('evidencia sobre PostgreSQL local: captura y lectura (WI-C
 
   it('captures the Sandbox evidence of a RAG repetition and reads it back with its trace, without excerpt code', async () => {
     const ids = await createExperiment();
-    // Se siembra la repetición y su traza con las mismas columnas que escribe `beginAttempt`. No se llama a
-    // `beginAttempt` porque su `pg_advisory_xact_lock` (void) no se deserializa con $queryRaw en este PostgreSQL local.
+    // Se siembra la repetición y su traza con las mismas columnas que escribe `beginAttempt` (su lock ya usa
+    // $executeRaw desde el corte E; `context-traces.repository.pg.spec.ts` cubre `beginAttempt` de verdad).
     const repetition = await prisma.experimentRepetition.create({
       data: {
         experimentId: ids.experimentId,

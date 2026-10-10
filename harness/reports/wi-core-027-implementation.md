@@ -34,3 +34,9 @@ DEC-EVID-001 (null + contadores, interpretación de `executionDurationMs` null),
 - `runnerHint`: `string | null` en §6.16, `'JEST' | 'VITEST' | null` en el DTO y `toRunnerHint` descarta PHPUNIT hasta `WI-CORE-028` (PHP en pausa).
 - `modelVersion` siempre `null`; dependencia cruzada sandbox/validation hacia experiments (D7); el patrón `$queryRaw` con funciones void no lo cubre ningún lint.
 - Notas de `IDEA-016` aceptadas: `code` fuera de `^[A-Za-z0-9_.:-]{1,64}$` deja el hecho en null; Cookie/Set-Cookie redactan hasta el final.
+
+## Notas de la revisión independiente (2026-10-10)
+- El commit `275f687` (corte F) dejó roja la expectativa `durationMs: null` del spec pg de evidencia hasta `29505f2` (cambio mínimo del leader, sin reescribir historia); los gates por defecto no lo veían porque ese spec se omite sin URL.
+- Comentario obsoleto de `evidence.repository.pg.spec.ts` limpiado como cambio mínimo declarado del leader (solo comentario, 1 archivo, 4 líneas).
+- `IDEA-018`: `artifactHash` se calcula antes de saber si el contenido llegó al Sandbox (inofensivo).
+- `sourceRevision` de `CS-CORE-20261009-014` (`275f687`) y `-015` (`55e3ec9`) anteceden a las correcciones finales de texto (`3f06f44`); no se reescriben (README de Contract Sync) y queda la nota en sus reportes de publicación: Console toma §6.16 y §6.5 de la revisión final de documentos de Core.
