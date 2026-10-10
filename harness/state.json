@@ -6597,7 +6597,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "specPaths": [
       "spec/transversal/experimental-metrics/spec.md",
       "spec/transversal/experimental-metrics/plan.md",
@@ -6647,7 +6647,7 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "implementer-high",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
+      "reviewAgent": "reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -6897,6 +6897,29 @@
             "servedModel": "unknown",
             "effort": "high"
           }
+        },
+        {
+          "agent": "implementer-high",
+          "status": "APPROVED",
+          "findings": [
+            "Corte D (55e3ec9): StrategyMetricsResponse con tasas y duraciones number|null y contadores evaluableRepetitions/nonEvaluableRepetitions; executionDurationMs null si ninguna evaluable invocó el Sandbox.",
+            "Verificación del leader: mutación (5 fallan con el servicio anterior), lint 0, build 0, tsc 43, test 1984 (x3), e2e 246, 104 specs pg en PG desechable.",
+            "Hallazgo: generationDurationMs ?? 0 y totalDurationMs ?? 0 por repetición (IDEA-017), fuera de este corte."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/experiments"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-027-implementation.md"
+          ],
+          "recommendedNextStep": "Revisión independiente del reviewer (Modo fuera de casa) sobre el diff completo del WI.",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -6904,15 +6927,15 @@
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": true,
@@ -6935,10 +6958,53 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-10T02:05:35.389Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-027",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-10T03:38:05.894Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-027",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-10T03:38:05.983Z"
         }
       ],
       "publishedSyncIds": [
-        "CS-CORE-20261009-014"
+        "CS-CORE-20261009-014",
+        "CS-CORE-20261009-015"
       ],
       "pendingRelevantSyncIds": []
     },
@@ -6948,7 +7014,10 @@
       "harness/reports/wi-core-027-sdd-verification.md",
       "harness/reports/wi-core-027-contract-review.md",
       "harness/reports/wi-core-027-contract-review-6-5.md",
-      "harness/reports/wi-core-027-contract-review-c.md"
+      "harness/reports/wi-core-027-contract-review-c.md",
+      "harness/reports/wi-core-027-implementation.md",
+      "harness/reports/contract-sync-publish-cs-core-20261009-014.md",
+      "harness/reports/contract-sync-publish-cs-core-20261009-015.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -6957,6 +7026,30 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-027-sdd-verification.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-027-implementation.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-027-implementation.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-027-contract-review.md",
+        "harness/reports/wi-core-027-contract-review-6-5.md",
+        "harness/reports/wi-core-027-contract-review-c.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-027-contract-review-c.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20261009-014.md",
+        "harness/reports/contract-sync-publish-cs-core-20261009-015.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-027-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-027-implementation.md"
       ]
     }
   },
