@@ -40,7 +40,7 @@ Ejecutada por el leader sobre el HEAD `123f8ed` (Node 22 en contenedor):
 ## Hallazgos y límites
 
 - **Contract Sync del Sandbox no importable:** `CS-SANDBOX-20261009-001` está en JSON (harness V2 del Sandbox) y el `import` de Core V3 no lo reconoce (`imported: 0`). Se consolidó su contenido en el contrato canónico y se referencia por ID; la homologación de harness sigue pendiente.
-- **Posible colisión de IDs:** `CS-CORE-20261009-016` se emitió en `feature/php-core`; si `feature/jean` emite el mismo ID antes de integrar, hay que renumerar uno.
+- **Posible colisión de IDs:** `CS-CORE-20261009-016` se emitió en `feature/php-core` como `CS-CORE-20261009-014` (renumerado a `-016` al integrar con `feature/jean`, WI-CORE-033); si `feature/jean` emite el mismo ID antes de integrar, hay que renumerar uno.
 - **Retrieval PHP sin relaciones estructurales:** las relaciones de import de `RetrievalService` son de TypeScript; PHP usa solo similitud semántica hasta WI-CORE-028.
 - **ACTION_REQUIRED en PHP:** DEC-FK-003/004 solo calculan construcciones para TypeScript; un Run PHP no hace preguntas funcionales hasta WI-CORE-032.
 - **Namespace fuera de `app/`:** para targets fuera de `app/` el namespace del test capitaliza segmentos y el directorio no; PHPUnit carga el archivo por ruta, así que no afecta la ejecución.

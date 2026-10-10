@@ -32,7 +32,7 @@ Sin conflicto textual pero revisados: `experiments.service(.spec)`, `experiment-
 - `prisma generate` 0; lint 0; build 0; `tsc --noEmit` 43 (base 43; cada commit propio compila con `tsc -p tsconfig.build.json`).
 - `vitest` completo: 134 archivos pasan / 6 omitidos; 2067 pasan, 104 omitidos (base de feature/jean 1984; PR 1762).
 - e2e (variables de `.env.example`, DB inalcanzable): 7 archivos, 246 pasan.
-- Specs pg (6 archivos) en PostgreSQL 14 desechable con las 46 migraciones (shim de pgvector solo en la copia): 104/104; el desechable se bajó y borró.
+- Specs pg (6 archivos) en PostgreSQL 14 desechable con las 45 migraciones (directorios) más `migration_lock.toml` (shim de pgvector solo en la copia): 104/104; el desechable se bajó y borró.
 - `validate-harness` pasa; `harness/*.test.mjs` 29/29.
 
 ## Deudas y observaciones
