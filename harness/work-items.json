@@ -1451,8 +1451,8 @@
       "priority": "P2",
       "sprint": "SMART V3",
       "caseIds": [],
-      "contractImpact": false,
-      "publishesContract": false,
+      "contractImpact": true,
+      "publishesContract": true,
       "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
       "id": "WI-CORE-028",
       "title": "Relaciones estructurales PHP R-PHP1 a R-PHP5 en retrieval",
@@ -1472,10 +1472,11 @@
         "Contract Sync a Console publicado; Harness, lint, tests y build pasan antes de la revisión humana."
       ],
       "specPaths": [
-        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/contracts/interoperability-contract.md",
         "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
         "spec/features/004-rag-retrieval-context/tasks.md",
-        "spec/contracts/interoperability-contract.md"
+        "spec/features/018-php-laravel-support/spec.md"
       ]
     },
     {

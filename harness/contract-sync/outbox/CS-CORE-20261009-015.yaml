@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-015
+source: core
+sourceWorkItem: WI-CORE-028
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.7 (aditivo): RagMatchedVia y RagCandidateNodeResponse.structuralMatch admiten SAME_NAMESPACE, FULLY_QUALIFIED_REFERENCE y DECLARING_CLASS (relaciones PHP, DEC-PHP-RET-001). §6.15: POST /retrieval-comparisons acepta proyectos PHP (se retira su 422); los experimentos siguen con 422 PHP hasta WI-CORE-029.
+requiredAction:
+  - Console: sincronizar el espejo INTEROP-2.7 byte a byte; Context Explorer debe tolerar y etiquetar las tres relaciones nuevas; la comparación de retrieval ya no devuelve 422 para PHP.
+sourceRevision: 8f4ddd1
+status: C-PENDING
