@@ -49,8 +49,8 @@ export interface ContextChunk {
 }
 
 export interface GenerationContextMetadata {
-  language: 'typescript';
-  framework: 'JEST' | 'VITEST' | null;
+  language: 'typescript' | 'php';
+  framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
 }
 
 export interface GenerationContextTarget {

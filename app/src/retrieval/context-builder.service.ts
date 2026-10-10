@@ -47,7 +47,10 @@ export class ContextBuilder {
   build(
     result: RetrievalResult,
     target: RetrievalTarget,
-    metadata: { framework: 'JEST' | 'VITEST' | null },
+    metadata: {
+      framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
+      language?: 'typescript' | 'php';
+    },
     options: ContextBuilderOptions = {},
     functionalRules: FunctionalRule[] = [],
   ): GenerationContext {
@@ -191,7 +194,10 @@ export class ContextBuilder {
       },
       relatedChunks,
       functionalRules: selectedRules,
-      metadata: { language: 'typescript', framework: metadata.framework },
+      metadata: {
+        language: metadata.language ?? 'typescript',
+        framework: metadata.framework,
+      },
       retrievedChunks: result.candidates.length,
       selectedChunks: relatedChunks.length,
       contextTokens,

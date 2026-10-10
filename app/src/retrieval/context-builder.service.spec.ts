@@ -495,5 +495,18 @@ describe('ContextBuilder scoring API (WI-CORE-022)', () => {
 
     expect(context.relatedChunks[0].score).toBeCloseTo(builder.scoreCandidate(weights, 0.5, 'IMPORTED_BY'));
   });
+  it('propagates language and PHPUNIT framework to the generation context metadata', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ content: '<?php function foo() {}', tokenCount: 8 })],
+      candidates: [],
+    };
+
+    const php = builder.build(result, target, { framework: 'PHPUNIT', language: 'php' });
+    const defaulted = builder.build(result, target, { framework: 'JEST' });
+
+    expect(php.metadata).toEqual({ language: 'php', framework: 'PHPUNIT' });
+    expect(defaulted.metadata).toEqual({ language: 'typescript', framework: 'JEST' });
+  });
 });
 
