@@ -1467,9 +1467,9 @@
         "WI-CORE-013"
       ],
       "acceptanceCriteria": [
-        "SE para proyectos PHP incorpora IMPORTS, IMPORTED_BY, mismo namespace, referencia fully qualified y clase declarante, con pruebas por relación.",
-        "La comparación OE2 admite PHP sin cambiar el contrato de §6.15.",
-        "Diferido hasta cerrar WI-CORE-013 y la coordinación contractual con el dueño de Sandbox. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "SE para proyectos PHP incorpora IMPORTS, IMPORTED_BY, SAME_NAMESPACE, FULLY_QUALIFIED_REFERENCE y DECLARING_CLASS según DEC-PHP-RET-001, con pruebas por relación; TypeScript sin cambios.",
+        "Las trazas de contexto aceptan las relaciones PHP (INTEROP aditivo) y la comparación OE2 admite PHP sin cambiar la forma de §6.15 (se retira solo su 422 PHP).",
+        "Contract Sync a Console publicado; Harness, lint, tests y build pasan antes de la revisión humana."
       ],
       "specPaths": [
         "spec/features/004-rag-retrieval-context/spec.md",

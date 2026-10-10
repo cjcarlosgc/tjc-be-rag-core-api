@@ -28,3 +28,10 @@ Los cortes trazan a EP02 (inteligencia de repositorio) y EP04 (generación/valid
 1. `behavior-fingerprint/php-behavior-fingerprint.ts`: extractor PHP puro (recibe el árbol o el código y el `qualifiedName`) + pruebas por categoría, determinismo y normalización.
 2. `SymbolBehaviorConstructsService` y `FunctionalContextEvaluator`: elegibilidad por lenguaje y despacho al extractor según `language`; parser tree-sitter compartido con `PhpParserService`.
 3. Regresión TypeScript intacta; prueba del evaluador con un símbolo PHP que produce `ACTION_REQUIRED`.
+
+## WI-CORE-028 — cortes
+
+1. Tipo `StructuralMatch` con las cinco relaciones; resolución PHP R-PHP1..5 en `RetrievalService` (despacho por lenguaje del chunk ancla) + pruebas por relación, prioridad y regresión TypeScript.
+2. Trazas: `context-trace.response.ts` y `context-traces.service.ts` aceptan las relaciones nuevas; INTEROP §6 (trazas) aditivo.
+3. `retrieval-comparisons.service.ts`: retirar el `422` PHP; INTEROP §6.15; pruebas.
+4. Contract Sync a Console.

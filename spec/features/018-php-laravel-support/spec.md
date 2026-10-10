@@ -86,3 +86,29 @@ DEC-FK-003/004 (spec 013) definen la activación de `ACTION_REQUIRED` en términ
 ### Consecuencia para el piloto (registrada, sin decisión de producto)
 
 Con esta regla determinista, un target sin ramificaciones, `throw` ni escrituras de estado no activa `ACTION_REQUIRED`, aunque su caso sea F. En el piloto, el usuario decidió (2026-10-09) reseembrar SUB-3 con una ramificación (`5935e81`), de modo que los tres casos F (SAL-2, RES-3, SUB-3) tienen construcciones y pueden activar `ACTION_REQUIRED`.
+
+## WI-CORE-028 — Relaciones estructurales PHP R-PHP1 a R-PHP5 en el retrieval SE
+
+**Estado:** PROPUESTO para aprobación humana (2026-10-09). Depende de WI-CORE-013 (aprobado).
+**Contrato:** INTEROP-2.7 §6.15 ya define `StructuralRelation` con las cinco relaciones; este WI las implementa y retira el `422` PHP **solo** en la comparación de retrieval. Los experimentos siguen respondiendo `422` para PHP hasta WI-CORE-029.
+
+### Hallazgos
+
+1. `RetrievalService.resolveStructuralMatches` solo resuelve imports relativos de TypeScript; para PHP el modo SE se comporta como SEM.
+2. El chunk PHP ya trae lo necesario: `symbolName`/`parentSymbolName` cualificados por namespace y `importsUsed` con los FQCN de las declaraciones `use` que el chunk menciona.
+3. El tipo interno `StructuralMatch` y el contrato de trazas de contexto (`RagMatchedVia`, `RagCandidateNodeResponse.structuralMatch`) solo admiten `IMPORTS`/`IMPORTED_BY`, y `context-traces.service.ts` descarta otros valores. Los Runs PHP (WI-CORE-013) ya producen trazas.
+4. `retrieval-comparisons.service.ts` responde `422 UNSUPPORTED_PROJECT` para PHP (DEC-RC-001, "hasta que WI-CORE-028 lo retire").
+
+### Reglas (DEC-PHP-RET-001, PROPUESTA)
+
+Notación: `A` = chunk ancla (target); `C(A)` = FQCN de la clase que declara el target (`parentSymbolName`), o `null` si es una función; `ns(X)` = namespace de un FQCN; para un candidato `K`, `O(K)` = `K.parentSymbolName`, o `K.symbolName` si `K` es una declaración de clase, interfaz, trait o enum. Se excluye siempre el propio símbolo.
+
+- **R-PHP1 `IMPORTS`:** `O(K)` está en `A.importsUsed` (el target usa una clase importada con `use`).
+- **R-PHP2 `IMPORTED_BY`:** `C(A)` está en `K.importsUsed` (el candidato importa la clase del target).
+- **R-PHP3 `SAME_NAMESPACE`:** `O(K) ≠ C(A)`, `ns(O(K)) = ns(A)` y el contenido de `A` menciona el nombre corto de `O(K)` como palabra completa (referencia no cualificada que PHP resuelve en el mismo namespace). **Recomendación del leader:** exigir la mención. La alternativa literal ("cualquier clase del mismo namespace") agrega todos los miembros del namespace como candidatos sin evidencia de uso.
+- **R-PHP4 `FULLY_QUALIFIED_REFERENCE`:** el contenido de `A` contiene `\` + `O(K)` (nombre totalmente cualificado con barra inicial). Un nombre con `\` sin barra inicial dentro de un namespace es relativo en PHP, así que no cuenta.
+- **R-PHP5 `DECLARING_CLASS`:** `K` es la declaración (todas sus partes) de la clase, trait o enum `C(A)`.
+- **Una sola etiqueta por candidato:** si aplican varias, se registra la primera en el orden R-PHP1 → R-PHP5. La señal estructural del ranking es la misma para todas (`0.7·semántico + 0.3·estructural`, sin pesos por relación).
+- **Despacho por lenguaje:** los chunks TypeScript conservan exactamente su resolución actual.
+- **Contrato de trazas (aditivo):** `RagMatchedVia` y `RagCandidateNodeResponse.structuralMatch` admiten además `SAME_NAMESPACE`, `FULLY_QUALIFIED_REFERENCE` y `DECLARING_CLASS`; `context-traces.service.ts` los acepta. Contract Sync a Console (Context Explorer debe tolerar y etiquetar los valores nuevos).
+- **Comparación OE2:** se retira el `422` PHP solo en `POST /retrieval-comparisons`; el texto de §6.15 se actualiza.
