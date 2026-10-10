@@ -84,3 +84,49 @@ Ejecutadas con una batería propia (61 + 27 casos; 12 fugas del primer lote, ver
 - filesAffected: `app/src/common/sanitize-failure-message.util.ts` (hallazgos 1-3), `app/src/common/sanitize-failure-message.util.spec.ts` y `app/src/experiments/experiment-job.handler.spec.ts` (pruebas nuevas para 1, 2 y 4)
 - evidence: tabla de verificaciones y mutaciones arriba (lo ejecutado) y, razonado, la corrección por construcción de los caminos LLM/`onExhausted`
 - recommendedNextStep: corte corrector de Haiku High sobre el helper (acotar entrada o reescribir el prefijo; excepción `[` solo para `[REDACTED]`; userinfo hasta el último `@`; PEM `i` + PGP) con pruebas de regresión para cada caso de este informe y una de rendimiento (p. ej. `'a-'.repeat(50000)` < 100 ms), más la prueba del camino LLM; después segunda pasada (ciclo 2 de 2) y cierre con confirmación humana. El veredicto no sustituye la aprobación humana de alcance, que el usuario ya confirmó en chat para 007.
+
+## Segunda pasada (ciclo 2 de 2)
+
+Fecha: 2026-10-09. Revisión delegada por el usuario; el reviewer no modificó código, spec ni harness (solo esta sección, sin commitear). Rango revisado: `aa141ce` (corte C: helper, su spec y `experiment-job.handler.spec.ts`) y docs `b090cc5`, `890e8d4`. HEAD: `890e8d4`.
+
+Veredicto: **APPROVED** (0 blockers, 0 hallazgos nuevos que bloqueen).
+
+### Hallazgos del ciclo 1
+| # | Estado | Evidencia propia (ejecutada) |
+|---|---|---|
+| 1 Coste cuadrático | Resuelto | `'a-'` x50 000 (100 000 car.): 38 ms (antes 53 s); `'a-'` x1 000 000: 8 ms; base64url 200k: 13 ms (antes 3,5 s). Peores casos nuevos, cada uno a 20k y 200k caracteres: `password=[`, `password="`, `password='`, `https://u:p@`, `token: `, `key=`, `password=["`, `password=["\`, `https://`, `a://b/@`, mezcla, `Bearer `, `-----BEGIN PRIVATE KEY-----`, `password="\`, `password=[]`, `eyJ.a.`, `sk-`, `key=key=`, comilla sin cierre seguida de 50 000 `key=`, lista con 50 000 comillas escapadas, token único de 2 000 000: todos <= 65 ms. Sin ReDoS residual. |
+| 2 Fugas | Resuelto | `password=[hunter2]`, `token=[abc123def456]`, `{"password":["hunter2","other"]}`, `https://user:p@ssw0rd@github.com/..`, `https://user:pa/ss1234@host/x`, `password="ab\"cd efgh"`: ninguno filtra y todos son idempotentes. Las 12 fugas restantes de la batería de 61 y las 5 de la de 27 son exactamente la deuda ya declarada (Slack, Stripe, Google, npm, Cookie, `credential/auth/signature=`, ruta de URL, `password x` sin separador, fullwidth, `ghp_short`, `sk_test_`, scp, JWT de 2 partes, zero-width); ninguna es un patrón de la spec. |
+| 3 PEM/PGP | Resuelto | Bloque en minúsculas, `ENCRYPTED`, `OPENSSH`, `PGP PRIVATE KEY BLOCK` y bloque sin cierre quedan redactados. |
+| 4 Camino LLM | Resuelto | Prueba nueva en `experiment-job.handler.spec.ts` (corte C, 20 líneas) afirma `failure` ausente en la escritura. |
+
+### (b) Tope sin fugas
+Secretos de 10 familias (password, Bearer, sk-, ghp_, userinfo, AKIA, JWT, PEM, `token=[..]`, `password="a b`) colocados con relleno para cruzar el límite de 16 384 en cada posición de -len-3 a +2, con y sin espacio previo: 0 fugas. Token sin espacios de 16 380 caracteres + secreto: salida de 500, sin secreto. Redactar antes de truncar a 500 intacto (cortes 470 a 499: 0 fugas; salida idempotente, longitud 500). Un secreto en los primeros caracteres de una entrada de 40 000 caracteres sigue redactado.
+
+### (c) Regresiones
+`git diff a3bd704..890e8d4 -- app` toca solo los 3 archivos declarados; repositorio, handler, DTO, `schema.prisma` y migración sin cambios. Mutaciones de ciclo 1 (guarda RUNNING, null explícito, DTO) siguen cubiertas por las mismas pruebas, que pasan.
+
+### (d) Mutaciones sobre el helper (worktree desechable, ya eliminado): 9/9 detectadas
+| # | Mutación | Pruebas que fallan |
+|---|---|---|
+| Q1 | Quitar el tope | 1 |
+| Q2 | Reintroducir prefijo `[\w-]*` | 1 (rendimiento, umbral 250 ms) |
+| Q3 | Volver a aceptar `[` como excepción | 5 |
+| Q4 | Userinfo hasta el primer `@` | 1 |
+| Q5 | Quitar flag `i` del PEM | 1 |
+| Q6 | Quitar PGP `BLOCK` | 1 |
+| Q7 | No descartar el último token al cortar | 1 |
+| Q8 | Truncar a 500 antes de redactar | 4 |
+| Q9 | Ignorar comillas escapadas | 3 |
+
+### (e) Higiene
+`aa141ce` compila (worktree desechable, `prisma generate`): `tsc -p tsconfig.build.json` 0 errores, `tsc -p tsconfig.json` 43 (base). `aa141ce`, `b090cc5`, `890e8d4` llevan `Refs: HU12, HU17`; el código con `Co-Authored-By: Claude Haiku 5.5` y los docs con Sonnet 5.5. Sin ramas (9) ni worktrees sobrantes; árbol limpio.
+
+### (f) Gates (DATABASE_URL/DIRECT_URL inalcanzables)
+`pnpm lint` 0; `pnpm test` x2: 124 files / 1770 passed, 82 skipped (ambas); `pnpm build` 0; `pnpm test:e2e` x2: 237 passed; `tsc --noEmit` 43 (base); `validate-harness` pasa.
+
+### Observaciones menores (no bloquean)
+- La prueba de rendimiento usa un umbral de reloj (250 ms); con margen ~6x sobre lo medido (38 ms), riesgo bajo de intermitencia en CI lento.
+- Sobre-redacción aceptada y declarada (`https://host/@scope/pkg`, comilla sin cierre, `monkey=`): confirmada, sin impacto de seguridad.
+- Deuda (no bloquea): IDEA-015, IDEA-016, `sandbox-execution.service.ts:224` loguea `failure.message` crudo, familias de secreto sin patrón listadas arriba, `code` sin redactar.
+
+recommendedNextStep: cierre de WI-CORE-007 con la aprobación humana de alcance ya confirmada; sin ciclo adicional.
