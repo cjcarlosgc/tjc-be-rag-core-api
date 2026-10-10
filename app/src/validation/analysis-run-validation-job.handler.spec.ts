@@ -209,21 +209,206 @@ describe('AnalysisRunValidationJobHandler', () => {
     expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
-  it('does not send PHP snapshots to the TypeScript generation/Sandbox flow before WI-CORE-013', async () => {
-    const context = await setup();
-    context.projectVersionsRepository.findById.mockResolvedValue(
-      buildVersion({ language: 'PHP', detectedFramework: 'PHPUNIT' }),
-    );
+  describe('PHP con PHPUnit (WI-CORE-013, corte C)', () => {
+    const PHP_RELATIVE_PATH = 'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php';
+    const PHP_FILE = '<?php\n\nnamespace Tests\\Unit\\Pricing;\n\nfinal class PremiumDiscountPolicyDiscountForTest {}';
 
-    await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+    async function setupPhp(version: Partial<ProjectVersion> = {}) {
+      const context = await setup();
+      context.analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'app/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+      context.projectVersionsRepository.findById.mockResolvedValue(
+        buildVersion({ language: 'PHP', detectedFramework: 'PHPUNIT', ...version } as Partial<ProjectVersion>),
+      );
+      context.llmProvider.generate.mockResolvedValue({ content: PHP_FILE, inputTokens: 10, outputTokens: 20 });
+      return context;
+    }
 
-    expect(context.analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'run-1' }),
-      'TECHNICAL_GENERATION_FAILURE',
-      expect.objectContaining({ resultSummary: expect.stringContaining('WI-CORE-013') }),
+    it('generates a new PHPUnit file under tests/Unit and sends runnerHint PHPUNIT with the PHP context and prompt', async () => {
+      const context = await setupPhp();
+      context.llmProvider.generate.mockResolvedValue({
+        content: '```php\n' + PHP_FILE + '\n```',
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.contextBuilder.build).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        { framework: 'PHPUNIT', language: 'php' },
+        {},
+        [],
+      );
+      expect(context.promptBuilder.build).toHaveBeenCalledWith(expect.anything(), {
+        testNamespace: 'Tests\\Unit\\Pricing',
+        testPath: PHP_RELATIVE_PATH,
+      });
+      expect(context.sandboxExecutionService.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runnerHint: 'PHPUNIT',
+          scope: 'TARGET',
+          targetIds: ['symbol-1'],
+          artifacts: [
+            expect.objectContaining({
+              relativePath: PHP_RELATIVE_PATH,
+              artifactType: 'CREATED',
+              content: Buffer.from(`${PHP_FILE}\n`, 'utf8'),
+            }),
+          ],
+        }),
+      );
+      expect(context.generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'AVAILABLE', relativePath: PHP_RELATIVE_PATH, failureSummary: null }),
+      );
+      expect(context.analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.objectContaining({ generatedTestsCount: 1 }),
+      );
+    });
+
+    it('holds the proposal without calling the LLM or the Sandbox when the PHP project does not declare PHPUnit', async () => {
+      const context = await setupPhp({ detectedFramework: null });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.llmProvider.generate).not.toHaveBeenCalled();
+      expect(context.sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(context.generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          relativePath: PHP_RELATIVE_PATH,
+          failureSummary: 'El proyecto PHP no declara PHPUnit; solo PHPUnit está soportado en V1.',
+        }),
+      );
+      expect(context.analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('holds the proposal as a technical failure without calling the Sandbox when the LLM response has no <?php', async () => {
+      const context = await setupPhp();
+      context.llmProvider.generate.mockResolvedValue({
+        content: 'Lo siento, no puedo generar ese test.',
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(context.generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          relativePath: PHP_RELATIVE_PATH,
+          failureSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+        }),
+      );
+      expect(context.objectStorageService.put).toHaveBeenCalledWith(
+        expect.stringContaining('analysis-runs/run-1/proposals/'),
+        Buffer.from('Lo siento, no puedo generar ese test.', 'utf8'),
+        'text/plain',
+      );
+      expect(context.analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('classifies a failing case with failureKind ERROR as TECHNICAL_GENERATION_FAILURE', async () => {
+      const context = await setupPhp();
+      context.sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: {
+            runner: 'PHPUNIT',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [
+              { suitePath: null, name: 'discounts', status: 'FAILED', durationMs: 1, errorMessage: 'Class not found', failureKind: 'ERROR' },
+            ],
+            testCasesTruncated: false,
+          },
+        }),
+      );
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', failureSummary: 'Class not found' }),
+      );
+      expect(context.analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('classifies a failing case with only failureKind ASSERTION as BEHAVIORAL_MISMATCH', async () => {
+      const context = await setupPhp();
+      context.sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: {
+            runner: 'PHPUNIT',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [
+              { suitePath: null, name: 'discounts', status: 'FAILED', durationMs: 1, errorMessage: 'Failed asserting that 0 is 10.', failureKind: 'ASSERTION' },
+            ],
+            testCasesTruncated: false,
+          },
+        }),
+      );
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'BEHAVIORAL_MISMATCH',
+        expect.anything(),
+      );
+    });
+  });
+
+  it('keeps the TypeScript flow on the co-located spec path with language typescript and no PHP prompt options', async () => {
+    const { handler, contextBuilder, promptBuilder, sandboxExecutionService } = await setup();
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    expect(contextBuilder.build).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { framework: 'JEST', language: 'typescript' },
+      {},
+      [],
     );
-    expect(context.githubSnapshotMaterializerService.materialize).not.toHaveBeenCalled();
-    expect(context.sandboxExecutionService.execute).not.toHaveBeenCalled();
+    expect(promptBuilder.build).toHaveBeenCalledWith(expect.anything());
+    expect(sandboxExecutionService.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runnerHint: 'JEST',
+        artifacts: [expect.objectContaining({ relativePath: 'src/thing.spec.ts', artifactType: 'CREATED' })],
+      }),
+    );
   });
 
   it('is a no-op when the run is not PROCESSING', async () => {
