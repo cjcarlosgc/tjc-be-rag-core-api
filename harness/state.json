@@ -8136,7 +8136,232 @@
       "closedAt": "2026-10-10T19:11:23.000Z"
     }
   ],
-  "activeWorkItem": null,
+  "activeWorkItem": {
+    "id": "WI-CORE-033",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "storyIds": [
+      "HU05",
+      "HU07",
+      "HU08",
+      "HU10",
+      "HU11",
+      "HU12",
+      "HU15",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-040"
+    ],
+    "caseIds": [],
+    "sprint": "PHP V1",
+    "status": "W-IN_REVIEW",
+    "specPaths": [
+      "spec/features/018-php-laravel-support/spec.md",
+      "spec/features/018-php-laravel-support/plan.md",
+      "spec/features/018-php-laravel-support/tasks.md",
+      "spec/contracts/interoperability-contract.md",
+      "spec/features/011-context-traces/spec.md"
+    ],
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; esta integración no toca binding, auth ni despliegue de ese evento.",
+        "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata autenticación GitHub y orden de despliegue; esta integración no toca binding, auth ni despliegue de ese evento.",
+        "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+      }
+    ],
+    "transversalPaths": [],
+    "approved": true,
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-PHP-GEN-001",
+        "DEC-PHP-GEN-002",
+        "DEC-PHP-RET-001",
+        "DEC-EVID-001",
+        "DEC-EVID-007"
+      ],
+      "checkedAt": "2026-10-10T19:15:04.000Z"
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": null,
+      "implementationAgent": "implementer-high",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "INTEROP-2.7 fusionado ratificado (§6.5, §6.15, §6.16, §7, trazas); correcciones de texto aplicadas en a7c04ce.",
+            "Observaciones sobre CS-016/-017 (targets y texto) registradas como deuda; no se reescriben eventos del PR."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/contracts/interoperability-contract.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-033-contract-review.md"
+          ],
+          "recommendedNextStep": "Revisión independiente.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        },
+        {
+          "agent": "implementer-high",
+          "status": "APPROVED",
+          "findings": [
+            "Compilación de la fusión: runnerHint PHPUNIT en el DTO y el mapeo de evidencia, filtro de runner de los hechos del Sandbox y fixtures; pruebas en 9b2412d.",
+            "tsc 43; vitest 2067 pasan; e2e 246; pg 104/104."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/evidence",
+            "app/src/sandbox"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-033-php-integration.md"
+          ],
+          "recommendedNextStep": "Revisión independiente (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          }
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-PASSED",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-PASSED",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-PASSED"
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-033",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-10T19:15:04.673Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-033",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-10T19:15:04.785Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-033",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-10T19:15:04.899Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-033-php-integration.md",
+      "harness/reports/wi-core-033-contract-review.md",
+      "harness/reports/wi-core-033-contract-sync-scope-review.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-033-php-integration.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-033-php-integration.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-033-php-integration.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-033-php-integration.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-033-contract-review.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-033-contract-review.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-033-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-033-php-integration.md"
+      ]
+    }
+  },
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",

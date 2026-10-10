@@ -1750,6 +1750,68 @@
           "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_REVIEW",
+      "priority": "P1",
+      "sprint": "PHP V1",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "id": "WI-CORE-033",
+      "title": "Integrar el PR #13 de PHP/PHPUnit (WI-CORE-013, 032, 028, 029) con feature/jean",
+      "storyIds": [
+        "HU05",
+        "HU07",
+        "HU08",
+        "HU10",
+        "HU11",
+        "HU12",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-040"
+      ],
+      "dependsOn": [
+        "WI-CORE-013",
+        "WI-CORE-028",
+        "WI-CORE-029",
+        "WI-CORE-032",
+        "WI-CORE-027"
+      ],
+      "acceptanceCriteria": [
+        "La rama de integración fusiona origin/feature/php-core con merge commit y conserva los 28 commits del PR; sin rebase ni squash.",
+        "Cada conflicto se resuelve con criterio y razón: sin perder nada de WI-CORE-007, 022, 026, 027, 030 y 031 ni de PHP (013, 032, 028, 029).",
+        "INTEROP fusionado ratificado por el contract-reviewer; avisos del PR renumerados a CS-CORE-20261009-016/-017/-018 sin reescribir los nuestros ni la historia del PR.",
+        "runnerHint PHPUNIT en la evidencia (deuda de WI-CORE-028) con pruebas; el cierre de WI-CORE-013, 032, 028 y 029 se registra con la evidencia de sus reportes y sin atribuirles su trabajo a esta integración.",
+        "Harness, lint, tests, build, e2e y specs pg pasan antes de la revisión; tsc en la línea base de 43."
+      ],
+      "specPaths": [
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/011-context-traces/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; esta integración no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; esta integración no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }
