@@ -6719,6 +6719,29 @@
             "servedModel": "unknown",
             "effort": "medium"
           }
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Texto exacto de INTEROP-2.7 §6.5/§6.5.1 para DEC-EVID-001 ratificado: siete campos a number | null y contadores evaluableRepetitions/nonEvaluableRepetitions; sin INTEROP-2.8; Contract Sync breaking: true.",
+            "Sin consumidores internos de Core afectados fuera del servicio, el DTO y su spec.",
+            "Precisión: executionDurationMs null también con slots evaluables sin invocación al Sandbox (interpretación registrada para el usuario)."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-027-contract-review-6-5.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-027-contract-review-6-5.md"
+          ],
+          "recommendedNextStep": "Corte D con el texto ratificado; CS-3 con sourceRevision del commit del corte D.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -6766,7 +6789,8 @@
       "harness/reports/wi-core-027-contract-sync-scope-review.md",
       "harness/reports/smart-v3-scope-approval.md",
       "harness/reports/wi-core-027-sdd-verification.md",
-      "harness/reports/wi-core-027-contract-review.md"
+      "harness/reports/wi-core-027-contract-review.md",
+      "harness/reports/wi-core-027-contract-review-6-5.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
