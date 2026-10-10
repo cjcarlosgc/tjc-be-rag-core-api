@@ -27,7 +27,7 @@ describe('user-scoped reads use the accessibleProject predicate (HU56, HU59)', (
         { githubOrgId: { not: null }, access: { some: { userId: 'u1', role: 'ADMIN' } } },
         {
           githubOrgId: { not: null },
-          access: { some: { userId: 'u1', role: { in: ['READER', 'MAINTAINER', 'ADMIN'] } } },
+          access: { some: { userId: 'u1', role: { in: ['READER', 'WRITER', 'MAINTAINER', 'ADMIN'] } } },
           repositoryBinding: { is: { status: { not: 'REVOKED' } } },
         },
       ],
@@ -37,6 +37,9 @@ describe('user-scoped reads use the accessibleProject predicate (HU56, HU59)', (
   it('the minimum role narrows the record branch only', () => {
     expect(accessibleProject('u1', 'MAINTAINER').OR?.[2]).toMatchObject({
       access: { some: { userId: 'u1', role: { in: ['MAINTAINER', 'ADMIN'] } } },
+    });
+    expect(accessibleProject('u1', 'WRITER').OR?.[2]).toMatchObject({
+      access: { some: { userId: 'u1', role: { in: ['WRITER', 'MAINTAINER', 'ADMIN'] } } },
     });
   });
 

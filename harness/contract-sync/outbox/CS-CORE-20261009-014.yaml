@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-014
+source: core
+sourceWorkItem: WI-CORE-027
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: true
+changed:
+  - INTEROP-2.7 6.16: forma congelada de EvidenceBundleResponse en schemaVersion '1' con | null en analysisRun.projectVersionId/snapshotRef, retrieval[].config/candidates[] (tipos propios), context[].tokenCounts.selected, generation[] (provider, model, durationMs, artifactHash, repetition, attempt), agentExploration[] y sus steps[], sandbox[] (executionId, executionProfile, runnerHint, durationMs, requestId, correlationId, repetition) y experimental[] (pairId, pairPosition, randomizationSeed); claves nuevas experimental[].technicallyEvaluable, sandbox[]/generation[].repetition, generation[].attempt y retrieval[].metrics; rutas GET /analysis-runs/{id}/evidence, GET /experiments/{id}/evidence y GET /retrieval-comparisons/{id}/evidence (Reader; 200/404/409 EVIDENCE_NOT_FINISHED; FAILED de experimento y de comparacion responde 200; sin 403 alcanzable con Reader). Checkpoints de contenido en harness/reports/wi-core-027-contract-review-c.md. Sin emisor previo: breaking solo en compilacion TypeScript estricta. El estado Implementado y CS-3 (6.5, DEC-EVID-001) llegan con el corte D.
+requiredAction:
+  - Console (WI-CONSOLE-017): tipar y mockear /evidence contra el bloque de 6.16 y tratar todo valor | null como sin dato, nunca como 0; no inferir CF/CO ni validez de technicallyEvaluable; no esperar excerpt, contenido de codigo, testCases, groundTruth, knowledgeId, URLs ni claves de storage; tolerar retrieval: [] en una comparacion FAILED y secciones vacias segun kind; tratar snapshotRef como cadena opaca; acusar con CS-CONSOLE-... cuando WI-CONSOLE-017 consuma esta version.
+sourceRevision: 275f687aa6571c41468b5c97f96f814dc420b903
+status: C-PENDING

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
@@ -12,18 +13,36 @@ import { ProjectVersionsRepository } from '../project-versions/project-versions.
 import { TestTargetsRepository } from '../project-versions/persistence/test-targets.repository.js';
 import { zipDirectory } from '../project-versions/zip/zip-directory.util.js';
 import { GithubSnapshotMaterializerService } from '../snapshot-intelligence/github-snapshot-materializer.service.js';
-import { RetrievalService } from '../retrieval/retrieval.service.js';
+import { DEFAULT_VECTOR_TOP_K, RetrievalService, type RetrievalResult } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
-import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import type { GenerationContext } from '../retrieval/generation-context.js';
+import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
+import { PromptBuilder, sanitizeGeneratedPhp } from '../generation/prompt-builder.service.js';
+import { phpTestLocation } from '../generation/php-test-path.js';
 import { TestFileMergeService, coLocatedSpecPath } from '../generation/test-file-merge.service.js';
-import { SandboxExecutionService, SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import {
+  SandboxAcceptedExecutionError,
+  SandboxExecutionService,
+  SandboxUnavailableError,
+} from '../sandbox/sandbox-execution.service.js';
 import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-result.js';
+import {
+  toAcceptedSandboxEvidence,
+  toSandboxExecutionEvidence,
+  type SandboxExecutionEvidence,
+} from '../sandbox/sandbox-evidence-facts.js';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
-import { GeneratedTestProposalsRepository } from './generated-test-proposals.repository.js';
+import {
+  GeneratedTestProposalsRepository,
+  type ProposalGenerationEvidence,
+} from './generated-test-proposals.repository.js';
+import { AnalysisTraceRepository } from '../analysis-runs/persistence/analysis-trace.repository.js';
+import { toAnalysisContextEvidence, toRetrievalEvidence } from '../analysis-runs/analysis-trace-evidence.util.js';
 import { toRetrievalTarget, findMatchingTestTarget } from './symbol-target.util.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
-import type { LLMProvider } from '../providers/llm-provider.interface.js';
+import type { LLMGenerationResult, LLMProvider } from '../providers/llm-provider.interface.js';
 import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.js';
 import type { AnalysisRun, AnalysisSymbol } from '../generated/prisma/client.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
@@ -36,9 +55,39 @@ export const ANALYSIS_RUN_VALIDATION_JOB_TYPE = 'analysis-run-validation';
 
 type SymbolOutcomeKind = 'AVAILABLE' | 'SKIPPED_HAS_TEST' | 'TECHNICAL_GENERATION_FAILURE' | 'BEHAVIORAL_MISMATCH';
 
+/** Clasificaciones de un símbolo con ejecución en el Sandbox (WI-CORE-026). */
+type ExecutionOutcomeKind = Extract<SymbolOutcomeKind, 'AVAILABLE' | 'TECHNICAL_GENERATION_FAILURE' | 'BEHAVIORAL_MISMATCH'>;
+
+/** Mismo vocabulario que `AnalysisRun.status` para cada clasificación de símbolo. */
+function toExecutionOutcome(kind: ExecutionOutcomeKind): string {
+  return kind === 'AVAILABLE' ? 'SUCCESS' : kind;
+}
+
 interface SymbolOutcome {
   symbol: AnalysisSymbol;
   kind: SymbolOutcomeKind;
+}
+
+/** Ruta y namespace del test de un símbolo; `namespace` solo existe para PHP. */
+interface TestPlacement {
+  relativePath: string;
+  namespace: string | null;
+}
+
+/**
+ * WI-CORE-027 (DEC-EVID-003): generación de la propuesta a partir de la respuesta del proveedor. Lo que el adaptador
+ * no informa queda null; `modelVersion` es null porque la llamada del producto no consulta la versión del modelo.
+ */
+function toProposalGeneration(result: LLMGenerationResult, durationMs: number): ProposalGenerationEvidence {
+  return {
+    provider: result.effective?.provider ?? null,
+    model: result.effective?.model ?? null,
+    modelVersion: null,
+    reasoningEffort: result.effective?.reasoningEffort ?? null,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    durationMs,
+  };
 }
 
 /**
@@ -59,6 +108,8 @@ interface SymbolOutcome {
  *   TECHNICAL_GENERATION_FAILURE. Sin juicio semántico vía LLM para afinar
  *   esta distinción todavía.
  * - Símbolos procesados en serie, un solo intento cada uno.
+ * - PHP (WI-CORE-013): solo PHPUnit, un archivo nuevo por símbolo (DEC-PHP-GEN-001) y sin
+ *   baseline todavía; `phase` no se envía al Sandbox en este corte.
  */
 @Injectable()
 export class AnalysisRunValidationJobHandler
@@ -78,6 +129,7 @@ export class AnalysisRunValidationJobHandler
     private readonly githubSnapshotMaterializerService: GithubSnapshotMaterializerService,
     private readonly retrievalService: RetrievalService,
     private readonly contextBuilder: ContextBuilder,
+    private readonly functionalRulesRetriever: FunctionalRulesRetriever,
     private readonly promptBuilder: PromptBuilder,
     private readonly testFileMergeService: TestFileMergeService,
     private readonly sandboxExecutionService: SandboxExecutionService,
@@ -85,6 +137,7 @@ export class AnalysisRunValidationJobHandler
     private readonly generatedTestProposalsRepository: GeneratedTestProposalsRepository,
     private readonly analysisRunChecksService: AnalysisRunChecksService,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
+    private readonly analysisTraceRepository: AnalysisTraceRepository,
   ) {}
 
   onModuleInit(): void {
@@ -129,19 +182,7 @@ export class AnalysisRunValidationJobHandler
         return;
       }
 
-      if (version.language === 'PHP' || version.detectedFramework === 'PHPUNIT') {
-        const unsupported = await this.analysisRunsService.completeRunFromSystem(
-          run,
-          'TECHNICAL_GENERATION_FAILURE',
-          {
-            resultSummary: 'El snapshot PHP fue indexado, pero la generación y ejecución PHPUnit siguen pendientes de WI-CORE-013.',
-          },
-        );
-        if (unsupported) {
-          await this.analysisRunChecksService.publishForRun(unsupported);
-        }
-        return;
-      }
+      const language: 'typescript' | 'php' = version.language === 'PHP' ? 'php' : 'typescript';
 
       const candidates = symbols.filter(
         (symbol) =>
@@ -163,12 +204,19 @@ export class AnalysisRunValidationJobHandler
           continue;
         }
 
-        if (!version.detectedFramework) {
+        const placement = this.resolvePlacement(language, symbol, workspace.dir);
+        const framework = version.detectedFramework;
+
+        if (!framework || (language === 'php' && framework !== 'PHPUNIT')) {
           await this.persistProposal(run, symbol, {
-            relativePath: coLocatedSpecPath(symbol.filePath),
+            relativePath: placement.relativePath,
             content: '',
             status: 'HELD',
-            failureSummary: 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+            failureSummary:
+              language === 'php'
+                ? 'El proyecto PHP no declara PHPUnit; solo PHPUnit está soportado en V1.'
+                : 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+            contextId: null,
           });
           outcomes.push({ symbol, kind: 'TECHNICAL_GENERATION_FAILURE' });
           continue;
@@ -178,7 +226,9 @@ export class AnalysisRunValidationJobHandler
           run,
           jobId,
           symbol,
-          framework: version.detectedFramework,
+          framework,
+          language,
+          placement,
           workspace,
           snapshotKey,
           snapshotBuffer,
@@ -214,30 +264,89 @@ export class AnalysisRunValidationJobHandler
     }
   }
 
+  /**
+   * Ruta del test de la propuesta por símbolo. TypeScript conserva la ruta co-ubicada; PHP usa la
+   * ubicación DEC-PHP-GEN-001 (nunca existente en el snapshot, por eso siempre es `CREATED`).
+   */
+  private resolvePlacement(
+    language: 'typescript' | 'php',
+    symbol: AnalysisSymbol,
+    snapshotDir: string,
+  ): TestPlacement {
+    if (language === 'php') {
+      return phpTestLocation(toRetrievalTarget(symbol), (relativePath) =>
+        existsSync(join(snapshotDir, relativePath)),
+      );
+    }
+    return { relativePath: coLocatedSpecPath(symbol.filePath), namespace: null };
+  }
+
   private async generateAndValidate(context: {
     run: AnalysisRun;
     jobId: string;
     symbol: AnalysisSymbol;
-    framework: 'JEST' | 'VITEST';
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT';
+    language: 'typescript' | 'php';
+    placement: TestPlacement;
     workspace: ExtractedWorkspace;
     snapshotKey: string;
     snapshotBuffer: Buffer;
   }): Promise<SymbolOutcome> {
-    const { run, jobId, symbol, framework, workspace, snapshotKey, snapshotBuffer } = context;
+    const { run, jobId, symbol, framework, language, placement, workspace, snapshotKey, snapshotBuffer } = context;
+    const { relativePath } = placement;
+    let contextId: string | null = null;
+    let generation: ProposalGenerationEvidence | null = null;
 
     try {
       const retrievalTarget = toRetrievalTarget(symbol);
       const retrieval = await this.retrievalService.retrieve(run.projectVersionId!, retrievalTarget);
-      const generationContext = this.contextBuilder.build(retrieval, retrievalTarget, { framework });
-      const prompt = this.promptBuilder.build(generationContext);
-      const generation = await this.llmProvider.generate(prompt);
+      const functionalRules = await this.functionalRulesRetriever.retrieve(run.projectId, retrievalTarget);
+      const generationContext = this.contextBuilder.build(
+        retrieval,
+        retrievalTarget,
+        { framework, language },
+        {},
+        functionalRules,
+      );
+      contextId = await this.persistTraceEvidence(run, symbol, retrieval, generationContext);
+      const prompt =
+        language === 'php'
+          ? this.promptBuilder.build(generationContext, {
+              testNamespace: placement.namespace ?? undefined,
+              testPath: relativePath,
+            })
+          : this.promptBuilder.build(generationContext);
+      const generationStart = Date.now();
+      const llmResult = await this.llmProvider.generate(prompt);
+      generation = toProposalGeneration(llmResult, Date.now() - generationStart);
 
-      const relativePath = coLocatedSpecPath(symbol.filePath);
-      const existingContent = await readFile(join(workspace.dir, relativePath), 'utf8').catch(() => null);
-      const mergedContent =
-        existingContent === null
-          ? this.testFileMergeService.applyCreate(generation.content)
-          : this.testFileMergeService.applyMerge(existingContent, generation.content);
+      let artifactType: 'CREATED' | 'MODIFIED';
+      let mergedContent: string;
+
+      if (language === 'php') {
+        const phpContent = sanitizeGeneratedPhp(llmResult.content);
+        if (phpContent === null) {
+          const proposalId = await this.persistProposal(run, symbol, {
+            relativePath,
+            content: llmResult.content,
+            status: 'HELD',
+            failureSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+            contextId,
+            generation,
+          });
+          this.logger.debug(`Propuesta ${proposalId} retenida: respuesta PHP sin <?php.`);
+          return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
+        }
+        artifactType = 'CREATED';
+        mergedContent = `${phpContent}\n`;
+      } else {
+        const existingContent = await readFile(join(workspace.dir, relativePath), 'utf8').catch(() => null);
+        artifactType = existingContent === null ? 'CREATED' : 'MODIFIED';
+        mergedContent =
+          existingContent === null
+            ? this.testFileMergeService.applyCreate(llmResult.content)
+            : this.testFileMergeService.applyMerge(existingContent, llmResult.content);
+      }
 
       const sandboxResult = await this.sandboxExecutionService.execute({
         requestId: sandboxGenerationRequestId(jobId, symbol.id),
@@ -249,7 +358,7 @@ export class AnalysisRunValidationJobHandler
           {
             artifactId: randomUUID(),
             relativePath,
-            artifactType: existingContent === null ? 'CREATED' : 'MODIFIED',
+            artifactType,
             content: Buffer.from(mergedContent, 'utf8'),
           },
         ],
@@ -259,23 +368,34 @@ export class AnalysisRunValidationJobHandler
       });
 
       const outcome = mapSandboxResult(sandboxResult);
+      const evidence = toSandboxExecutionEvidence(sandboxResult, outcome.failureType);
 
       if (outcome.status === 'VALID') {
-        await this.persistProposal(run, symbol, {
+        const proposalId = await this.persistProposal(run, symbol, {
           relativePath,
           content: mergedContent,
           status: 'AVAILABLE',
+          contextId,
+          generation,
         });
+        // Best-effort: un fallo al registrar la ejecución no degrada una propuesta ya válida (WI-CORE-026).
+        await this.recordExecutionBestEffort(run, proposalId, evidence, 'AVAILABLE');
         return { symbol, kind: 'AVAILABLE' };
       }
 
       const kind = this.classifySymbolFailure(outcome.failureType);
-      await this.persistProposal(run, symbol, {
+      const proposalId = await this.persistProposal(run, symbol, {
         relativePath,
         content: mergedContent,
         status: 'HELD',
-        failureSummary: outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
+        // WI-CORE-027 (IDEA-015): el resumen de fallo se sanea antes de persistirse.
+        failureSummary: sanitizeFailureMessage(
+          outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
+        ),
+        contextId,
+        generation,
       });
+      await this.recordExecutionBestEffort(run, proposalId, evidence, kind);
       return { symbol, kind };
     } catch (error) {
       const summary =
@@ -287,12 +407,25 @@ export class AnalysisRunValidationJobHandler
       this.logger.warn(
         `Símbolo ${symbol.qualifiedName} (${symbol.filePath}) del AnalysisRun ${run.id} no pudo validarse: ${summary}`,
       );
-      await this.persistProposal(run, symbol, {
-        relativePath: coLocatedSpecPath(symbol.filePath),
+      const proposalId = await this.persistProposal(run, symbol, {
+        relativePath,
         content: '',
         status: 'HELD',
-        failureSummary: summary,
+        // WI-CORE-027 (IDEA-015): el mensaje de excepción puede traer URLs firmadas o credenciales.
+        failureSummary: sanitizeFailureMessage(summary),
+        contextId,
+        generation,
       });
+      // Solo si el Sandbox aceptó la ejecución hay un executionId que conservar (WI-CORE-026). Best-effort:
+      // un fallo aquí no sale del handler ni reclasifica la propuesta ya guardada.
+      if (error instanceof SandboxAcceptedExecutionError) {
+        await this.recordExecutionBestEffort(
+          run,
+          proposalId,
+          toAcceptedSandboxEvidence(error),
+          'TECHNICAL_GENERATION_FAILURE',
+        );
+      }
       return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
     }
   }
@@ -330,17 +463,114 @@ export class AnalysisRunValidationJobHandler
     return `${status}: ${available} propuesta(s) disponible(s), ${skipped} símbolo(s) ya cubiertos por tests existentes, ${mismatched} behavioral mismatch, ${failed} fallo(s) técnico(s) de generación.`;
   }
 
+  /**
+   * WI-CORE-026: persiste `analysis_retrievals` y `analysis_contexts` del target y devuelve el
+   * `context_id`. Lee el resultado y el `GenerationContext` sin mutarlos: el prompt no cambia.
+   */
+  private async persistTraceEvidence(
+    run: AnalysisRun,
+    symbol: AnalysisSymbol,
+    retrieval: RetrievalResult,
+    generationContext: GenerationContext,
+  ): Promise<string> {
+    const retrievalEvidence = toRetrievalEvidence(retrieval, DEFAULT_VECTOR_TOP_K);
+    const storedRetrieval = await this.analysisTraceRepository.upsertRetrieval({
+      analysisRunId: run.id,
+      analysisSymbolId: symbol.id,
+      mode: retrievalEvidence.config.mode,
+      config: retrievalEvidence.config,
+      candidates: retrievalEvidence.candidates,
+    });
+
+    const contextEvidence = toAnalysisContextEvidence(generationContext);
+    const storedContext = await this.analysisTraceRepository.upsertContext({
+      analysisRunId: run.id,
+      analysisSymbolId: symbol.id,
+      retrievalId: storedRetrieval.id,
+      selectedChunkIds: contextEvidence.selectedChunkIds,
+      discardedChunkIds: contextEvidence.discardedChunkIds,
+      selectedTokens: contextEvidence.selectedTokens,
+      tokenBudget: contextEvidence.tokenBudget,
+      functionalRuleIds: contextEvidence.functionalRules.functionalRuleIds,
+      functionalRulesRetrieved: contextEvidence.functionalRules.retrieved,
+      functionalRulesSelected: contextEvidence.functionalRules.selected,
+      functionalRulesOmitted: contextEvidence.functionalRules.omitted.length,
+      omittedFunctionalRules: contextEvidence.functionalRules.omitted,
+    });
+
+    return storedContext.id;
+  }
+
+  /**
+   * WI-CORE-026 (corte B): registra la ejecución aceptada por el Sandbox para la propuesta. El intento
+   * es el del Run (`attemptCount` + 1: la primera pasada es 1; cada continuación desde ACTION_REQUIRED
+   * suma uno). El `outcome` reutiliza la clasificación del Run por símbolo.
+   */
+  private async recordExecution(
+    run: AnalysisRun,
+    proposalId: string,
+    evidence: SandboxExecutionEvidence,
+    kind: ExecutionOutcomeKind,
+  ): Promise<void> {
+    await this.analysisTraceRepository.upsertExecution({
+      analysisRunId: run.id,
+      proposalId,
+      executionId: evidence.executionId,
+      attempt: run.attemptCount + 1,
+      executionProfile: evidence.executionProfile,
+      outcome: toExecutionOutcome(kind),
+      requestId: evidence.requestId,
+      correlationId: evidence.correlationId,
+      durationMs: evidence.durationMs,
+      facts: evidence.facts,
+      failure: evidence.failure,
+    });
+  }
+
+  /**
+   * Variante best-effort para los caminos VALID, HELD y de excepción aceptada: si el registro falla se loguea
+   * (executionId y nombre del error, sin mensaje ni cuerpos) y la propuesta conserva su contenido y su
+   * clasificación; la ejecución queda sin registrar.
+   */
+  private async recordExecutionBestEffort(
+    run: AnalysisRun,
+    proposalId: string,
+    evidence: SandboxExecutionEvidence,
+    kind: ExecutionOutcomeKind,
+  ): Promise<void> {
+    try {
+      await this.recordExecution(run, proposalId, evidence, kind);
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo registrar la ejecución ${evidence.executionId} del AnalysisRun ${run.id} (${reason}); la propuesta conserva su contenido y su clasificación.`,
+      );
+    }
+  }
+
+  /**
+   * Upsert por símbolo: devuelve el id de la propuesta, que liga la ejecución. WI-CORE-027 (best-effort): si la
+   * escritura con la generación falla, la propuesta se guarda igualmente sin ella (generación null).
+   */
   private async persistProposal(
     run: AnalysisRun,
     symbol: AnalysisSymbol,
-    input: { relativePath: string; content: string; status: 'AVAILABLE' | 'HELD'; failureSummary?: string },
-  ): Promise<void> {
+    input: {
+      relativePath: string;
+      content: string;
+      status: 'AVAILABLE' | 'HELD';
+      failureSummary?: string;
+      contextId: string | null;
+      generation?: ProposalGenerationEvidence | null;
+    },
+  ): Promise<string> {
     const storageKey = `analysis-runs/${run.id}/proposals/${randomUUID()}`;
     const buffer = Buffer.from(input.content, 'utf8');
     await this.objectStorageService.put(storageKey, buffer, 'text/plain');
 
-    await this.generatedTestProposalsRepository.create({
+    const fields = {
       analysisRunId: run.id,
+      analysisSymbolId: symbol.id,
       relativePath: input.relativePath,
       symbolLanguage: symbol.language,
       symbolKind: symbol.kind,
@@ -349,7 +579,23 @@ export class AnalysisRunValidationJobHandler
       storageKey,
       contentSha256: createHash('sha256').update(buffer).digest('hex'),
       status: input.status,
-      ...(input.failureSummary ? { failureSummary: input.failureSummary } : {}),
-    });
+      contextId: input.contextId,
+      failureSummary: input.failureSummary ?? null,
+    };
+
+    try {
+      const proposal = await this.generatedTestProposalsRepository.upsertForSymbol({
+        ...fields,
+        generation: input.generation ?? null,
+      });
+      return proposal.id;
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo registrar la generación de ${symbol.qualifiedName} del AnalysisRun ${run.id} (${reason}); la propuesta se guarda sin ella.`,
+      );
+      const proposal = await this.generatedTestProposalsRepository.upsertForSymbol({ ...fields, generation: null });
+      return proposal.id;
+    }
   }
 }

@@ -2,8 +2,17 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Project } from 'ts-morph';
+import { Parser, type Node as SyntaxNode, type Tree } from 'web-tree-sitter';
+import { loadPhpLanguage } from '../../project-versions/parsing/php-parser.service.js';
 
 const MAX_SEARCH_RESULTS = 30;
+const PHP_DECLARATION_TYPES = new Set([
+  'class_declaration',
+  'interface_declaration',
+  'trait_declaration',
+  'enum_declaration',
+  'function_definition',
+]);
 const MAX_READ_CHARS = 20_000;
 const MAX_OBSERVATION_SNIPPET_CHARS = 2_000;
 
@@ -118,6 +127,8 @@ export interface AgentToolSchema {
       type: 'object';
       properties: Record<string, { type: string; description: string }>;
       required: string[];
+      /** Exigido por `strict: true` en Responses (WI-CORE-031). */
+      additionalProperties: false;
     };
   };
 }
@@ -128,8 +139,13 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
     function: {
       name: 'list_files',
       description:
-        'Lista las rutas relativas de todos los archivos disponibles del snapshot del proyecto (no incluye archivos de test que ya cubren el target actual).',
-      parameters: { type: 'object', properties: {}, required: [] },
+        'Lista las rutas relativas de todos los archivos disponibles del snapshot del proyecto.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
     },
   },
   {
@@ -147,6 +163,7 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
           },
         },
         required: ['relativePath'],
+        additionalProperties: false,
       },
     },
   },
@@ -162,6 +179,7 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
           query: { type: 'string', description: 'Texto a buscar.' },
         },
         required: ['query'],
+        additionalProperties: false,
       },
     },
   },
@@ -180,17 +198,42 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
           },
         },
         required: ['symbolName'],
+        additionalProperties: false,
       },
     },
   },
 ];
 
+function findPhpDeclarationNode(
+  root: SyntaxNode,
+  symbolName: string,
+): SyntaxNode | undefined {
+  const namedChildrenOf = (node: SyntaxNode): SyntaxNode[] =>
+    (node.namedChildren ?? []).filter((child): child is SyntaxNode => child !== null);
+
+  for (const topLevel of namedChildrenOf(root)) {
+    const body = topLevel.childForFieldName('body');
+    const candidates =
+      topLevel.type === 'namespace_definition'
+        ? (body ? namedChildrenOf(body) : [])
+        : [topLevel];
+    const found = candidates.find(
+      (node) =>
+        PHP_DECLARATION_TYPES.has(node.type) &&
+        node.childForFieldName('name')?.text === symbolName,
+    );
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
 /**
  * Herramientas read-only del GENERALIST_AGENT (DEC-EXP-002), acotadas al
- * snapshot materializado del ProjectVersion. Los archivos de test que ya
- * cubren el target actual quedan excluidos de `list_files`/`read_file`/
- * `search_text`/`inspect_symbol` para evitar que el agente copie la prueba
- * existente en vez de generarla.
+ * snapshot materializado del ProjectVersion. Las pruebas existentes son
+ * visibles y legibles (DEC-EXP-003); solo se excluyen las rutas fuera del
+ * snapshot (node_modules, .git, etc.) ya filtradas por FileDiscoveryService.
  */
 export class WorkspaceAgentTools {
   private readonly allowedFiles: Set<string>;
@@ -198,12 +241,8 @@ export class WorkspaceAgentTools {
   constructor(
     private readonly workspaceDir: string,
     poolFiles: string[],
-    excludedTestFiles: string[],
   ) {
-    const excluded = new Set(excludedTestFiles);
-    this.allowedFiles = new Set(
-      poolFiles.filter((filePath) => !excluded.has(filePath)),
-    );
+    this.allowedFiles = new Set(poolFiles);
   }
 
   async dispatch(name: string, args: Record<string, unknown>): Promise<string> {
@@ -247,7 +286,7 @@ export class WorkspaceAgentTools {
   ): Promise<AgentToolDispatchResult> {
     if (!this.allowedFiles.has(relativePath)) {
       return result(
-        `No se puede leer "${relativePath}": no existe en el snapshot disponible o está excluido (test existente del target).`,
+        `No se puede leer "${relativePath}": no existe en el snapshot disponible.`,
         'FAILED',
       );
     }
@@ -330,6 +369,39 @@ export class WorkspaceAgentTools {
     return result(toolResult, status, observations);
   }
 
+  /**
+   * Busca la primera declaración PHP (clase, interfaz, trait, enum o función)
+   * con ese nombre corto, top-level o dentro de un namespace con llaves.
+   * Archivos con errores de sintaxis no aportan declaraciones.
+   */
+  private async findPhpDeclaration(
+    content: string,
+    symbolName: string,
+  ): Promise<{ content: string; startLine: number; endLine: number } | null> {
+    const language = await loadPhpLanguage();
+    const parser = new Parser();
+    let tree: Tree | null = null;
+    try {
+      parser.setLanguage(language);
+      tree = parser.parse(content);
+      if (!tree || tree.rootNode.hasError) {
+        return null;
+      }
+      const node = findPhpDeclarationNode(tree.rootNode, symbolName);
+      if (!node) {
+        return null;
+      }
+      return {
+        content: node.text.trim(),
+        startLine: node.startPosition.row + 1,
+        endLine: node.endPosition.row + 1,
+      };
+    } finally {
+      tree?.delete();
+      parser.delete();
+    }
+  }
+
   private async inspectSymbolWithObservation(
     symbolName: string,
   ): Promise<AgentToolDispatchResult> {
@@ -355,7 +427,9 @@ export class WorkspaceAgentTools {
     const referencePattern = new RegExp(`\\b${escapedSymbolName}\\b`);
 
     for (const filePath of [...this.allowedFiles].sort()) {
-      if (!/\.tsx?$/.test(filePath)) {
+      const isTypeScript = /\.tsx?$/.test(filePath);
+      const isPhp = filePath.endsWith('.php');
+      if (!isTypeScript && !isPhp) {
         continue;
       }
 
@@ -371,7 +445,14 @@ export class WorkspaceAgentTools {
         continue;
       }
 
-      if (!declaration) {
+      if (!declaration && isPhp) {
+        const phpDeclaration = await this.findPhpDeclaration(content, symbolName);
+        if (phpDeclaration) {
+          declaration = { filePath, ...phpDeclaration };
+        }
+      }
+
+      if (!declaration && isTypeScript) {
         const sourceFile = project.createSourceFile(
           `${filePath}.virtual.ts`,
           content,

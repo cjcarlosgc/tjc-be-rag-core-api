@@ -10,6 +10,10 @@ export interface BeginContextTraceAttemptInput {
   strategy: 'RAG' | 'GENERALIST_AGENT';
   kind: 'RAG' | 'AGENT';
   repetition: number;
+  /** WI-CORE-025: identidad del par; si se omite, el intento hereda la del intento anterior. */
+  pairId?: string | null;
+  /** WI-CORE-025: 1 = primera posición del par, 2 = segunda. */
+  pairPosition?: number | null;
 }
 
 export interface BegunContextTraceAttempt {
@@ -51,7 +55,8 @@ export class ContextTracesRepository {
 
     return this.prisma.$transaction(async (tx) => {
       const lockKey = `context-trace:${input.experimentId}:${input.strategy}:${input.repetition}`;
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}::text, 0))`;
+      // pg_advisory_xact_lock devuelve void: Prisma no puede deserializar esa columna con $queryRaw.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}::text, 0))`;
 
       const previous = await tx.experimentRepetition.findFirst({
         where: {
@@ -62,6 +67,8 @@ export class ContextTracesRepository {
         orderBy: { attempt: 'desc' },
       });
       const attempt = (previous?.attempt ?? 0) + 1;
+      const pairId = input.pairId ?? previous?.pairId ?? null;
+      const pairPosition = input.pairPosition ?? previous?.pairPosition ?? null;
       const repetition = await tx.experimentRepetition.create({
         data: {
           experimentId: input.experimentId,
@@ -69,6 +76,10 @@ export class ContextTracesRepository {
           repetition: input.repetition,
           attempt,
           state: 'RUNNING',
+          pairId,
+          pairPosition,
+          // Latido inicial del intento (WI-CORE-025 (3c)); se renueva mientras corre.
+          lastHeartbeatAt: new Date(),
         },
       });
 

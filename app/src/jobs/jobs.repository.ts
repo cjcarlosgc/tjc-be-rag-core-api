@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma, type Job } from '../generated/prisma/client.js';
@@ -14,6 +14,38 @@ const UTC_NOW = Prisma.raw(`(now() AT TIME ZONE 'utc')`);
 
 /** Umbral por defecto de un lock `RUNNING` obsoleto (`JOBS_STALE_LOCK_MS`). */
 export const DEFAULT_STALE_LOCK_MS = 600_000;
+
+/**
+ * Qué escribió `fail`: `terminal` (FAILED, sin intentos), `retry` (vuelve a PENDING con backoff),
+ * `discarded` (colisión con otro PENDING de la misma clave: el actual se completa) o `lost`
+ * (el lock ya no pertenece a este worker: no se escribió nada, DEC-JOBS-002).
+ */
+export type FailOutcome = 'terminal' | 'retry' | 'discarded' | 'lost';
+
+/**
+ * Tipos SIN `dedupeKey` cuyo lock obsoleto sí se libera. `experiment-run` (WI-CORE-030, DEC-JOBS-001):
+ * tiene una reentrada diseñada (intentos por slot, latido por repetición). `retrieval-comparison`
+ * (WI-CORE-022, DEC-RC-002, aprobada por el usuario como enmienda documentada de DEC-JOBS-001): su
+ * handler es solo de retrieval, idempotente, y escribe por upsert `(comparisonId, mode)`. Los demás
+ * tipos sin clave tienen gates de estado o escrituras externas y NO se liberan. Constante de código,
+ * no configurable por entorno.
+ */
+export const RELEASABLE_UNKEYED_JOB_TYPES: readonly string[] = Object.freeze([
+  'experiment-run',
+  'retrieval-comparison',
+]);
+
+/** Motivo con el que se libera un lock obsoleto (también en `JobHandler.onExhausted`). */
+export const STALE_LOCK_REASON = 'Lock obsoleto: el worker que lo reclamó dejó de responder.';
+
+/**
+ * Resultado de `releaseStale`: cuántos locks obsoletos se liberaron (sin contar los perdidos por
+ * fencing) y los jobs que quedaron FAILED terminal al liberarse (agotaron `maxAttempts`).
+ */
+export interface ReleaseStaleResult {
+  released: number;
+  exhausted: Job[];
+}
 
 export interface InsertDedupedJobInput {
   type: string;
@@ -39,6 +71,8 @@ function isUniqueViolation(error: unknown): boolean {
 
 @Injectable()
 export class JobsRepository {
+  private readonly logger = new Logger(JobsRepository.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   create(
@@ -106,33 +140,47 @@ export class JobsRepository {
     return rows[0] ?? null;
   }
 
-  async complete(jobId: string): Promise<void> {
-    await this.prisma.job.update({
-      where: { id: jobId },
-      data: { status: JobStatus.COMPLETED, lockedAt: null, lockedBy: null },
+  /**
+   * Renueva `lockedAt` de un job que este worker sigue ejecutando (latido, DEC-JOBS-002). Solo
+   * escribe si el job sigue `RUNNING` y `lockedBy` es el worker: un lock ya perdido no se reclama.
+   * Devuelve si afectó una fila.
+   */
+  async touchLock(jobId: string, workerId: string): Promise<boolean> {
+    const count = await this.prisma.$executeRaw`
+      UPDATE "jobs" SET "lockedAt" = ${UTC_NOW}, "updatedAt" = ${UTC_NOW}
+      WHERE "id" = ${jobId} AND "status" = 'RUNNING' AND "lockedBy" = ${workerId}
+    `;
+
+    return count > 0;
+  }
+
+  /** Completa el job solo si su lock sigue siendo de este worker (fencing, DEC-JOBS-002). */
+  async complete(job: Job): Promise<void> {
+    await this.fencedUpdate(job, 'complete', {
+      status: JobStatus.COMPLETED,
+      lockedAt: null,
+      lockedBy: null,
     });
   }
 
-  async fail(job: Job, errorMessage: string, forceTerminal = false): Promise<void> {
+  /** Falla el job (consume un intento). Solo escribe si el lock sigue siendo de este worker. */
+  async fail(job: Job, errorMessage: string, forceTerminal = false): Promise<FailOutcome> {
     const attempts = job.attempts + 1;
     const isTerminal = forceTerminal || attempts >= job.maxAttempts;
     const backoffMs = Math.min(2 ** attempts * 1000, 60_000);
 
     if (isTerminal) {
-      await this.prisma.job.update({
-        where: { id: job.id },
-        data: {
-          attempts,
-          status: JobStatus.FAILED,
-          lastError: errorMessage.slice(0, 2000),
-          lockedAt: null,
-          lockedBy: null,
-        },
+      const count = await this.fencedUpdate(job, 'fail', {
+        attempts,
+        status: JobStatus.FAILED,
+        lastError: errorMessage.slice(0, 2000),
+        lockedAt: null,
+        lockedBy: null,
       });
-      return;
+      return count === 0 ? 'lost' : 'terminal';
     }
 
-    await this.returnToPending(job, {
+    return this.returnToPending(job, {
       attempts,
       availableAt: new Date(Date.now() + backoffMs),
       lastError: errorMessage,
@@ -142,7 +190,7 @@ export class JobsRepository {
   /**
    * Devuelve un job `RUNNING` a `PENDING` a las `delayMs` sin consumir un intento (p. ej. un
    * `ACCESS_REVERIFY` cuya verificación no fue posible por una caída de GitHub). Aplica la
-   * misma salvaguarda que `fail` ante el índice único parcial.
+   * misma salvaguarda que `fail` ante el índice único parcial y el mismo fencing por `lockedBy`.
    */
   async reschedule(
     job: Job,
@@ -159,27 +207,61 @@ export class JobsRepository {
   }
 
   /**
-   * Libera los locks `RUNNING` obsoletos (worker caído) SOLO de jobs con `dedupeKey` (los
-   * de acceso, cortos y acotados por presupuesto): un tipo sin clave puede tardar más que
-   * el umbral y reclamarlo lo ejecutaría dos veces. Cada uno consume un intento (vuelve a
-   * `PENDING` con backoff, o `FAILED` sin intentos) y respeta el índice único parcial:
-   * si ya hay un `PENDING` con su clave, el obsoleto se descarta. Devuelve cuántos liberó.
+   * Escritura condicionada al worker que reclamó el job (fencing): solo si el job sigue `RUNNING`
+   * con su `lockedBy`. Si no afecta ninguna fila, el lock ya no es de este worker (p. ej. un worker
+   * zombi tras un reclamo) y no se escribe nada. Devuelve cuántas filas tocó.
    */
-  async releaseStale(staleLockMs = DEFAULT_STALE_LOCK_MS, limit = 50): Promise<number> {
+  private async fencedUpdate(
+    job: Job,
+    label: string,
+    data: Prisma.JobUpdateManyMutationInput,
+  ): Promise<number> {
+    const { count } = await this.prisma.job.updateMany({
+      where: { id: job.id, status: JobStatus.RUNNING, lockedBy: job.lockedBy },
+      data,
+    });
+
+    if (count === 0) {
+      this.logger.warn(
+        `Job ${job.id} (${job.type}): ${label} descartado; el lock ya no pertenece a este worker.`,
+      );
+    }
+
+    return count;
+  }
+
+  /**
+   * Libera los locks `RUNNING` obsoletos (worker caído) de los jobs con `dedupeKey` (los de acceso,
+   * cortos y acotados por presupuesto) y de los tipos de `RELEASABLE_UNKEYED_JOB_TYPES` (hoy
+   * `experiment-run`, WI-CORE-030, DEC-JOBS-001; y `retrieval-comparison`, DEC-RC-002). Un latido de job vigente (`touchLock`) no es obsoleto.
+   * Cada liberación consume un intento vía `fail` (vuelve a `PENDING` con backoff, o queda `FAILED` si
+   * agotó `maxAttempts`) y respeta el índice único parcial: si ya hay un `PENDING` con su clave, el
+   * obsoleto se descarta. Devuelve cuántos liberó y cuáles quedaron `FAILED` terminal.
+   */
+  async releaseStale(staleLockMs = DEFAULT_STALE_LOCK_MS, limit = 50): Promise<ReleaseStaleResult> {
     const staleSeconds = staleLockMs / 1000;
     const stale = await this.prisma.$queryRaw<Job[]>`
       SELECT * FROM "jobs"
-      WHERE "status" = 'RUNNING' AND "dedupeKey" IS NOT NULL
+      WHERE "status" = 'RUNNING'
+        AND ("dedupeKey" IS NOT NULL OR "type" = ANY(${RELEASABLE_UNKEYED_JOB_TYPES}))
         AND "lockedAt" <= ${UTC_NOW} - make_interval(secs => ${staleSeconds}::double precision)
       ORDER BY "lockedAt"
       LIMIT ${limit};
     `;
 
+    let released = 0;
+    const exhausted: Job[] = [];
     for (const job of stale) {
-      await this.fail(job, 'Lock obsoleto: el worker que lo reclamó dejó de responder.');
+      const outcome = await this.fail(job, STALE_LOCK_REASON);
+      if (outcome !== 'lost') {
+        released += 1;
+      }
+      if (outcome === 'terminal') {
+        exhausted.push(job);
+      }
     }
 
-    return stale.length;
+    return { released, exhausted };
   }
 
   /**
@@ -211,7 +293,7 @@ export class JobsRepository {
   private async returnToPending(
     job: Job,
     next: { attempts: number; availableAt: Date; lastError: string; payload?: Prisma.InputJsonValue },
-  ): Promise<void> {
+  ): Promise<Exclude<FailOutcome, 'terminal'>> {
     const lastError = next.lastError.slice(0, 2000);
     const retry = {
       attempts: next.attempts,
@@ -224,27 +306,28 @@ export class JobsRepository {
     };
 
     if (job.dedupeKey === null || job.dedupeKey === undefined) {
-      await this.prisma.job.update({ where: { id: job.id }, data: retry });
-      return;
+      const count = await this.fencedUpdate(job, 'reintento', retry);
+      return count === 0 ? 'lost' : 'retry';
     }
 
+    let count: number;
     try {
-      await this.prisma.job.update({ where: { id: job.id }, data: retry });
+      count = await this.fencedUpdate(job, 'reintento', retry);
     } catch (error) {
       if (!isUniqueViolation(error)) {
         throw error;
       }
 
-      await this.prisma.job.update({
-        where: { id: job.id },
-        data: {
-          attempts: next.attempts,
-          status: JobStatus.COMPLETED,
-          lastError: `Descartado: ya existe un PENDING con la misma dedupeKey (${lastError}).`.slice(0, 2000),
-          lockedAt: null,
-          lockedBy: null,
-        },
+      const discarded = await this.fencedUpdate(job, 'descarte', {
+        attempts: next.attempts,
+        status: JobStatus.COMPLETED,
+        lastError: `Descartado: ya existe un PENDING con la misma dedupeKey (${lastError}).`.slice(0, 2000),
+        lockedAt: null,
+        lockedBy: null,
       });
+      return discarded === 0 ? 'lost' : 'discarded';
     }
+
+    return count === 0 ? 'lost' : 'retry';
   }
 }

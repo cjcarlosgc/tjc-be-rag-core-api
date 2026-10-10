@@ -182,7 +182,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
     it('transferred out of the organization: REVOKED, Maintainer/Reader deleted, Admin kept, sockets evicted', async () => {
       h.seedOrgProject('p1', { repositoryId: '100', repositoryName: 'acme/widgets' });
       h.grant('p1', 'admin', 'ADMIN');
-      h.grant('p1', 'writer', 'MAINTAINER');
+      h.grant('p1', 'writer', 'WRITER');
       h.grant('p1', 'reader', 'READER');
       repo('acme/widgets', '100');
       h.github.transferRepository('acme/widgets', owner('999'));
@@ -386,7 +386,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       repo(W, '100');
       h.github.setPermission(W, 'gh-writer', 'write').setPermission(W, 'gh-reader', 'read');
       h.grant('p1', 'admin', 'ADMIN');
-      h.grant('p1', 'writer', 'MAINTAINER');
+      h.grant('p1', 'writer', 'WRITER');
       h.grant('p1', 'reader', 'READER');
       h.grant('p2', 'admin', 'ADMIN');
     };
@@ -528,10 +528,20 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       repo(W, '100');
       h.github.setPermission(W, 'gh-writer', 'write').setPermission(W, 'gh-reader', 'read');
       h.grant('p1', 'admin', 'ADMIN');
-      h.grant('p1', 'writer', 'MAINTAINER');
+      h.grant('p1', 'writer', 'WRITER');
       h.grant('p1', 'reader', 'READER');
     };
     const run = () => handler.run({});
+
+    it('a Maintainer record whose live permission is write is corrected to Writer as an update, never a revocation (WI-CORE-019)', async () => {
+      setUp();
+      (h.db.tables.projectAccess.find((row) => row.userId === 'writer') as { role: string }).role = 'MAINTAINER';
+
+      const summary = await run();
+
+      expect(summary?.records).toMatchObject({ updated: 1, revoked: 0 });
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:READER', 'writer:WRITER']);
+    });
 
     it('confirms unchanged records (verifiedAt is refreshed) and changes nothing else', async () => {
       setUp();
@@ -539,7 +549,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       const summary = await run();
 
       expect(summary?.records).toMatchObject({ checked: 3, unchanged: 3, updated: 0, revoked: 0, truncated: false });
-      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:READER', 'writer:MAINTAINER']);
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:READER', 'writer:WRITER']);
     });
 
     it('a role changed WITHOUT an event (permission base of the organization, inherited access) is corrected', async () => {
@@ -582,7 +592,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
 
       await jobs.runOnce();
 
-      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:READER', 'writer:MAINTAINER']);
+      expect(h.recordsOf('p1')).toEqual(['admin:ADMIN', 'reader:READER', 'writer:WRITER']);
       expect(queue.pending(ACCESS_RECONCILIATION_DEDUPE_KEY)).toHaveLength(1);
     });
 
@@ -611,11 +621,11 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       h.seedPersonalProject('mine', 'creator', '7001', { repositoryId: '200', repositoryName: 'creator/repo' });
       repo('creator/repo', '200', '7001');
       h.db.insert('project', { id: 'gone', name: 'gone', ownerUserId: 'x', githubOrgId: ORG_ID, githubOrgLogin: 'acme', deletedAt: new Date() });
-      h.grant('gone', 'writer', 'MAINTAINER');
+      h.grant('gone', 'writer', 'WRITER');
 
       await run();
 
-      expect(h.recordsOf('gone')).toEqual(['writer:MAINTAINER']);
+      expect(h.recordsOf('gone')).toEqual(['writer:WRITER']);
       expect(h.github.calls.filter((call) => call.githubUserId !== undefined && call.repositoryName === 'creator/repo')).toEqual([]);
     });
 
@@ -633,8 +643,8 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       for (const id of ['pa', 'pb', 'pc']) {
         h.seedOrgProject(id, { repositoryId: `r-${id}`, repositoryName: `acme/${id}` });
         repo(`acme/${id}`, `r-${id}`);
-        h.github.setPermission(`acme/${id}`, 'gh-writer', 'read'); // cada registro cambia de Maintainer a Reader
-        h.grant(id, 'writer', 'MAINTAINER');
+        h.github.setPermission(`acme/${id}`, 'gh-writer', 'read'); // cada registro cambia de Writer a Reader
+        h.grant(id, 'writer', 'WRITER');
         h.grant(id, 'reader', 'READER');
       }
       h.github.setPermission('acme/pa', 'gh-reader', 'read').setPermission('acme/pb', 'gh-reader', 'read').setPermission('acme/pc', 'gh-reader', 'read');
@@ -646,7 +656,7 @@ describe('AccessReconciliationJobHandler (HU61, parte (c) y cadena)', () => {
       const [next] = queue.pending(ACCESS_RECONCILIATION_DEDUPE_KEY);
       expect(next.payload).toMatchObject({ afterProjectId: expect.any(String) });
       expect(['pa:writer:READER', 'pb:writer:READER'].every((entry) => h.recordsOf(entry.split(':')[0]).includes(entry.slice(3)))).toBe(true);
-      expect(h.recordsOf('pc')).toContain('writer:MAINTAINER'); // aún sin recorrer
+      expect(h.recordsOf('pc')).toContain('writer:WRITER'); // aún sin recorrer
 
       queue.advance(HOUR);
       await jobs.runOnce();

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261008-002
+source: core
+sourceWorkItem: WI-CORE-018
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - WI-CORE-018 implementa en Core lo ya definido en INTEROP-2.7 y agrega en INTEROP-2.7 6.11 una nota de una frase (aprobada por el usuario) que aclara que las preguntas historicas se devuelven con scenarioKind EXPECTED_RESULT y scenarioKey LEGACY: UNKNOWN como abstencion auditada (202 outcome ABSTAINED con continuationAttemptId y knowledgeId null; la pregunta sigue PENDING y el Run ACTION_REQUIRED), abstention {count,lastAt,lastByUserId,lastByRole} o null en FunctionalQuestionResponse, scenarioKind y scenarioKey de la pregunta (preguntas historicas: EXPECTED_RESULT y LEGACY) y activacion de ACTION_REQUIRED solo por construcciones de comportamiento nuevas o modificadas de TypeScript (DEC-FK-003). ABSTAINED no devuelve el resumen: releer context-questions.
+requiredAction:
+  - Console: importar el evento, acusarlo con su WI consumidor y adoptar outcome ABSTAINED (sin mostrar resuelto ni continuando), abstention, scenarioKind y scenarioKey cuando se adopte el contrato; no requiere cambio de Sandbox ni GitHub Integration.
+sourceRevision: 1c317f4ab5baad0214f2f6d3c003e7f9db68be24
+status: C-PENDING

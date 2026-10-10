@@ -3,6 +3,7 @@ import { ContextTracesRepository } from './context-traces.repository.js';
 
 function makeRepository(overrides: Record<string, unknown> = {}) {
   const tx = {
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $queryRaw: vi.fn().mockResolvedValue([]),
     experimentRepetition: {
       findFirst: vi.fn().mockResolvedValue(null),
@@ -51,7 +52,7 @@ describe('ContextTracesRepository', () => {
     const result = await repository.beginAttempt(input);
 
     expect(prisma.$transaction).toHaveBeenCalledOnce();
-    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
     expect(tx.experimentRepetition.create).toHaveBeenCalledWith({
       data: {
         experimentId: 'experiment-1',
@@ -59,6 +60,9 @@ describe('ContextTracesRepository', () => {
         repetition: 2,
         attempt: 1,
         state: 'RUNNING',
+        pairId: null,
+        pairPosition: null,
+        lastHeartbeatAt: expect.any(Date),
       },
     });
     expect(tx.contextTrace.updateMany).toHaveBeenCalledWith({
@@ -73,6 +77,53 @@ describe('ContextTracesRepository', () => {
     expect(result).toMatchObject({
       repetition: { id: 'repetition-1', attempt: 1 },
       trace: { id: 'trace-1', attempt: 1 },
+    });
+  });
+
+  it('takes the transactional advisory lock with $executeRaw, never $queryRaw (void result cannot be deserialized)', async () => {
+    const { repository, tx } = makeRepository();
+
+    await repository.beginAttempt(input);
+
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
+    const [template, ...values] = tx.$executeRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    expect(template.join('?')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(');
+    expect(values).toEqual(['context-trace:experiment-1:RAG:2']);
+  });
+
+  it('copies the pair identity onto the first attempt when it is given (WI-CORE-025)', async () => {
+    const { repository, tx } = makeRepository();
+
+    await repository.beginAttempt({ ...input, pairId: 'pair-7', pairPosition: 2 });
+
+    expect(tx.experimentRepetition.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attempt: 1, pairId: 'pair-7', pairPosition: 2 }),
+    });
+  });
+
+  it('lets the retry reuse the pair identity of the previous attempt and retires its trace (WI-CORE-025)', async () => {
+    const { repository, tx } = makeRepository();
+    tx.experimentRepetition.findFirst.mockResolvedValue({ attempt: 1, pairId: 'pair-7', pairPosition: 1 });
+    tx.experimentRepetition.create.mockResolvedValue({ id: 'repetition-2', attempt: 2 });
+    tx.contextTrace.create.mockResolvedValue({ id: 'trace-2', attempt: 2 });
+
+    await repository.beginAttempt(input);
+
+    expect(tx.experimentRepetition.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attempt: 2, pairId: 'pair-7', pairPosition: 1 }),
+    });
+    expect(tx.contextTrace.updateMany).toHaveBeenCalledWith({
+      where: {
+        experimentId: 'experiment-1',
+        strategy: 'RAG',
+        repetition: 2,
+        current: true,
+      },
+      data: { current: false },
+    });
+    expect(tx.contextTrace.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attempt: 2, current: true }),
     });
   });
 

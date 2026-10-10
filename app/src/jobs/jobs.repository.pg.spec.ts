@@ -82,8 +82,8 @@ for (const zone of ZONES) {
       });
 
       it('a COMPLETED row does not block either', async () => {
-        const id = (await insert())!;
-        await repository.complete(id);
+        await insert();
+        await repository.complete((await repository.claimNext('worker-a'))!);
         expect(await insert()).toEqual(expect.any(String));
       });
 
@@ -122,7 +122,7 @@ for (const zone of ZONES) {
         expect(next).toMatchObject({ type: 'snapshot-analysis', dedupeKey: null });
         expect(await repository.claimNext('worker-b')).toBeNull(); // el PENDING con la clave espera
 
-        await repository.complete(first.id);
+        await repository.complete(first);
         expect(await repository.claimNext('worker-b')).toMatchObject({ dedupeKey: KEY, status: 'RUNNING' });
       });
 
@@ -196,14 +196,14 @@ for (const zone of ZONES) {
         const stale = (await repository.claimNext('dead-worker'))!;
         await age(stale.id, 3_600);
 
-        expect(await repository.releaseStale(600_000)).toBe(1);
+        expect((await repository.releaseStale(600_000)).released).toBe(1);
         expect((await rows())[0]).toMatchObject({ status: 'PENDING', attempts: 1, lockedBy: null });
 
         await prisma.job.updateMany({ data: { availableAt: new Date(0) } }); // saltar el backoff
         const again = (await repository.claimNext('dead-worker'))!;
         await insert();
         await age(again.id, 3_600);
-        expect(await repository.releaseStale(600_000)).toBe(1);
+        expect((await repository.releaseStale(600_000)).released).toBe(1);
         expect((await rows()).find((row) => row.id === again.id)?.status).toBe('COMPLETED');
       });
 
@@ -215,8 +215,108 @@ for (const zone of ZONES) {
         expect(claimed.id).toBe(other.id);
         await age(claimed.id, 36_000);
 
-        expect(await repository.releaseStale(600_000)).toBe(0);
+        expect((await repository.releaseStale(600_000)).released).toBe(0);
         expect((await rows()).map((row) => row.status)).toEqual(['RUNNING', 'RUNNING']);
+      });
+
+      it('releases a stale experiment-run without dedupeKey: it consumes an attempt and returns to PENDING with backoff (WI-CORE-030)', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 1, exhausted: [] });
+        expect((await rows())[0]).toMatchObject({ status: 'PENDING', attempts: 1, lockedBy: null });
+      });
+
+      it('releases a stale retrieval-comparison without dedupeKey: it consumes an attempt and returns to PENDING (WI-CORE-022, DEC-RC-002)', async () => {
+        await repository.create('retrieval-comparison', { retrievalComparisonId: 'cmp-1' }, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 1, exhausted: [] });
+        expect((await rows())[0]).toMatchObject({ status: 'PENDING', attempts: 1, lockedBy: null });
+      });
+
+      it('a stale retrieval-comparison that exhausted its attempts is reported as exhausted and FAILED (WI-CORE-022)', async () => {
+        await repository.create('retrieval-comparison', { retrievalComparisonId: 'cmp-2' }, 1);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        const result = await repository.releaseStale(600_000);
+
+        expect(result.released).toBe(1);
+        expect(result.exhausted.map((row) => row.id)).toEqual([job.id]);
+        expect((await rows())[0]).toMatchObject({ status: 'FAILED', lockedBy: null });
+      });
+
+      it('does not release a stale functional-continuation (not in RELEASABLE_UNKEYED_JOB_TYPES): it stays RUNNING', async () => {
+        await repository.create('functional-continuation', {}, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        expect((await repository.releaseStale(600_000)).released).toBe(0);
+        expect((await rows())[0]).toMatchObject({ status: 'RUNNING' });
+      });
+
+      it('redistributes a released experiment-run to another worker once its backoff has passed', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 3);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+        await repository.releaseStale(600_000);
+        expect(await repository.claimNext('worker-b')).toBeNull(); // backoff
+
+        await prisma.job.updateMany({ data: { availableAt: new Date(0) } }); // saltar el backoff
+        expect(await repository.claimNext('worker-b')).toMatchObject({
+          id: job.id,
+          type: 'experiment-run',
+          lockedBy: 'worker-b',
+          attempts: 1,
+        });
+      });
+
+      it('does not release a stale experiment-run whose lock was renewed by touchLock (live worker, WI-CORE-030)', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 3);
+        const job = (await repository.claimNext('worker-a'))!;
+        await age(job.id, 3_600);
+        expect(await repository.touchLock(job.id, 'worker-a')).toBe(true);
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 0, exhausted: [] });
+        expect((await rows())[0]).toMatchObject({ status: 'RUNNING', attempts: 0, lockedBy: 'worker-a' });
+      });
+
+      it('does not release any stale untyped job outside the list: snapshot-analysis, functional-continuation, analysis-run-validation, test-publication (DEC-JOBS-001)', async () => {
+        const untyped = ['snapshot-analysis', 'functional-continuation', 'analysis-run-validation', 'test-publication'];
+        for (const type of untyped) {
+          await repository.create(type, {}, 3);
+        }
+        const claimed = [];
+        for (let index = 0; index < untyped.length; index += 1) {
+          claimed.push((await repository.claimNext('dead-worker'))!);
+        }
+        for (const job of claimed) {
+          await age(job.id, 36_000);
+        }
+
+        expect(await repository.releaseStale(600_000)).toEqual({ released: 0, exhausted: [] });
+        expect((await rows()).map((row) => row.status)).toEqual(['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING']);
+      });
+
+      it('an experiment-run at maxAttempts is FAILED and reported as exhausted, so its handler can close the run (WI-CORE-030)', async () => {
+        await repository.create('experiment-run', { experimentId: 'exp-1' }, 1);
+        const job = (await repository.claimNext('dead-worker'))!;
+        await age(job.id, 3_600);
+
+        const result = await repository.releaseStale(600_000);
+
+        expect(result.released).toBe(1);
+        expect(result.exhausted).toEqual([
+          expect.objectContaining({ id: job.id, type: 'experiment-run', payload: { experimentId: 'exp-1' } }),
+        ]);
+        expect((await rows())[0]).toMatchObject({
+          status: 'FAILED',
+          attempts: 1,
+          lastError: 'Lock obsoleto: el worker que lo reclamó dejó de responder.',
+        });
       });
     });
 
@@ -242,6 +342,63 @@ for (const zone of ZONES) {
       const all = await rows();
       expect(all.find((row) => row.status === 'PENDING')?.payload).toEqual({ afterBindingId: 'b-9' });
       expect(all.find((row) => row.id === running.id)?.payload).toEqual({ n: 1 });
+    });
+
+    describe('lock heartbeat and fencing (WI-CORE-030, DEC-JOBS-002)', () => {
+      it('touchLock renews the lockedAt of a RUNNING job held by this worker', async () => {
+        await insert();
+        const job = (await repository.claimNext('worker-a'))!;
+        await age(job.id, 3_600);
+
+        expect(await repository.touchLock(job.id, 'worker-a')).toBe(true);
+
+        const [row] = await rows();
+        expect(Date.now() - row.lockedAt!.getTime()).toBeLessThan(60_000);
+      });
+
+      it('touchLock writes nothing when the lock belongs to another worker or the job is no longer RUNNING', async () => {
+        await insert();
+        const job = (await repository.claimNext('worker-a'))!;
+        await prisma.job.update({ where: { id: job.id }, data: { lockedBy: 'worker-b' } });
+        await age(job.id, 3_600);
+
+        expect(await repository.touchLock(job.id, 'worker-a')).toBe(false);
+        expect((await rows())[0].lockedAt!.getTime()).toBeLessThan(Date.now() - 3_000_000);
+
+        await repository.complete({ ...job, lockedBy: 'worker-b' });
+        expect(await repository.touchLock(job.id, 'worker-b')).toBe(false);
+      });
+
+      it('a zombie worker whose lock was reclaimed cannot complete, fail, reschedule or renew the job', async () => {
+        await insert();
+        const zombie = (await repository.claimNext('worker-a'))!;
+        await prisma.job.update({ where: { id: zombie.id }, data: { lockedBy: 'worker-b' } });
+
+        await repository.complete(zombie);
+        expect(await repository.fail(zombie, 'zombi')).toBe('lost');
+        await repository.reschedule(zombie, 120_000, 'zombi');
+        expect(await repository.touchLock(zombie.id, 'worker-a')).toBe(false);
+
+        expect(await rows()).toEqual([
+          expect.objectContaining({ status: 'RUNNING', attempts: 0, lockedBy: 'worker-b', lastError: null }),
+        ]);
+      });
+
+      it('fail reports retry while attempts remain and terminal when the last attempt is spent', async () => {
+        await insert();
+        let job = (await repository.claimNext('w'))!;
+        expect(await repository.fail(job, 'uno')).toBe('retry');
+
+        await prisma.job.updateMany({ data: { availableAt: new Date(0) } });
+        job = (await repository.claimNext('w'))!;
+        expect(await repository.fail(job, 'dos')).toBe('retry');
+
+        await prisma.job.updateMany({ data: { availableAt: new Date(0) } });
+        job = (await repository.claimNext('w'))!;
+        expect(job.attempts).toBe(2);
+        expect(await repository.fail(job, 'tres')).toBe('terminal');
+        expect((await rows())[0]).toMatchObject({ status: 'FAILED', attempts: 3, lockedBy: null });
+      });
     });
   });
 }

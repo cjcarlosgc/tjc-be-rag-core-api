@@ -41,7 +41,7 @@ describe('TestPublicationsService', () => {
     };
     generatedTestProposalsRepository = { findByIdsForRun: vi.fn().mockResolvedValue([buildProposal()]) };
     analysisRunsRepository = { findByIdForOwner: vi.fn().mockResolvedValue(buildRun()) };
-    projectAccess = { require: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'MAINTAINER' }) };
+    projectAccess = { require: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'WRITER' }) };
     jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
 
     service = new TestPublicationsService(
@@ -78,7 +78,7 @@ describe('TestPublicationsService', () => {
       await expect(service.create('run-1', ['proposal-1'], OWNER_USER_ID)).rejects.toMatchObject({
         code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
       });
-      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'MAINTAINER');
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'WRITER');
       expect(testPublicationsRepository.create).not.toHaveBeenCalled();
       expect(jobsService.enqueue).not.toHaveBeenCalled();
     });

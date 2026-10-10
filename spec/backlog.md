@@ -39,7 +39,7 @@ Las épicas son categorías estables, no objetos con un estado `PLANNED`. Su pro
 | HU14 | EP05 | S3 | Must | H-BACKLOGGED | Como desarrollador, necesito analizar automáticamente un PR para recibir validación en el flujo habitual. Un HEAD nuevo crea otro AnalysisRun y vuelve obsoleto al previo. |
 | HU15 | EP05 | S4 | Must | H-BACKLOGGED | Como desarrollador, necesito recorrer la relación entre cambio, contexto, prueba y ejecución. Trace enlaza changeset, símbolos, contexto, test y evidencia. |
 | HU16 | EP05 | S4 | Should | H-BACKLOGGED | Como desarrollador, necesito revisar y publicar pruebas por un companion PR. Una propuesta vigente aprobada crea rama y PR controlados, nunca un merge autónomo. |
-| HU17 | EP06 | S4 | Must | H-BACKLOGGED | Como investigador, necesito comparar RAG con GENERALIST_AGENT bajo condiciones equivalentes. Ambos brazos comparten snapshot, target y entorno y guardan resultados por trial. |
+| HU17 | EP06 | S4 | Must | H-BACKLOGGED | Como investigador, necesito comparar RAG con GENERALIST_AGENT bajo condiciones experimentales externas controladas. Ambos brazos comparten snapshot, target y entorno y guardan resultados por trial. |
 | HU18 | EP06 | S4 | Could | H-BACKLOGGED | Como investigador, necesito capturar el siguiente PR elegible para evaluar enfoques sobre un cambio real. La captura se desarma al reservar el Run y no publica Checks experimentales. |
 
 El texto del criterio es un resumen; la aceptación detallada vive en la feature correspondiente. Los sprints son referencias de planificación, no prueba de que una historia esté aceptada o terminada. En particular, trabajo implementado bajo IDs antiguos debe reauditarse antes de marcar una HU `H-DONE`.

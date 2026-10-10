@@ -11,7 +11,7 @@ import { REVOKE_CONCURRENCY } from './access-sync.constants.js';
 /**
  * Transiciones del binding que dispara la sincronización con GitHub (HU61): eventos
  * `repository` e `installation`/`installation_repositories` y la reconciliación (c).
- * Un binding que pasa a `REVOKED` pierde también los registros Maintainer y Reader del
+ * Un binding que pasa a `REVOKED` pierde también los registros Maintainer, Writer y Reader del
  * Project (borrados con `ProjectAccessService.revoke`, que toma el mismo advisory lock por
  * `(projectId, userId)` que el alta y las reverificaciones) y se expulsa de las salas
  * WebSocket a quien ya no ve el Project. Los Admin conservan su registro: un Admin sigue
@@ -33,7 +33,7 @@ export class BindingLifecycleService {
    * Pasa el binding a `REVOKED` (sin borrar evidencia) y limpia los accesos no Admin.
    * Idempotente: repetirlo (evento duplicado o tardío, o un binding ya `REVOKED`) solo
    * vuelve a limpiar lo que hubiera quedado. El estado se cambia ANTES de borrar: un alta
-   * que corre después ve el binding `REVOKED` y no concede Maintainer/Reader; una que ya
+   * que corre después ve el binding `REVOKED` y no concede Maintainer/Writer/Reader; una que ya
    * estaba en vuelo termina antes de que este borrado tome su lock.
    */
   async revokeBinding(binding: Pick<RepositoryBinding, 'id' | 'projectId' | 'status'>): Promise<void> {
@@ -45,7 +45,7 @@ export class BindingLifecycleService {
   }
 
   /**
-   * Borra los registros Maintainer/Reader y expulsa los sockets sin acceso. Un fallo al
+   * Borra los registros Maintainer/Writer/Reader y expulsa los sockets sin acceso. Un fallo al
    * borrar un usuario no impide los demás ni la expulsión; se informa al final para que
    * quien lo invoca lo registre (la reconciliación termina lo que quede: los bindings
    * `REVOKED` con registros sobrantes, y el predicado de acceso ya los deniega).

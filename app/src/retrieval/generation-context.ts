@@ -5,7 +5,47 @@ export interface RetrievalTarget {
   targetType: 'METHOD' | 'FUNCTION';
 }
 
-export type StructuralMatch = 'IMPORTS' | 'IMPORTED_BY';
+import type {
+  ConfirmingRole,
+  FunctionalKnowledgeSource,
+  FunctionalScope,
+} from '../generated/prisma/client.js';
+
+/**
+ * Relación estructural de un candidato. `IMPORTS`/`IMPORTED_BY` son TypeScript (V1). Las tres
+ * últimas son PHP (DEC-PHP-RET-001, WI-CORE-028): R-PHP3, R-PHP4 y R-PHP5.
+ */
+export type StructuralMatch =
+  | 'IMPORTS'
+  | 'IMPORTED_BY'
+  | 'SAME_NAMESPACE'
+  | 'FULLY_QUALIFIED_REFERENCE'
+  | 'DECLARING_CLASS';
+
+/**
+ * Procedencia de una regla funcional (INTEROP-2.7, WI-CORE-019). Cada campo es nulo en reglas
+ * históricas anteriores a esa versión. `confirmedByUserId` no sale hacia el prompt.
+ */
+export interface FunctionalRuleProvenance {
+  confirmedByUserId: string | null;
+  confirmedRole: ConfirmingRole | null;
+  originHeadSha: string | null;
+  sourceRef: string | null;
+}
+
+/**
+ * Regla funcional ACTIVE recuperada de `FunctionalKnowledge` (WI-CORE-021). Es conocimiento
+ * aprobado, no código: nunca entra en `relatedChunks` ni en el bloque de código del prompt.
+ */
+export interface FunctionalRule {
+  knowledgeId: string;
+  scenarioKey: string;
+  normalizedRule: string;
+  scope: FunctionalScope;
+  targetRef: string;
+  source: FunctionalKnowledgeSource;
+  provenance: FunctionalRuleProvenance;
+}
 
 export interface ContextChunk {
   filePath: string;
@@ -18,8 +58,8 @@ export interface ContextChunk {
 }
 
 export interface GenerationContextMetadata {
-  language: 'typescript';
-  framework: 'JEST' | 'VITEST' | null;
+  language: 'typescript' | 'php';
+  framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
 }
 
 export interface GenerationContextTarget {
@@ -33,6 +73,8 @@ export interface GenerationContextTarget {
 export interface GenerationContext {
   target: GenerationContextTarget;
   relatedChunks: ContextChunk[];
+  /** Reglas funcionales incluidas en el prompt (las que caben en el presupuesto, en orden). */
+  functionalRules: FunctionalRule[];
   metadata: GenerationContextMetadata;
   retrievedChunks: number;
   selectedChunks: number;
@@ -67,7 +109,25 @@ export interface GenerationContextAuditCandidate extends GenerationContextAuditC
   discardReason: RagDiscardReason | null;
 }
 
+export interface GenerationContextAuditFunctionalRuleOmission {
+  knowledgeId: string;
+  tokenCount: number;
+  reason: 'TOKEN_BUDGET';
+}
+
+export interface GenerationContextAuditFunctionalRules {
+  /** Reglas ACTIVE recuperadas para el target. */
+  retrieved: number;
+  /** Reglas incluidas en el contexto. */
+  selected: number;
+  /** Tokens consumidos por las reglas incluidas. */
+  tokenCount: number;
+  omitted: GenerationContextAuditFunctionalRuleOmission[];
+}
+
 export interface GenerationContextAudit {
+  /** Evidence about functional rules. Never serialized into ContextTrace (WI-CORE-021). */
+  functionalRules: GenerationContextAuditFunctionalRules;
   target: {
     chunkIds: string[];
     chunks: GenerationContextAuditChunk[];

@@ -163,7 +163,7 @@ export class RepositoryBindingsController {
   }
 
   @Post('projects/:projectId/integrations/github')
-  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
+  @RequireProjectRole('WRITER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Param('projectId') projectId: string,
@@ -199,7 +199,7 @@ export class RepositoryBindingsController {
   }
 
   @Post('projects/:projectId/integrations/github/enable')
-  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
+  @RequireProjectRole('WRITER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.OK)
   async enable(
     @Param('projectId') projectId: string,
@@ -211,7 +211,7 @@ export class RepositoryBindingsController {
   }
 
   @Delete('projects/:projectId/integrations/github')
-  @RequireProjectRole('MAINTAINER', ProjectTargets.project('projectId'))
+  @RequireProjectRole('WRITER', ProjectTargets.project('projectId'))
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('projectId') projectId: string, @CurrentUserId() userId: string): Promise<void> {
     await this.repositoryBindingsService.disable(projectId, userId);

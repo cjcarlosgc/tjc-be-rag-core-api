@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
@@ -15,14 +16,16 @@ import {
 } from '../project-versions/zip/zip-extraction.service.js';
 import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
+import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import type { RetrievalTarget } from '../retrieval/generation-context.js';
-import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import { PromptBuilder, sanitizeGeneratedPhp } from '../generation/prompt-builder.service.js';
+import { phpTestLocation, type PhpTestLocation } from '../generation/php-test-path.js';
 import {
   TestFileMergeService,
   coLocatedSpecPath,
 } from '../generation/test-file-merge.service.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
-import type { LLMProvider } from '../providers/llm-provider.interface.js';
+import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.interface.js';
 import { WorkspaceAgentTools } from '../generation/agent/workspace-agent-tools.js';
 import { GeneralistAgentService } from '../generation/agent/generalist-agent.service.js';
 import type {
@@ -30,25 +33,58 @@ import type {
   AgentTrajectoryStep,
 } from '../generation/agent/generalist-agent.service.js';
 import {
+  SandboxAcceptedExecutionError,
   SandboxExecutionService,
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
+import {
+  toAcceptedSandboxEvidence,
+  toSandboxExecutionEvidence,
+  type SandboxExecutionEvidence,
+} from '../sandbox/sandbox-evidence-facts.js';
 import {
   mapSandboxResult,
   type FailureTypeValue,
 } from '../sandbox/map-sandbox-result.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
+import {
+  DEFAULT_MAX_POLL_ATTEMPTS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+} from '../sandbox/sandbox-execution.service.js';
+import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
+import {
+  remainingUntilExpiryMs,
+  resolveHeartbeatStaleMs,
+  resolveSlotAction,
+  sandboxHttpBoundMs,
+  type SlotAction,
+} from './attempt-recovery.js';
 import { estimateCost } from './cost-calculator.js';
 import {
+  toExperimentRepetitionFailure,
+  type ExperimentRepetitionFailure,
+} from './experiment-failure-fact.js';
+import {
   ExperimentRunsRepository,
+  type ExperimentBudget,
   type ExperimentRepetitionInput,
 } from './persistence/experiment-runs.repository.js';
-import { ExperimentStatus } from '../generated/prisma/enums.js';
+import { ExperimentRepetitionState, ExperimentStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import type { TestTarget } from '../generated/prisma/client.js';
+import type { ExperimentRepetition, TestTarget } from '../generated/prisma/client.js';
 import { ContextTracesRepository } from '../context-traces/context-traces.repository.js';
 import type { BegunContextTraceAttempt } from '../context-traces/context-traces.repository.js';
 import type { GenerationContext } from '../retrieval/generation-context.js';
+import { toFunctionalRuleEvidence } from '../retrieval/functional-rule-evidence.js';
+import type { ExecutionProfile } from '../sandbox/sandbox.types.js';
+import {
+  DEFAULT_AGENT_MAX_TOOL_CALLS,
+  DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS,
+  DEFAULT_GENERATION_TIMEOUT_MS,
+  DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+} from '../config/generation-budget.defaults.js';
+import { LLMProviderUnavailableError } from '../providers/llm-provider-unavailable.error.js';
+import { experimentPairId, pairOrder } from './pair-order.js';
 
 export interface ExperimentJobPayload {
   experimentId: string;
@@ -62,6 +98,42 @@ type Strategy = 'RAG' | 'GENERALIST_AGENT';
 const STRATEGIES: Strategy[] = ['RAG', 'GENERALIST_AGENT'];
 const REPETITIONS_PER_STRATEGY = 3;
 export const EXPERIMENT_JOB_TYPE = 'experiment-run';
+/** `failureCode` del run cuando el job agota sus intentos por un worker caído (WI-CORE-030). */
+export const EXPERIMENT_WORKER_LOST_FAILURE_CODE = 'EXPERIMENT_WORKER_LOST';
+
+/** Identidad lógica de un slot (estrategia + repetición) y de su par (WI-CORE-025). */
+interface SlotIdentity {
+  strategy: Strategy;
+  repetition: number;
+  pairId: string | null;
+  pairPosition: number | null;
+}
+
+/** Contexto común de una corrida; `runAttempt` lo amplía con el slot y el número de intento. */
+interface RunContext {
+  jobId: string;
+  experimentId: string;
+  projectId: string;
+  projectVersionId: string;
+  snapshotKey: string;
+  snapshotBuffer: Buffer;
+  framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
+  /** WI-CORE-029: lenguaje del proyecto (`version.language`); PHP usa la ruta DEC-PHP-GEN-001. */
+  language: 'php' | 'typescript';
+  target: TestTarget;
+  config: LLMEffectiveConfig;
+  budget: ExperimentBudget;
+  executionProfile: ExecutionProfile | undefined;
+}
+
+interface AttemptContext extends RunContext, SlotIdentity {
+  /** 1 = intento inicial; 2 = único reintento por fallo externo (nunca hay 3). */
+  attempt: 1 | 2;
+}
+
+/** Resumen de un fallo externo del proveedor LLM (WI-CORE-025). */
+const LLM_EXTERNAL_FAILURE_SUMMARY =
+  'El proveedor de LLM no respondió correctamente durante la generación.';
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -85,26 +157,112 @@ function withTimeout<T>(
  * suma latencia sin necesidad: el tiempo total pasa a ser el de los lotes
  * concurrentes en vez de la suma de las 6.
  */
-async function runWithConcurrencyLimit<T>(
+function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
+  const candidate = value as Partial<Record<keyof LLMEffectiveConfig, unknown>> | null;
+  if (
+    typeof candidate !== 'object' ||
+    candidate === null ||
+    candidate.provider !== 'openai' ||
+    typeof candidate.model !== 'string' ||
+    typeof candidate.modelVersion !== 'string'
+  ) {
+    throw new Error('modelConfig del experimento no es válido.');
+  }
+  return {
+    provider: 'openai',
+    model: candidate.model,
+    modelVersion: candidate.modelVersion,
+    reasoningEffort: typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort : null,
+    temperature: typeof candidate.temperature === 'number' ? candidate.temperature : null,
+    maxOutputTokens: typeof candidate.maxOutputTokens === 'number' ? candidate.maxOutputTokens : null,
+    // WI-CORE-031: corridas anteriores no tienen endpoint; solo se conserva el valor conocido.
+    ...(candidate.endpoint === 'responses' ? { endpoint: 'responses' as const } : {}),
+  };
+}
+
+/**
+ * Ejecuta `items` con a lo sumo `concurrency` corridas simultáneas y no rechaza hasta que TODAS las
+ * corridas en vuelo terminen (WI-CORE-025 (3c)): si un slot falla, no se lanzan slots nuevos, se espera
+ * a los que ya corren y entonces se relanza el primer error. Así un job nunca se reprograma con un
+ * slot todavía vivo dentro del proceso.
+ */
+export async function runWithConcurrencyLimit<T>(
   items: T[],
   concurrency: number,
   worker: (item: T) => Promise<void>,
 ): Promise<void> {
   let cursor = 0;
+  const failure: { failed: boolean; error: unknown } = { failed: false, error: undefined };
 
   async function runNext(): Promise<void> {
-    const index = cursor;
-    cursor += 1;
-    if (index >= items.length) {
-      return;
+    while (!failure.failed && cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        await worker(items[index]);
+      } catch (error) {
+        if (!failure.failed) {
+          failure.failed = true;
+          failure.error = error;
+        }
+        return;
+      }
     }
-    await worker(items[index]);
-    await runNext();
   }
 
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, runNext),
+  const lanes = Array.from({ length: Math.min(concurrency, items.length) }, () => runNext());
+  await Promise.allSettled(lanes);
+
+  if (failure.failed) {
+    throw failure.error;
+  }
+}
+
+function slotKey(strategy: string, repetition: number): string {
+  return `${strategy}:${repetition}`;
+}
+
+/** Pares 1..3 en orden (plan punto 5): dentro de cada par, la posición 1 corre primero. */
+function buildPairSchedule(experimentId: string, seed: string): SlotIdentity[][] {
+  return Array.from({ length: REPETITIONS_PER_STRATEGY }, (_, index) => {
+    const repetition = index + 1;
+    const pairId = experimentPairId(experimentId, repetition);
+    return pairOrder(seed, repetition).map((strategy, position) => ({
+      strategy,
+      repetition,
+      pairId,
+      pairPosition: position + 1,
+    }));
+  });
+}
+
+/** Corridas previas sin semilla: orden y slots actuales, sin identidad de par. */
+function buildLegacySchedule(): SlotIdentity[] {
+  return STRATEGIES.flatMap((strategy) =>
+    Array.from({ length: REPETITIONS_PER_STRATEGY }, (_, index) => ({
+      strategy,
+      repetition: index + 1,
+      pairId: null,
+      pairPosition: null,
+    })),
   );
+}
+
+/** Resumen persistido al cerrar un intento cuyo latido venció (WI-CORE-025 (3c)). */
+const INTERRUPTED_ATTEMPT_SUMMARY =
+  'El intento quedó interrumpido: su latido venció antes de terminar.';
+
+/** Valores ausentes (`null` o no presentes en corridas previas) no son error: usan la versión actual. */
+function parseRunnerHint(value: string | null | undefined): 'JEST' | 'VITEST' | 'PHPUNIT' | null {
+  if (value === null || value === undefined) return null;
+  if (value === 'JEST' || value === 'VITEST' || value === 'PHPUNIT') return value;
+  throw new Error('runnerHint del experimento no es válido.');
+}
+
+function parseExecutionProfile(value: string | null | undefined): ExecutionProfile | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (value === 'NODE_TYPESCRIPT' || value === 'PHP_LARAVEL_PHPUNIT') return value;
+  throw new Error('executionProfile del experimento no es válido.');
 }
 
 interface GenerationOutcome {
@@ -117,6 +275,23 @@ interface GenerationOutcome {
   toolCalls: number | null;
   filesInspected: number | null;
   trajectory: unknown;
+}
+
+/** WI-CORE-027 (DEC-EVID-003): evidencia de una repetición; todo es null si no hubo invocación al Sandbox. */
+interface RepetitionEvidence {
+  sandbox: SandboxExecutionEvidence | null;
+  /** SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación. */
+  artifactHash: string | null;
+}
+
+/** Target de recuperación a partir de la fila persistida (misma forma que usa el brazo RAG). */
+function toRetrievalTarget(target: TestTarget): RetrievalTarget {
+  return {
+    filePath: target.filePath,
+    symbolName: target.symbolName,
+    methodName: target.methodName,
+    targetType: target.targetType as 'METHOD' | 'FUNCTION',
+  };
 }
 
 @Injectable()
@@ -134,6 +309,7 @@ export class ExperimentJobHandler
     private readonly testTargetsRepository: TestTargetsRepository,
     private readonly retrievalService: RetrievalService,
     private readonly contextBuilder: ContextBuilder,
+    private readonly functionalRulesRetriever: FunctionalRulesRetriever,
     private readonly promptBuilder: PromptBuilder,
     private readonly generalistAgentService: GeneralistAgentService,
     private readonly fileDiscoveryService: FileDiscoveryService,
@@ -159,7 +335,35 @@ export class ExperimentJobHandler
     }
 
     try {
+      const budget = this.resolveBudget(run.budget);
+      const staleMs = this.heartbeatStaleMs(budget);
+      // Último intento por slot: decide qué se omite, reanuda o reprograma al reentrar el job.
+      const latestBySlot = new Map(
+        (await this.experimentRunsRepository.findRepetitions(payload.experimentId)).map(
+          (row) => [slotKey(row.strategy, row.repetition), row] as const,
+        ),
+      );
+      const latestOf = (slot: SlotIdentity) =>
+        latestBySlot.get(slotKey(slot.strategy, slot.repetition));
+      const pairSchedule = run.randomizationSeed
+        ? buildPairSchedule(payload.experimentId, run.randomizationSeed)
+        : null;
+
+      if (pairSchedule) {
+        // Antes de tocar nada: si algún intento tiene latido vigente, no se duplica ni se cierra nada.
+        this.assertNoInFlightAttempt(
+          pairSchedule.flat().map((slot) => latestOf(slot)),
+          staleMs,
+        );
+      }
+
       await this.experimentRunsRepository.markStarted(payload.experimentId);
+      // Misma configuración para ambos brazos: la persistida al crear el experimento.
+      // Corridas previas sin modelConfig (NULL) usan la resolución por defecto.
+      const config =
+        run.modelConfig === null || run.modelConfig === undefined
+          ? await this.llmProvider.resolveEffectiveConfig()
+          : parseEffectiveConfig(run.modelConfig);
 
       const [version, target] = await Promise.all([
         this.projectVersionsRepository.findById(payload.projectVersionId),
@@ -176,47 +380,57 @@ export class ExperimentJobHandler
         throw new Error(`No existe el target ${payload.targetId}.`);
       }
 
-      const framework = version.detectedFramework;
-      if (
-        version.language === 'PHP'
-        || framework === 'PHPUNIT'
-      ) {
-        throw new Error('Los experimentos PHP/PHPUnit requieren WI-CORE-013 y aún no están habilitados.');
-      }
+      const detectedFramework = version.detectedFramework;
+      // WI-CORE-029: el lenguaje viaja en el contexto del run; el runner persistido decide el framework.
+      const language: 'php' | 'typescript' = version.language === 'PHP' ? 'php' : 'typescript';
 
+      // Runner, perfil y presupuesto persistidos al crear el experimento (WI-CORE-025).
+      // Corridas previas sin esos valores usan la versión actual y el entorno.
       const snapshotKey = version.snapshotKey;
       const snapshotBuffer = await this.objectStorageService.get(snapshotKey);
-      const runs = STRATEGIES.flatMap((strategy) =>
-        Array.from({ length: REPETITIONS_PER_STRATEGY }, (_, i) => ({
-          strategy,
-          repetition: i + 1,
-        })),
-      );
+      const runContext: RunContext = {
+        jobId,
+        experimentId: payload.experimentId,
+        projectId: payload.projectId,
+        projectVersionId: payload.projectVersionId,
+        snapshotKey,
+        snapshotBuffer,
+        framework: parseRunnerHint(run.runnerHint) ?? detectedFramework,
+        language,
+        target,
+        config,
+        budget,
+        executionProfile: parseExecutionProfile(run.executionProfile),
+      };
       const concurrency = this.configService.get<number>(
         'EXPERIMENT_REPETITION_CONCURRENCY',
         3,
       );
 
-      await runWithConcurrencyLimit(
-        runs,
-        concurrency,
-        ({ strategy, repetition }) =>
-          this.runRepetition({
-            jobId,
-            experimentId: payload.experimentId,
-            projectId: payload.projectId,
-            projectVersionId: payload.projectVersionId,
-            snapshotKey,
-            snapshotBuffer,
-            framework,
-            target,
-            strategy,
-            repetition,
-          }),
-      );
+      if (pairSchedule) {
+        // OE5 pareado: los pares 1..3 corren con concurrencia limitada; dentro de cada par
+        // las dos posiciones son estrictamente secuenciales y el reintento va antes de la siguiente.
+        await runWithConcurrencyLimit(pairSchedule, concurrency, async (pair) => {
+          for (const slot of pair) {
+            await this.runSlot(runContext, slot, latestOf(slot), staleMs);
+          }
+        });
+      } else {
+        // Experimentos creados antes de WI-CORE-025 (sin semilla): sin orden pareado y sin
+        // reintento externo; cada slot tiene un único intento (ver runLegacySlot).
+        await runWithConcurrencyLimit(
+          buildLegacySchedule(),
+          concurrency,
+          (slot) => this.runLegacySlot(runContext, slot, latestOf(slot)),
+        );
+      }
 
       await this.experimentRunsRepository.complete(payload.experimentId);
     } catch (error) {
+      // Reprogramación por latido vigente: el experimento sigue en curso, no es un fallo (no FAILED).
+      if (error instanceof RescheduleJobError) {
+        throw error;
+      }
       const message =
         error instanceof Error
           ? error.message
@@ -230,18 +444,225 @@ export class ExperimentJobHandler
     }
   }
 
-  private async runRepetition(context: {
-    jobId: string;
-    experimentId: string;
-    projectId: string;
-    projectVersionId: string;
-    snapshotKey: string;
-    snapshotBuffer: Buffer;
-    framework: 'JEST' | 'VITEST' | null;
-    target: TestTarget;
-    strategy: Strategy;
-    repetition: number;
-  }): Promise<void> {
+  /**
+   * Gancho de cierre (WI-CORE-030, DEC-JOBS-001): el job agotó sus intentos sin que `handle()` pudiera
+   * cerrar el experimento (worker caído, o liberación sin ejecución). Cierra las repeticiones RUNNING
+   * huérfanas (sin reintento posterior, así que no son evaluables) y, si el run no es ya terminal,
+   * lo marca FAILED con `EXPERIMENT_WORKER_LOST`. Nunca reprograma ni reejecuta un intento.
+   */
+  async onExhausted(payload: ExperimentJobPayload, reason: string): Promise<void> {
+    const orphans = (await this.experimentRunsRepository.findRepetitions(payload.experimentId)).filter(
+      (row) => row.state === ExperimentRepetitionState.RUNNING,
+    );
+
+    for (const row of orphans) {
+      await this.experimentRunsRepository.closeInterruptedRepetition(row.id, {
+        errorSummary: row.errorSummary ?? INTERRUPTED_ATTEMPT_SUMMARY,
+        technicallyEvaluable: false,
+      });
+    }
+    if (orphans.length > 0) {
+      await this.experimentRunsRepository.refreshCompletedRepetitions(payload.experimentId);
+    }
+
+    // Un run ya FAILED conserva su código real (p. ej. EXPERIMENT_FAILED de un error de handle()).
+    const run = await this.experimentRunsRepository.findById(payload.experimentId);
+    if (!run || run.status === ExperimentStatus.COMPLETED || run.status === ExperimentStatus.FAILED) {
+      return;
+    }
+
+    await this.experimentRunsRepository.markFailed(
+      payload.experimentId,
+      EXPERIMENT_WORKER_LOST_FAILURE_CODE,
+      reason,
+    );
+  }
+
+  /**
+   * Presupuesto persistido al crear el experimento (WI-CORE-025). Corridas previas sin
+   * `budget` usan el entorno actual; nunca se regenera aquí.
+   */
+  private resolveBudget(raw: unknown): ExperimentBudget {
+    if (raw === null || raw === undefined) {
+      return {
+        toolCallCap: this.configService.get<number>('AGENT_MAX_TOOL_CALLS', DEFAULT_AGENT_MAX_TOOL_CALLS),
+        contextTokenBudget: this.configService.get<number>(
+          'RETRIEVAL_MAX_CONTEXT_TOKENS',
+          DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+        ),
+        maxDurationMs: this.configService.get<number>('GENERATION_TIMEOUT_MS', DEFAULT_GENERATION_TIMEOUT_MS),
+      };
+    }
+
+    const candidate = raw as Partial<Record<keyof ExperimentBudget, unknown>>;
+    if (
+      typeof raw !== 'object'
+      || typeof candidate.toolCallCap !== 'number'
+      || typeof candidate.contextTokenBudget !== 'number'
+      || typeof candidate.maxDurationMs !== 'number'
+    ) {
+      throw new Error('budget del experimento no es válido.');
+    }
+    return {
+      toolCallCap: candidate.toolCallCap,
+      contextTokenBudget: candidate.contextTokenBudget,
+      maxDurationMs: candidate.maxDurationMs,
+    };
+  }
+
+  /**
+   * Ejecuta un slot: el intento que corresponda y, solo si el intento 1 termina en fallo
+   * externo, un único reintento inmediato (sin backoff, sesión y workspace frescos).
+   * No se avanza a la posición siguiente del par hasta terminar aquí (plan punto 5 y 7).
+   */
+  private async runSlot(
+    context: RunContext,
+    slot: SlotIdentity,
+    latest: ExperimentRepetition | undefined,
+    staleMs: number,
+  ): Promise<void> {
+    const action = resolveSlotAction(latest, Date.now(), staleMs);
+    await this.applySlotAction(context, slot, action, staleMs);
+  }
+
+  /**
+   * Ejecuta la decisión de `resolveSlotAction` (WI-CORE-025 (3c)). Nunca crea un tercer intento:
+   * el intento 2 solo se cierra cuando su latido venció.
+   */
+  private async applySlotAction(
+    context: RunContext,
+    slot: SlotIdentity,
+    action: SlotAction<ExperimentRepetition>,
+    staleMs: number,
+  ): Promise<void> {
+    switch (action.kind) {
+      case 'SKIP':
+        return;
+      case 'IN_FLIGHT':
+        throw this.liveAttemptReschedule([action.row], Date.now(), staleMs);
+      case 'CLOSE_EXPIRED_SECOND':
+        await this.closeInterruptedAttempt(context.experimentId, action.row, 2);
+        return;
+      case 'RUN': {
+        if (action.expiredAttempt) {
+          await this.closeInterruptedAttempt(context.experimentId, action.expiredAttempt, 1);
+        }
+        const externalFailure = await this.runAttempt({ ...context, ...slot, attempt: action.attempt });
+        if (action.attempt === 1 && externalFailure) {
+          await this.runAttempt({ ...context, ...slot, attempt: 2 });
+        }
+        return;
+      }
+    }
+  }
+
+  /** Cierra un intento cuyo latido venció y recalcula el contador de slots terminales. */
+  private async closeInterruptedAttempt(
+    experimentId: string,
+    row: ExperimentRepetition,
+    attempt: 1 | 2,
+  ): Promise<void> {
+    await this.experimentRunsRepository.closeInterruptedRepetition(row.id, {
+      errorSummary: row.errorSummary ?? INTERRUPTED_ATTEMPT_SUMMARY,
+      // Solo el intento 2 queda sin evaluación técnica: el 1 todavía deja paso al reintento.
+      ...(attempt === 2 ? { technicallyEvaluable: false as const } : {}),
+    });
+    await this.experimentRunsRepository.refreshCompletedRepetitions(experimentId);
+    this.logger.warn(`Intento ${attempt} interrumpido (latido vencido) de un slot pareado.`);
+  }
+
+  /**
+   * Si algún último intento está RUNNING con latido vigente, el job se reprograma sin tocar nada
+   * (WI-CORE-025 (3c), punto iii). Solo se consideran slots pareados.
+   */
+  private assertNoInFlightAttempt(
+    latestRows: Array<ExperimentRepetition | undefined>,
+    staleMs: number,
+  ): void {
+    const nowMs = Date.now();
+    const inFlight = latestRows.flatMap((latest) => {
+      const action = resolveSlotAction(latest, nowMs, staleMs);
+      return action.kind === 'IN_FLIGHT' ? [action.row] : [];
+    });
+    if (inFlight.length > 0) {
+      throw this.liveAttemptReschedule(inFlight, nowMs, staleMs);
+    }
+  }
+
+  /**
+   * Reprograma el job sin consumir un intento (RescheduleJobError, JobsService) para reintentarlo
+   * cuando el latido vigente más cercano pueda haber vencido, sin esperar menos que el intervalo.
+   */
+  private liveAttemptReschedule(
+    rows: ExperimentRepetition[],
+    nowMs: number,
+    staleMs: number,
+  ): RescheduleJobError {
+    const intervalMs = this.heartbeatIntervalMs();
+    const untilExpiryMs = Math.min(
+      ...rows.map((row) => remainingUntilExpiryMs(row, nowMs, staleMs)),
+    );
+    return new RescheduleJobError(
+      Math.min(staleMs, Math.max(intervalMs, untilExpiryMs)),
+      'Hay una repetición pareada de este experimento con latido vigente; el job se reintenta más tarde.',
+    );
+  }
+
+  private heartbeatIntervalMs(): number {
+    return this.configService.get<number>(
+      'EXPERIMENT_HEARTBEAT_INTERVAL_MS',
+      DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS,
+    );
+  }
+
+  /** Umbral de vencimiento del latido para este run (WI-CORE-025 (3c), punto iv). */
+  private heartbeatStaleMs(budget: ExperimentBudget): number {
+    return resolveHeartbeatStaleMs({
+      configuredMs: this.configService.get<number | undefined>('EXPERIMENT_HEARTBEAT_STALE_MS'),
+      intervalMs: this.heartbeatIntervalMs(),
+      generationTimeoutMs: budget.maxDurationMs,
+      sandboxHttpBoundMs: sandboxHttpBoundMs(
+        this.configService.get<number>('SANDBOX_REQUEST_TIMEOUT_MS', DEFAULT_REQUEST_TIMEOUT_MS),
+        this.configService.get<number>('SANDBOX_MAX_POLL_ATTEMPTS', DEFAULT_MAX_POLL_ATTEMPTS),
+      ),
+    });
+  }
+
+  /**
+   * Latido de un intento mientras corre: un temporizador con `unref` que renueva
+   * `lastHeartbeatAt`. Devuelve la función que lo detiene (se llama en el `finally` del intento).
+   * Un fallo al escribir el latido se registra y no interrumpe la generación.
+   */
+  private startHeartbeat(repetitionId: string): () => void {
+    const timer = setInterval(() => {
+      void Promise.resolve()
+        .then(() => this.experimentRunsRepository.touchRepetitionHeartbeat(repetitionId, new Date()))
+        .catch(() => {
+          this.logger.warn('No se pudo renovar el latido de una repetición en curso.');
+        });
+    }, this.heartbeatIntervalMs());
+    timer.unref?.();
+
+    return () => clearInterval(timer);
+  }
+
+  /**
+   * Slot de un experimento sin semilla (creado antes de WI-CORE-025): un único intento, sin
+   * reintento externo y sin identidad de par. Si ya existe cualquier intento para el slot
+   * (redelivery), se omite: no se crea un intento nuevo.
+   */
+  private async runLegacySlot(
+    context: RunContext,
+    slot: SlotIdentity,
+    latest: ExperimentRepetition | undefined,
+  ): Promise<void> {
+    if (latest) return;
+
+    await this.runAttempt({ ...context, ...slot, attempt: 1 });
+  }
+
+  /** Devuelve true si el intento terminó en fallo externo (plan punto 6). */
+  private async runAttempt(context: AttemptContext): Promise<boolean> {
     const begun = await this.contextTracesRepository.beginAttempt({
       experimentId: context.experimentId,
       projectId: context.projectId,
@@ -250,7 +671,11 @@ export class ExperimentJobHandler
       strategy: context.strategy,
       kind: context.strategy === 'RAG' ? 'RAG' : 'AGENT',
       repetition: context.repetition,
+      pairId: context.pairId,
+      pairPosition: context.pairPosition,
     });
+    // Latido mientras el intento corre; se detiene en el `finally` (WI-CORE-025 (3c)).
+    const stopHeartbeat = this.startHeartbeat(begun.repetition.id);
     let workspace: ExtractedWorkspace | undefined;
     const generationStart = Date.now();
     let generationDurationMs = 0;
@@ -265,26 +690,40 @@ export class ExperimentJobHandler
       filesInspected: null,
       trajectory: undefined,
     };
+    let externalFailure = false;
     let finalized = false;
+    // WI-CORE-027: evidencia del Sandbox y hash del contenido enviado; null mientras no haya invocación.
+    let sandboxEvidence: SandboxExecutionEvidence | null = null;
+    let artifactHash: string | null = null;
 
     try {
       await this.initializeTraceDetail(begun.trace.id, context);
       workspace = await this.zipExtractionService.extract(
         context.snapshotBuffer,
       );
-      const timeoutMs = this.configService.get<number>(
-        'GENERATION_TIMEOUT_MS',
-        120_000,
-      );
+      const workspaceDir = workspace.dir;
+      const timeoutMs = context.budget.maxDurationMs;
+      // WI-CORE-029: PHP usa la ubicación DEC-PHP-GEN-001 (archivo nuevo); TypeScript conserva la suya.
+      const phpPlacement =
+        context.language === 'php'
+          ? phpTestLocation(toRetrievalTarget(context.target), (candidate) =>
+              existsSync(join(workspaceDir, candidate)),
+            )
+          : null;
 
       generation =
         context.strategy === 'RAG'
           ? await withTimeout(
               this.runRagArm(
                 begun.trace.id,
+                context.projectId,
                 context.projectVersionId,
                 context.target,
                 context.framework,
+                context.language,
+                phpPlacement,
+                context.config,
+                context.budget,
               ),
               timeoutMs,
               'La generación RAG agotó el tiempo límite.',
@@ -295,27 +734,27 @@ export class ExperimentJobHandler
                 workspace.dir,
                 context.target,
                 context.framework,
+                phpPlacement,
+                context.config,
+                context.budget,
               ),
               timeoutMs,
               'La generación del agente generalista agotó el tiempo límite.',
             );
 
       generationDurationMs = Date.now() - generationStart;
-      const relativePath =
-        context.target.hasTest && context.target.testFilePaths.length > 0
+      // TypeScript: ruta co-ubicada o la del primer test existente, con fusión. PHP: archivo nuevo, sin leer ni fusionar.
+      const relativePath = phpPlacement
+        ? phpPlacement.relativePath
+        : context.target.hasTest && context.target.testFilePaths.length > 0
           ? context.target.testFilePaths[0]
           : coLocatedSpecPath(context.target.filePath);
-      const existingContent = await readFile(
-        join(workspace.dir, relativePath),
-        'utf8',
-      ).catch(() => null);
-      const mergedContent =
-        existingContent === null
-          ? this.testFileMergeService.applyCreate(generation.content)
-          : this.testFileMergeService.applyMerge(
-              existingContent,
-              generation.content,
-            );
+      const existingContent = phpPlacement
+        ? null
+        : await readFile(
+            join(workspace.dir, relativePath),
+            'utf8',
+          ).catch(() => null);
 
       if (!context.framework) {
         await this.recordRepetition(
@@ -332,11 +771,50 @@ export class ExperimentJobHandler
             valid: null,
             failureType: 'CONFIGURATION',
             errorSummary:
-              'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+              context.language === 'php'
+                ? 'No se pudo determinar el framework de test (PHPUnit) durante la indexación.'
+                : 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
           },
+          false,
         );
         finalized = true;
-        return;
+        return false;
+      }
+
+      let mergedContent: string;
+      if (phpPlacement) {
+        const phpContent = sanitizeGeneratedPhp(generation.content);
+        if (phpContent === null) {
+          // Resultado técnico desfavorable de la estrategia (no fallo externo): sin Sandbox y sin reintento.
+          await this.recordRepetition(
+            begun,
+            context,
+            generation,
+            generationDurationMs,
+            null,
+            {
+              status: 'INVALID',
+              compiled: false,
+              executed: false,
+              passed: false,
+              valid: false,
+              failureType: 'COMPILATION',
+              errorSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+            },
+            false,
+          );
+          finalized = true;
+          return false;
+        }
+        mergedContent = `${phpContent}\n`;
+      } else {
+        mergedContent =
+          existingContent === null
+            ? this.testFileMergeService.applyCreate(generation.content)
+            : this.testFileMergeService.applyMerge(
+                existingContent,
+                generation.content,
+              );
       }
 
       const executionStart = Date.now();
@@ -350,13 +828,22 @@ export class ExperimentJobHandler
         errorSummary: string | null;
       };
       let executionDurationMs: number;
+      let sandboxTimedOut = false;
+      // WI-CORE-007: hecho de fallo saneado solo cuando el Sandbox lo devuelve en un resultado no COMPLETED.
+      let sandboxFailure: ExperimentRepetitionFailure | null = null;
 
       try {
+        // WI-CORE-027: mismo contenido que se envía al Sandbox; sin contenido generado no hay artefacto.
+        artifactHash =
+          generation.content.trim().length > 0
+            ? createHash('sha256').update(mergedContent, 'utf8').digest('hex')
+            : null;
         const sandboxResult = await this.sandboxExecutionService.execute({
           requestId: sandboxExperimentRequestId(
             context.jobId,
             context.strategy,
             context.repetition,
+            context.attempt,
           ),
           testRunId: context.experimentId,
           projectVersionId: context.projectVersionId,
@@ -373,9 +860,22 @@ export class ExperimentJobHandler
           scope: 'TARGET',
           targetIds: [context.target.id],
           runnerHint: context.framework,
+          executionProfile: context.executionProfile,
         });
         executionDurationMs = Date.now() - executionStart;
         const outcome = mapSandboxResult(sandboxResult);
+        sandboxEvidence = toSandboxExecutionEvidence(sandboxResult, outcome.failureType);
+        // TIMED_OUT es fallo de la prueba generada, no externo: se persiste con la columna interna.
+        sandboxTimedOut = sandboxResult.status === 'TIMED_OUT';
+        sandboxFailure =
+          sandboxResult.status === 'COMPLETED'
+            ? null
+            : toExperimentRepetitionFailure(sandboxResult.failure);
+        // Fallo externo del Sandbox: INFRASTRUCTURE salvo timeout (no es externo, WI-CORE-025).
+        externalFailure =
+          outcome.status === 'FAILED'
+          && outcome.failureType === 'INFRASTRUCTURE'
+          && !sandboxTimedOut;
 
         if (outcome.compiled === false) {
           this.logger.debug(
@@ -393,7 +893,14 @@ export class ExperimentJobHandler
           errorSummary: outcome.errorSummary,
         };
       } catch (error) {
+        // Cualquier excepción del cliente de Sandbox se trata como infraestructura (fallo externo con
+        // un único reintento), sea SandboxUnavailableError u otro error (red, respuesta inesperada).
+        // Decisión del usuario, WI-CORE-025 (2).
         executionDurationMs = Date.now() - executionStart;
+        // WI-CORE-027: una ejecución aceptada que no llegó a resultado conserva su executionId y sus ids.
+        if (error instanceof SandboxAcceptedExecutionError) {
+          sandboxEvidence = toAcceptedSandboxEvidence(error);
+        }
         const sandboxErrorSummary =
           error instanceof SandboxUnavailableError
             ? 'Sandbox no disponible.'
@@ -410,6 +917,7 @@ export class ExperimentJobHandler
           failureType: 'INFRASTRUCTURE',
           errorSummary: sandboxErrorSummary,
         };
+        externalFailure = true;
       }
 
       await this.recordRepetition(
@@ -419,12 +927,21 @@ export class ExperimentJobHandler
         generationDurationMs,
         executionDurationMs,
         repetitionOutcome,
+        externalFailure,
+        sandboxTimedOut,
+        sandboxFailure,
+        { sandbox: sandboxEvidence, artifactHash },
       );
       finalized = true;
-    } catch {
+      return externalFailure;
+    } catch (error) {
       generationDurationMs = Date.now() - generationStart;
-      const unknownErrorSummary =
-        'Falló la generación o validación de esta repetición.';
+      const llmExternalFailure =
+        error instanceof LLMProviderUnavailableError && error.externalFailure;
+      externalFailure = externalFailure || llmExternalFailure;
+      const unknownErrorSummary = llmExternalFailure
+        ? LLM_EXTERNAL_FAILURE_SUMMARY
+        : 'Falló la generación o validación de esta repetición.';
       this.logger.warn(
         `La repetición ${context.repetition} (${context.strategy}) falló.`,
       );
@@ -441,13 +958,19 @@ export class ExperimentJobHandler
             executed: null,
             passed: null,
             valid: false,
-            failureType: 'UNKNOWN',
+            failureType: externalFailure ? 'INFRASTRUCTURE' : 'UNKNOWN',
             errorSummary: unknownErrorSummary,
           },
+          externalFailure,
+          false,
+          null,
+          { sandbox: sandboxEvidence, artifactHash },
         );
         finalized = true;
       }
+      return externalFailure;
     } finally {
+      stopHeartbeat();
       if (workspace) {
         try {
           await workspace.cleanup();
@@ -462,31 +985,43 @@ export class ExperimentJobHandler
 
   private async runRagArm(
     traceId: string,
+    projectId: string,
     projectVersionId: string,
     target: TestTarget,
-    framework: 'JEST' | 'VITEST' | null,
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null,
+    language: 'php' | 'typescript',
+    placement: PhpTestLocation | null,
+    config: LLMEffectiveConfig,
+    budget: ExperimentBudget,
   ): Promise<GenerationOutcome> {
-    const retrievalTarget: RetrievalTarget = {
-      filePath: target.filePath,
-      symbolName: target.symbolName,
-      methodName: target.methodName,
-      targetType: target.targetType as 'METHOD' | 'FUNCTION',
-    };
+    const retrievalTarget = toRetrievalTarget(target);
     const retrieval = await this.retrievalService.retrieve(
       projectVersionId,
+      retrievalTarget,
+    );
+    // Las reglas funcionales solo llegan al brazo RAG: el agente generalista no las recibe (DEC-EXP-FK-001).
+    const functionalRules = await this.functionalRulesRetriever.retrieve(
+      projectId,
       retrievalTarget,
     );
     const generationContext = this.contextBuilder.build(
       retrieval,
       retrievalTarget,
-      { framework },
+      { framework, language },
+      { maxContextTokens: budget.contextTokenBudget },
+      functionalRules,
     );
     await this.contextTracesRepository.updateDetail(
       traceId,
       this.makeRagDetail(generationContext),
     );
-    const prompt = this.promptBuilder.build(generationContext);
-    const generation = await this.llmProvider.generate(prompt);
+    const prompt = placement
+      ? this.promptBuilder.build(generationContext, {
+          testNamespace: placement.namespace,
+          testPath: placement.relativePath,
+        })
+      : this.promptBuilder.build(generationContext);
+    const generation = await this.llmProvider.generate(prompt, config);
 
     return {
       content: generation.content,
@@ -509,23 +1044,16 @@ export class ExperimentJobHandler
    */
   private async initializeTraceDetail(
     traceId: string,
-    context: {
-      target: TestTarget;
-      framework: 'JEST' | 'VITEST' | null;
-      strategy: Strategy;
-    },
+    context: Pick<AttemptContext, 'target' | 'framework' | 'language' | 'strategy' | 'budget'>,
   ): Promise<void> {
     if (context.strategy === 'RAG') {
-      const target: RetrievalTarget = {
-        filePath: context.target.filePath,
-        symbolName: context.target.symbolName,
-        methodName: context.target.methodName,
-        targetType: context.target.targetType as 'METHOD' | 'FUNCTION',
-      };
+      const target = toRetrievalTarget(context.target);
       const emptyContext = this.contextBuilder.build(
         { targetChunks: [], candidates: [] },
         target,
-        { framework: context.framework },
+        { framework: context.framework, language: context.language },
+        { maxContextTokens: context.budget.contextTokenBudget },
+        [],
       );
       await this.contextTracesRepository.updateDetail(
         traceId,
@@ -549,30 +1077,38 @@ export class ExperimentJobHandler
     traceId: string,
     workspaceDir: string,
     target: TestTarget,
-    framework: 'JEST' | 'VITEST' | null,
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null,
+    placement: PhpTestLocation | null,
+    config: LLMEffectiveConfig,
+    budget: ExperimentBudget,
   ): Promise<GenerationOutcome> {
     const trajectory: Prisma.InputJsonValue[] = [];
     const inspectedPaths = new Set<string>();
     let toolCalls = 0;
+    let contextTokensDelivered = 0;
+    let truncatedSteps = 0;
     const poolFiles = await this.fileDiscoveryService.discover(workspaceDir);
-    const tools = new WorkspaceAgentTools(
-      workspaceDir,
-      poolFiles,
-      target.testFilePaths,
-    );
-    const maxContextTokens = this.configService.get<number>(
-      'RETRIEVAL_MAX_CONTEXT_TOKENS',
-      6000,
-    );
-    const maxToolCalls = this.configService.get<number>(
-      'AGENT_MAX_TOOL_CALLS',
-      20,
-    );
+    const tools = new WorkspaceAgentTools(workspaceDir, poolFiles);
+    const maxContextTokens = budget.contextTokenBudget;
+    const maxToolCalls = budget.toolCallCap;
     const instructions = this.buildAgentInstructions(
       target,
       framework,
+      placement,
       maxContextTokens,
+      maxToolCalls,
     );
+    const budgetDetail = (
+      capReached: boolean,
+      delivered: number,
+      truncated: number,
+    ): Prisma.InputJsonObject => ({
+      toolCallCap: maxToolCalls,
+      contextTokenBudget: maxContextTokens,
+      contextTokensDelivered: delivered,
+      capReached,
+      truncatedSteps: truncated,
+    });
     const onToolStep = async (event: AgentToolStepEvent): Promise<void> => {
       const safeStep = this.safeAgentStep(event.step);
       if (event.discoveredFiles.length > 0) {
@@ -584,6 +1120,8 @@ export class ExperimentJobHandler
       }
       trajectory.push(safeStep);
       toolCalls += 1;
+      contextTokensDelivered += event.step.contextTokens;
+      if (event.step.truncated) truncatedSteps += 1;
       if (
         event.step.toolName === 'read_file' &&
         typeof event.step.arguments.relativePath === 'string'
@@ -595,6 +1133,11 @@ export class ExperimentJobHandler
         trajectory,
         toolCalls,
         filesInspected,
+        budget: budgetDetail(
+          toolCalls >= maxToolCalls,
+          contextTokensDelivered,
+          truncatedSteps,
+        ),
       });
       await this.contextTracesRepository.updateAgentCounters(traceId, {
         toolCalls,
@@ -604,9 +1147,20 @@ export class ExperimentJobHandler
     const result = await this.generalistAgentService.generate(
       instructions,
       tools,
-      maxToolCalls,
+      { toolCallCap: maxToolCalls, contextTokenBudget: maxContextTokens },
+      config,
       onToolStep,
     );
+    await this.contextTracesRepository.updateDetail(traceId, {
+      trajectory,
+      toolCalls,
+      filesInspected: inspectedPaths.size,
+      budget: budgetDetail(
+        result.capReached,
+        result.contextTokensDelivered,
+        result.truncatedSteps,
+      ),
+    });
 
     return {
       content: result.content,
@@ -623,9 +1177,15 @@ export class ExperimentJobHandler
 
   private buildAgentInstructions(
     target: TestTarget,
-    framework: 'JEST' | 'VITEST' | null,
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null,
+    placement: PhpTestLocation | null,
     maxContextTokens: number,
+    maxToolCalls: number,
   ): string {
+    if (placement) {
+      return this.buildPhpAgentInstructions(target, placement, maxContextTokens, maxToolCalls);
+    }
+
     const label = target.methodName
       ? `${target.symbolName}.${target.methodName}`
       : target.symbolName;
@@ -639,8 +1199,34 @@ export class ExperimentJobHandler
       `Objetivo: escribir una prueba unitaria para ${kind} "${label}", declarada en el archivo "${target.filePath}".`,
       'No se te entrega el código del objetivo directamente: debes explorarlo tú mismo usando las herramientas disponibles (list_files, read_file, search_text, inspect_symbol) antes de generar la prueba.',
       frameworkLine,
-      `Presupuesto orientativo de contexto: no excedas lo estrictamente necesario para escribir una prueba correcta (referencia comparable a la estrategia RAG: ~${maxContextTokens} tokens de contexto).`,
+      `Tienes como máximo ${maxToolCalls} llamadas a herramientas; al alcanzar ese límite deberás responder sin más herramientas.`,
+      `Presupuesto de contexto: los resultados de las herramientas suman como máximo ${maxContextTokens} tokens en total; lo que exceda se trunca y queda marcado como truncado.`,
       'Cuando tengas suficiente información, responde ÚNICAMENTE con código TypeScript válido (imports + bloques de prueba). No incluyas explicaciones ni envuelvas la respuesta en fences de markdown.',
+    ].join('\n\n');
+  }
+
+  /** Instrucciones del agente para PHP (WI-CORE-029): mismas semánticas que TypeScript, PHPUnit 11. */
+  private buildPhpAgentInstructions(
+    target: TestTarget,
+    placement: PhpTestLocation,
+    maxContextTokens: number,
+    maxToolCalls: number,
+  ): string {
+    const label = target.methodName
+      ? `${target.symbolName}.${target.methodName}`
+      : target.symbolName;
+    const kind = target.targetType === 'METHOD' ? 'el método' : 'la función';
+
+    return [
+      'Eres un ingeniero de software senior escribiendo pruebas unitarias en PHP.',
+      `Objetivo: escribir una prueba unitaria para ${kind} "${label}", declarada en el archivo "${target.filePath}".`,
+      'No se te entrega el código del objetivo directamente: debes explorarlo tú mismo usando las herramientas disponibles (list_files, read_file, search_text, inspect_symbol) antes de generar la prueba.',
+      'Usa el framework de pruebas PHPUnit 11.',
+      `El archivo de prueba es "${placement.relativePath}" y debe declarar el namespace "${placement.namespace}".`,
+      'Usa declaraciones use con nombres de clase completos (namespace completo). Extiende Tests\\TestCase solo si el código usa el contenedor de Laravel; en otro caso extiende PHPUnit\\Framework\\TestCase.',
+      `Tienes como máximo ${maxToolCalls} llamadas a herramientas; al alcanzar ese límite deberás responder sin más herramientas.`,
+      `Presupuesto de contexto: los resultados de las herramientas suman como máximo ${maxContextTokens} tokens en total; lo que exceda se trunca y queda marcado como truncado.`,
+      'Cuando tengas suficiente información, responde ÚNICAMENTE con el archivo PHP completo: empieza con <?php, declara el namespace y los use, y contiene la clase de prueba. No incluyas explicaciones ni envuelvas la respuesta en fences de markdown.',
     ].join('\n\n');
   }
 
@@ -700,6 +1286,8 @@ export class ExperimentJobHandler
       selectedChunks: generationContext.selectedChunks,
       contextTokens: generationContext.contextTokens,
       configuration: audit.configuration,
+      // WI-CORE-026 (obligación de WI-CORE-021): ids, conteos y omitidas; sin procedencia ni texto de regla.
+      functionalRules: toFunctionalRuleEvidence(generationContext),
     } as Prisma.InputJsonValue;
   }
 
@@ -782,6 +1370,8 @@ export class ExperimentJobHandler
       resultSummary: this.describeAgentResult(step, args),
       resultSha256: step.resultSha256,
       truncated: step.truncated,
+      contextTokens: step.contextTokens,
+      truncationReason: step.truncationReason,
       observations,
     } as Prisma.InputJsonObject;
   }
@@ -848,9 +1438,49 @@ export class ExperimentJobHandler
     );
   }
 
+  /**
+   * WI-CORE-027 (best-effort): escribe el resultado terminal con su evidencia en una sola escritura guardada por
+   * RUNNING. Si esa escritura falla, la evidencia no degrada el intento: se loguea solo el nombre del error y el
+   * resultado se escribe sin las columnas de evidencia (las guardas no cambian).
+   */
+  private async writeTerminalRepetition(
+    repetitionId: string,
+    context: { strategy: Strategy; repetition: number },
+    input: ExperimentRepetitionInput,
+    evidence: RepetitionEvidence,
+    state: 'COMPLETED' | 'FAILED',
+  ): Promise<boolean> {
+    const evidenceColumns: Partial<ExperimentRepetitionInput> = {
+      sandboxExecutionId: evidence.sandbox?.executionId ?? null,
+      sandboxRequestId: evidence.sandbox?.requestId ?? null,
+      sandboxCorrelationId: evidence.sandbox?.correlationId ?? null,
+      sandboxFacts: evidence.sandbox?.facts ?? null,
+      artifactHash: evidence.artifactHash,
+    };
+
+    try {
+      return await this.experimentRunsRepository.updateRepetitionById(
+        repetitionId,
+        { ...input, ...evidenceColumns },
+        state,
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo registrar la evidencia de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se escribe sin ella.`,
+      );
+      return this.experimentRunsRepository.updateRepetitionById(repetitionId, input, state);
+    }
+  }
+
   private async recordRepetition(
     begun: BegunContextTraceAttempt,
-    context: { experimentId: string; strategy: Strategy; repetition: number },
+    context: {
+      experimentId: string;
+      strategy: Strategy;
+      repetition: number;
+      attempt: 1 | 2;
+    },
     generation: GenerationOutcome,
     generationDurationMs: number,
     executionDurationMs: number | null,
@@ -863,6 +1493,10 @@ export class ExperimentJobHandler
       failureType: FailureTypeValue | null;
       errorSummary: string | null;
     },
+    externalFailure: boolean,
+    sandboxTimedOut = false,
+    failure: ExperimentRepetitionFailure | null = null,
+    evidence: RepetitionEvidence = { sandbox: null, artifactHash: null },
   ): Promise<void> {
     const totalTokens =
       generation.inputTokens !== null && generation.outputTokens !== null
@@ -905,14 +1539,30 @@ export class ExperimentJobHandler
       toolCalls: generation.toolCalls,
       filesInspected: generation.filesInspected,
       trajectory: undefined,
+      // Segundo fallo externo: la repetición no es evaluable técnicamente (plan punto 7).
+      ...(context.attempt === 2 && externalFailure ? { technicallyEvaluable: false } : {}),
+      // Interno (WI-CORE-025): solo se escribe true en TIMED_OUT; el resto queda NULL.
+      ...(sandboxTimedOut ? { sandboxTimedOut: true } : {}),
+      // WI-CORE-007: interno. Sin hecho de fallo la clave se omite (la columna queda NULL).
+      ...(failure ? { failure } : {}),
     };
 
     const terminalState = outcome.status === 'FAILED' ? 'FAILED' : 'COMPLETED';
-    await this.experimentRunsRepository.updateRepetitionById(
+    const written = await this.writeTerminalRepetition(
       begun.repetition.id,
+      context,
       input,
+      evidence,
       terminalState,
     );
+    if (!written) {
+      // WI-CORE-030 (H3): el intento ya estaba cerrado (liberado como interrumpido). No se cierra su
+      // traza ni se recalculan contadores: lo hizo quien lo cerró.
+      this.logger.warn(
+        `La repetición ${context.repetition} (${context.strategy}) ya estaba cerrada; su resultado no se escribe.`,
+      );
+      return;
+    }
     if (terminalState === 'FAILED') {
       await this.contextTracesRepository.failTrace(begun.trace.id);
     } else {

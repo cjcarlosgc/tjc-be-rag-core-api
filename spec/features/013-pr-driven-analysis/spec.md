@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU02, HU06-HU09, HU13-HU16
-**Contrato:** SYSTEM-2.5 / INTEROP-2.6
+**Contrato:** SYSTEM-2.6 / INTEROP-2.7
 
 ## Objetivo
 
@@ -21,7 +21,7 @@ GitHub Integration entrega a RAG Core eventos normalizados de GitHub App para re
 - Solo el Run vigente publica Check vigente. La merge policy pertenece al repositorio.
 - `ACTION_REQUIRED` termina el job; una respuesta autorizada puede continuar el mismo Run/HEAD. La creación de la pregunta pendiente y la transición a `ACTION_REQUIRED` son atómicas y solo aplican a un Run `PROCESSING` y vigente.
 - Si un HEAD nuevo o la baja del Project obsoleta el Run, sus preguntas `PENDING` pasan a `OBSOLETE`. El inbox solo incluye preguntas pendientes cuyo Run siga `ACTION_REQUIRED` y `current=true`; un job que pierda vigencia no publica Check ni convierte el Run en fallo técnico.
-- `UNKNOWN`/No lo sé no crea `FunctionalKnowledge ACTIVE`.
+- `UNKNOWN`/No lo sé es una abstención auditada (`DEC-FK-002`): no crea ni modifica `FunctionalKnowledge`, la pregunta sigue `PENDING`, el Run sigue `ACTION_REQUIRED` y no hay continuación ni generación. Solo Maintainer o Admin pueden registrarla.
 - Sandbox recibe profile, snapshot, artifacts y targets; nunca recibe GitHub, usuarios, prompts, reglas funcionales o estrategia experimental.
 - No existe autorepair semántico, modificación automática de producción, escritura directa a la feature branch ni auto-merge.
 
@@ -56,6 +56,17 @@ webhook verificado y normalizado por GitHub Integration
 La transición a `ACTION_REQUIRED` y la inserción de su pregunta se confirman en una única operación condicionada al estado vigente del Run. Si el HEAD cambia durante la evaluación, la operación no crea una pregunta ni publica un Check obsoleto.
 
 Una respuesta human persistente genera Functional Knowledge y un continuation job solo si el HEAD sigue vigente. Un HEAD nuevo conserva la respuesta como evidencia/regla potencial y la reevalúa en otro Run.
+
+## Alineación SMART V3 (SDD 2026-10-08; implementación pendiente)
+
+Fuentes: `SYSTEM-2.6` («Contexto RAG y Functional Knowledge») e `INTEROP-2.7` §6.11. Decisiones `DEC-FK-001` y `DEC-FK-002`, ambas `APROBADO`.
+
+- **Activación exacta de `ACTION_REQUIRED`.** Se activa cuando, para un target afectado, la arquitectura necesita determinar un comportamiento esperado necesario para generar o validar una prueba unitaria y no puede establecerlo con conocimiento funcional autorizado, vigente y aplicable. No se activa porque cambió un método, no existe una regla, el código es complejo o tiene muchas dependencias. Preguntas válidas: resultado esperado, borde, excepción, transición de estado, efecto observable y precondición funcional (V1 genera solo las cuatro primeras categorías). No se pregunta por naming, refactor, calidad, performance, patrones, aprobación del PR, tooling ni configuración de PHPUnit. La elegibilidad es determinista y estructural (`DEC-FK-003`): el target es `METHOD`/`FUNCTION` `DIRECTLY_CHANGED`, no hay regla `ACTIVE` aplicable y el diff introduce o modifica una ramificación, un `throw` o una transición o escritura de estado, detectado comparando las huellas (`DEC-FK-004`) de la base y el HEAD; cada pregunta es atómica (un target, un escenario, una incertidumbre). Implementación: `WI-CORE-018`.
+- **`UNKNOWN`.** Abstención auditada: no crea ni modifica Functional Knowledge, no resuelve la incertidumbre, no encola continuación ni generación; la pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED` y Core registra quién, con qué rol y cuándo. **Contradicción spec-código registrada:** el código al 2026-10-08 responde la pregunta, reevalúa el Run y puede encolar la continuación (`functional-knowledge.service.ts`); `WI-CORE-018` lo corrige.
+- **Roles.** Confirmar o responder exige Maintainer o Admin; Writer y Reader reciben `403 PROJECT_ROLE_INSUFFICIENT`. El rol Writer se introduce en `WI-CORE-019` (`014-organizations-access`).
+- **Procedencia.** Toda regla conserva `confirmedByUserId`, `confirmedRole`, `originHeadSha` y, para `APPROVED_IMPORT`, `sourceRef`; `originHeadSha` es procedencia y no vencimiento (`WI-CORE-019`).
+- **Escenarios.** Varias reglas `ACTIVE` por target con distinto `scenarioKey`, derivado por Core de `scenarioKind`, el `targetRef` y la huella de la construcción (`DEC-FK-004`); el conflicto de HU09 solo existe con el mismo scope, `targetRef` y `scenarioKey` (`WI-CORE-020`).
+- **Contexto de generación.** `functionalRules` viaja separado del código y con procedencia (`WI-CORE-021`, feature `004-rag-retrieval-context`).
 
 ## Clasificación
 
@@ -93,8 +104,8 @@ GitHub Integration verifica firma sobre body crudo, estado de instalación y mí
 ## Fuera de alcance inicial
 
 - soporte completo de fork PR;
-- RBAC propio: los roles Admin/Maintainer/Reader se derivan de GitHub y viven en `014-organizations-access` como capacidad de apoyo a HU01/HU02;
+- RBAC propio: los roles Admin/Maintainer/Writer/Reader se derivan de GitHub y viven en `014-organizations-access` como capacidad de apoyo a HU01/HU02;
 - proveedor remoto del Sandbox;
 - despliegue o cutover de GitHub Integration; el código fuente y sus consumidores están migrados bajo `016-github-integration`, pero la operación externa requiere aprobación y secuencia coordinada. PHP completo sigue bajo desarrollo paralelo de Sandbox.
 
-`DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` conservan sus blocks acotados y no bloquean esta baseline documental.
+`DEC-INF-001` y `DEC-VAL-001` conservan sus blocks acotados y no bloquean esta baseline documental. `DEC-EXP-FK-001` quedó `APROBADO` (2026-10-08).

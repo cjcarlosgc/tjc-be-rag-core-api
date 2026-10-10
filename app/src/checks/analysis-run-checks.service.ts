@@ -49,17 +49,34 @@ export class AnalysisRunChecksService {
         return;
       }
 
-      await this.githubChecksService.createCheckRun(binding.installationId, binding.repositoryName, {
-        name: this.configService.get<string>('GITHUB_CHECK_NAME', DEFAULT_CHECK_NAME),
-        headSha: currentRun.headSha,
-        conclusion,
-        title: buildCheckTitle(currentRun.status),
-        summary: currentRun.resultSummary ?? buildCheckTitle(currentRun.status),
-        ...(this.buildDetailsUrl(currentRun) ? { detailsUrl: this.buildDetailsUrl(currentRun)! } : {}),
-      });
+      const { checkId } = await this.githubChecksService.createCheckRun(
+        binding.installationId,
+        binding.repositoryName,
+        {
+          name: this.configService.get<string>('GITHUB_CHECK_NAME', DEFAULT_CHECK_NAME),
+          headSha: currentRun.headSha,
+          conclusion,
+          title: buildCheckTitle(currentRun.status),
+          summary: currentRun.resultSummary ?? buildCheckTitle(currentRun.status),
+          ...(this.buildDetailsUrl(currentRun) ? { detailsUrl: this.buildDetailsUrl(currentRun)! } : {}),
+        },
+      );
+
+      // WI-CORE-026: la publicación se marca aunque GitHub no devuelva id (204); el id va si existe.
+      await this.markCheckPublished(currentRun.id, checkId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido publicando el Check.';
       this.logger.warn(`No se pudo publicar el Check de GitHub para AnalysisRun ${run.id}: ${message}`);
+    }
+  }
+
+  /** Best-effort: un fallo al escribir la marca no rompe el Run ni la publicación ya hecha en GitHub. */
+  private async markCheckPublished(runId: string, checkId: string | null): Promise<void> {
+    try {
+      await this.analysisRunsRepository.markCheckPublished(runId, checkId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(`Check publicado para AnalysisRun ${runId}, pero no se pudo registrar la marca (${reason}).`);
     }
   }
 

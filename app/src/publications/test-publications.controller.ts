@@ -13,7 +13,7 @@ export class TestPublicationsController {
   constructor(private readonly testPublicationsService: TestPublicationsService) {}
 
   @Post('analysis-runs/:analysisRunId/test-publications')
-  @RequireProjectRole('MAINTAINER', ProjectTargets.param('analysisRun', 'analysisRunId'))
+  @RequireProjectRole('WRITER', ProjectTargets.param('analysisRun', 'analysisRunId'))
   @HttpCode(HttpStatus.ACCEPTED)
   create(
     @Param('analysisRunId') analysisRunId: string,

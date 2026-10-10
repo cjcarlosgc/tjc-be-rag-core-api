@@ -17,7 +17,7 @@ function setup(project: Record<string, unknown> | null) {
   };
 }
 
-function organizationProject(role: 'ADMIN' | 'MAINTAINER' | 'READER' = 'ADMIN') {
+function organizationProject(role: 'ADMIN' | 'MAINTAINER' | 'WRITER' | 'READER' = 'ADMIN') {
   return {
     id: '10000000-0000-4000-8000-000000000001',
     ownerUserId: null,
@@ -92,6 +92,33 @@ describe('GitHub UI authorization decisions', () => {
     } as GithubAuthorizationDecisionDto)).resolves.toEqual({
       decision: 'ALLOW', repositoryOwnerId: '99', repositoryOwnerType: 'Organization', githubUserId: '123',
     });
+  });
+
+  it('a Writer record (permission write, WI-CORE-019) discovers the Project repositories: Reader is the minimum of discovery', async () => {
+    const { service } = setup({ ...organizationProject('WRITER'), repositoryBinding: { status: 'ENABLED' } });
+    await expect(service.decide('jwt', {
+      action: 'DISCOVER_REPOSITORIES', projectId: '10000000-0000-4000-8000-000000000001', githubUserId: '123',
+    } as GithubAuthorizationDecisionDto)).resolves.toMatchObject({
+      decision: 'ALLOW', repositoryOwnerId: '99', repositoryOwnerType: 'Organization',
+    });
+  });
+
+  // INTEROP-2.7 §6.13 (WI-CORE-019, corte B): vincular, verificar y listar ramas exige Writer.
+  it('a Writer record gets the branch identity for binding operations (corte B: minimum is Writer)', async () => {
+    const { service } = setup(organizationProject('WRITER'));
+    await expect(service.decide('jwt', {
+      action: 'LIST_REPOSITORY_BRANCHES', projectId: '10000000-0000-4000-8000-000000000001',
+    } as GithubAuthorizationDecisionDto)).resolves.toEqual({
+      decision: 'ALLOW', repositoryOwnerId: '99', repositoryOwnerType: 'Organization', githubUserId: '123',
+    });
+  });
+
+  it('a Reader record is denied for binding operations even when it discovers repositories (minimum Writer)', async () => {
+    const { service } = setup({ ...organizationProject('READER'), repositoryBinding: { status: 'ENABLED' } });
+    await expect(service.decide('jwt', {
+      action: 'VERIFY_REPOSITORY_ACCESS', projectId: '10000000-0000-4000-8000-000000000001',
+      githubUserId: '123', repositories: [fact], integrationBranch: 'main',
+    } as GithubAuthorizationDecisionDto)).resolves.toEqual({ decision: 'DENY' });
   });
 
   it('does not return branch identity to readers who cannot manage a binding', async () => {

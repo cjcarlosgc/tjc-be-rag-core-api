@@ -30,6 +30,7 @@ import { GithubRepositoryContentService, type CompareFile } from '../github-app/
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { FunctionalContextEvaluatorService } from '../functional-knowledge/functional-context-evaluator.service.js';
+import { SymbolBehaviorConstructsService } from '../functional-knowledge/symbol-behavior-constructs.service.js';
 import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
 import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.js';
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
@@ -125,6 +126,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
     private readonly githubSnapshotMaterializerService: GithubSnapshotMaterializerService,
     private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
+    private readonly symbolBehaviorConstructsService: SymbolBehaviorConstructsService,
     private readonly functionalContextEvaluatorService: FunctionalContextEvaluatorService,
     private readonly analysisRunChecksService: AnalysisRunChecksService,
     @Inject(EMBEDDING_PROVIDER) private readonly embeddingProvider: EmbeddingProvider,
@@ -229,13 +231,30 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         targetsWithTest: resolvedTargets.filter((t) => t.hasTest).length,
       });
 
-      const symbols = await this.detectSymbols(
+      let symbols = await this.detectSymbols(
         chunksToPersist,
         changesetFiles,
         indexMode,
         previousVersion?.id,
         language,
       );
+
+      // WI-CORE-018 (DEC-FK-003): construcciones nuevas o modificadas, calculadas con el HEAD del
+      // workspace y la base del Run. PHP queda diferido: su columna se queda nula.
+      if (!isPhp) {
+        const behaviorConstructs = await this.symbolBehaviorConstructsService.compute(
+          {
+            workspaceDir: workspace.dir,
+            installationId: binding.installationId,
+            repositoryName: binding.repositoryName,
+            baseSha: run.baseSha,
+            changesetFiles,
+          },
+          symbols,
+        );
+        symbols = symbols.map((symbol, index) => ({ ...symbol, behaviorConstructs: behaviorConstructs[index] }));
+      }
+
       await this.analysisSymbolsRepository.insertMany(run.id, symbols);
 
       run = await this.analysisRunsService.recordSnapshot(run, {

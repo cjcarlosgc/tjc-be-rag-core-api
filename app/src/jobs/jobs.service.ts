@@ -1,13 +1,16 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_STALE_LOCK_MS, JobsRepository } from './jobs.repository.js';
+import { DEFAULT_STALE_LOCK_MS, JobsRepository, STALE_LOCK_REASON } from './jobs.repository.js';
 import { RescheduleJobError } from './reschedule-job.error.js';
 import type { JobHandler } from './job-handler.interface.js';
-import type { Prisma } from '../generated/prisma/client.js';
+import type { Job, Prisma } from '../generated/prisma/client.js';
 
 /** Cada cuánto, como máximo, se barren los locks obsoletos (un poll por segundo no debe consultarlo). */
 const STALE_SWEEP_INTERVAL_MS = 30_000;
+
+/** Intervalo por defecto del latido del lock de un job en curso (`JOBS_HEARTBEAT_INTERVAL_MS`). */
+export const DEFAULT_HEARTBEAT_INTERVAL_MS = 60_000;
 
 @Injectable()
 export class JobsService implements OnModuleInit, OnModuleDestroy {
@@ -115,8 +118,8 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        await handler.handle(job.payload, job.id);
-        await this.jobsRepository.complete(job.id);
+        await this.runHandler(handler, job);
+        await this.jobsRepository.complete(job);
       } catch (error) {
         if (error instanceof RescheduleJobError) {
           await this.jobsRepository.reschedule(job, error.delayMs, error.reason, error.payload);
@@ -125,11 +128,55 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
 
         const message = error instanceof Error ? error.message : 'Error desconocido en el job.';
         this.logger.error(`Job ${job.id} (${job.type}) falló: ${message}`);
-        await this.jobsRepository.fail(job, message);
+        const outcome = await this.jobsRepository.fail(job, message);
+
+        if (outcome === 'terminal') {
+          await this.notifyExhausted(job, message);
+        }
       }
     } finally {
       this.polling = false;
     }
+  }
+
+  /**
+   * Ejecuta el handler con el latido del lock activo: el latido arranca antes de `handle()` y se
+   * detiene en `finally`, también si el handler falla o si se reprograma.
+   */
+  private async runHandler(handler: JobHandler, job: Job): Promise<void> {
+    const stopHeartbeat = this.startJobHeartbeat(job);
+
+    try {
+      await handler.handle(job.payload, job.id);
+    } finally {
+      stopHeartbeat();
+    }
+  }
+
+  /**
+   * Latido del lock de un job en curso (DEC-JOBS-002): renueva `lockedAt` cada
+   * `JOBS_HEARTBEAT_INTERVAL_MS` para que un handler lento no parezca un worker caído. Un fallo al
+   * escribir se registra y no interrumpe el handler. Devuelve la función que detiene el latido.
+   */
+  private startJobHeartbeat(job: Job): () => void {
+    const intervalMs = this.configService.get<number>('JOBS_HEARTBEAT_INTERVAL_MS', DEFAULT_HEARTBEAT_INTERVAL_MS);
+    const timer = setInterval(() => {
+      void Promise.resolve()
+        .then(() => this.jobsRepository.touchLock(job.id, this.workerId))
+        .then((renewed) => {
+          if (!renewed) {
+            this.logger.warn(`Job ${job.id} (${job.type}): el lock ya no pertenece a este worker; no se renueva.`);
+          }
+        })
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `No se pudo renovar el lock del job ${job.id} (${job.type}): ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+    }, intervalMs);
+    timer.unref?.();
+
+    return () => clearInterval(timer);
   }
 
   /**
@@ -147,13 +194,37 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     this.lastStaleSweepAt = now;
 
     try {
-      const released = await this.jobsRepository.releaseStale(this.staleLockMs);
+      const { released, exhausted } = await this.jobsRepository.releaseStale(this.staleLockMs);
 
       if (released > 0) {
-        this.logger.warn(`Se liberaron ${released} lock(s) obsoleto(s) de jobs con dedupeKey.`);
+        this.logger.warn(`Se liberaron ${released} lock(s) obsoleto(s) de jobs con dedupeKey o tipo liberable.`);
+      }
+
+      for (const job of exhausted) {
+        await this.notifyExhausted(job, STALE_LOCK_REASON);
       }
     } catch (error) {
       this.logger.error(`No se pudieron liberar los locks obsoletos: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Invoca el gancho `onExhausted` del handler del tipo cuando el job quedó FAILED terminal (WI-CORE-030).
+   * Un error del gancho se registra y no interrumpe el barrido ni el reclamo.
+   */
+  private async notifyExhausted(job: Job, reason: string): Promise<void> {
+    const handler = this.handlers.get(job.type);
+
+    if (!handler?.onExhausted) {
+      return;
+    }
+
+    try {
+      await handler.onExhausted(job.payload, reason);
+    } catch (error) {
+      this.logger.error(
+        `El cierre del job ${job.id} (${job.type}) falló: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

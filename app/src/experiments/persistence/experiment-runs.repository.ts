@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import type {
-  ExperimentRepetition,
-  ExperimentRun,
+import {
   Prisma,
+  type ExperimentRepetition,
+  type ExperimentRun,
 } from '../../generated/prisma/client.js';
 import {
   ExperimentRepetitionState,
@@ -11,12 +11,47 @@ import {
 } from '../../generated/prisma/enums.js';
 import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
 import { accessibleProject } from '../../common/persistence/accessible-project.filter.js';
+import type { LLMEffectiveConfig } from '../../providers/llm-provider.interface.js';
+import {
+  toExperimentRepetitionFailure,
+  type ExperimentRepetitionFailure,
+} from '../experiment-failure-fact.js';
+import type { SandboxEvidenceFacts } from '../../sandbox/sandbox-evidence-facts.js';
+
+/**
+ * WI-CORE-027 (DEC-EVID-004): guarda del límite de escritura para el hecho de fallo. Lo vuelve a normalizar
+ * aunque el caller ya lo haya saneado (idempotente con `toExperimentRepetitionFailure`), así que un caller
+ * futuro no puede persistir un hecho sin normalizar. Un hecho inválido se descarta (`undefined`): la columna
+ * queda NULL y nunca se escribe un `null` explícito en la columna Json.
+ */
+function normalizeWriteFailure(
+  failure: ExperimentRepetitionFailure | undefined,
+): ExperimentRepetitionFailure | undefined {
+  if (failure === undefined) return undefined;
+  return toExperimentRepetitionFailure(failure) ?? undefined;
+}
+
+/** Presupuesto resuelto al crear el experimento (WI-CORE-025, INTEROP-2.7 §6.5.1). */
+export type ExperimentBudget = {
+  toolCallCap: number;
+  contextTokenBudget: number;
+  maxDurationMs: number;
+};
 
 export interface CreateExperimentRunInput {
   projectId: string;
   projectVersionId: string;
   targetId: string;
   totalRepetitions: number;
+  /** Configuración efectiva resuelta una vez por experimento (WI-CORE-023). */
+  modelConfig: LLMEffectiveConfig;
+  /** Semilla de aleatorización del orden por par, generada una vez al crear (WI-CORE-025). */
+  randomizationSeed: string;
+  budget: ExperimentBudget;
+  /** Perfil de ejecución del Sandbox, tomado de EXECUTION_PROFILE_BY_RUNNER (WI-CORE-025). */
+  executionProfile: string;
+  /** Runner detectado en la versión al crear (WI-CORE-025). */
+  runnerHint: 'JEST' | 'VITEST' | 'PHPUNIT';
 }
 
 export interface ExperimentRepetitionInput {
@@ -41,6 +76,51 @@ export interface ExperimentRepetitionInput {
   toolCalls: number | null;
   filesInspected: number | null;
   trajectory: Prisma.InputJsonValue | undefined;
+  /** WI-CORE-025: identidad compartida por las dos estrategias de un par (opcional en escrituras previas). */
+  pairId?: string | null;
+  /** WI-CORE-025: 1 = primera posición del par, 2 = segunda. */
+  pairPosition?: number | null;
+  /** WI-CORE-025: número de intento del slot lógico (1 o 2). */
+  attempt?: number;
+  /** WI-CORE-025: false cuando el slot agotó el reintento externo sin evaluación técnica (default true). */
+  technicallyEvaluable?: boolean;
+  /**
+   * WI-CORE-025: interno (no se expone en DTO ni INTEROP). `true` solo cuando el Sandbox devolvió
+   * TIMED_OUT; omitido en otros casos (queda NULL). Discriminador de la redelivery.
+   */
+  sandboxTimedOut?: boolean;
+  /**
+   * WI-CORE-007: interno (no se expone en DTO ni INTEROP). Hecho de fallo saneado del Sandbox; se omite
+   * cuando no lo hay (queda NULL). Solo se escribe en la escritura terminal de `updateRepetitionById`.
+   */
+  failure?: ExperimentRepetitionFailure;
+  /**
+   * WI-CORE-027 (DEC-EVID-003): evidencia de la repetición. Cada clave `undefined` no se escribe; `null` escribe
+   * un valor no observado. Solo se escribe en la escritura terminal o en la de inserción, nunca en un RUNNING ajeno.
+   */
+  sandboxExecutionId?: string | null;
+  sandboxRequestId?: string | null;
+  sandboxCorrelationId?: string | null;
+  sandboxFacts?: SandboxEvidenceFacts | null;
+  artifactHash?: string | null;
+}
+
+/**
+ * WI-CORE-027 (DEC-EVID-003): columnas de evidencia de la repetición por mapeo explícito. Un `sandboxFacts` nulo
+ * se escribe como DbNull (una columna Json no admite el null literal); una clave ausente no toca la columna.
+ */
+function evidenceWriteColumns(
+  repetition: ExperimentRepetitionInput,
+): Partial<Prisma.ExperimentRepetitionUncheckedCreateInput> {
+  const { sandboxExecutionId, sandboxRequestId, sandboxCorrelationId, sandboxFacts, artifactHash } = repetition;
+
+  return {
+    ...(sandboxExecutionId === undefined ? {} : { sandboxExecutionId }),
+    ...(sandboxRequestId === undefined ? {} : { sandboxRequestId }),
+    ...(sandboxCorrelationId === undefined ? {} : { sandboxCorrelationId }),
+    ...(sandboxFacts === undefined ? {} : { sandboxFacts: sandboxFacts ?? Prisma.DbNull }),
+    ...(artifactHash === undefined ? {} : { artifactHash }),
+  };
 }
 
 @Injectable()
@@ -51,7 +131,23 @@ export class ExperimentRunsRepository {
     input: CreateExperimentRunInput,
     tx?: Prisma.TransactionClient,
   ): Promise<ExperimentRun> {
-    return (tx ?? this.prisma).experimentRun.create({ data: input });
+    const { modelConfig, budget, ...columns } = input;
+
+    return (tx ?? this.prisma).experimentRun.create({
+      data: {
+        ...columns,
+        budget: { ...budget },
+        modelConfig: {
+          provider: modelConfig.provider,
+          model: modelConfig.model,
+          modelVersion: modelConfig.modelVersion,
+          reasoningEffort: modelConfig.reasoningEffort,
+          temperature: modelConfig.temperature,
+          maxOutputTokens: modelConfig.maxOutputTokens,
+          ...(modelConfig.endpoint !== undefined ? { endpoint: modelConfig.endpoint } : {}),
+        },
+      },
+    });
   }
 
   /**
@@ -72,10 +168,20 @@ export class ExperimentRunsRepository {
     });
   }
 
+  /**
+   * Arranca (o reanuda tras un reintento) el run. Limpia el fallo y el cierre de un intento anterior
+   * (WI-CORE-030, H4): un run que pasó por `markFailed` y vuelve a ejecutarse no queda con `failureCode`.
+   */
   markStarted(id: string): Promise<ExperimentRun> {
     return this.prisma.experimentRun.update({
       where: { id },
-      data: { status: ExperimentStatus.RUNNING, startedAt: new Date() },
+      data: {
+        status: ExperimentStatus.RUNNING,
+        startedAt: new Date(),
+        failureCode: null,
+        failureMessage: null,
+        completedAt: null,
+      },
     });
   }
 
@@ -110,10 +216,91 @@ export class ExperimentRunsRepository {
     });
   }
 
-  complete(id: string): Promise<ExperimentRun> {
-    return this.prisma.experimentRun.update({
-      where: { id },
-      data: { status: ExperimentStatus.COMPLETED, completedAt: new Date() },
+  /**
+   * Marca COMPLETED solo si todos los slots lógicos (`totalRepetitions`) tienen un intento terminal
+   * y no queda ninguna repetición RUNNING (WI-CORE-025 (3c), guardia). Se serializa con
+   * `refreshCompletedRepetitions` por el bloqueo de la fila del experimento.
+   */
+  complete(id: string): Promise<void> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "experiment_runs" WHERE "id" = ${id} FOR UPDATE`;
+
+      const run = await tx.experimentRun.findUnique({
+        where: { id },
+        select: { totalRepetitions: true },
+      });
+      const running = await tx.experimentRepetition.count({
+        where: { experimentId: id, state: ExperimentRepetitionState.RUNNING },
+      });
+      const terminalAttempts = await tx.experimentRepetition.findMany({
+        where: {
+          experimentId: id,
+          state: {
+            in: [
+              ExperimentRepetitionState.COMPLETED,
+              ExperimentRepetitionState.FAILED,
+            ],
+          },
+        },
+        select: { strategy: true, repetition: true },
+      });
+      const terminalSlots = new Set(
+        terminalAttempts.map(({ strategy, repetition }) => `${strategy}:${repetition}`),
+      ).size;
+
+      if (!run || running > 0 || terminalSlots < run.totalRepetitions) {
+        throw new Error(
+          'El experimento no puede quedar COMPLETED: faltan slots lógicos terminales o hay repeticiones RUNNING.',
+        );
+      }
+
+      // Limpia un fallo previo (WI-CORE-030, H4): un run COMPLETED no conserva failureCode/failureMessage.
+      await tx.experimentRun.update({
+        where: { id },
+        data: {
+          status: ExperimentStatus.COMPLETED,
+          completedAt: new Date(),
+          failureCode: null,
+          failureMessage: null,
+        },
+      });
+    });
+  }
+
+  /** Renueva el latido de un intento que sigue RUNNING. Un intento ya cerrado no se toca. */
+  touchRepetitionHeartbeat(id: string, at: Date): Promise<Prisma.BatchPayload> {
+    return this.prisma.experimentRepetition.updateMany({
+      where: { id, state: ExperimentRepetitionState.RUNNING },
+      data: { lastHeartbeatAt: at },
+    });
+  }
+
+  /**
+   * Cierra como FAILED/INFRASTRUCTURE un intento RUNNING con latido vencido (WI-CORE-025 (3c)).
+   * Solo fija estado, tipo de fallo, resumen y, si se pide, `technicallyEvaluable: false`; el resto de
+   * columnas y la evidencia de la traza se conservan. La traza en CAPTURING pasa a FAILED.
+   */
+  async closeInterruptedRepetition(
+    id: string,
+    options: { errorSummary: string; technicallyEvaluable?: false },
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.experimentRepetition.updateMany({
+        where: { id, state: ExperimentRepetitionState.RUNNING },
+        data: {
+          state: ExperimentRepetitionState.FAILED,
+          failureType: 'INFRASTRUCTURE',
+          errorSummary: options.errorSummary,
+          ...(options.technicallyEvaluable === false ? { technicallyEvaluable: false } : {}),
+        },
+      });
+
+      if (count === 0) return;
+
+      await tx.contextTrace.updateMany({
+        where: { experimentRepetitionId: id, state: 'CAPTURING' },
+        data: { state: 'FAILED' },
+      });
     });
   }
 
@@ -137,31 +324,54 @@ export class ExperimentRunsRepository {
     experimentId: string,
     repetition: ExperimentRepetitionInput,
   ): Promise<ExperimentRepetition> {
+    const { failure, sandboxExecutionId: _id, sandboxRequestId: _req, sandboxCorrelationId: _corr, sandboxFacts: _facts, artifactHash: _hash, ...columns } = repetition;
+    const normalizedFailure = normalizeWriteFailure(failure);
     return this.prisma.experimentRepetition.create({
-      data: { experimentId, ...repetition },
+      data: {
+        experimentId,
+        ...columns,
+        ...evidenceWriteColumns(repetition),
+        ...(normalizedFailure === undefined ? {} : { failure: normalizedFailure }),
+      },
     });
   }
 
-  updateRepetitionById(
+  /**
+   * Escribe el resultado final de un intento SOLO si sigue RUNNING (WI-CORE-030, H3): un intento ya
+   * cerrado (p. ej. liberado como interrumpido por otro worker) no se sobrescribe. Devuelve si escribió.
+   */
+  async updateRepetitionById(
     id: string,
     repetition: ExperimentRepetitionInput,
     state: 'COMPLETED' | 'FAILED',
-  ): Promise<ExperimentRepetition> {
+  ): Promise<boolean> {
     const {
       repetition: _logicalRepetition,
       strategy: _strategy,
       trajectory,
+      failure,
+      sandboxExecutionId: _id,
+      sandboxRequestId: _req,
+      sandboxCorrelationId: _corr,
+      sandboxFacts: _facts,
+      artifactHash: _hash,
       ...metrics
     } = repetition;
+    const normalizedFailure = normalizeWriteFailure(failure);
 
-    return this.prisma.experimentRepetition.update({
-      where: { id },
+    const { count } = await this.prisma.experimentRepetition.updateMany({
+      where: { id, state: ExperimentRepetitionState.RUNNING },
       data: {
         ...metrics,
         state,
         ...(trajectory === undefined ? {} : { trajectory }),
+        // WI-CORE-007: sin hecho no se escribe la clave (nunca un null explícito en una columna Json).
+        ...(normalizedFailure === undefined ? {} : { failure: normalizedFailure }),
+        ...evidenceWriteColumns(repetition),
       },
     });
+
+    return count > 0;
   }
 
   findRepetitions(experimentId: string): Promise<ExperimentRepetition[]> {

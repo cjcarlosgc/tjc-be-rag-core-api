@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
   ExecutionProfile,
@@ -10,13 +11,14 @@ import type {
 } from './sandbox.types.js';
 
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
-const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
-const DEFAULT_MAX_POLL_ATTEMPTS = 120;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 
 // Keep the mapping exhaustive: adding a runner requires selecting its profile.
-const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {
+export const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {
   JEST: 'NODE_TYPESCRIPT',
   VITEST: 'NODE_TYPESCRIPT',
+  PHPUNIT: 'PHP_LARAVEL_PHPUNIT',
 };
 
 interface EphemeralDownloadRef {
@@ -28,6 +30,33 @@ interface EphemeralDownloadRef {
 }
 
 export class SandboxUnavailableError extends Error {}
+
+/**
+ * Fallo posterior a la aceptación del Sandbox (`POST /executions` ya respondió): conserva el
+ * `executionId` para que Core lo persista aunque la ejecución no llegue a un resultado (WI-CORE-026).
+ * Es un `SandboxUnavailableError`, así que los llamadores existentes no cambian de comportamiento.
+ */
+export class SandboxAcceptedExecutionError extends SandboxUnavailableError {
+  /**
+   * WI-CORE-027: `requestId`, `correlationId` y `durationMs` solo existen tras la aceptación; por defecto son
+   * `null` (no observados). Un fallo previo a `POST /executions` no los informa, nunca con valores inventados.
+   */
+  constructor(
+    message: string,
+    readonly executionId: string,
+    readonly executionProfile: ExecutionProfile,
+    readonly requestId: string | null = null,
+    readonly correlationId: string | null = null,
+    readonly durationMs: number | null = null,
+  ) {
+    super(message);
+  }
+}
+
+type SandboxExecutionOutcome = Omit<
+  SandboxExecutionResult,
+  'executionId' | 'executionProfile' | 'requestId' | 'correlationId' | 'durationMs'
+>;
 
 @Injectable()
 export class SandboxExecutionService {
@@ -68,6 +97,7 @@ export class SandboxExecutionService {
       })),
     );
 
+    const executionProfile = request.executionProfile ?? EXECUTION_PROFILE_BY_RUNNER[request.runnerHint];
     const body = {
       requestId,
       testRunId: request.testRunId,
@@ -76,10 +106,12 @@ export class SandboxExecutionService {
       artifacts,
       scope: request.scope,
       targetIds: request.targetIds,
-      executionProfile: EXECUTION_PROFILE_BY_RUNNER[request.runnerHint],
+      executionProfile,
       runnerHint: request.runnerHint,
     };
 
+    // WI-CORE-027: el cronómetro cubre la llamada real, desde el envío de `POST /executions`.
+    const startedAt = Date.now();
     const accepted = await this.postJson<{ executionId: string; pollAfterMs: number }>(
       `${baseUrl}/executions`,
       body,
@@ -88,15 +120,35 @@ export class SandboxExecutionService {
       serviceToken,
     );
 
-    await this.pollUntilTerminal(
-      baseUrl,
-      accepted.executionId,
-      accepted.pollAfterMs,
-      correlationId,
-      serviceToken,
-    );
+    try {
+      await this.pollUntilTerminal(
+        baseUrl,
+        accepted.executionId,
+        accepted.pollAfterMs,
+        correlationId,
+        serviceToken,
+      );
 
-    return this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
+      const outcome = await this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
+      return {
+        ...outcome,
+        executionId: accepted.executionId,
+        executionProfile,
+        requestId,
+        correlationId,
+        durationMs: Date.now() - startedAt,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Fallo desconocido tras aceptar la ejecución.';
+      throw new SandboxAcceptedExecutionError(
+        message,
+        accepted.executionId,
+        executionProfile,
+        requestId,
+        correlationId,
+        Date.now() - startedAt,
+      );
+    }
   }
 
   private async buildSnapshotRef(
@@ -173,7 +225,7 @@ export class SandboxExecutionService {
     executionId: string,
     correlationId: string,
     serviceToken: string,
-  ): Promise<SandboxExecutionResult> {
+  ): Promise<SandboxExecutionOutcome> {
     const result = await this.getJson<{
       status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
       facts: SandboxExecutionResult['facts'];
@@ -196,8 +248,9 @@ export class SandboxExecutionService {
       // `ExperimentRepetition` (ese modelo no tiene columna de mensaje); sin
       // este log, el detalle real del Sandbox (p. ej. qué dependencia falta)
       // se pierde para siempre en los experimentos.
+      // WI-CORE-027 (IDEA-016): el mensaje se registra saneado; el canal de logs no debe recibir secretos.
       this.logger.warn(
-        `Ejecución ${executionId} falló en ${result.failure.stage} (${result.failure.category}/${result.failure.code}): ${result.failure.message}`,
+        `Ejecución ${executionId} falló en ${result.failure.stage} (${result.failure.category}/${result.failure.code}): ${sanitizeFailureMessage(String(result.failure.message))}`,
       );
     }
 

@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { isRoleAtLeast } from '../common/persistence/accessible-project.filter.js';
 import type { ProjectRole } from '../generated/prisma/client.js';
 import { ProjectAccessRepository } from '../project-access/project-access.repository.js';
 import { verifyGithubBindingEvidence } from './github-binding-evidence.js';
@@ -40,8 +41,8 @@ export class VerifiedRepositoryBindingService {
     const role = project.githubOrgId === null
       ? project.ownerUserId === userId ? 'ADMIN' : null
       : project.access[0]?.role ?? null;
-    if (!role || !hasMaintainerRole(role, project.repositoryBinding?.status)) {
-      throw new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'Se requiere el rol Maintainer o Admin para vincular el repositorio.', HttpStatus.FORBIDDEN);
+    if (!role || !hasWriterRole(role, project.repositoryBinding?.status)) {
+      throw new AppException(ErrorCode.PROJECT_ROLE_INSUFFICIENT, 'Se requiere el rol Writer o superior para vincular el repositorio.', HttpStatus.FORBIDDEN);
     }
 
     const expectedOwnerId = project.githubOrgId ?? githubUserId;
@@ -77,8 +78,12 @@ export class VerifiedRepositoryBindingService {
   }
 }
 
-function hasMaintainerRole(role: ProjectRole, bindingStatus: string | undefined): boolean {
-  return (role === 'ADMIN' || role === 'MAINTAINER') && (role === 'ADMIN' || bindingStatus !== 'REVOKED');
+/**
+ * Rol Writer o superior (INTEROP-2.7 §6.13, jerarquía de `ROLE_RANK`). Con binding `REVOKED` solo
+ * un Admin conserva la operación, como en el predicado de visibilidad.
+ */
+function hasWriterRole(role: ProjectRole, bindingStatus: string | undefined): boolean {
+  return isRoleAtLeast(role, 'WRITER') && (role === 'ADMIN' || bindingStatus !== 'REVOKED');
 }
 
 function isUniqueViolation(error: unknown): boolean {

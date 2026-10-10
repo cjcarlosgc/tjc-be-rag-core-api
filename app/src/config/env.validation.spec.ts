@@ -124,6 +124,28 @@ describe('validateEnv', () => {
     });
   });
 
+  it('defaults the job lock heartbeat to 60 s and accepts it while it is at most JOBS_STALE_LOCK_MS / 3 (WI-CORE-030)', () => {
+    expect(validateEnv(baseConfig()).JOBS_HEARTBEAT_INTERVAL_MS).toBe(60_000);
+    expect(
+      validateEnv(baseConfig({ JOBS_STALE_LOCK_MS: 180_000, JOBS_HEARTBEAT_INTERVAL_MS: 60_000 })).JOBS_HEARTBEAT_INTERVAL_MS,
+    ).toBe(60_000);
+    expect(() =>
+      validateEnv(baseConfig({ JOBS_STALE_LOCK_MS: 180_000, JOBS_HEARTBEAT_INTERVAL_MS: 60_000 })),
+    ).not.toThrow();
+  });
+
+  it('rejects a job lock heartbeat above JOBS_STALE_LOCK_MS / 3 (WI-CORE-030, DEC-JOBS-002)', () => {
+    expect(() =>
+      validateEnv(baseConfig({ JOBS_STALE_LOCK_MS: 120_000, JOBS_HEARTBEAT_INTERVAL_MS: 60_000 })),
+    ).toThrow(/JOBS_HEARTBEAT_INTERVAL_MS debe ser ≤ JOBS_STALE_LOCK_MS \/ 3/);
+    expect(() => validateEnv(baseConfig({ JOBS_HEARTBEAT_INTERVAL_MS: 200_000 }))).not.toThrow(); // 3 × 200 000 = 600 000 (default)
+    expect(() => validateEnv(baseConfig({ JOBS_HEARTBEAT_INTERVAL_MS: 200_001 }))).toThrow(/JOBS_HEARTBEAT_INTERVAL_MS/);
+  });
+
+  it('rejects a job lock heartbeat below the 1 s minimum', () => {
+    expect(() => validateEnv(baseConfig({ JOBS_HEARTBEAT_INTERVAL_MS: 500 }))).toThrow(/inválida/);
+  });
+
   it('turns the reconciliation off only with an explicit "false"', () => {
     expect(validateEnv(baseConfig({ ACCESS_RECONCILIATION_ENABLED: 'false' })).ACCESS_RECONCILIATION_ENABLED).toBe(false);
     expect(validateEnv(baseConfig({ ACCESS_RECONCILIATION_ENABLED: 'true' })).ACCESS_RECONCILIATION_ENABLED).toBe(true);
@@ -168,5 +190,27 @@ describe('validateEnv', () => {
         }),
       ),
     ).toThrow(/DEC-WEB-AUTH-001/);
+  });
+
+  it('accepts max and none in LLM_SUPPORTED_COMBINATIONS (WI-CORE-031)', () => {
+    const combinations = JSON.stringify([
+      {
+        model: 'gpt-6-luna',
+        efforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+        toolEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+      },
+    ]);
+
+    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).not.toThrow();
+  });
+
+  it('rejects an effort outside the reasoning scale in LLM_SUPPORTED_COMBINATIONS at startup', () => {
+    const combinations = JSON.stringify([
+      { model: 'gpt-6-luna', efforts: ['low', 'ultra'], toolEfforts: ['low'] },
+    ]);
+
+    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).toThrow(
+      /esfuerzos desconocidos \(ultra\)/,
+    );
   });
 });

@@ -6,6 +6,8 @@ import { AppModule } from '../src/app.module.js';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter.js';
 import { ExperimentsService } from '../src/experiments/experiments.service.js';
 import { ContextTracesService } from '../src/context-traces/context-traces.service.js';
+import { RetrievalComparisonsService } from '../src/retrieval-comparisons/retrieval-comparisons.service.js';
+import { EvidenceService } from '../src/evidence/evidence.service.js';
 import { GITHUB_ACCESS_PORT } from '../src/github-app/github-access.port.js';
 import { GithubAppAuthService } from '../src/github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService } from '../src/github-app/github-repository-content.service.js';
@@ -41,6 +43,7 @@ const REPO = 'acme/widgets';
 
 const OWNER = 'mx-owner';
 const OWNER_NO_COLLABORATOR = 'mx-owner-2';
+const MAINTAINER = 'mx-maintainer';
 const WRITER = 'mx-writer';
 const READER = 'mx-reader';
 const EXTERNAL = 'mx-external';
@@ -48,8 +51,8 @@ const STRANGER = 'mx-stranger';
 const PERSONAL_CREATOR = 'mx-personal';
 const gh = e2eGithubUserId;
 
-type Role = 'ADMIN' | 'MAINTAINER' | 'READER';
-const RANK: Record<Role, number> = { READER: 1, MAINTAINER: 2, ADMIN: 3 };
+type Role = 'ADMIN' | 'MAINTAINER' | 'WRITER' | 'READER';
+const RANK: Record<Role, number> = { READER: 1, WRITER: 2, MAINTAINER: 3, ADMIN: 4 };
 
 interface Ids {
   projectId: string;
@@ -59,6 +62,7 @@ interface Ids {
   publicationId: string;
   experimentId: string;
   contextTraceId: string;
+  retrievalComparisonId: string;
 }
 
 interface RouteCase {
@@ -84,6 +88,13 @@ const ROUTE_CASES: Record<string, RouteCase> = {
   'GET /analysis-runs/{}/context-questions': { url: (i) => `/analysis-runs/${i.runId}/context-questions`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
   'GET /projects/{}/functional-knowledge': { url: (i) => `/projects/${i.projectId}/functional-knowledge`, notFound: PROJECT_404 },
   'GET /analysis-runs/{}/test-proposals': { url: (i) => `/analysis-runs/${i.runId}/test-proposals`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
+  'GET /analysis-runs/{}/trace': { url: (i) => `/analysis-runs/${i.runId}/trace`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
+  'GET /analysis-runs/{}/evidence': { url: (i) => `/analysis-runs/${i.runId}/evidence`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
+  'GET /experiments/{}/evidence': { url: (i) => `/experiments/${i.experimentId}/evidence`, notFound: 'EXPERIMENT_NOT_FOUND' },
+  'GET /retrieval-comparisons/{}/evidence': {
+    url: (i) => `/retrieval-comparisons/${i.retrievalComparisonId}/evidence`,
+    notFound: 'RETRIEVAL_COMPARISON_NOT_FOUND',
+  },
   'GET /test-publications/{}': { url: (i) => `/test-publications/${i.publicationId}`, notFound: 'TEST_PUBLICATION_NOT_FOUND' },
   'GET /experiments/{}': { url: (i) => `/experiments/${i.experimentId}`, notFound: 'EXPERIMENT_NOT_FOUND' },
   'GET /experiments/{}/results': { url: (i) => `/experiments/${i.experimentId}/results`, notFound: 'EXPERIMENT_NOT_FOUND' },
@@ -111,6 +122,20 @@ const ROUTE_CASES: Record<string, RouteCase> = {
     url: () => '/experiments',
     body: (i) => ({ projectId: i.projectId, targetId: '00000000-0000-4000-8000-000000000002' }),
     notFound: PROJECT_404,
+  },
+  'GET /retrieval-comparisons/{}': { url: (i) => `/retrieval-comparisons/${i.retrievalComparisonId}`, notFound: 'RETRIEVAL_COMPARISON_NOT_FOUND' },
+  'GET /retrieval-comparisons/{}/results': {
+    url: (i) => `/retrieval-comparisons/${i.retrievalComparisonId}/results`,
+    notFound: 'RETRIEVAL_COMPARISON_NOT_FOUND',
+  },
+  'GET /analysis-runs/{}/retrieval-comparisons': {
+    url: (i) => `/analysis-runs/${i.runId}/retrieval-comparisons`,
+    notFound: 'ANALYSIS_RUN_NOT_FOUND',
+  },
+  'POST /retrieval-comparisons': {
+    url: () => '/retrieval-comparisons',
+    body: (i) => ({ analysisRunId: i.runId, symbolFilePath: 'a.ts', symbolQualifiedName: 'A.b' }),
+    notFound: 'ANALYSIS_RUN_NOT_FOUND',
   },
   'PATCH /projects/{}': { url: (i) => `/projects/${i.projectId}`, body: () => ({ name: 'renamed' }), notFound: PROJECT_404 },
   'DELETE /projects/{}': { url: (i) => `/projects/${i.projectId}`, notFound: PROJECT_404 },
@@ -155,6 +180,23 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
           getStatus: () => Promise.resolve({ id: 'e' }),
           getResults: () => Promise.resolve({ id: 'e' }),
         })
+        // WI-CORE-022: la idempotencia y las tablas de comparación no están en el Prisma en memoria; aquí
+        // solo importa que el guard (rol y 404 del recurso) deje pasar o no la petición.
+        .overrideProvider(RetrievalComparisonsService)
+        .useValue({
+          create: () => Promise.resolve({ analysisRunId: 'r', retrievalComparisonId: 'c', projectVersionId: 'v', status: 'PENDING', pollAfterMs: 1500 }),
+          getStatus: () => Promise.resolve({ id: 'c' }),
+          getResults: () => Promise.resolve({ retrievalComparisonId: 'c', modes: [] }),
+          listByAnalysisRun: () => Promise.resolve({ items: [], nextCursor: null }),
+        })
+        // WI-CORE-027: la exportación de evidencia necesita tablas que el Prisma en memoria no modela; aquí solo
+        // importa que el guard (rol y 404 del recurso) deje pasar o no la petición.
+        .overrideProvider(EvidenceService)
+        .useValue({
+          getAnalysisRunEvidence: () => Promise.resolve({ schemaVersion: '1' }),
+          getExperimentEvidence: () => Promise.resolve({ schemaVersion: '1' }),
+          getRetrievalComparisonEvidence: () => Promise.resolve({ schemaVersion: '1' }),
+        })
         .overrideProvider(ContextTracesService)
         .useValue({
           listContextTraces: () => Promise.resolve({ items: [], nextCursor: null }),
@@ -182,10 +224,12 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       // Owner de la organización SIN permiso explícito sobre el repositorio (no es colaborador
       // explícito): GitHub le da admin efectivo.
       .setMembership(ORG, gh(OWNER_NO_COLLABORATOR), { role: 'admin', state: 'active' })
+      .setMembership(ORG, gh(MAINTAINER), { role: 'member', state: 'active' })
       .setMembership(ORG, gh(WRITER), { role: 'member', state: 'active' })
       .setMembership(ORG, gh(READER), { role: 'member', state: 'active' })
       .addRepository(REPO, { repositoryId: '100', ownerId: ORG_ID, ownerLogin: ORG, ownerType: 'Organization' })
       .setPermission(REPO, gh(OWNER), 'admin')
+      .setPermission(REPO, gh(MAINTAINER), 'maintain')
       .setPermission(REPO, gh(WRITER), 'write')
       .setPermission(REPO, gh(READER), 'read')
       // Colaborador externo: NO es miembro de la organización pero tiene `write`.
@@ -218,6 +262,8 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       repositoryId: '100',
       repositoryName: REPO,
       prNumber: 1,
+      pullRequestCreatedAt: new Date(Date.now() + 60_000),
+      repositoryBindingEligible: true,
       prTitle: 't',
       baseRef: 'main',
       headRef: 'f',
@@ -275,6 +321,13 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       failureMessage: null,
     });
     const experiment = prisma.insert('experimentRun', { projectId: project.id });
+    const comparison = prisma.insert('retrievalComparison', {
+      projectId: project.id,
+      analysisRunId: run.id,
+      projectVersionId: version.id,
+      status: 'COMPLETED',
+      symbol: { language: 'TYPESCRIPT', kind: 'FUNCTION', qualifiedName: 'A.b', filePath: 'a.ts', changeKind: 'DIRECTLY_CHANGED' },
+    });
     const contextTrace = prisma.insert('contextTrace', {
       projectId: project.id,
       projectVersionId: version.id,
@@ -289,6 +342,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       publicationId: publication.id as string,
       experimentId: experiment.id as string,
       contextTraceId: contextTrace.id as string,
+      retrievalComparisonId: comparison.id as string,
     };
   }
 
@@ -364,7 +418,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
 
     it('the matrix fixture equals the rows of INTEROP §6.13 (same operations per role row)', () => {
       const rows = readContractMatrixRows();
-      const fixtureRows: Record<ContractRow, string[]> = { SIN_ROL: [], READER: [], MAINTAINER: [], ADMIN: [] };
+      const fixtureRows: Record<ContractRow, string[]> = { SIN_ROL: [], READER: [], WRITER: [], MAINTAINER: [], ADMIN: [] };
 
       for (const entry of INTEROP_ROLE_MATRIX) {
         fixtureRows[entry.row].push(entry.spec);
@@ -400,9 +454,11 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
   });
 
   describe('matrix by route x role (organization project)', () => {
+    // Un usuario por rol: el permiso GitHub `maintain`/`write`/`read` deriva Maintainer/Writer/Reader (§6.13).
     const ROLE_USERS: Array<[Role, string]> = [
       ['ADMIN', OWNER],
-      ['MAINTAINER', WRITER],
+      ['MAINTAINER', MAINTAINER],
+      ['WRITER', WRITER],
       ['READER', READER],
     ];
     const minRoleOf = (key: string): Role =>
@@ -412,7 +468,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
 
     it('covers every implemented, resource-bearing route of the contract', () => {
       const contractKeys = INTEROP_ROLE_MATRIX.filter(
-        (entry) => entry.implemented && ['READER', 'MAINTAINER', 'ADMIN'].includes(entry.role) && entry.method !== 'WS',
+        (entry) => entry.implemented && ['READER', 'WRITER', 'MAINTAINER', 'ADMIN'].includes(entry.role) && entry.method !== 'WS',
       )
         .map((entry) => matrixKey(entry.method, entry.path))
         .filter((key) => !LISTINGS.includes(key));
@@ -469,6 +525,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
           publicationId: MISSING_RESOURCE_ID,
           experimentId: MISSING_RESOURCE_ID,
           contextTraceId: MISSING_RESOURCE_ID,
+          retrievalComparisonId: MISSING_RESOURCE_ID,
         };
         const missing = await invoke(STRANGER, key, missingIds);
 
@@ -476,16 +533,16 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
         expect(missing.status).toBe(404);
         expect(hidden.body.code).toBe(routeCase.notFound);
         expect(missing.body.code).toBe(routeCase.notFound);
-        expect(hidden.body.message.replace(ids.projectId, 'X').replace(ids.runId, 'X').replace(ids.versionId, 'X').replace(ids.publicationId, 'X').replace(ids.experimentId, 'X')).toBe(
+        expect(hidden.body.message.replace(ids.projectId, 'X').replace(ids.runId, 'X').replace(ids.versionId, 'X').replace(ids.publicationId, 'X').replace(ids.experimentId, 'X').replace(ids.retrievalComparisonId, 'X')).toBe(
           missing.body.message.replace(MISSING_RESOURCE_ID, 'X'),
         );
       },
     );
 
-    it('listings answer 200 with only what is visible: Reader/Maintainer/Admin see the project, the non-member and the external collaborator do not', async () => {
+    it('listings answer 200 with only what is visible: Reader/Writer/Admin see the project, the non-member and the external collaborator do not', async () => {
       const ids = seedProject('ORG');
       // Registros de acceso existentes para los listados cross-proyecto (no verifican contra GitHub).
-      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'MAINTAINER', verifiedAt: new Date() });
+      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'WRITER', verifiedAt: new Date() });
       prisma.insert('projectAccess', { projectId: ids.projectId, userId: READER, role: 'READER', verifiedAt: new Date() });
 
       for (const user of [OWNER, WRITER, READER]) {
@@ -506,19 +563,21 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       }
     });
 
-    it('a second owner without explicit collaborator permission enters as Admin, and a Maintainer cannot create, rename or delete', async () => {
+    it('a second owner without explicit collaborator permission enters as Admin, and a Writer or Maintainer cannot create, rename or delete', async () => {
       const ids = seedProject('ORG');
 
       const second = await authedRequest(app, OWNER_NO_COLLABORATOR).get(`/projects/${ids.projectId}`).expect(200);
       expect(second.body.role).toBe('ADMIN');
 
-      await authedRequest(app, WRITER).get(`/projects/${ids.projectId}`).expect(200);
-      const create = await authedRequest(app, WRITER).post('/projects').send({ name: 'x', workspaceId: ORG_ID }).expect(403);
-      expect(create.body.code).toBe('WORKSPACE_ADMIN_REQUIRED');
-      const rename = await authedRequest(app, WRITER).patch(`/projects/${ids.projectId}`).send({ name: 'x' }).expect(403);
-      expect(rename.body).toMatchObject({ code: 'PROJECT_ROLE_INSUFFICIENT', details: { requiredRole: 'ADMIN', currentRole: 'MAINTAINER' } });
-      const remove = await authedRequest(app, WRITER).delete(`/projects/${ids.projectId}`).expect(403);
-      expect(remove.body.code).toBe('PROJECT_ROLE_INSUFFICIENT');
+      for (const [user, role] of [[WRITER, 'WRITER'], [MAINTAINER, 'MAINTAINER']] as const) {
+        await authedRequest(app, user).get(`/projects/${ids.projectId}`).expect(200);
+        const create = await authedRequest(app, user).post('/projects').send({ name: 'x', workspaceId: ORG_ID }).expect(403);
+        expect(create.body.code).toBe('WORKSPACE_ADMIN_REQUIRED');
+        const rename = await authedRequest(app, user).patch(`/projects/${ids.projectId}`).send({ name: 'x' }).expect(403);
+        expect(rename.body).toMatchObject({ code: 'PROJECT_ROLE_INSUFFICIENT', details: { requiredRole: 'ADMIN', currentRole: role } });
+        const remove = await authedRequest(app, user).delete(`/projects/${ids.projectId}`).expect(403);
+        expect(remove.body.code).toBe('PROJECT_ROLE_INSUFFICIENT');
+      }
       expect(prisma.tables.project.filter((row) => row.deletedAt == null)).toHaveLength(1);
     });
 
@@ -584,7 +643,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       expect(prisma.tables.projectAccess.map((row) => [row.userId, row.role]).sort()).toEqual(
         [
           [OWNER, 'ADMIN'],
-          [WRITER, 'MAINTAINER'],
+          [WRITER, 'WRITER'],
           [READER, 'READER'],
         ].sort(),
       );
@@ -648,7 +707,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
 
     it('a Project without repository or with a REVOKED binding is visible only to an Admin, even to a member with a stale record', async () => {
       const ids = seedProject('ORG');
-      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'MAINTAINER', verifiedAt: new Date() });
+      prisma.insert('projectAccess', { projectId: ids.projectId, userId: WRITER, role: 'WRITER', verifiedAt: new Date() });
       (prisma.tables.repositoryBinding[0] as { status: string }).status = 'REVOKED';
 
       await authedRequest(app, WRITER).get(`/projects/${ids.projectId}`).expect(404);
@@ -675,7 +734,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
     const subscribe = (socket: ReturnType<typeof fakeSocket>, projectVersionId: string) =>
       app.get(RealtimeGateway).subscribeProjectVersion(socket as never, { projectVersionId });
 
-    it('Reader, Maintainer and Admin subscribe (SubscribeAck true) and the socket -> Project map records it; the rest get { false, null, false }', async () => {
+    it('Reader, Writer and Admin subscribe (SubscribeAck true) and the socket -> Project map records it; the rest get { false, null, false }', async () => {
       const ids = seedProject('ORG');
       const subscriptions = app.get(ProjectSubscriptionsService);
 
@@ -732,7 +791,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       expect(reader.leave).toHaveBeenCalledWith(`project-version:${ids.versionId}`);
       expect(writer.leave).not.toHaveBeenCalled();
 
-      // 2. El binding pasa a REVOKED: el Maintainer sale, el Admin se queda.
+      // 2. El binding pasa a REVOKED: el Writer sale, el Admin se queda.
       (prisma.tables.repositoryBinding[0] as { status: string }).status = 'REVOKED';
       await expect(subscriptions.revalidateProject(ids.projectId)).resolves.toBe(1);
       expect(writer.leave).toHaveBeenCalled();

@@ -265,7 +265,7 @@
       "id": "WI-CORE-005",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-CANCELLED",
       "priority": "P2",
       "sprint": "P2",
       "title": "Optimizar índice vectorial y reindexación controlada",
@@ -293,7 +293,7 @@
       "id": "WI-CORE-006",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Trazar decisiones de candidatos RAG",
@@ -310,20 +310,36 @@
         "WI-CORE-001"
       ],
       "contractImpact": true,
-      "publishesContract": true,
+      "publishesContract": false,
       "specPaths": [
         "spec/features/004-rag-retrieval-context/spec.md",
         "spec/features/004-rag-retrieval-context/plan.md",
         "spec/features/004-rag-retrieval-context/tasks.md",
         "spec/features/011-context-traces/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata rutas y lifecycle de Project/RepositoryBinding; este WI solo verifica la trazabilidad de candidatos RAG ya contratada en INTEROP-2.6 §6.7.",
+          "report": "harness/reports/wi-core-006-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-006-contract-sync-scope-review.md"
+        }
       ]
     },
     {
       "id": "WI-CORE-007",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
-      "priority": "P2",
+      "status": "W-DONE",
+      "priority": "P1",
       "sprint": "P2",
       "title": "Persistir diagnóstico detallado de fallos experimentales",
       "storyIds": [
@@ -337,13 +353,34 @@
       "dependsOn": [
         "WI-CORE-001"
       ],
-      "contractImpact": true,
-      "publishesContract": true,
+      "contractImpact": false,
+      "publishesContract": false,
       "specPaths": [
         "spec/features/008-experimental-comparison/spec.md",
         "spec/features/008-experimental-comparison/plan.md",
         "spec/features/008-experimental-comparison/tasks.md",
         "spec/transversal/persistence/spec.md"
+      ],
+      "acceptanceCriteria": [
+        "El detalle de SandboxFailureFact (stage, category, code, message) se persiste como JSONB nulo `failure` en ExperimentRepetition, con message saneado de secretos y sin backfill, mediante una migración diseñada y revisada. Solo experimentos: no se toca TargetRunResult.",
+        "El detalle no cambia ExperimentRepetitionResponse; se expone únicamente en la evidencia de WI-CORE-027 y los valores no observables son null, nunca cero.",
+        "Se actualizan experiment-job.handler y el repositorio de experimentos y sus pruebas de lectura sin secretos. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI persiste el diagnóstico de fallos experimentales sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-007-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI persiste el diagnóstico de fallos experimentales sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-007-contract-sync-scope-review.md"
+        }
       ]
     },
     {
@@ -596,7 +633,7 @@
       "id": "WI-CORE-013",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "PHP V1",
       "title": "Generar y validar pruebas PHPUnit en proyectos PHP",
@@ -614,17 +651,37 @@
       "contractImpact": true,
       "publishesContract": true,
       "acceptanceCriteria": [
-        "Generación V1 produce propuestas de pruebas PHPUnit solo cuando PHPUnit está declarado y no atribuye soporte Pest.",
-        "Core envía executionProfile PHP_LARAVEL_PHPUNIT compatible con runnerHint PHPUNIT a Sandbox y maneja evidencia validada sin auto-reparación.",
-        "Contrato Core–Sandbox coordinado con el dueño de Sandbox antes de seleccionar; Sandbox no se cambia desde este WI Core.",
-        "Pruebas del profile, generación y validación; Harness, lint, tests y build pasan antes de revisión humana."
+        "Genera propuestas PHPUnit para símbolos PHP DIRECTLY_CHANGED METHOD/FUNCTION sin test existente solo cuando detectedFramework=PHPUNIT; sin PHPUnit la propuesta queda HELD con motivo; no atribuye Pest.",
+        "GenerationContext.metadata y PromptBuilder son conscientes del lenguaje (php/PHPUNIT); la respuesta se sanea y un contenido sin <?php es fallo técnico de generación.",
+        "Ruta del test según DEC-PHP-GEN-001 (archivo nuevo por target bajo tests/Unit, siempre CREATED, sufijo Generated si existe).",
+        "Core envía executionProfile PHP_LARAVEL_PHPUNIT y runnerHint PHPUNIT; no envía phase en este WI; sin auto-reparación.",
+        "mapSandboxResult usa TestCaseFact.failureKind (DEC-PHP-GEN-002): ERROR → TEST_RUNTIME, solo ASSERTION → TEST_ASSERTION; sin failureKind conserva la regla actual.",
+        "INTEROP canónico §7.3/§7.4 incorpora failureKind, la tolerancia de phase y los códigos nuevos; Contract Sync publicado a Console y Sandbox.",
+        "Pruebas unitarias por regla y regresión TypeScript intacta; Harness, lint, tests y build pasan antes de la revisión humana."
       ],
       "specPaths": [
-        "spec/features/018-php-laravel-support/spec.md",
-        "spec/features/018-php-laravel-support/plan.md",
-        "spec/features/018-php-laravel-support/tasks.md",
         "spec/contracts/interoperability-contract.md",
-        "spec/features/006-validation-orchestration/spec.md"
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/006-validation-orchestration/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
       ]
     },
     {
@@ -751,7 +808,7 @@
       "id": "WI-CORE-016",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "Post-transition",
       "title": "Evitar declarar cobertura sin targets elegibles",
@@ -795,6 +852,964 @@
           "disposition": "NOT_RELEVANT",
           "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni comportamiento de publicación.",
           "report": "harness/reports/wi-core-016-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "priority": "P0",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-017",
+      "title": "Preparar el SDD SMART V3 de Core",
+      "storyIds": [
+        "HU01",
+        "HU05",
+        "HU07",
+        "HU08",
+        "HU09",
+        "HU12",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-024"
+      ],
+      "dependsOn": [
+        "WI-CORE-016"
+      ],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "SYSTEM-2.6 e INTEROP-2.7 recogen `DEC-EXP-FK-001` (cerrada), `DEC-EXP-003`, `DEC-FK-001`, `DEC-FK-002` y `DEC-ORG-003`, y marcan cada superficie nueva como definida y pendiente de implementar con su WI.",
+        "Las specs, planes y tareas de 004, 008, 011, 013, 014, providers y experimental-metrics reflejan el alcance SMART V3, registran los hallazgos spec-código y cierran el diseño técnico (tablas, fórmulas, semilla, reintentos, migraciones) de los WI de implementación; HU17 usa «condiciones experimentales externas controladas».",
+        "WI-CORE-007 y WI-CORE-018 a WI-CORE-029 quedan registrados con subtarea, dependencias y criterios verificables; PHP, Sandbox y los WI antiguos 004, 005 y 008 quedan diferidos y no bloquean el resto.",
+        "Se publican Contract Sync a Console y GitHub Integration para importar SYSTEM-2.6 e INTEROP-2.7 byte a byte; no se modifica ningún otro repositorio.",
+        "Validadores SDD, Harness, work-items y completions pasan, no hay cambios en `app/` y el corte queda en W-IN_REVIEW a la espera de la revisión humana."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/features/014-organizations-access/spec.md",
+        "spec/features/014-organizations-access/plan.md",
+        "spec/features/014-organizations-access/tasks.md",
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "spec/transversal/experimental-metrics/spec.md",
+        "spec/transversal/experimental-metrics/plan.md",
+        "spec/transversal/experimental-metrics/tasks.md",
+        "spec/backlog.md",
+        "CHANGELOG.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata rutas y lifecycle de Project/RepositoryBinding; este WI no cambia esa superficie y solo añade roles, FK, OE2, OE5 y trace.",
+          "report": "harness/reports/wi-core-017-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-017-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P0",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-018",
+      "title": "UNKNOWN como abstención auditada y activación exacta de ACTION_REQUIRED",
+      "storyIds": [
+        "HU07",
+        "HU08",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-025"
+      ],
+      "dependsOn": [
+        "WI-CORE-017"
+      ],
+      "acceptanceCriteria": [
+        "Un módulo determinista extrae del AST TypeScript de un símbolo sus construcciones de comportamiento (ramificaciones, throw, escrituras o transiciones de estado), calcula su forma normalizada y su huella (DEC-FK-004) y compara el conjunto entre la base y el HEAD; los cambios cosméticos, el renombrado de locales y el reformateo no alteran la huella.",
+        "Solo se crea una pregunta cuando el target es METHOD/FUNCTION DIRECTLY_CHANGED, no existe una regla ACTIVE para el target (la aplicabilidad se refina a scenarioKey en WI-CORE-020) y hay una construcción nueva o modificada (DEC-FK-003). No se crea por getters, delegaciones puras, refactors sin cambio conductual, naming, calidad, performance, patrones, aprobación del PR, tooling ni configuración de PHPUnit; si ninguna construcción califica, el Run continúa sin preguntar. Una pregunta por construcción, de una en una.",
+        "La pregunta persiste scenarioKind y scenarioKey (columnas aditivas, nulas en preguntas históricas) y los expone en FunctionalQuestionResponse.",
+        "`UNKNOWN` registrado por Maintainer o Admin deja la pregunta PENDING, no crea ni modifica Functional Knowledge, no encola continuación ni generación y el Run sigue ACTION_REQUIRED; responde 202 con outcome ABSTAINED, continuationAttemptId null y knowledgeId null. El orden en submitAnswer es 404, pregunta obsoleta, rol, rama UNKNOWN, rama normal, y la rama UNKNOWN no llama a answer().",
+        "Cada abstención inserta una fila en la tabla aditiva functional_question_abstentions(id, questionId, userId, role, createdAt) con el rol efectivo del AccessGrant; `abstention` es {count, lastAt, lastByUserId, lastByRole} calculado de ella, o null sin filas; un UNKNOWN repetido audita sin duplicar efectos y el conteo es atómico bajo concurrencia.",
+        "Una respuesta no-UNKNOWN de una persona autorizada sigue el flujo normal y un HEAD nuevo obsoleta la pregunta como hoy.",
+        "Pruebas: UNKNOWN no continúa el Run, UNKNOWN repetido y concurrente, cada causa no válida de pregunta, cada construcción calificante y huella estable ante cambios cosméticos. Se actualizan functional-knowledge.service.spec.ts, functional-context-evaluator.service.spec.ts, functional-questions.repository.spec.ts y functional-continuation-job.handler.spec.ts. Contract Sync de implementación a Console (ABSTAINED, abstention, scenarioKind y scenarioKey de la pregunta). Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/system-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata rutas y lifecycle de Project/RepositoryBinding; este WI solo cambia la abstención UNKNOWN y la elegibilidad de preguntas funcionales.",
+          "report": "harness/reports/wi-core-018-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-018-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P0",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-019",
+      "title": "Rol Writer y procedencia de Functional Knowledge",
+      "storyIds": [
+        "HU01",
+        "HU07",
+        "HU08"
+      ],
+      "taskIds": [
+        "ST-CORE-026"
+      ],
+      "dependsOn": [
+        "WI-CORE-018"
+      ],
+      "acceptanceCriteria": [
+        "ProjectRole incorpora WRITER con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader mediante ADD VALUE al enum, y rolesAtLeast y los guards la incluyen; Core deriva el rol de los permisos GitHub: owner o creador personal Admin, admin/maintain Maintainer, write Writer, triage/read Reader, con membresía activa en organizaciones; el navegador nunca aporta el rol. La derivación y el enum se implementan en project-access.service.ts, project-access.repository.ts, accessible-project.filter.ts y el enum ProjectRole de app/prisma/schema.prisma.",
+        "Pasan de Maintainer a Writer, tanto en el controlador como en el servicio que fija el rol a mano: test-publications.controller y test-publications.service, experiments.controller y experiments.service (incluidos los comentarios «exige Maintainer»), repository-bindings.controller, verified-repository-binding.service y github-ui-authorization.service. Responder preguntas y UNKNOWN permanecen en Maintainer (functional-knowledge.controller y functional-knowledge.service); Writer y Reader reciben 403 PROJECT_ROLE_INSUFFICIENT con details, hay una prueba explícita de que Writer recibe 403 al responder y al enviar UNKNOWN, y la prueba default-deny sigue enumerando el router.",
+        "Los registros existentes no se reescriben en SQL: al desplegar se encola un ACCESS_REVERIFY de alcance completo que los reclasifica por verificación viva y, mientras tanto, se conserva el rol registrado sin degradación silenciosa; la reconciliación, la reverificación y la revocación manejan WRITER. Si el job ACCESS_REVERIFY no tiene hoy un alcance completo, este WI lo añade.",
+        "Las reglas nuevas persisten confirmedByUserId, confirmedRole (enum ConfirmingRole ADMIN|MAINTAINER), originHeadSha (el headSha del AnalysisRun de la pregunta respondida) y, solo para APPROVED_IMPORT, sourceRef; las reglas históricas quedan con esos campos null y originHeadSha no vence la regla.",
+        "Se actualizan las pruebas que enumeran roles (accessible-project.filter.spec.ts, accessible-project-scope.spec.ts, default-deny.spec.ts, project-role.guard.spec.ts, project-access.service.spec.ts, project-access.repository.spec.ts, organization-access.resolver.spec.ts, github-ui-authorization.service.spec.ts y los de proyectos, realtime y binding). Contract Sync de implementación a Console (WRITER y procedencia). Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/014-organizations-access/spec.md",
+        "spec/features/014-organizations-access/plan.md",
+        "spec/features/014-organizations-access/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/system-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto, rutas de enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo añade el rol WRITER, recalibra el rol mínimo de operaciones existentes y persiste la procedencia de reglas.",
+          "report": "harness/reports/wi-core-019-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-019-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P0",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-020",
+      "title": "Varias reglas ACTIVE por target con scenarioKey",
+      "storyIds": [
+        "HU07",
+        "HU09"
+      ],
+      "taskIds": [
+        "ST-CORE-027"
+      ],
+      "dependsOn": [
+        "WI-CORE-019"
+      ],
+      "acceptanceCriteria": [
+        "scenarioKind y scenarioKey de una regla se heredan de la pregunta que la originó (DEC-FK-004) y nunca los calcula ni los escribe la respuesta ni una persona; la misma construcción normalizada produce la misma clave.",
+        "La búsqueda de regla activa y la detección de conflicto usan Project + scope + targetRef + scenarioKey, respaldadas por un índice único parcial ACTIVE sobre (projectId, scope, targetRef, scenarioKey); reglas con distinto scenarioKey coexisten como ACTIVE y SUPERSEDE solo afecta a la del mismo scenarioKey; una carrera entre dos respuestas con la misma clave la resuelve el índice y la segunda recibe el conflicto.",
+        "El listado y la recuperación devuelven todas las ACTIVE del target; el 409 FUNCTIONAL_KNOWLEDGE_CONFLICT conserva su forma. La aplicabilidad de WI-CORE-018 se refina de «existe una regla para el target» a «misma scenarioKey».",
+        "Las reglas históricas reciben scenarioKind EXPECTED_RESULT y scenarioKey LEGACY mediante una migración reversible (DROP COLUMN) que conserva la historia.",
+        "Pruebas de determinismo, coexistencia, conflicto, supersede y carrera por escenario; se actualizan functional-knowledge.service.spec.ts y los specs del repositorio. Contract Sync de implementación a Console (scenarioKind y scenarioKey en las reglas, lista por target). Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/system-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo diferencia reglas de Functional Knowledge por scenarioKey.",
+          "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-020-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P0",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-021",
+      "title": "GenerationContext con functionalRules separadas y con procedencia",
+      "storyIds": [
+        "HU05",
+        "HU07",
+        "HU10"
+      ],
+      "taskIds": [
+        "ST-CORE-028"
+      ],
+      "dependsOn": [
+        "WI-CORE-020"
+      ],
+      "acceptanceCriteria": [
+        "GenerationContext es { target, relatedChunks, functionalRules, metadata }; un FunctionalRulesRetriever determinista devuelve las reglas ACTIVE del Project cuyo targetRef coincide exactamente con filePath::qualifiedName del target (todos los escenarios, sin herencia PROJECT/MODULE/CLASS) y ContextBuilder.build las recibe ya recuperadas.",
+        "Cada regla trae knowledgeId, scenarioKey, normalizedRule, scope, targetRef, source y procedencia; no se usan embeddings, chunks ni pgvector y comentarios, nombres y retornos del código no se inyectan como reglas.",
+        "El prompt las presenta en un bloque «Reglas funcionales» separado del código. Se ordenan por createdAt y knowledgeId, se cuentan con el mismo tokenizador que los chunks y se descuentan de maxContextTokens antes de los relatedChunks; si no caben todas entran las que quepan y la omisión consta en audit. El ContextTrace experimental no cambia.",
+        "Sandbox nunca recibe reglas funcionales (prueba a nivel de payload). Se actualizan context-builder.service.spec.ts, prompt-builder.service.spec.ts y los specs de experimentos y retrieval. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo separa las reglas funcionales en GenerationContext.",
+          "report": "harness/reports/wi-core-021-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-021-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-022",
+      "title": "Comparación de retrieval OE2 (SE vs SEM)",
+      "storyIds": [
+        "HU05",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-029"
+      ],
+      "dependsOn": [
+        "WI-CORE-017",
+        "WI-CORE-019"
+      ],
+      "acceptanceCriteria": [
+        "RETRIEVAL_MODE=SE|SEM se pasa como argumento a RetrievalService y el flujo del producto no lo recibe y sigue usando SE; el top semántico es 20. SEM es solo semántico (coseno, top 10, sin refuerzo estructural). SE une y deduplica los 20 semánticos con los estructurales (IMPORTS o IMPORTED_BY) y calcula combinedScore = semanticWeight·semanticScore (0 si es nulo) + structuralWeight·(1 si hay relación, 0 si no), con los pesos por defecto de ContextBuilder.",
+        "El orden es combinedScore descendente (SEM usa semanticScore), luego semanticScore descendente y luego chunkId ascendente; rank es 1..N sobre ese orden y selected es verdadero para rank ≤ 10. Ambos modos comparten Project/ProjectVersion, snapshot, target, chunks, embeddings, query anchor, top-20 semántico y exclusiones generales.",
+        "Existen las tablas aditivas retrieval_comparisons y retrieval_comparison_results (con retrievalId = id del resultado) con una migración revisada; la operación corre como job asíncrono RETRIEVAL_COMPARISON con estados PENDING→RUNNING→COMPLETED/FAILED y failureCode, y la Idempotency-Key usa el scope RETRIEVAL_COMPARISON_CREATE.",
+        "Los endpoints de INTEROP-2.7 §6.15 existen con rol Writer para crear y Reader para leer y con los errores 404/409/422/403 definidos; los resultados traen por modo retrieval_id, configuración y candidatos con semanticScore, structuralRelation, combinedScore, rank y selected, y no hay ganador.",
+        "P@k = |top-k ∩ groundTruth| / k y R@k = |top-k ∩ groundTruth| / |groundTruth| con coincidencia exacta por (filePath, symbolQualifiedName); sin groundTruth o con lista vacía, metrics es null.",
+        "Pruebas demuestran que la operación no invoca LLM, Functional Knowledge, ACTION_REQUIRED, generación, Sandbox ni publicación y que no altera el AnalysisRun; alcance TypeScript, PHP en WI-CORE-028. Se actualizan retrieval.service.spec.ts y context-builder.service.spec.ts. Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI implementa la comparación de retrieval OE2 (INTEROP-2.7 §6.15) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-022-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI implementa la comparación de retrieval OE2 (INTEROP-2.7 §6.15) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-022-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-023",
+      "title": "Paridad de LLMProvider entre RAG y GENERALIST_AGENT",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-030"
+      ],
+      "dependsOn": [
+        "WI-CORE-017"
+      ],
+      "acceptanceCriteria": [
+        "RAG y GENERALIST_AGENT invocan al LLM solo mediante LLMProvider, que agrega generateWithTools(messages, tools, config) además de generate; el SDK de OpenAI y sus tipos quedan confinados al adaptador y a la configuración, y el código de generalist-agent.service.ts que importa OpenAI, lee reasoning_effort y fuerza none con herramientas se mueve al adaptador.",
+        "Cada experimento resuelve una única LLMEffectiveConfig {provider, model, modelVersion, reasoningEffort, temperature, maxOutputTokens} que usan ambos brazos y se persiste en ExperimentRun.modelConfig. Por DEC-EXP-004 el experimento usa gpt-6-luna vía OpenAI con el esfuerzo máximo soportado por el modelo y el runtime, idéntico en ambos brazos; la configuración del flujo de producto no cambia.",
+        "El adaptador mantiene una lista configurable de combinaciones modelo/esfuerzo soportadas, también con herramientas; si la configuración no es compatible con algún brazo lanza un error tipado de configuración y nunca fuerza none ni cambia modelo o esfuerzo en silencio. El identificador del modelo se confirma contra la API en ejecución y un modelo no disponible impide crear el experimento. El mapeo a 422 REASONING_EFFORT_UNSUPPORTED lo implementa WI-CORE-025.",
+        "Cambiar de proveedor no altera retrieval, Sandbox ni contratos HTTP; no se añade selector en la interfaz, no se inventa un segundo proveedor y los embeddings quedan fuera. Evidencia M1 = 0 archivos fuera del adaptador y la configuración, M2 = 0 cambios de contrato, M3 = 100 % de pruebas aplicables; se actualizan openai-llm.provider.spec.ts y generalist-agent.service.spec.ts. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo confina el SDK de OpenAI al adaptador de LLMProvider y unifica la configuración efectiva.",
+          "report": "harness/reports/wi-core-023-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI no cambia auth, configuración ni publicación.",
+          "report": "harness/reports/wi-core-023-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-024",
+      "title": "Exploración del agente generalista con pruebas existentes visibles",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-031"
+      ],
+      "dependsOn": [
+        "WI-CORE-023"
+      ],
+      "acceptanceCriteria": [
+        "El agente dispone exactamente de list_files, read_file, search_text e inspect_symbol (definición y referencias en una sola herramienta); no existe shell, ejecución de Composer/PHPUnit/Jest/Vitest, escritura, Internet ni GitHub API (prueba que enumera las herramientas).",
+        "Se retiran los filtros de WorkspaceAgentTools que ocultan las pruebas que cubren el target (workspace-agent-tools.ts) y las pruebas existentes pueden descubrirse y leerse, sin entregarse directamente (DEC-EXP-003); se mantiene la exclusión de rutas fuera del snapshot como node_modules y .git. Se actualizan las descripciones de las herramientas que ve el modelo (workspace-agent-tools.ts) que hoy dicen que se excluyen las pruebas que cubren el target.",
+        "toolCallCap es 20, configurable por entorno; al alcanzarlo se hace una última llamada sin herramientas para generar la prueba. Cada resultado de herramienta se trunca para no superar contextTokenBudget (= maxContextTokens de RAG) y lo truncado consta en la trayectoria. El tope, el presupuesto, filesInspected y la secuencia observable se persisten sin chain-of-thought. maxDurationMs forma parte del presupuesto que persiste WI-CORE-025 (budget).",
+        "El agente no recibe Functional Knowledge ni el oráculo. Se actualizan workspace-agent-tools.spec.ts, generalist-agent.service.spec.ts, los specs de context-traces y experiment-job.handler.spec.ts. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints. El Contract Sync de experimentos lo emite WI-CORE-025."
+      ],
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI solo cambia las herramientas del agente generalista y sus límites, sin tocar contratos, auth ni publicación.",
+          "report": "harness/reports/wi-core-024-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI solo cambia las herramientas del agente generalista y sus límites, sin tocar contratos, auth ni publicación.",
+          "report": "harness/reports/wi-core-024-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-025",
+      "title": "OE5 pareado: orden, seed, presupuesto y reintentos",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-032"
+      ],
+      "dependsOn": [
+        "WI-CORE-023",
+        "WI-CORE-024"
+      ],
+      "acceptanceCriteria": [
+        "Un experimento ejecuta 3 pares (3 repeticiones RAG y 3 GA), cada repetición en sesión fresca. Core genera randomizationSeed (32 bytes aleatorios en hexadecimal) y el orden del par i lo decide un PRNG determinista sembrado con SHA-256(seed + \":\" + i): la misma semilla produce el mismo orden. pairId es un UUID de Core por par, compartido por ambas estrategias de la repetición, y el intento 2 reutiliza pairId y pairPosition.",
+        "ExperimentRun y ExperimentRepetition agregan columnas aditivas (randomizationSeed, budget, executionProfile, runnerHint; pairId, pairPosition, technicallyEvaluable) con una migración revisada; modelConfig ya fue persistida por WI-CORE-023 (migración 20261008160000) y WI-CORE-025 no la repite ni la migra de nuevo; executionProfile y runnerHint son los valores que Core envía al Sandbox; ExperimentStatusResponse y ExperimentRepetitionResponse los exponen según INTEROP-2.7 §6.5.1 y los valores no observables son null, nunca cero.",
+        "Un fallo de la estrategia no se reintenta por calidad. Un fallo externo demostrado (error del proveedor LLM 5xx, 429 o timeout de red, o failureType INFRASTRUCTURE del Sandbox) admite como máximo un reintento; el segundo fallo externo deja technicallyEvaluable false. El intento 1 conserva la identidad Sandbox experiment:{jobId}:{strategy}:{repetition} y el intento 2 usa el sufijo :2. No existe campo de ganador.",
+        "POST /experiments mapea el error de configuración del adaptador (WI-CORE-023) a 422 REASONING_EFFORT_UNSUPPORTED y no crea el experimento. RAG usa SE, ContextBuilder y las reglas ACTIVE aplicables (DEC-EXP-FK-001); el agente no recibe Functional Knowledge; PHP queda excluido hasta WI-CORE-029.",
+        "Se actualizan experiments.service.spec.ts, experiment-job.handler.spec.ts, context-traces.repository.spec.ts y los DTO de experiments. Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI cambia el contrato de experimentos (pareado OE5) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-025-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI cambia el contrato de experimentos (pareado OE5) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-025-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-026",
+      "title": "Trace operativo de nueve enlaces con retrieval_id y context_id",
+      "storyIds": [
+        "HU12",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-033"
+      ],
+      "dependsOn": [
+        "WI-CORE-021"
+      ],
+      "acceptanceCriteria": [
+        "Core persiste un retrieval_id (UUID) por ejecución de retrieval y target y un context_id por contexto construido en las tablas aditivas analysis_retrievals y analysis_contexts, ligadas a AnalysisSymbol y AnalysisRun; GeneratedTestProposal referencia contextId. Core captura el executionId del Sandbox y lo guarda con proposalId, attempt, executionProfile y outcome; no crea changeset_id, test_candidate_id ni otros identificadores.",
+        "GET /analysis-runs/{id}/trace devuelve la cadena de INTEROP-2.7 §6.16 con rol Reader; checkId es el identificador del Check devuelto por GitHub Integration (se añade la columna si no existe) y freshness es STALE, CURRENT o null. context.functionalRuleIds sale de las reglas incluidas en el contexto por WI-CORE-021.",
+        "Un enlace es NOT_APPLICABLE solo cuando el flujo termina legítimamente antes: changeset sin targets; retrieval y context si el Run terminó antes de recuperar; generation si quedó en ACTION_REQUIRED antes de generar; executions sin propuesta ejecutada; publication sin TestPublication. Se prueban un Run sin targets y un Run detenido en ACTION_REQUIRED. La traza responde 409 EVIDENCE_NOT_FINISHED en QUEUED y PROCESSING.",
+        "El trace es distinto del ContextTrace experimental, no incluye chain-of-thought ni secretos, no cambia el contexto entregado al LLM y no hay backfill de Runs anteriores. Se actualizan analysis-run-validation-job.handler.spec.ts y context-traces.service.spec.ts y se crea la prueba del endpoint. Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints.",
+        "Obligación heredada de WI-CORE-021 (aprobada por el usuario): el context_id persistido conserva los functionalRuleIds seleccionados (orden determinista), el conteo de reglas recuperadas, seleccionadas y omitidas, y el motivo de omisión (al menos TOKEN_BUDGET) con la referencia knowledgeId de cada regla; la procedencia autoritativa (confirmedByUserId, confirmedRole, originHeadSha, source, sourceRef) se reconstruye por knowledgeId desde Functional Knowledge y no se duplica completa en cada fila de trace ni en el prompt. Se prueba con persistencia real del context_id (incluido el caso de reglas omitidas por TOKEN_BUDGET) y se invierte la aserción actual de experiment-job.handler.spec.ts que exige la ausencia de functionalRules/procedencia en el ContextTrace experimental. Si estos campos se exponen en GET /analysis-runs/{id}/trace o en el bundle de evidencia, se actualiza INTEROP-2.7 §6.16 y se emite el Contract Sync correspondiente a Console."
+      ],
+      "specPaths": [
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI implementa el trace operativo (INTEROP-2.7 §6.16) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-026-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI implementa el trace operativo (INTEROP-2.7 §6.16) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-026-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-027",
+      "title": "Exportación de evidencia versionada y jerarquía de métricas",
+      "storyIds": [
+        "HU12",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-034"
+      ],
+      "dependsOn": [
+        "WI-CORE-007",
+        "WI-CORE-025",
+        "WI-CORE-026"
+      ],
+      "acceptanceCriteria": [
+        "GET /analysis-runs/{id}/evidence, /experiments/{id}/evidence y /retrieval-comparisons/{id}/evidence devuelven un EvidenceBundleResponse con schemaVersion \"1\" y las secciones por kind definidas en el plan de experimental-metrics (analysisRun nulo en EXPERIMENT y RETRIEVAL_COMPARISON); un AnalysisRun responde 409 EVIDENCE_NOT_FINISHED en QUEUED y PROCESSING y un experimento o comparación antes de COMPLETED o FAILED.",
+        "sandbox.facts se limita a la lista cerrada executionProfile, runner, compiled, executed, passed, totalTests, passedTests, failedTests, skippedTests, testCasesTruncated, failureStage, failureCategory, failureCode y failureMessage saneado, nunca logs, evidencias ni URLs; snapshotRef es opaco y artifactHash es un SHA-256.",
+        "La evidencia no contiene chain-of-thought, credenciales ni identificadores EV-OE*; una prueba de esquema estable (snapshot) detecta cambios no versionados.",
+        "Los DTO y agregados respetan la jerarquía CF/CO/VT documentada en spec/transversal/experimental-metrics: CF y CO son externos y no se derivan de valid/passed, no hay ganador ni significancia estadística y los valores no observables son null.",
+        "Se emite el Contract Sync de implementación a Console. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints.",
+        "Obligación heredada de WI-CORE-025 (aprobada por el usuario): la exclusión de repeticiones con technicallyEvaluable=false de las tasas y promedios ya está implementada en StrategyMetricsResponse; WI-027 la refleja en los agregados y la evidencia (sección experimental), distingue «sin datos evaluables» de 0 % (resuelto por DEC-EVID-001, aprobada por el usuario el 2026-10-09: sin slots evaluables las tasas y las medias de duración de StrategyMetricsResponse son number | null y se añaden evaluableRepetitions y nonEvaluableRepetitions; toca el contrato y emite Contract Sync a Console) y no deriva CF/CO de esos slots."
+      ],
+      "specPaths": [
+        "spec/transversal/experimental-metrics/spec.md",
+        "spec/transversal/experimental-metrics/plan.md",
+        "spec/transversal/experimental-metrics/tasks.md",
+        "spec/features/011-context-traces/spec.md",
+        "spec/features/011-context-traces/plan.md",
+        "spec/features/011-context-traces/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI implementa la exportación de evidencia (INTEROP-2.7 §6.16) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-027-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI implementa la exportación de evidencia (INTEROP-2.7 §6.16) y emite su propio Contract Sync, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-027-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-028",
+      "title": "Relaciones estructurales PHP R-PHP1 a R-PHP5 en retrieval",
+      "storyIds": [
+        "HU05",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-035"
+      ],
+      "dependsOn": [
+        "WI-CORE-013"
+      ],
+      "acceptanceCriteria": [
+        "SE para proyectos PHP incorpora IMPORTS, IMPORTED_BY, SAME_NAMESPACE, FULLY_QUALIFIED_REFERENCE y DECLARING_CLASS según DEC-PHP-RET-001, con pruebas por relación; TypeScript sin cambios.",
+        "Las trazas de contexto aceptan las relaciones PHP (INTEROP aditivo) y la comparación OE2 admite PHP sin cambiar la forma de §6.15 (se retira solo su 422 PHP).",
+        "Contract Sync a Console publicado; Harness, lint, tests y build pasan antes de la revisión humana."
+      ],
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
+      "id": "WI-CORE-029",
+      "title": "OE5 con PHP/PHPUnit",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-036"
+      ],
+      "dependsOn": [
+        "WI-CORE-013",
+        "WI-CORE-025",
+        "WI-CORE-028"
+      ],
+      "acceptanceCriteria": [
+        "POST /experiments acepta proyectos PHP con PHPUnit (runner PHPUNIT, perfil PHP_LARAVEL_PHPUNIT); PHP sin PHPUnit conserva 422; el job no bloquea PHP.",
+        "Ambos brazos usan DEC-PHP-GEN-001 (CREATED), sanitizeGeneratedPhp y el mismo Sandbox; RAG con contexto/prompt PHP y FK aplicable; el agente con instrucciones PHP equivalentes y las mismas herramientas.",
+        "inspect_symbol encuentra declaraciones y referencias PHP con tree-sitter con el mismo formato que TypeScript; TypeScript sin cambios.",
+        "INTEROP §6.5/§6.5.1 actualizado y Contract Sync a Console; Harness, lint, tests y build pasan antes de la revisión humana."
+      ],
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "id": "WI-CORE-030",
+      "title": "Recuperar jobs sin dedupeKey cuyo worker murió (experimentos)",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-037"
+      ],
+      "dependsOn": [
+        "WI-CORE-025"
+      ],
+      "acceptanceCriteria": [
+        "Un job de experimento (y cualquier job sin dedupeKey que lo requiera según el análisis SDD) cuyo worker murió con el lock vencido deja de quedar RUNNING para siempre: la cola lo libera y se redistribuye, sin ejecutar dos veces la misma repetición.",
+        "La decisión de qué intento RUNNING está huérfano reutiliza el latido por repetición de WI-CORE-025 (attempt-recovery); un latido vigente no se toca y respeta JOBS_MAX_ATTEMPTS.",
+        "El análisis SDD documenta por qué releaseStale solo libera jobs con dedupeKey (qué tipos de job no son idempotentes) y fija por tipo si se libera o no; no se amplía a tipos con efectos no idempotentes sin decisión del usuario.",
+        "Pruebas que reproducen la redistribución tras un lock vencido, la no duplicación con latido vigente y el límite de intentos; sin tiempos reales.",
+        "Sin cambio de contrato público esperado (contractImpact=false); si el análisis lo desmiente, se registra y se emite Contract Sync.",
+        "Endurecimiento heredado de la revisión independiente de WI-CORE-025 (H3 y parte de H4): updateRepetitionById lleva una guarda de estado (solo actualiza filas en RUNNING) para que un worker zombi no sobrescriba una fila ya cerrada en redelivery; y markStarted/complete() de ExperimentRunsRepository limpian failureCode/failureMessage para que un experimento que pasó por markFailed y luego completa en un retry no termine COMPLETED con failureCode puesto. Con pruebas de cada caso."
+      ],
+      "specPaths": [
+        "spec/transversal/async-jobs/spec.md",
+        "spec/transversal/async-jobs/plan.md",
+        "spec/transversal/async-jobs/tasks.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI es una recuperación interna de la cola de jobs sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-030-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI es una recuperación interna de la cola de jobs sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-030-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-030-scope-approval.md"
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "SMART V3",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "id": "WI-CORE-031",
+      "title": "Migrar las llamadas con herramientas del proveedor LLM a /v1/responses",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-038"
+      ],
+      "dependsOn": [
+        "WI-CORE-025"
+      ],
+      "acceptanceCriteria": [
+        "Los experimentos OE5 pueden correr RAG y GENERALIST_AGENT con gpt-6-luna al esfuerzo máximo que acepte el modelo con herramientas (DEC-EXP-004), con el mismo modelo, endpoint y esfuerzo en ambos brazos: las llamadas usan /v1/responses porque /v1/chat/completions solo admite reasoning_effort=none con herramientas (verificado el 2026-10-09, harness/reports/deployment-preconditions-20261009.md).",
+        "Decisión del usuario (2026-10-09): TODOS los flujos del proveedor migran a /v1/responses, incluido el flujo de producto (gpt-4o-mini u otro modelo sin razonamiento: no se envía el parámetro reasoning); se revalida el flujo de producto con pruebas de regresión.",
+        "Decisión del usuario (2026-10-09): conversación sin estado: store=false, sin previous_response_id, y los ítems de razonamiento cifrados se devuelven al modelo en cada turno (include reasoning.encrypted_content) para conservar su hilo entre llamadas a herramientas; ningún dato de repositorios queda retenido en OpenAI. El SDD verifica este comportamiento con una prueba real mínima autorizada y la implementación queda cubierta con el cliente simulado.",
+        "Decisión del usuario (2026-10-09): el endpoint efectivo se guarda solo en modelConfig interno y en la evidencia experimental; NO se expone en el campo model del contrato (sin cambio de INTEROP ni Contract Sync).",
+        "LLM_SUPPORTED_COMBINATIONS refleja los esfuerzos verificados contra la API real para gpt-6-luna (efforts y toolEfforts); sin valores adivinados. El conteo de tokens se lee de usage de Responses (input_tokens y output_tokens, con el razonamiento incluido en la salida) con el mismo significado en las métricas y el costo.",
+        "Sin degradación silenciosa: REASONING_EFFORT_UNSUPPORTED si el modelo no admite el esfuerzo pedido.",
+        "Pruebas con el cliente del SDK simulado (openai 7.8.0, client.responses.create); ninguna llamada real a OpenAI en la suite; bucle de herramientas del agente cubierto (llamadas a función, salidas, tope de tool calls y presupuesto de contexto de WI-CORE-024); el esquema de herramientas es compatible con Responses.",
+        "Sin cambio de contrato público esperado (contractImpact=false); si el análisis lo desmiente se registra y se emite Contract Sync."
+      ],
+      "specPaths": [
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/contracts/system-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI migra el cliente del proveedor LLM a /v1/responses sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-031-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI migra el cliente del proveedor LLM a /v1/responses sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-031-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-031-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-032",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "PHP V1",
+      "title": "Construcciones de comportamiento PHP para ACTION_REQUIRED",
+      "storyIds": [
+        "HU07",
+        "HU08"
+      ],
+      "taskIds": [
+        "ST-CORE-039"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-013"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "DEC-FK-003/004 se extienden a PHP: huella determinista (tree-sitter) de ramificaciones, throw y transiciones/escrituras de estado de métodos y funciones PHP.",
+        "Un target PHP DIRECTLY_CHANGED con construcciones nuevas o modificadas y sin regla ACTIVE aplicable produce ACTION_REQUIRED; TypeScript conserva su comportamiento.",
+        "Pruebas por tipo de construcción y regresión TypeScript; Harness, lint, tests y build pasan antes de la revisión humana."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "PHP V1",
+      "caseIds": [],
+      "contractImpact": true,
+      "publishesContract": false,
+      "id": "WI-CORE-033",
+      "title": "Integrar el PR #13 de PHP/PHPUnit (WI-CORE-013, 032, 028, 029) con feature/jean",
+      "storyIds": [
+        "HU05",
+        "HU07",
+        "HU08",
+        "HU10",
+        "HU11",
+        "HU12",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-040"
+      ],
+      "dependsOn": [
+        "WI-CORE-013",
+        "WI-CORE-028",
+        "WI-CORE-029",
+        "WI-CORE-032",
+        "WI-CORE-027"
+      ],
+      "acceptanceCriteria": [
+        "La rama de integración fusiona origin/feature/php-core con merge commit y conserva los 28 commits del PR; sin rebase ni squash.",
+        "Cada conflicto se resuelve con criterio y razón: sin perder nada de WI-CORE-007, 022, 026, 027, 030 y 031 ni de PHP (013, 032, 028, 029).",
+        "INTEROP fusionado ratificado por el contract-reviewer; avisos del PR renumerados a CS-CORE-20261009-016/-017/-018 sin reescribir los nuestros ni la historia del PR.",
+        "runnerHint PHPUNIT en la evidencia (deuda de WI-CORE-028) con pruebas; el cierre de WI-CORE-013, 032, 028 y 029 se registra con la evidencia de sus reportes y sin atribuirles su trabajo a esta integración.",
+        "Harness, lint, tests, build, e2e y specs pg pasan antes de la revisión; tsc en la línea base de 43."
+      ],
+      "specPaths": [
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/011-context-traces/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; esta integración no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; esta integración no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
         }
       ]
     }

@@ -47,8 +47,8 @@ export class TestPublicationsService {
       );
     }
 
-    // HU60: publicar exige Maintainer (Reader `403`); la publicación ya aceptada no se reevalúa.
-    await this.projectAccess.require(ownerUserId, run.projectId, 'MAINTAINER');
+    // HU60 / INTEROP-2.7 §6.13: publicar exige Writer (Reader `403`); la publicación ya aceptada no se reevalúa.
+    await this.projectAccess.require(ownerUserId, run.projectId, 'WRITER');
 
     if (run.status !== 'SUCCESS' || !run.current) {
       throw new AppException(

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-009
+source: core
+sourceWorkItem: WI-CORE-025
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - Aclaracion documental sin cambio de forma que acota CS-CORE-20261009-008 (que no se modifica): ExperimentRepetitionResponse.executionDurationMs es null si el Sandbox nunca se invoco y en corridas previas (antes se emitia 0); si la llamada al Sandbox se hizo y fallo (p. ej. SandboxUnavailableError) se registra el tiempo transcurrido de esa llamada, nunca un 0 inventado. StrategyMetricsResponse.executionDurationMs sigue siendo number.
+requiredAction:
+  - Console: refrescar el contrato desde sourceRevision y acusar; mostrar un guion cuando executionDurationMs sea null y el numero cuando haya una llamada fallida al Sandbox; sin otro cambio de codigo respecto de CS-CORE-20261009-008.
+sourceRevision: 400f55efce4ad886de548f8ded8600483dfa70a1
+status: C-PENDING

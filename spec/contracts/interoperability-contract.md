@@ -1,17 +1,17 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.6
-**Compatible con:** SYSTEM-2.5
-**Fecha de corte:** 2026-09-27
+**Versión:** INTEROP-2.7
+**Compatible con:** SYSTEM-2.6
+**Fecha de corte:** 2026-10-09
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
-Este documento define el contrato HTTP operativo entre Developer Console, RAG Core y Test Execution Sandbox. Core y Console conservan una copia espejo byte por byte; Sandbox mantiene la línea base anterior mientras otro desarrollador trabaja allí. `GH-INTEROP-1.2` especifica además la superficie autenticada Console→GitHub Integration y el callback privado Integration→Core. Las rutas actuales Core de discovery, verificación y ramas se mantienen durante la compatibilidad; no se retiran en este corte.
+Este documento define el contrato HTTP operativo entre Developer Console, RAG Core y Test Execution Sandbox. Core y Console conservan una copia espejo byte por byte; Sandbox mantiene la línea base anterior mientras otro desarrollador trabaja allí. `GH-INTEROP-1.3` especifica además la superficie autenticada Console→GitHub Integration y el callback privado Integration→Core. Las rutas actuales Core de discovery, verificación y ramas se mantienen durante la compatibilidad; no se retiran en este corte.
 
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.6` es la versión documental vigente. Mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.7` es la versión documental vigente (preparada en `WI-CORE-017`). Sobre la base de `INTEROP-2.6` agrega el rol Writer (§6.13), la abstención auditada de `UNKNOWN` y la procedencia y escenarios de Functional Knowledge (§6.11), las extensiones de OE5 (§6.5.1), la comparación de retrieval OE2 (§6.15) y el trace operativo con exportación de evidencia (§6.16). Cada sección indica su estado: la abstención `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge (§6.11, aplicabilidad y conflicto por `scenarioKey`) y el rol Writer están implementados en Core (`WI-CORE-018`, `WI-CORE-019`, `WI-CORE-020`), así como las extensiones de OE5 (§6.5.1; `WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`) y la comparación de retrieval OE2 (§6.15; `WI-CORE-022`) y el trace operativo y la exportación de evidencia (`/trace` y `/evidence` de §6.16; `WI-CORE-026` y `WI-CORE-027`), la ejecución PHP/PHPUnit en Core (`WI-CORE-013`, §7), las relaciones estructurales PHP y la comparación de retrieval sobre PHP (`WI-CORE-028`, §6.15) y los experimentos PHP/PHPUnit (`WI-CORE-029`, §6.5); lo demás sigue definido y pendiente de implementar y verificar según el WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -44,7 +44,7 @@ interface Page<T> {
 - `x-correlation-id`: opcional desde el navegador; RAG Core lo genera cuando falta y siempre lo devuelve. Core lo propaga al Sandbox y el Sandbox lo devuelve.
 - `Idempotency-Key`: UUID obligatorio en respuestas funcionales, solicitudes de publicación y `POST /executions`. Los webhooks usan `x-github-delivery` como identidad externa y no aceptan una key inventada por la Console. La ausencia o formato inválido devuelve `400 IDEMPOTENCY_KEY_REQUIRED` o `400 INVALID_IDEMPOTENCY_KEY`.
 - En navegador→Core, Developer Console genera una key por acción lógica y conserva el mismo valor en todo reintento de transporte. Core persiste key + huella canónica del request bajo una restricción única: mismo par devuelve la respuesta aceptada original sin crear recurso/job adicional; misma key con huella distinta devuelve `409 IDEMPOTENCY_CONFLICT`.
-- En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace URL estándar y un nombre canónico de la unidad lógica, por ejemplo `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}` o `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}`. La key hija es también `requestId` y se reutiliza en cualquier retry de transporte.
+- En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace URL estándar y un nombre canónico de la unidad lógica, por ejemplo `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}` o `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}`. En experimentos (INTEROP-2.7, `DEC-IDEMP-001`) el intento 1 conserva ese nombre; el único reintento por fallo externo (§6.5.1) usa `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}:2` (sufijo `:{attempt}` solo si `attempt > 1`; nunca hay intento 3), de modo que un reintento de transporte del intento 2 reutiliza su propia key sin colisionar con el intento 1. La key hija es también `requestId` y se reutiliza en cualquier retry de transporte.
 - `Authorization: Bearer <service-token>` es obligatorio en todos los endpoints `/executions`. El valor es un secreto opaco precompartido de alta entropía, configurado como `SANDBOX_SERVICE_TOKEN` en Core y Sandbox; no es JWT, no usa proveedor de identidad y nunca ingresa al frontend, logs, PostgreSQL, Storage o container. Core lo exige cuando configura `SANDBOX_URL`; Sandbox lo exige al arrancar. Los endpoints `/health/live` y `/health/ready` no requieren este header.
 - `Authorization: Bearer <user-access-token>` es obligatorio en todos los endpoints navegador→Core salvo `GET /health`. Es un JWT de sesión emitido por Supabase Auth para HU01/HU02; RAG Core valida firma, issuer, audience y expiración mediante el mecanismo compatible con las signing keys del proyecto. El token identifica a la persona (`sub`) y nunca se reenvía al Sandbox. Toda sesión debe tener identidad GitHub (HU01/HU02, `DEC-ORG-001`): Core resuelve el `githubUserId` numérico con la Admin API de Supabase (§6.13, "Identidad"); un token válido sin identidad GitHub devuelve `401 GITHUB_IDENTITY_REQUIRED`.
 - `X-GitHub-Provider-Token` se exige para discovery: tanto en la ruta Core heredada `GET /integrations/github/repositories` como en la ruta directa Console→Integration. Para verificar un repositorio nuevo también se exige en la ruta directa de Integration. En la ruta Core heredada de discovery, Console lo envía a Core y Core lo reenvía temporalmente a GitHub Integration; en las rutas directas, Console lo envía solo a Integration. No se usa para bindings existentes ni para listar ramas. Nunca se persiste, registra, devuelve ni reenvía a Sandbox, y no se usa para automatización GitHub App.
@@ -274,15 +274,19 @@ interface ExperimentStatusResponse {
   completedAt: IsoDateTime | null
 }
 
+// Nota informativa sobre ExperimentStatusResponse.failureCode: el campo sigue siendo `string | null` abierto; los consumidores deben tolerar valores desconocidos. Valores que Core emite hoy cuando status = FAILED: `EXPERIMENT_FAILED` (el handler capturó un error durante la ejecución y marcó el run) y `EXPERIMENT_WORKER_LOST` (la cola agotó los intentos tras la muerte del worker y cerró el run). Un run FAILED puede reanudarse; si completa, vuelve a COMPLETED y failureCode/failureMessage se limpian a null.
+
 interface StrategyMetricsResponse {
   strategy: ExperimentStrategy
-  validRate: number
-  compilationRate: number
-  executionRate: number
-  passedRate: number
-  generationDurationMs: number
-  executionDurationMs: number
-  totalDurationMs: number
+  evaluableRepetitions: number // INTEROP-2.7 (WI-CORE-027): repeticiones vigentes con technicallyEvaluable !== false; 0..3
+  nonEvaluableRepetitions: number // vigentes con technicallyEvaluable === false; evaluableRepetitions + nonEvaluableRepetitions = repeticiones vigentes de la estrategia
+  validRate: number | null // null si evaluableRepetitions = 0
+  compilationRate: number | null
+  executionRate: number | null
+  passedRate: number | null
+  generationDurationMs: number | null // media de los valores no nulos de las repeticiones evaluables; null si ninguna lo registró (siempre null si evaluableRepetitions = 0)
+  executionDurationMs: number | null // media de los valores no nulos; null si ninguna repetición evaluable invocó el Sandbox
+  totalDurationMs: number | null // ídem generationDurationMs
   inputTokens: number | null
   outputTokens: number | null
   totalTokens: number | null
@@ -301,7 +305,7 @@ interface ExperimentRepetitionResponse {
   valid: boolean
   failureType: FailureType
   generationDurationMs: number
-  executionDurationMs: number
+  executionDurationMs: number | null // INTEROP-2.7: null si el Sandbox nunca se invocó y en corridas previas; si la llamada al Sandbox falla se registra el tiempo transcurrido; nunca 0 inventado
   totalDurationMs: number
   inputTokens: number | null
   outputTokens: number | null
@@ -324,6 +328,58 @@ interface ExperimentResultsResponse {
 Las tasas usan el intervalo `[0,1]`. Un valor no observable se representa con `null`, nunca con cero. La moneda y metodología de `estimatedCost` deben viajar en la configuración persistida del experimento; este campo no implica una divisa universal.
 
 El contrato HTTP queda definido. `DEC-EXP-002` queda `APROBADO` (herramientas, límites y paridad del agente generalista definidos en `spec/features/008-experimental-comparison/spec.md`); implementar HU17 ya no está bloqueado por decisión, solo pendiente de código. `BASELINE` no es un valor válido.
+
+### 6.5.1 Extensiones de OE5 (INTEROP-2.7)
+
+**Implementado** en `WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`, `WI-CORE-027` y `WI-CORE-029` (experimentos PHP/PHPUnit) (2026-10-09). Desde `WI-CORE-027` las tasas y las medias de duración de `StrategyMetricsResponse` son `number | null` y se añaden `evaluableRepetitions` y `nonEvaluableRepetitions` (`DEC-EVID-001`). Bajo `DEC-EXP-FK-001`, `DEC-EXP-003` y `DEC-EXP-004`, OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información.
+
+- Ambos brazos comparten repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable. Por `DEC-EXP-004` el modelo es `gpt-6-luna` vía la API de OpenAI y el esfuerzo es el máximo soportado por el modelo y el runtime, idénticos en ambos brazos y registrados en la evidencia; el flujo de producto conserva su configuración actual. Core no degrada el razonamiento en silencio: si el proveedor no admite el esfuerzo pedido, el experimento falla al crearse en lugar de ejecutarse con otro. El esfuerzo y los parámetros efectivos se persisten.
+- RAG usa recuperación SE, `ContextBuilder` y el conocimiento funcional `ACTIVE` aplicable. El agente generalista explora en modo solo lectura, sin retriever RAG, sin `ContextBuilder` y sin conocimiento funcional persistente. Ninguno recibe el oráculo. El agente puede descubrir y leer las pruebas existentes; no se le entregan directamente ni se ocultan.
+- Herramientas permitidas del agente: `list_files`, `read_file`, `search_text` e `inspect_symbol`/referencias. Prohibidos: shell, Composer/PHPUnit/Jest/Vitest, escritura, Internet y GitHub API. Se persisten el tope de tool calls, el presupuesto de contexto, tokens, archivos y duración, y la secuencia observable de herramientas.
+- Diseño pareado: 3 repeticiones RAG y 3 GA forman 3 pares, cada repetición en sesión fresca. El orden dentro de cada par es aleatorio y reproducible a partir de `randomizationSeed`, que se persiste por experimento.
+- Reintentos: un fallo de la estrategia no tiene reintento de calidad; un fallo externo demostrado admite como máximo un reintento; un segundo fallo de infraestructura deja la repetición `technicallyEvaluable: false`. Implementación en Core: son fallos externos solo el fallo del proveedor LLM por HTTP 5xx, 429 o error de conexión, la excepción del cliente de Sandbox (`SandboxUnavailableError` u otra) y el resultado `INFRASTRUCTURE` del Sandbox salvo `TIMED_OUT`. El reintento es único (intento 2, inmediato, sesión fresca, mismo `pairId` y `pairPosition`); la fila vigente de cada repetición es su último intento (`attempt` 1 o 2). `technicallyEvaluable` es `false` tras el segundo fallo externo o si el intento 2 queda interrumpido (huérfano). Los experimentos creados antes de OE5 (`randomizationSeed` `null`) conservan su comportamiento anterior: sin pareado ni reintento. El sufijo `:2` de la identidad Core→Sandbox (§3) es interno y solo informativo para los consumidores.
+- Ningún DTO declara un ganador. `validRate`, `passedRate` y similares son diagnóstico técnico y no se derivan en CF/CO (SYSTEM-2.6, «Calidad, métricas y evidencia»).
+- Autorización y errores: `POST /experiments` exige Writer y `Idempotency-Key`; los GET exigen Reader y un experimento inexistente o no visible responde el mismo `404` que ya devuelve `GET /experiments/{experimentId}`. Si el proveedor no admite el esfuerzo de razonamiento pedido, la creación responde `422 REASONING_EFFORT_UNSUPPORTED` y no se crea el experimento; `details` incluye `supportedEfforts: string[]` (esfuerzos admitidos por el modelo configurado). Si el modelo de experimentos no está disponible (`MODEL_UNAVAILABLE` interno), la creación responde `503 LLM_PROVIDER_UNAVAILABLE` (§4, dependencia de plataforma) y tampoco crea el experimento. `TIMED_OUT` del Sandbox es fallo de la prueba generada y no cuenta como fallo externo para el reintento.
+- PHP/PHPUnit (`PHP_LARAVEL_PHPUNIT`, `PHPUNIT`) se admite en experimentos desde `WI-CORE-029` (2026-10-09): `runnerHint` `PHPUNIT` y perfil `PHP_LARAVEL_PHPUNIT`; ambos brazos ubican el test según `DEC-PHP-GEN-001` (archivo nuevo, `CREATED`) y una respuesta sin `<?php` es resultado técnico desfavorable de la estrategia, sin reintento. `POST /experiments` responde `422 UNSUPPORTED_PROJECT` y no crea el experimento ni encola el job cuando la versión no tiene framework `JEST`/`VITEST`/`PHPUNIT` detectado (un proyecto PHP sin PHPUnit incluido). Precedencia: Core valida este `422` después de Writer, indexación, versión completada y target, y antes de resolver el modelo (`REASONING_EFFORT_UNSUPPORTED`/`503`).
+- Semántica observable de las métricas agregadas: `StrategyMetricsResponse` calcula `validRate`, `compilationRate`, `executionRate`, `passedRate`, los promedios y `failures` únicamente sobre las repeticiones vigentes con `technicallyEvaluable !== false` (ese es el denominador; los slots no evaluables no entran). `evaluableRepetitions` es el número de esas repeticiones y `nonEvaluableRepetitions` el de las vigentes con `technicallyEvaluable: false`; su suma es el número de repeticiones vigentes devueltas de la estrategia (3 en un experimento completo). Cuando `evaluableRepetitions` vale `0`, las tasas y las medias de duración (`generationDurationMs`, `executionDurationMs`, `totalDurationMs`) valen `null`; con repeticiones evaluables, cada media de duración es la de los valores no nulos y es `null` si ninguna repetición evaluable la registró; y los promedios de tokens, costo, chunks, herramientas y archivos siguen siendo `null`; `failures` queda vacío. Un `0` en una tasa o duración significa cero real sobre al menos una repetición evaluable (por ejemplo `passedRate: 0` = ninguna pasó). Los consumidores deben tolerar `null` y mostrar «sin datos» en lugar de `0 %`; `evaluableRepetitions` y `nonEvaluableRepetitions` distinguen «sin datos» de un valor real sin recurrir a `repetitions[]`. `ExperimentRepetitionResponse.executionDurationMs` es `null` si el Sandbox nunca se invocó y en corridas previas (antes se emitía `0`); si la llamada al Sandbox se hizo y falló (p. ej. `SandboxUnavailableError`), registra el tiempo transcurrido de esa llamada. `StrategyMetricsResponse.executionDurationMs` es la media de los valores no nulos de las repeticiones evaluables y es `null` si no hay ninguno. En experimentos anteriores a OE5 todas las repeticiones son evaluables (`technicallyEvaluable` ausente o `true`) y los contadores resultan `evaluableRepetitions = n`, `nonEvaluableRepetitions = 0`.
+- Nota (`WI-CORE-027`, IDEA-015): `errorSummary` y `failureSummary` se emiten saneados (secretos redactados y truncado a 500 caracteres, de forma idempotente, también sobre filas previas) y `failure.category` se valida contra `FailureType` (un valor desconocido se emite como `UNKNOWN`). El cambio afecta solo al contenido de campos ya existentes; la forma de las respuestas no cambia.
+- `ExperimentRepetitionResponse.generationDurationMs` y `totalDurationMs` conservan `0` cuando no se observaron, hasta `IDEA-017` (excepción documentada a «un valor no observable es `null`»); las medias de `StrategyMetricsResponse` ya ignoran los `null` crudos y no dependen de ese `0`.
+- No se exponen campos internos de persistencia (por ejemplo la marca interna de `TIMED_OUT` ni el latido de intentos); los DTO solo contienen lo declarado en este contrato.
+
+```ts
+interface ExperimentModelConfigResponse {
+  provider: string
+  model: string
+  modelVersion: string | null
+  reasoningEffort: string | null // efectivo y común a ambos brazos
+  temperature: number | null
+  maxOutputTokens: number | null
+}
+
+interface ExperimentBudgetResponse {
+  toolCallCap: number
+  contextTokenBudget: number
+  maxDurationMs: number
+}
+
+// Campos que INTEROP-2.7 agrega a ExperimentStatusResponse (los consumidores ignoran campos desconocidos):
+interface ExperimentStatusV27Additions {
+  // null en corridas previas a OE5 (nunca valores inventados)
+  model: ExperimentModelConfigResponse | null
+  budget: ExperimentBudgetResponse | null
+  executionProfile: string | null
+  runnerHint: string | null
+  randomizationSeed: string | null
+}
+
+// Campos que INTEROP-2.7 agrega a ExperimentRepetitionResponse:
+interface ExperimentRepetitionV27Additions {
+  pairId: Id | null // null en filas previas a OE5
+  pairPosition: 1 | 2 | null // posición de ejecución dentro del par, reproducible desde randomizationSeed; null en filas previas
+  attempt: number // 1 o 2; no nulo (1 en filas previas)
+  technicallyEvaluable: boolean // no nulo (true en filas previas)
+}
+```
 
 ### 6.6 Progreso en tiempo real (WebSockets)
 
@@ -391,7 +447,7 @@ interface SourceExcerptResponse {
   truncated: boolean
 }
 
-type RagMatchedVia = 'SEMANTIC' | 'IMPORTS' | 'IMPORTED_BY'
+type RagMatchedVia = 'SEMANTIC' | 'IMPORTS' | 'IMPORTED_BY' | 'SAME_NAMESPACE' | 'FULLY_QUALIFIED_REFERENCE' | 'DECLARING_CLASS' // las tres últimas: PHP, aditivo 2026-10-09 (WI-CORE-028)
 type RagCandidateDecision = 'SELECTED' | 'DISCARDED'
 type RagDiscardReason = 'BELOW_MINIMUM_SCORE' | 'TOP_K_LIMIT' | 'TOKEN_BUDGET'
 
@@ -407,7 +463,7 @@ interface RagCandidateNodeResponse {
   excerpt: SourceExcerptResponse
   tokenCount: number
   semanticScore: number | null
-  structuralMatch: 'IMPORTS' | 'IMPORTED_BY' | null
+  structuralMatch: 'IMPORTS' | 'IMPORTED_BY' | 'SAME_NAMESPACE' | 'FULLY_QUALIFIED_REFERENCE' | 'DECLARING_CLASS' | null
   combinedScore: number
   matchedVia: RagMatchedVia[]
   decision: RagCandidateDecision
@@ -540,11 +596,11 @@ interface ProjectRepositoryBindingResponse {
 
 Core valida `repositoryId` y `repositoryName` mediante GitHub Integration antes de persistir (`POST .../integrations/github`). `verify-app-access` devuelve `repositoryId` y `repositoryName` tal como se enviaron; la validación autoritativa del id ocurre en `POST .../integrations/github`. `installationId` es evidencia resuelta por Core: no se acepta desde el navegador y es `null` cuando el resultado es `NOT_AUTHORIZED`. Las ramas se consultan mediante GitHub Integration, que conserva el token de instalación; por eso un repositorio sin acceso devuelve `403 GITHUB_APP_ACCESS_REQUIRED`. La creación exige que `integrationBranch` exista; no hay default. `NOT_AUTHORIZED` no es un error HTTP. Desconectar (`DELETE .../integrations/github`) deja el binding `DISABLED`: es una pausa reversible que conserva la fila y su `repositoryId`, deja de aceptar eventos nuevos y no borra Runs ni Functional Knowledge. Sobre un binding `REVOKED` responde `204` sin cambiar el estado (nunca lo degrada a `DISABLED`); sobre uno ya `DISABLED`, `204`. `installation.suspend` solo pausa bindings `ENABLED`; no altera `REVOKED` ni `DISABLED`.
 
-Reglas de `POST .../integrations/github` (HU02, HU02), en este orden de validación: `404 PROJECT_NOT_FOUND` (Project no visible), `403 PROJECT_ROLE_INSUFFICIENT` (rol menor que Maintainer), `409 REPOSITORY_BINDING_ALREADY_EXISTS` (el Project ya tiene binding), `403 GITHUB_APP_ACCESS_REQUIRED`, `404 GITHUB_REPOSITORY_NOT_FOUND`, `400 REPOSITORY_OUTSIDE_WORKSPACE`, `403 REPOSITORY_PERMISSION_INSUFFICIENT`, `409 REPOSITORY_ALREADY_BOUND`, `404 INTEGRATION_BRANCH_NOT_FOUND`. Core solicita a GitHub Integration resolver el `repositoryId` real y no confía en el enviado por el cliente. Si GitHub Integration confirma que el repositorio no existe o su `repositoryId` real no coincide con el enviado para `repositoryName`, Core responde `404 GITHUB_REPOSITORY_NOT_FOUND` sin persistir. Esta validación ocurre después de comprobar el acceso de la App y antes de comprobar si otro Project ya usa el repositorio. Un usuario sin ningún permiso sobre el repositorio (ni siquiera `read`) recibe el mismo `404 GITHUB_REPOSITORY_NOT_FOUND` que uno inexistente: ese caso colapsa en este paso, antes de `REPOSITORY_OUTSIDE_WORKSPACE`, y se acepta la diferencia residual con el `403 GITHUB_APP_ACCESS_REQUIRED` anterior (App no instalada frente a instalada sin permiso del usuario). En un Project de organización quien no es miembro activo ni siquiera ve el Project (`404 PROJECT_NOT_FOUND`, primer paso). `REPOSITORY_OUTSIDE_WORKSPACE`: el propietario real del repositorio (id de GitHub resuelto a través de GitHub Integration) no es la organización del Project o, en un Project personal, no es la cuenta de su creador (en personal, ser propietario del repositorio implica `admin` sobre él); en una organización solo se aceptan repositorios de esa organización. `REPOSITORY_PERMISSION_INSUFFICIENT`: el permiso efectivo del usuario sobre el repositorio, leído mediante GitHub Integration y normalizado como nivel (`role_name`; un rol personalizado se mapea por su permiso base), es `read` o `triage` y no `maintain`, `write` o `admin`, porque la GitHub App publica con permisos de escritura. Ambas validaciones ocurren antes de comprobar `REPOSITORY_ALREADY_BOUND`, de modo que un usuario no puede sondear qué repositorios ajenos están vinculados. Si GitHub Integration no puede verificar el permiso o la pertenencia, `503 GITHUB_VERIFICATION_UNAVAILABLE` y no se persiste nada; en `verify-app-access`, `branches` y `GET /integrations/github/repositories?workspaceId` un permiso o una pertenencia no verificable responde también `503`, nunca `NOT_AUTHORIZED` ni `404`. Un Project tiene un solo repositorio y no se revincula: no existe ruta para cambiarlo, `DELETE .../integrations/github` solo pausa y un `POST` posterior responde `409 REPOSITORY_BINDING_ALREADY_EXISTS`; para usar otro repositorio se elimina el Project y se crea otro. Como un Project sin repositorio solo lo ven sus Admin (§6.13), el primer vínculo lo hace un Admin. `REPOSITORY_ALREADY_BOUND` significa que otro Project ya usa ese repositorio; su mensaje es genérico y no revela el Project ni el usuario ajeno. Una violación de unicidad concurrente se traduce al `409` correspondiente, nunca a `500`.
+Reglas de `POST .../integrations/github` (HU02, HU02), en este orden de validación: `404 PROJECT_NOT_FOUND` (Project no visible), `403 PROJECT_ROLE_INSUFFICIENT` (rol menor que Writer), `409 REPOSITORY_BINDING_ALREADY_EXISTS` (el Project ya tiene binding), `403 GITHUB_APP_ACCESS_REQUIRED`, `404 GITHUB_REPOSITORY_NOT_FOUND`, `400 REPOSITORY_OUTSIDE_WORKSPACE`, `403 REPOSITORY_PERMISSION_INSUFFICIENT`, `409 REPOSITORY_ALREADY_BOUND`, `404 INTEGRATION_BRANCH_NOT_FOUND`. Core solicita a GitHub Integration resolver el `repositoryId` real y no confía en el enviado por el cliente. Si GitHub Integration confirma que el repositorio no existe o su `repositoryId` real no coincide con el enviado para `repositoryName`, Core responde `404 GITHUB_REPOSITORY_NOT_FOUND` sin persistir. Esta validación ocurre después de comprobar el acceso de la App y antes de comprobar si otro Project ya usa el repositorio. Un usuario sin ningún permiso sobre el repositorio (ni siquiera `read`) recibe el mismo `404 GITHUB_REPOSITORY_NOT_FOUND` que uno inexistente: ese caso colapsa en este paso, antes de `REPOSITORY_OUTSIDE_WORKSPACE`, y se acepta la diferencia residual con el `403 GITHUB_APP_ACCESS_REQUIRED` anterior (App no instalada frente a instalada sin permiso del usuario). En un Project de organización quien no es miembro activo ni siquiera ve el Project (`404 PROJECT_NOT_FOUND`, primer paso). `REPOSITORY_OUTSIDE_WORKSPACE`: el propietario real del repositorio (id de GitHub resuelto a través de GitHub Integration) no es la organización del Project o, en un Project personal, no es la cuenta de su creador (en personal, ser propietario del repositorio implica `admin` sobre él); en una organización solo se aceptan repositorios de esa organización. `REPOSITORY_PERMISSION_INSUFFICIENT`: el permiso efectivo del usuario sobre el repositorio, leído mediante GitHub Integration y normalizado como nivel (`role_name`; un rol personalizado se mapea por su permiso base), es `read` o `triage` y no `maintain`, `write` o `admin`, porque la GitHub App publica con permisos de escritura. Ambas validaciones ocurren antes de comprobar `REPOSITORY_ALREADY_BOUND`, de modo que un usuario no puede sondear qué repositorios ajenos están vinculados. Si GitHub Integration no puede verificar el permiso o la pertenencia, `503 GITHUB_VERIFICATION_UNAVAILABLE` y no se persiste nada; en `verify-app-access`, `branches` y `GET /integrations/github/repositories?workspaceId` un permiso o una pertenencia no verificable responde también `503`, nunca `NOT_AUTHORIZED` ni `404`. Un Project tiene un solo repositorio y no se revincula: no existe ruta para cambiarlo, `DELETE .../integrations/github` solo pausa y un `POST` posterior responde `409 REPOSITORY_BINDING_ALREADY_EXISTS`; para usar otro repositorio se elimina el Project y se crea otro. Como un Project sin repositorio solo lo ven sus Admin (§6.13), el primer vínculo lo hace un Admin. `REPOSITORY_ALREADY_BOUND` significa que otro Project ya usa ese repositorio; su mensaje es genérico y no revela el Project ni el usuario ajeno. Una violación de unicidad concurrente se traduce al `409` correspondiente, nunca a `500`.
 
 Reglas de `POST .../integrations/github/enable` (HU02): pasa `DISABLED` a `ENABLED` y es idempotente (un binding ya `ENABLED` responde `200` con el mismo cuerpo, sin revalidar). Antes de reactivar Core solicita a GitHub Integration revalidar el acceso de la App y refresca `installationId`; sin acceso responde `403 GITHUB_APP_ACCESS_REQUIRED` y el estado no cambia. Un binding `REVOKED` también se reactiva por esta ruta (en un Project de organización solo lo hace un Admin, el único que lo ve, §6.13) si la revalidación confirma que la App recuperó acceso al repositorio (así un Project sale de `REVOKED` sin borrarse); si no hay acceso, `403 GITHUB_APP_ACCESS_REQUIRED` y sigue `REVOKED`. Reactivar un `REVOKED` aplica además la misma validación de propietario y de `repositoryId` que `POST .../integrations/github`: Core solicita a GitHub Integration resolver el `repositoryId` real del `repositoryName` guardado y, si GitHub Integration confirma que no existe o no coincide con el `repositoryId` persistido (repositorio eliminado y recreado con el mismo nombre), responde `404 GITHUB_REPOSITORY_NOT_FOUND`, y si su propietario ya no es el workspace del Project (transferido), `400 REPOSITORY_OUTSIDE_WORKSPACE`; en ambos casos el binding sigue `REVOKED`. La reactivación siempre compara el `repositoryId` persistido. Sin Project propio (inexistente, ajeno o borrado): `404 PROJECT_NOT_FOUND`; sin binding: `404 REPOSITORY_BINDING_NOT_FOUND`.
 
-`GET .../integrations/github` exige rol Reader; `POST .../integrations/github`, `POST .../enable` y `DELETE .../integrations/github` exigen Maintainer (que incluye a Admin), y `enable` sobre un binding `REVOKED` sigue la regla de visibilidad de §6.13. `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches`, que no reciben un Project, exigen que el usuario tenga permiso `maintain`, `write` o `admin` sobre el repositorio consultado: con permiso menor responden `403 REPOSITORY_PERMISSION_INSUFFICIENT` y sin ninguna visibilidad `branches` responde `404 GITHUB_REPOSITORY_NOT_FOUND` (mismo criterio que `POST .../integrations/github`) y `verify-app-access` `NOT_AUTHORIZED`, de modo que no revelan la instalación ni las ramas de repositorios ajenos; un permiso no verificable responde `503 GITHUB_VERIFICATION_UNAVAILABLE`. Orden en `branches`: App no instalada en el repositorio `403 GITHUB_APP_ACCESS_REQUIRED` (como hasta ahora), después sin visibilidad `404 GITHUB_REPOSITORY_NOT_FOUND`, después permiso menor `403 REPOSITORY_PERMISSION_INSUFFICIENT`; en `verify-app-access`: App no instalada `NOT_AUTHORIZED`, instalada sin visibilidad `NOT_AUTHORIZED`, permiso menor `403 REPOSITORY_PERMISSION_INSUFFICIENT`, no verificable `503`. Se acepta por escrito la diferencia residual `403 GITHUB_APP_ACCESS_REQUIRED` (App no instalada) frente a `404` (instalada, sin permiso del usuario), igual que en `POST .../integrations/github`. Un Reader no debe llamar `verify-app-access` (`403`): el estado del binding se consulta con `GET .../integrations/github`, que exige solo Reader. Estas dos rutas no exigen membresía de la organización: el permiso `maintain`/`write`/`admin` sobre el repositorio ya implica poder verlo; la membresía se exige al vincular, donde el Project de organización solo lo ve un miembro (§6.13). Es una corrección de seguridad de `INTEROP-2.3` y anteriores (`DEC-ORG-002`), donde estas dos rutas respondían sobre cualquier repositorio al que la App tuviera acceso, sin comprobar al usuario.
+`GET .../integrations/github` exige rol Reader; `POST .../integrations/github`, `POST .../enable` y `DELETE .../integrations/github` exigen Writer (que incluye a Maintainer y Admin; INTEROP-2.7, implementado en `WI-CORE-019`), y `enable` sobre un binding `REVOKED` sigue la regla de visibilidad de §6.13. `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches`, que no reciben un Project, exigen que el usuario tenga permiso `maintain`, `write` o `admin` sobre el repositorio consultado: con permiso menor responden `403 REPOSITORY_PERMISSION_INSUFFICIENT` y sin ninguna visibilidad `branches` responde `404 GITHUB_REPOSITORY_NOT_FOUND` (mismo criterio que `POST .../integrations/github`) y `verify-app-access` `NOT_AUTHORIZED`, de modo que no revelan la instalación ni las ramas de repositorios ajenos; un permiso no verificable responde `503 GITHUB_VERIFICATION_UNAVAILABLE`. Orden en `branches`: App no instalada en el repositorio `403 GITHUB_APP_ACCESS_REQUIRED` (como hasta ahora), después sin visibilidad `404 GITHUB_REPOSITORY_NOT_FOUND`, después permiso menor `403 REPOSITORY_PERMISSION_INSUFFICIENT`; en `verify-app-access`: App no instalada `NOT_AUTHORIZED`, instalada sin visibilidad `NOT_AUTHORIZED`, permiso menor `403 REPOSITORY_PERMISSION_INSUFFICIENT`, no verificable `503`. Se acepta por escrito la diferencia residual `403 GITHUB_APP_ACCESS_REQUIRED` (App no instalada) frente a `404` (instalada, sin permiso del usuario), igual que en `POST .../integrations/github`. Un Reader no debe llamar `verify-app-access` (`403`): el estado del binding se consulta con `GET .../integrations/github`, que exige solo Reader. Estas dos rutas no exigen membresía de la organización: el permiso `maintain`/`write`/`admin` sobre el repositorio ya implica poder verlo; la membresía se exige al vincular, donde el Project de organización solo lo ve un miembro (§6.13). Es una corrección de seguridad de `INTEROP-2.3` y anteriores (`DEC-ORG-002`), donde estas dos rutas respondían sobre cualquier repositorio al que la App tuviera acceso, sin comprobar al usuario.
 
 El renombre de un repositorio actualiza `repositoryName` del binding; su transferencia fuera del workspace del Project o su eliminación pasa el binding a `REVOKED` sin borrar evidencia (§6.9).
 
@@ -554,7 +610,7 @@ Errores de dominio: `GITHUB_ACCOUNT_REQUIRED` (401), `GITHUB_USER_TOKEN_INVALID`
 
 - `POST /internal/v1/github/webhook-events` -> `202 GitHubWebhookAcceptedResponse` para una aceptación nueva/no-op y `200` solo para un PR cuya entrega ya está persistida. Es un endpoint privado GH Integration→Core; no pertenece a la API pública de Console ni acepta sesiones de usuario.
 
-GitHub envía `x-github-delivery`, `x-github-event` y `x-hub-signature-256` al host de GitHub Integration. Ese componente verifica la firma sobre el body crudo, normaliza el evento y reenvía a Core solo los campos allowlisted. Core autentica ese salto con un bearer GH→Core independiente y valida `schemaVersion` y la forma estricta del evento antes de procesarlo; el detalle del DTO y sus reglas está en `GH-INTEROP-1.2` (`spec/contracts/github-integration-contract.md`, §Webhooks). Core no recibe ni verifica firmas GitHub ni expone un ingress público de webhooks. Solo instalaciones y bindings `ENABLED` producen trabajo de análisis; los eventos de acceso de "Eventos de acceso" (abajo) se procesan aunque el binding no esté `ENABLED`, porque mantienen los registros de acceso de todo Project vivo.
+GitHub envía `x-github-delivery`, `x-github-event` y `x-hub-signature-256` al host de GitHub Integration. Ese componente verifica la firma sobre el body crudo, normaliza el evento y reenvía a Core solo los campos allowlisted. Core autentica ese salto con un bearer GH→Core independiente y valida `schemaVersion` y la forma estricta del evento antes de procesarlo; el detalle del DTO y sus reglas está en `GH-INTEROP-1.3` (`spec/contracts/github-integration-contract.md`, §Webhooks). Core no recibe ni verifica firmas GitHub ni expone un ingress público de webhooks. Solo instalaciones y bindings `ENABLED` producen trabajo de análisis; los eventos de acceso de "Eventos de acceso" (abajo) se procesan aunque el binding no esté `ENABLED`, porque mantienen los registros de acceso de todo Project vivo.
 
 ```ts
 type PullRequestAction =
@@ -595,15 +651,15 @@ Regla de confianza: el payload solo selecciona qué pares (usuario, Project) rev
 | `organization` (`deleted`) | Pasa a `REVOKED` los bindings de sus Projects y borra sus registros de acceso; los Projects se conservan ocultos. |
 | `team` (`added_to_repository`, `removed_from_repository`, `edited`, `deleted`) | Reverifica los registros de los Projects vinculados a `repository.id` si viene en el payload; si no, de todos los Projects con repositorio de `organization.id`. Un cambio del permiso de un Team no está garantizado como evento. |
 | `repository` (`renamed`) | Actualiza `repositoryName` del binding. |
-| `repository` (`transferred`) | Si el nuevo propietario no es la organización (o cuenta) del Project: binding `REVOKED` y borrado de los registros Maintainer y Reader; si lo es, solo actualiza el nombre. |
-| `repository` (`deleted`) | Binding `REVOKED`; se borran los registros Maintainer y Reader. |
+| `repository` (`transferred`) | Si el nuevo propietario no es la organización (o cuenta) del Project: binding `REVOKED` y borrado de los registros Maintainer, Writer y Reader; si lo es, solo actualiza el nombre. |
+| `repository` (`deleted`) | Binding `REVOKED`; se borran los registros Maintainer, Writer y Reader. |
 | `repository` (`privatized`) | Reverifica todos los registros de los Projects vinculados a `repository.id` (el `read` implícito de un repositorio público deja de existir). |
-| `installation` (`deleted`) y `installation_repositories` (`removed`) | Además de lo ya definido para el binding, borran los registros de acceso Maintainer y Reader de los Projects afectados; si se desinstala la App de una organización, también los de Admin (la organización deja de poder verificarse y sus Projects quedan ocultos hasta reinstalar). |
+| `installation` (`deleted`) y `installation_repositories` (`removed`) | Además de lo ya definido para el binding, borran los registros de acceso Maintainer, Writer y Reader de los Projects afectados; si se desinstala la App de una organización, también los de Admin (la organización deja de poder verificarse y sus Projects quedan ocultos hasta reinstalar). |
 | `installation` (`suspend`) | No borra registros: una instalación suspendida no puede verificar y se trata como GitHub no disponible (se conserva lo existente, no se concede lo nuevo). |
 
 Sin evento fiable (ventana de hasta una hora, solo la reconciliación los corrige): cambio de rol en la organización, cambio del permiso base de la organización y accesos heredados que cambian sin evento directo. Los demás valores de `action` y los eventos no listados se ignoran (`202`).
 
-**Reconciliación horaria.** Un job periódico, cada hora, sobre la cola `jobs` existente, recorre los Projects vivos y solicita las verificaciones a GitHub Integration: (a) para los de organización con registros de acceso, comprueba que la organización sea resoluble, que la App siga instalada y que tenga al menos un owner activo (una lista de owners vacía, que en GitHub no es un estado real y suele ser un artefacto de visibilidad, se trata como no verificable: se conserva todo y se reintenta); si GitHub confirma lo contrario, sus Projects quedan ocultos (bindings `REVOKED` y registros de acceso borrados) y reaparecen, con binding `REVOKED` hasta que un Admin lo reactive (`POST .../enable`), cuando la App se reinstala o la organización vuelve, porque el acceso se vuelve a crear al entrar (§6.13); (b) para los Projects con registros de acceso, recalcula cada registro con las mismas reglas que el alta, borra los que GitHub confirma perdidos y conserva los no verificables; (c) revalida el propietario y el nombre del repositorio vinculado de todo Project vivo con binding, personales incluidos (transferido fuera del workspace o eliminado: binding `REVOKED`, y al pasar a `REVOKED` se borran también los registros Maintainer y Reader; renombrado: actualiza `repositoryName`), para que un evento `repository` perdido también se corrija. Una verificación por evento (`ACCESS_REVERIFY`) que no puede completarse por una caída de GitHub se reprograma con un backoff creciente acotado a una hora en lugar de fallar en silencio; la reconciliación es el respaldo. Una App desinstalada de la organización no es una caída de GitHub: la organización deja de ofrecerse y sus Projects se ocultan (`404`, no un `503` permanente); una instalación suspendida sí se trata como no verificable. Ante una caída de GitHub (error de red, `5xx`, límite de tasa, instalación suspendida o falta de `Members: read` en la organización) la reconciliación no revoca nada ni concede nada nuevo, y el siguiente ciclo se programa igualmente. No se agrega una caché de permisos.
+**Reconciliación horaria.** Un job periódico, cada hora, sobre la cola `jobs` existente, recorre los Projects vivos y solicita las verificaciones a GitHub Integration: (a) para los de organización con registros de acceso, comprueba que la organización sea resoluble, que la App siga instalada y que tenga al menos un owner activo (una lista de owners vacía, que en GitHub no es un estado real y suele ser un artefacto de visibilidad, se trata como no verificable: se conserva todo y se reintenta); si GitHub confirma lo contrario, sus Projects quedan ocultos (bindings `REVOKED` y registros de acceso borrados) y reaparecen, con binding `REVOKED` hasta que un Admin lo reactive (`POST .../enable`), cuando la App se reinstala o la organización vuelve, porque el acceso se vuelve a crear al entrar (§6.13); (b) para los Projects con registros de acceso, recalcula cada registro con las mismas reglas que el alta, borra los que GitHub confirma perdidos y conserva los no verificables; (c) revalida el propietario y el nombre del repositorio vinculado de todo Project vivo con binding, personales incluidos (transferido fuera del workspace o eliminado: binding `REVOKED`, y al pasar a `REVOKED` se borran también los registros Maintainer, Writer y Reader; renombrado: actualiza `repositoryName`), para que un evento `repository` perdido también se corrija. Una verificación por evento (`ACCESS_REVERIFY`) que no puede completarse por una caída de GitHub se reprograma con un backoff creciente acotado a una hora en lugar de fallar en silencio; la reconciliación es el respaldo. Una App desinstalada de la organización no es una caída de GitHub: la organización deja de ofrecerse y sus Projects se ocultan (`404`, no un `503` permanente); una instalación suspendida sí se trata como no verificable. Ante una caída de GitHub (error de red, `5xx`, límite de tasa, instalación suspendida o falta de `Members: read` en la organización) la reconciliación no revoca nada ni concede nada nuevo, y el siguiente ciclo se programa igualmente. No se agrega una caché de permisos.
 
 ### 6.10 Analysis Runs
 
@@ -708,10 +764,22 @@ Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respue
 
 El inbox de preguntas también omite cualquier pregunta cuyo Run esté sin clasificar o corresponda a un PR anterior al binding. Al clasificarlo como anterior, las preguntas `PENDING` se obsoletan junto al Run.
 
+Las preguntas creadas antes de `INTEROP-2.7` (históricas) se devuelven con `scenarioKind: 'EXPECTED_RESULT'` y `scenarioKey: 'LEGACY'`.
+
 ```ts
 type FunctionalScope = 'PROJECT' | 'MODULE' | 'CLASS' | 'METHOD' | 'SYMBOL'
 type FunctionalQuestionStatus = 'PENDING' | 'ANSWERED' | 'OBSOLETE'
 type FunctionalAnswerChoice = 'YES' | 'NO' | 'DEPENDS' | 'UNKNOWN' | 'FREE_TEXT'
+// Los tipos y campos marcados INTEROP-2.7 siguientes están definidos; WI-CORE-018, WI-CORE-019 y WI-CORE-020 los implementaron.
+type ScenarioKind = 'EXPECTED_RESULT' | 'BOUNDARY' | 'EXCEPTION' | 'STATE_TRANSITION' | 'OBSERVABLE_SIDE_EFFECT' | 'FUNCTIONAL_PRECONDITION'
+type ConfirmingRole = 'ADMIN' | 'MAINTAINER'
+
+interface FunctionalAbstentionSummary {
+  count: number
+  lastAt: IsoDateTime
+  lastByUserId: Id
+  lastByRole: ConfirmingRole
+}
 
 interface VisualAidResponse {
   kind: 'STATE_DIAGRAM' | 'SYMBOL_RELATION' | 'MINI_DIFF' | 'CODE_FRAGMENT'
@@ -732,6 +800,9 @@ interface FunctionalQuestionResponse {
   rationale: string
   status: FunctionalQuestionStatus
   visualAid: VisualAidResponse | null
+  scenarioKind: ScenarioKind // INTEROP-2.7 (implementado en WI-CORE-018): un escenario por pregunta atómica
+  scenarioKey: string // derivado por Core de forma determinista (DEC-FK-004, WI-CORE-018); nunca lo escribe una persona
+  abstention: FunctionalAbstentionSummary | null // INTEROP-2.7 (implementado en WI-CORE-018): abstenciones UNKNOWN auditadas
   createdAt: IsoDateTime
 }
 
@@ -755,6 +826,7 @@ interface FunctionalAnswerAcceptedResponse extends AsyncAccepted {
   questionId: Id
   continuationAttemptId: Id | null
   knowledgeId: Id | null
+  outcome: 'ANSWERED' | 'ABSTAINED' // INTEROP-2.7 (implementado en WI-CORE-018): ABSTAINED implica continuationAttemptId=null y knowledgeId=null
 }
 
 interface FunctionalKnowledgeResponse {
@@ -768,6 +840,12 @@ interface FunctionalKnowledgeResponse {
   source: 'HUMAN_ANSWER' | 'APPROVED_IMPORT'
   status: 'ACTIVE' | 'SUPERSEDED'
   supersedesId: Id | null
+  scenarioKind: ScenarioKind // INTEROP-2.7 (implementado en WI-CORE-020)
+  scenarioKey: string // INTEROP-2.7 (implementado en WI-CORE-020)
+  confirmedByUserId: Id | null // INTEROP-2.7 (implementado en WI-CORE-019): null solo en reglas históricas anteriores a esta versión
+  confirmedRole: ConfirmingRole | null
+  originHeadSha: string | null // procedencia, no vencimiento
+  sourceRef: string | null // solo si source=APPROVED_IMPORT
   createdAt: IsoDateTime
 }
 
@@ -780,9 +858,11 @@ interface FunctionalKnowledgeConflictResponse {
 }
 ```
 
-**HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto (match exacto por ahora; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
+**HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto+`scenarioKey` (desde INTEROP-2.7 el match incluye el `scenarioKey`, `DEC-FK-001`; otro `scenarioKey` del mismo target coexiste y no es conflicto; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
 
-`UNKNOWN` puede cerrar una pregunta pero devuelve `knowledgeId=null` y nunca crea conocimiento autoritativo. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
+**INTEROP-2.7, `DEC-FK-001` (definido e implementado en `WI-CORE-020`).** La regla hereda `scenarioKind`/`scenarioKey` de la pregunta que la originó (las históricas, `EXPECTED_RESULT`/`LEGACY`); nunca los envía la persona. El match se refina por `scenarioKey`: el conflicto solo existe entre reglas con el mismo scope, `targetRef` y `scenarioKey`, y reglas con distinto `scenarioKey` coexisten como `ACTIVE`. Un índice único parcial `ACTIVE` sobre project+scope+`targetRef`+`scenarioKey` resuelve la carrera: la segunda respuesta recibe `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con la forma existente. El listado devuelve todas las reglas `ACTIVE` del target.
+
+**`UNKNOWN` (INTEROP-2.7, `DEC-FK-002`; definido e implementado en `WI-CORE-018`).** `UNKNOWN` es una abstención auditada y no una respuesta: solo Maintainer o Admin pueden registrarla (`403 PROJECT_ROLE_INSUFFICIENT` para Writer y Reader). La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED`, no se crea ni modifica Functional Knowledge, no se encola continuación y no hay generación. Core responde `202` con `outcome: 'ABSTAINED'`, `continuationAttemptId: null` y `knowledgeId: null`, y registra quién se abstuvo, con qué rol y cuándo (`abstention`). Otra persona con autoridad puede responder la misma pregunta después. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
 
 ### 6.12 Checks, propuestas y companion PR
 
@@ -834,14 +914,14 @@ La solicitud exige Run `SUCCESS`, proposals `AVAILABLE`, usuario autorizado y HE
 
 ### 6.13 Workspaces, roles y acceso
 
-Fuente: `DEC-ORG-001` (HU01/HU02). GitHub es la fuente de verdad de la autorización; este contrato no repite las decisiones de producto, define su superficie HTTP. **Implementado (bundle A y bundle B).**
+Fuente: `DEC-ORG-001` (HU01/HU02). GitHub es la fuente de verdad de la autorización; este contrato no repite las decisiones de producto, define su superficie HTTP. **Implementado (bundle A y bundle B), incluido el rol Writer (INTEROP-2.7, `DEC-ORG-003`), implementado en `WI-CORE-019`. La fila Reader incluye `GET /analysis-runs/{id}/trace`, implementado en `WI-CORE-026`, y las tres rutas `/evidence`, implementadas en `WI-CORE-027`.**
 
 - `GET /workspaces` -> `200 WorkspaceListResponse` (HU01).
 
 ```ts
 type WorkspaceKind = 'PERSONAL' | 'ORGANIZATION'
 type WorkspaceRole = 'ADMIN' | 'MEMBER'
-type ProjectRole = 'ADMIN' | 'MAINTAINER' | 'READER'
+type ProjectRole = 'ADMIN' | 'MAINTAINER' | 'WRITER' | 'READER' // WRITER: INTEROP-2.7, DEC-ORG-003, implementado en WI-CORE-019
 
 interface WorkspaceRefResponse {
   kind: WorkspaceKind
@@ -868,13 +948,14 @@ interface ProjectRoleInsufficientDetails {
 
 **Identidad.** Core resuelve `PlatformUser -> githubUserId` una vez y persiste el vínculo. El `githubUserId` es el `id` numérico de la entrada `provider: 'github'` de `identities[]` que devuelve la Admin API de Supabase `GET /auth/v1/admin/users/{sub}` (con la credencial de servicio de Core, nunca expuesta al navegador); nunca se toma de `user_metadata`, que el propio usuario puede editar, y no se usa el listado `GET /auth/v1/admin/users`, que devuelve `identities: null`. El `login` de GitHub es un dato opcional de presentación y nunca autoriza. El linking manual de identidades de Supabase permanece deshabilitado. El handshake WebSocket usa esta misma resolución. En desarrollo local, un `AUTH_BYPASS` explícito (nunca en producción) aporta una identidad GitHub sintética configurada y no consulta la Admin API. Un token válido sin identidad GitHub responde `401 GITHUB_IDENTITY_REQUIRED` y, si la Admin API no responde y el vínculo aún no está persistido, `503 IDENTITY_UNAVAILABLE`. Si el `githubUserId` resuelto ya está vinculado a otro `sub`, Core no comparte identidad ni roles entre cuentas de Supabase: responde `401 GITHUB_IDENTITY_REQUIRED` (sin revelar el otro `sub`) y no modifica el vínculo existente. El vínculo es inmutable; un usuario que recrea su cuenta de Supabase queda bloqueado hasta que un operador elimine la fila huérfana de `user_github_identities`, y la Console no debe tratar ese `401` como "inicia sesión con GitHub" en bucle.
 
-**Visibilidad y rol.** Un Project personal lo ve únicamente su creador, siempre como Admin, sin registro de acceso ni verificación contra GitHub: los Projects personales no se comparten con colaboradores, solo se comparte mediante organizaciones (`DEC-ORG-002`, que enmienda la visibilidad de `DEC-ORG-001`). Un Project de organización lo ve un usuario si Core verificó que tiene un rol sobre él; el rol es el más alto que aplique, con jerarquía Admin ⊃ Maintainer ⊃ Reader:
+**Visibilidad y rol.** Un Project personal lo ve únicamente su creador, siempre como Admin, sin registro de acceso ni verificación contra GitHub: los Projects personales no se comparten con colaboradores, solo se comparte mediante organizaciones (`DEC-ORG-002`, que enmienda la visibilidad de `DEC-ORG-001`). Un Project de organización lo ve un usuario si Core verificó que tiene un rol sobre él; el rol es el más alto que aplique, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (INTEROP-2.7; antes no existía Writer y `write` producía Maintainer, ahora produce Writer, un cambio observable; definido y pendiente de implementar en `WI-CORE-019`):
 
-- **Admin:** en una organización, owner activo de la organización (`GET /orgs/{org}/memberships/{login}` con `role: admin` y `state: active`, permiso `Members: read` de la App); en el workspace personal, el creador, siempre. Un Admin además es Maintainer y Reader. Un Project sin repositorio vinculado solo lo ven los Admin: todos los owners de la organización, o el creador en personal.
-- **Maintainer:** en una organización, miembro activo de ella y con permiso `maintain`, `write` o `admin` sobre el repositorio vinculado (`role_name` de `GET /repos/{owner}/{repo}/collaborators/{username}/permission`, con `Metadata: read`; un rol personalizado se mapea por su permiso base).
+- **Admin:** en una organización, owner activo de la organización (`GET /orgs/{org}/memberships/{login}` con `role: admin` y `state: active`, permiso `Members: read` de la App); en el workspace personal, el creador, siempre. Un Admin además es Maintainer, Writer y Reader. Un Project sin repositorio vinculado solo lo ven los Admin: todos los owners de la organización, o el creador en personal.
+- **Maintainer:** en una organización, miembro activo de ella y con permiso `maintain` o `admin` sobre el repositorio vinculado (`role_name` de `GET /repos/{owner}/{repo}/collaborators/{username}/permission`, con `Metadata: read`; un rol personalizado se mapea por su permiso base).
+- **Writer (implementado en `WI-CORE-019`):** en una organización, miembro activo de ella y con permiso `write` sobre el repositorio vinculado (misma fuente `role_name` que Maintainer). Puede todo lo que puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`; no es una degradación global a Reader.
 - **Reader:** en una organización, miembro activo de ella y con permiso `triage` o `read` sobre el repositorio vinculado.
-- **La membresía activa se exige siempre** (`DEC-ORG-002`): en un Project de organización Maintainer y Reader necesitan ser miembros activos de la organización además del permiso sobre el repositorio, sea este privado, internal o público. Un colaborador externo (no miembro) no accede al Project aunque tenga `write`, y el `read` implícito de un repositorio público no cuenta. Una única lectura `GET /orgs/{org}/memberships/{login}` sirve para la membresía y el rol de owner.
-- Con el binding `REVOKED` no hay permiso de repositorio verificable, y la regla se evalúa en cada petición (no depende de que el paso a `REVOKED` haya borrado registros): un registro Maintainer o Reader no da acceso a un Project con binding `REVOKED`. Solo los Admin ven el Project (para reactivar el binding con `POST .../enable` o eliminarlo). Si la organización desaparece, se desinstala la App o queda sin owners, el Project queda oculto para todos y se conserva.
+- **La membresía activa se exige siempre** (`DEC-ORG-002`): en un Project de organización Maintainer, Writer y Reader necesitan ser miembros activos de la organización además del permiso sobre el repositorio, sea este privado, internal o público. Un colaborador externo (no miembro) no accede al Project aunque tenga `write`, y el `read` implícito de un repositorio público no cuenta. Una única lectura `GET /orgs/{org}/memberships/{login}` sirve para la membresía y el rol de owner.
+- Con el binding `REVOKED` no hay permiso de repositorio verificable, y la regla se evalúa en cada petición (no depende de que el paso a `REVOKED` haya borrado registros): un registro Maintainer, Writer o Reader no da acceso a un Project con binding `REVOKED`. Solo los Admin ven el Project (para reactivar el binding con `POST .../enable` o eliminarlo). Si la organización desaparece, se desinstala la App o queda sin owners, el Project queda oculto para todos y se conserva.
 
 **Alta del acceso.** Nadie invita: en un Project de organización el registro de acceso se crea al entrar, verificando en vivo. Toda petición que apunta a un Project de organización (o a un recurso descendiente, incluido un deep link a un Run) sobre el que el usuario no tiene registro dispara esa verificación; un Project personal de otra persona responde `404` sin verificar nada; `GET /projects` (sin filtro o con `workspaceId` de una organización) verifica también los Projects vivos del workspace que aún no tiene registrados. El listado cross-proyecto `GET /analysis-runs` y `GET /action-required` sin `projectId` cubren los Projects personales del usuario más los de organización con registro de acceso ya existente. Un acceso concedido a un Project de organización queda registrado como `(projectId, userId, rol, verifiedAt)`; `verifiedAt` es la última confirmación, no una caducidad: no hay TTL ni caché, el registro rige hasta que un evento (§6.9) o la reconciliación lo cambia. Un alta nunca sobrescribe una revocación posterior al inicio de su verificación: una verificación de alta que comenzó antes de un evento o de una reverificación que borró el acceso no puede volver a crearlo con un resultado ya obsoleto (la verificación y el upsert se serializan con un advisory lock transaccional por `(projectId, userId)`, el mismo que toman las reverificaciones y las revocaciones; retiene una conexión de base de datos durante las llamadas a GitHub, acotado por el presupuesto de verificaciones). Las verificaciones contra GitHub tienen un tope de concurrencia y un presupuesto por petición; agotado el presupuesto, los candidatos restantes se tratan como no verificables (omitidos en listados, `503` en accesos directos). No se memoizan denegaciones: se acepta el riesgo residual de que un límite de tasa de GitHub degrade las altas nuevas, nunca lo ya registrado.
 
@@ -895,13 +976,14 @@ interface ProjectRoleInsufficientDetails {
 
 Un recurso no visible conserva el `404` de su recurso (`PROJECT_NOT_FOUND`, etc.).
 
-**Matriz rol -> operación.** El rol es el mínimo requerido sobre el Project del recurso; un rol mayor también satisface. Un Project no visible responde `404` antes de evaluar el rol.
+**Matriz rol -> operación.** El rol es el mínimo requerido sobre el Project del recurso; un rol mayor también satisface. **Estado de implementación (INTEROP-2.7):** `WI-CORE-019` implementó la fila Writer y la restricción de responder preguntas a Maintainer: el rol efectivo de quien tiene `write` es Writer una vez que la reverificación de acceso (`ACCESS_REVERIFY` de alcance completo, encolado al arrancar) reclasifica su registro; hasta entonces se conserva el rol registrado. Un Project no visible responde `404` antes de evaluar el rol.
 
 | Rol mínimo | Operaciones |
 |---|---|
-| Sin rol de Project (solo sesión GitHub válida) | `GET /workspaces`; `GET /integrations/github/repositories` (con `workspaceId`: pertenencia al workspace); `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` (exigen permiso `maintain`/`write`/`admin` sobre el repositorio); `POST /projects` (personal: cualquiera; organización: Admin de la organización). Sin sesión de usuario: `GET /health`. El receptor privado normalizado GH Integration→Core se rige por `GH-INTEROP-1.2` (§6.9), no es una operación pública sujeta a rol de Project ni de Console. |
-| Reader | `GET /projects`, `GET /projects/{projectId}`; `GET /projects/{projectId}/versions`; `GET /project-versions/{id}`, `.../results`, `.../test-inventory`; `GET /projects/{projectId}/integrations/github`; `GET /projects/{projectId}/analysis-runs`, `GET /analysis-runs`, `GET /analysis-runs/{id}`; `GET /action-required`, `GET /analysis-runs/{id}/context-questions`, `GET /projects/{projectId}/functional-knowledge`; `GET /analysis-runs/{id}/test-proposals`, `GET /test-publications/{id}`; `GET /experiments/{id}`, `.../results`, `GET /analysis-runs/{id}/experiments`; `GET /experiments/{id}/context-traces`, `GET /context-traces/{id}`, `.../discovered-files`; suscripción WebSocket `subscribe:project-version`. |
-| Maintainer | `POST /projects/{projectId}/integrations/github`, `POST .../enable`, `DELETE .../integrations/github` (pausa) (con la salvedad de que un Project sin repositorio, y uno con binding `REVOKED`, lo ve solo un Admin: reactivar un binding `REVOKED` lo hace un Admin); `POST /analysis-runs/{id}/context-questions/{questionId}/answers`; `POST /analysis-runs/{id}/test-publications`; `POST /experiments`. |
+| Sin rol de Project (solo sesión GitHub válida) | `GET /workspaces`; `GET /integrations/github/repositories` (con `workspaceId`: pertenencia al workspace); `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` (exigen permiso `maintain`/`write`/`admin` sobre el repositorio); `POST /projects` (personal: cualquiera; organización: Admin de la organización). Sin sesión de usuario: `GET /health`. El receptor privado normalizado GH Integration→Core se rige por `GH-INTEROP-1.3` (§6.9), no es una operación pública sujeta a rol de Project ni de Console. |
+| Reader | `GET /projects`, `GET /projects/{projectId}`; `GET /projects/{projectId}/versions`; `GET /project-versions/{id}`, `.../results`, `.../test-inventory`; `GET /projects/{projectId}/integrations/github`; `GET /projects/{projectId}/analysis-runs`, `GET /analysis-runs`, `GET /analysis-runs/{id}`; `GET /action-required`, `GET /analysis-runs/{id}/context-questions`, `GET /projects/{projectId}/functional-knowledge`; `GET /analysis-runs/{id}/test-proposals`, `GET /test-publications/{id}`; `GET /experiments/{id}`, `.../results`, `GET /analysis-runs/{id}/experiments`; `GET /experiments/{id}/context-traces`, `GET /context-traces/{id}`, `.../discovered-files`; `GET /retrieval-comparisons/{id}`, `.../results`, `.../evidence`, `GET /analysis-runs/{id}/retrieval-comparisons`; `GET /analysis-runs/{id}/trace`, `GET /analysis-runs/{id}/evidence`, `GET /experiments/{id}/evidence`; suscripción WebSocket `subscribe:project-version`. |
+| Writer | `POST /projects/{projectId}/integrations/github`, `POST .../enable`, `DELETE .../integrations/github` (pausa) (con la salvedad de que un Project sin repositorio, y uno con binding `REVOKED`, lo ve solo un Admin: reactivar un binding `REVOKED` lo hace un Admin); `POST /analysis-runs/{id}/test-publications`; `POST /experiments`; `POST /retrieval-comparisons`. |
+| Maintainer | `POST /analysis-runs/{id}/context-questions/{questionId}/answers` (incluye la abstención `UNKNOWN`, `DEC-FK-002`). |
 | Admin | `PATCH /projects/{projectId}`; `DELETE /projects/{projectId}`; `POST /projects` en una organización. |
 
 Notas de la matriz: (1) la validación nace del `AnalysisRun`; leer propuestas y Runs requiere Reader; (2) `GET /analysis-runs` y `GET /action-required` solo devuelven recursos de Projects visibles; (3) en un Project personal el creador es Admin; (4) el rol se exige al aceptar la petición, mientras que la automatización de un job aceptado se autoriza por la GitHub App; (5) default-deny: toda ruta autenticada declara su rol mínimo o una excepción explícita.
@@ -952,9 +1034,250 @@ interface GithubAuthorizationDecisionResponse {
 }
 ```
 
-Core firma la evidencia con una clave exclusiva (`GITHUB_BINDING_EVIDENCE_SECRET`, no compartida con los tokens de servicio) y duración máxima de 60 segundos. Sus claims obligatorios son `sub=userId`, `act=CREATE_REPOSITORY_BINDING`, `projectId`, `repositoryId`, `repositoryName`, `ownerId`, `installationId`, `integrationBranch`, `iat`, `exp`, `jti`; `githubUserId` procede de la sesión validada. La evidencia solo se entrega tras permiso Maintainer/Admin, propiedad de workspace correcta, App instalada, permiso de repositorio suficiente y rama confirmada. La firma es opaca para el navegador.
+Core firma la evidencia con una clave exclusiva (`GITHUB_BINDING_EVIDENCE_SECRET`, no compartida con los tokens de servicio) y duración máxima de 60 segundos. Sus claims obligatorios son `sub=userId`, `act=CREATE_REPOSITORY_BINDING`, `projectId`, `repositoryId`, `repositoryName`, `ownerId`, `installationId`, `integrationBranch`, `iat`, `exp`, `jti`; `githubUserId` procede de la sesión validada. La evidencia solo se entrega tras permiso Writer/Maintainer/Admin (INTEROP-2.7; hasta `WI-CORE-019`, Maintainer/Admin), propiedad de workspace correcta, App instalada, permiso de repositorio suficiente y rama confirmada. La firma es opaca para el navegador.
 
 **Persistencia y compatibilidad.** Console conserva el `projectId` y selección UX actuales. Al vincular, vuelve a llamar a Integration con la rama elegida para obtener evidencia fresca y envía `{ repositoryId, repositoryName, integrationBranch, authorizationEvidence }` a `POST /projects/{projectId}/integrations/github/verified`. Core valida firma, audiencia/acción, usuario autenticado, alcance exacto, vencimiento y Project vigente; toma el `installationId` únicamente del claim firmado y escribe el binding sin llamar a Integration. Campos de rol/installationId del request se rechazan. La ruta Core existente `POST /projects/{projectId}/integrations/github` y las rutas Core de discovery, verify-access y ramas se mantienen sin cambio durante este corte; su retiro será otra tarea/corte una vez verificado el consumo directo. Core sigue sirviendo las operaciones de binding no GitHub, Projects/workspaces y toda actividad RAG/análisis.
+
+### 6.15 Comparación de retrieval OE2 (SE vs SEM)
+
+**Implementado en Core** (`WI-CORE-022`, 2026-10-09); la Console la consume en `WI-CONSOLE-014`. Es una capacidad experimental separada de OE5 y del producto operativo, con alcance HU05 y HU17. El producto normal usa siempre `SE`; no existe un selector permanente de modo en la interfaz.
+
+- `POST /retrieval-comparisons` → `202 RetrievalComparisonAcceptedResponse`. Exige `Idempotency-Key` (scope `RETRIEVAL_COMPARISON_CREATE`) y rol Writer.
+- `GET /retrieval-comparisons/{retrievalComparisonId}` → `200 RetrievalComparisonStatusResponse`.
+- `GET /retrieval-comparisons/{retrievalComparisonId}/results` → `200 RetrievalComparisonResultsResponse`; en `PENDING`/`RUNNING`, `409 RETRIEVAL_COMPARISON_NOT_FINISHED`; en una comparación `FAILED`, `409 RETRIEVAL_COMPARISON_FAILED` (mismo cuerpo de error de §4; el detalle `failureCode`/`failureMessage` se obtiene del status); el `200` trae siempre exactamente `SE` y `SEM`.
+- `GET /analysis-runs/{analysisRunId}/retrieval-comparisons?cursor&limit` → `200 Page<RetrievalComparisonStatusResponse>`.
+
+El target se identifica igual que en §6.5 (`AnalysisRun` + símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED`); ausente: `404 ANALYSIS_SYMBOL_NOT_FOUND`; tipo no elegible: `422 UNSUPPORTED_SYMBOL_KIND`; un `AnalysisRun` visible que aún no tiene `projectVersionId`: `409 ANALYSIS_NOT_FINISHED`; un símbolo de un proyecto PHP se acepta desde `WI-CORE-028` (2026-10-09; sin `422 UNSUPPORTED_PROJECT` por lenguaje; los experimentos admiten PHP/PHPUnit desde `WI-CORE-029`, §6.5); comparación inexistente o no visible: `404 RETRIEVAL_COMPARISON_NOT_FOUND`; un `AnalysisRun` inexistente o no visible responde el mismo `404` que `GET /analysis-runs/{analysisRunId}`; rol insuficiente: `403 PROJECT_ROLE_INSUFFICIENT`; validación de cuerpo y `Idempotency-Key`: los errores `400` de §4. La operación es asíncrona (§5) y de solo retrieval: no invoca LLM, Functional Knowledge, `ACTION_REQUIRED`, generación, Sandbox ni publicación, y no cambia el estado del `AnalysisRun`.
+
+Ambos modos comparten `Project`/`ProjectVersion`, snapshot, target, chunks, embeddings, query anchor, los 20 primeros candidatos semánticos y las exclusiones generales. `SEM` es solo semántico (coseno), conserva `semanticScore`, no aplica refuerzo estructural y selecciona los 10 primeros. `SE` une y deduplica los 20 semánticos con los candidatos estructurales, pondera `0.7·semántico + 0.3·estructural` (configurable, sin presentarse como verdad científica) y selecciona los 10 primeros. Para PHP, las relaciones estructurales son `IMPORTS`, `IMPORTED_BY`, `SAME_NAMESPACE`, `FULLY_QUALIFIED_REFERENCE` y `DECLARING_CLASS`, implementadas en `WI-CORE-028` según `DEC-PHP-RET-001` (spec 018): `SAME_NAMESPACE` exige que el target mencione el nombre corto de la clase; `FULLY_QUALIFIED_REFERENCE` exige barra inicial; un candidato lleva una sola relación, la primera en ese orden.
+
+`Precision@10` y `Recall@10` son las métricas principales; `Precision@5` y `Recall@5`, secundarias. La verdad de terreno, Cohen κ, bootstrap y Wilcoxon son externos a Core: Core calcula P@k y R@k solo si la solicitud trae `groundTruth` y, si no, `metrics` es `null`. Nunca se inventa una verdad de terreno ni se declara un ganador. `groundTruth` admite hasta 200 elementos; más, o elementos mal formados, responden `400`. `failureCode` es abierto (`string | null`); Core emite hoy `RETRIEVAL_TARGET_UNRESOLVABLE`, `RETRIEVAL_COMPARISON_FAILED` y `RETRIEVAL_COMPARISON_WORKER_LOST`, y `failureMessage` nunca incluye trazas ni credenciales.
+
+```ts
+type RetrievalMode = 'SE' | 'SEM'
+type StructuralRelation = 'IMPORTS' | 'IMPORTED_BY' | 'SAME_NAMESPACE' | 'FULLY_QUALIFIED_REFERENCE' | 'DECLARING_CLASS'
+type RetrievalComparisonStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+
+interface RetrievalGroundTruthItem {
+  filePath: RelativePath
+  symbolQualifiedName: string
+}
+
+interface CreateRetrievalComparisonRequest {
+  analysisRunId: Id
+  symbolFilePath: RelativePath
+  symbolQualifiedName: string
+  groundTruth?: RetrievalGroundTruthItem[] // externa; sin ella, metrics=null
+}
+
+interface RetrievalComparisonAcceptedResponse extends AsyncAccepted {
+  analysisRunId: Id
+  retrievalComparisonId: Id
+  projectVersionId: Id
+}
+
+interface RetrievalComparisonStatusResponse {
+  id: Id
+  analysisRunId: Id
+  projectId: Id
+  projectVersionId: Id
+  symbol: AnalysisSymbolResponse
+  status: RetrievalComparisonStatus
+  failureCode: string | null
+  failureMessage: string | null
+  startedAt: IsoDateTime | null
+  completedAt: IsoDateTime | null
+}
+
+interface RetrievalCandidateResponse {
+  rank: number
+  chunkId: Id
+  filePath: RelativePath
+  symbolQualifiedName: string | null
+  semanticScore: number | null
+  structuralRelation: StructuralRelation | null
+  combinedScore: number | null // solo SE
+  selected: boolean
+}
+
+interface RetrievalMetricsResponse {
+  precisionAt5: number
+  recallAt5: number
+  precisionAt10: number
+  recallAt10: number
+}
+
+interface RetrievalModeResultResponse {
+  mode: RetrievalMode
+  retrievalId: Id
+  config: {
+    semanticTopK: number // 20
+    finalTopK: number // 10
+    semanticWeight: number | null // SE: 0.7 por defecto; SEM: null
+    structuralWeight: number | null // SE: 0.3 por defecto; SEM: null
+    embeddingModel: string
+  }
+  candidates: RetrievalCandidateResponse[]
+  metrics: RetrievalMetricsResponse | null
+}
+
+interface RetrievalComparisonResultsResponse {
+  retrievalComparisonId: Id
+  analysisRunId: Id
+  projectVersionId: Id
+  symbol: AnalysisSymbolResponse
+  modes: RetrievalModeResultResponse[] // exactamente SE y SEM
+  completedAt: IsoDateTime
+}
+```
+
+### 6.16 Trace operativo y exportación de evidencia
+
+**`GET /analysis-runs/{analysisRunId}/trace` implementado en Core** (`WI-CORE-026`, 2026-10-09; la Console lo consume en `WI-CONSOLE-020`). **Las tres rutas `/evidence` implementadas en Core** (`WI-CORE-027`, 2026-10-09; la Console las consume en `WI-CONSOLE-017`), con `EvidenceBundleResponse` en `schemaVersion '1'`. El trace operativo del `AnalysisRun` (HU15) es distinto del `ContextTrace` experimental de §6.7. Core introduce `retrieval_id` y `context_id` y reutiliza el `execution_id` del Sandbox; no crea otros identificadores ni identificadores de evidencia académica (`EV-OE*`).
+
+- `GET /analysis-runs/{analysisRunId}/trace` → `200 AnalysisRunTraceResponse` (Reader). Antes de un estado terminal (`QUEUED`, `PROCESSING`), `409 EVIDENCE_NOT_FINISHED`; un `AnalysisRun` inexistente o no visible responde el `404` de `GET /analysis-runs/{analysisRunId}`. Con Reader como rol mínimo no hay `403` alcanzable en esta ruta.
+- `GET /analysis-runs/{analysisRunId}/evidence`, `GET /experiments/{experimentId}/evidence`, `GET /retrieval-comparisons/{retrievalComparisonId}/evidence` → `200 EvidenceBundleResponse` (Reader). Antes de un estado terminal, `409 EVIDENCE_NOT_FINISHED`; un `AnalysisRun`, experimento o comparación inexistente o no visible responde el `404` de su ruta de estado; rol insuficiente: `403 PROJECT_ROLE_INSUFFICIENT`.
+
+Los nueve enlaces se mapean a los DTO así: (1) repositorio/PR/HEAD → `repositoryName`, `pullRequestNumber`, `headSha`; (2) `AnalysisRun` → `analysisRunId`; (3) changeset/targets → `changeset` y `targets[].symbol`; (4) retrieval → `targets[].retrieval`; (5) contexto → `targets[].context`; (6) generación → `targets[].generation`; (7) Sandbox y (8) resultados → `targets[].executions` (`executionId` y `outcome`); (9) publicación → `publication`. Un enlace es `NOT_APPLICABLE` solo cuando el flujo termina legítimamente antes (por ejemplo, un Run sin targets no tiene retrieval). La traza y la evidencia de un `AnalysisRun` están disponibles en cualquier estado salvo `QUEUED` y `PROCESSING` (`409 EVIDENCE_NOT_FINISHED`), incluido `ACTION_REQUIRED`, donde los enlaces posteriores constan `NOT_APPLICABLE`; un experimento o una comparación de retrieval son terminales en `COMPLETED` y `FAILED`. La traza responde ese mismo `409`. La evidencia no incluye chain-of-thought ni credenciales, y los fragmentos de código se tratan como datos potencialmente confidenciales (§6.7).
+
+Aclaraciones del trace implementado (`WI-CORE-026`): `targets` son los símbolos `DIRECTLY_CHANGED` de tipo `METHOD` o `FUNCTION`, ordenados por `filePath`, `qualifiedName` e `id`; `executions.items` van por `attempt` ascendente y un target sin ejecución (por ejemplo, un Run en `ACTION_REQUIRED`) devuelve `executions.status = NOT_APPLICABLE` con `items: []`. `outcome` usa el vocabulario de clasificación técnica del Run (`SUCCESS`, `BEHAVIORAL_MISMATCH`, `TECHNICAL_GENERATION_FAILURE`), asignado a cada ejecución registrada; `executions.items[].attempt` es el intento del Run. Los runs y propuestas anteriores a la implementación no se rellenan (sin backfill): sus enlaces constan `NOT_APPLICABLE`. `publication.status = PRESENT` si existe un Check o una publicación de pruebas (con varias, la más reciente por `createdAt`) y `NOT_APPLICABLE` si no hay ninguno; `freshness` es `CURRENT` solo con la publicación `PUBLISHED`, `STALE` con `STALE` y `null` en `PENDING`, `PUBLISHING`, `FAILED`, `CLOSED` o sin publicación; `companionBranch`, `companionPullRequestUrl` y `sourceHeadSha` salen de la publicación y son `null` si solo hay Check. `checkId` es el id del Check run que devuelve GitHub Integration (`GH-INTEROP-1.3`; `null` mientras responda `204` o no lo informe). El trace no expone conteos, reglas omitidas ni `knowledgeId` de Functional Knowledge: la procedencia de las reglas se reconstruye internamente por `knowledgeId`, y `functionalRuleIds` es la única referencia pública.
+
+Aclaraciones de la exportación de evidencia (`WI-CORE-027`): un dato no observado es `null`, nunca `0` ni cadena vacía; los runs, propuestas y repeticiones anteriores a la implementación no se rellenan (sin backfill) y emiten `null` en `executionId`, `requestId`, `correlationId`, `durationMs`, `artifactHash` y en los campos de generación. Una duración que no pudo medirse (por ejemplo, reloj retrocedido) es `null`. `sandbox[]` y `generation[]` llevan `repetition` y `strategy` para unirse con `experimental[]` (`repetition` es `null` y `strategy` es `PRODUCT` en un `AnalysisRun`). `generation[].attempt` es, en un `AnalysisRun`, el mayor `attempt` de las ejecuciones registradas de la propuesta (`null` si no hay ejecución), no un contador de intentos del LLM, y en un `EXPERIMENT`, el `attempt` de la repetición vigente. `experimental[].technicallyEvaluable` refleja la exclusión de repeticiones no evaluables del agregado (§6.5.1) y no debe usarse para inferir CF ni CO; `pairId`, `pairPosition` y `randomizationSeed` son `null` en experimentos anteriores a OE5. `retrievalId` y `contextId` de un `EXPERIMENT` son el `id` de la `ContextTrace` del brazo RAG, cuyo `mode` es siempre `SE`; `retrieval[].config` es un tipo propio de la evidencia (no alias de §6.15) con `null` en cada valor no persistido: en un `AnalysisRun` solo `semanticTopK` se persiste, en un `EXPERIMENT` solo `finalTopK` (el `topK` configurado del brazo RAG) y los pesos, y `embeddingModel` es `null` en ambos. En un candidato de retrieval cada campo es `null` si el dato no se persistió; `selected` es `null` si no hay contexto o decisión. `retrieval[].metrics` solo se informa en `RETRIEVAL_COMPARISON`; `groundTruth` no se exporta. `analysisRun.projectVersionId` y `analysisRun.snapshotRef` son `null` mientras el Run no tenga `projectVersionId`; `snapshotRef` es un UUID versión 5 (namespace URL de RFC 4122, `6ba7b811-9dad-11d1-80b4-00c04fd430c8`) del nombre `urn:tjc:snapshot-ref:v1:{projectVersionId}:{headSha}`, una referencia opaca que no es clave de almacenamiento ni URL. `artifactHash` es el SHA-256 del contenido de prueba enviado al Sandbox (`null` si no hubo contenido). `sandbox[].durationMs` es la duración de la llamada al Sandbox. `sandbox[].runnerHint` es el runner reportado por el Sandbox en un `AnalysisRun` (`null` si la ejecución no devolvió resultado) y el `runnerHint` del experimento en un `EXPERIMENT`; los valores son los de `TestRunner` (§7.1). En una repetición `COMPLETED` con pruebas fallidas, `sandbox.facts.failureCategory` es el tipo de fallo observado y `failureStage`, `failureCode` y `failureMessage` son `null`; `failureMessage` y `failureCode` se emiten saneados. `agentExploration[].steps` es `[]` y `filesInspected` es `null` cuando la exploración no llegó a persistirse. Una comparación `FAILED` y un experimento `FAILED` responden `200`; la comparación `FAILED` trae `retrieval: []`. La evidencia no incluye `excerpt` ni contenido de código, `testCases`, logs, URLs ni claves de almacenamiento, `knowledgeId`, reglas omitidas ni conteos de Functional Knowledge. `schemaVersion` permanece `'1'`: cualquier clave nueva o eliminada posterior exige un nuevo valor.
+
+```ts
+type TraceLinkStatus = 'PRESENT' | 'NOT_APPLICABLE'
+
+interface TraceExecutionResponse {
+  executionId: string // identificador del Sandbox
+  proposalId: Id
+  attempt: number
+  executionProfile: string
+  outcome: string // clasificación técnica ya expuesta en el Run
+}
+
+interface TraceTargetResponse {
+  symbol: AnalysisSymbolResponse
+  retrieval: { status: TraceLinkStatus; retrievalId: Id | null }
+  context: { status: TraceLinkStatus; contextId: Id | null; functionalRuleIds: Id[] }
+  generation: { status: TraceLinkStatus; proposalIds: Id[] }
+  executions: { status: TraceLinkStatus; items: TraceExecutionResponse[] }
+}
+
+interface TracePublicationResponse {
+  status: TraceLinkStatus
+  checkId: string | null
+  companionBranch: string | null
+  companionPullRequestUrl: string | null
+  sourceHeadSha: string | null
+  freshness: 'CURRENT' | 'STALE' | null
+}
+
+interface AnalysisRunTraceResponse {
+  analysisRunId: Id
+  repositoryName: string
+  pullRequestNumber: number
+  headSha: string
+  changeset: { status: TraceLinkStatus; targetCount: number }
+  targets: TraceTargetResponse[]
+  publication: TracePublicationResponse
+}
+
+type EvidenceKind = 'ANALYSIS_RUN' | 'EXPERIMENT' | 'RETRIEVAL_COMPARISON'
+type EvidenceStrategy = ExperimentStrategy | 'PRODUCT'
+
+interface EvidenceRetrievalCandidateResponse {
+  rank: number | null
+  chunkId: Id | null
+  filePath: RelativePath | null
+  symbolQualifiedName: string | null
+  semanticScore: number | null
+  structuralRelation: StructuralRelation | null
+  combinedScore: number | null
+  selected: boolean | null
+}
+
+interface EvidenceRetrievalConfigResponse {
+  semanticTopK: number | null
+  finalTopK: number | null
+  semanticWeight: number | null
+  structuralWeight: number | null
+  embeddingModel: string | null
+}
+
+interface EvidenceBundleResponse {
+  schemaVersion: '1'
+  kind: EvidenceKind
+  subjectId: Id
+  generatedAt: IsoDateTime
+  correlationId: string
+  analysisRun: {
+    analysisRunId: Id
+    repositoryName: string
+    pullRequestNumber: number
+    headSha: string
+    projectVersionId: Id | null
+    snapshotRef: string | null // referencia opaca; nunca una URL firmada
+    targets: AnalysisSymbolResponse[]
+    createdAt: IsoDateTime
+  } | null
+  retrieval: {
+    retrievalId: Id
+    mode: RetrievalMode
+    config: EvidenceRetrievalConfigResponse
+    candidates: EvidenceRetrievalCandidateResponse[]
+    metrics: RetrievalMetricsResponse | null // solo RETRIEVAL_COMPARISON con groundTruth
+  }[]
+  context: {
+    contextId: Id
+    selectedChunkIds: Id[]
+    discardedChunkIds: Id[]
+    tokenCounts: { selected: number | null; budget: number | null }
+    functionalRuleIds: Id[]
+  }[]
+  generation: {
+    strategy: EvidenceStrategy
+    repetition: number | null
+    attempt: number | null
+    provider: string | null
+    model: string | null
+    modelVersion: string | null
+    reasoningEffort: string | null
+    inputTokens: number | null
+    outputTokens: number | null
+    durationMs: number | null
+    artifactHash: Sha256 | null
+  }[]
+  agentExploration: {
+    toolCallCap: number | null
+    steps: { step: number | null; toolName: string | null; status: string | null }[]
+    filesInspected: number | null
+    contextTokenBudget: number | null
+  }[]
+  sandbox: {
+    executionId: string | null
+    strategy: EvidenceStrategy
+    repetition: number | null
+    executionProfile: string | null
+    runnerHint: string | null
+    attempt: number
+    facts: Record<string, string | number | boolean | null> // claves cerradas: executionProfile, runner, compiled, executed, passed, totalTests, passedTests, failedTests, skippedTests, testCasesTruncated, failureStage, failureCategory, failureCode, failureMessage; sin logs, evidencias ni URLs y con failureMessage saneado
+    durationMs: number | null
+    requestId: string | null
+    correlationId: string | null
+  }[]
+  experimental: {
+    experimentId: Id
+    strategy: ExperimentStrategy
+    repetition: number
+    pairId: Id | null
+    pairPosition: 1 | 2 | null
+    attempt: number
+    randomizationSeed: string | null
+    technicallyEvaluable: boolean
+  }[]
+  publication: TracePublicationResponse | null
+}
+```
 
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 
@@ -1025,6 +1348,7 @@ Reglas:
 - `NODE_TYPESCRIPT` exige `pnpm-lock.yaml`, instala con pnpm y lockfile congelado, y admite Jest/Vitest. npm, Yarn o ausencia de lockfile producen `UNSUPPORTED_PACKAGE_MANAGER`.
 - `PHP_LARAVEL_PHPUNIT` exige `composer.json`, usa `composer.lock` cuando existe, materializa dependencias con Composer y ejecuta PHPUnit en un container PHP/Laravel-compatible. Las versiones concretas son política del profile, no comandos suministrados por Core.
 - `phase=BASELINE` ejecuta únicamente tests relevantes ya existentes; `GENERATED_TESTS` incorpora los artefactos autorizados. Sandbox reporta hechos equivalentes en ambos casos y Core decide `BASELINE_FAILED` u otra clasificación.
+- Aclaración aditiva (2026-10-09, `CS-SANDBOX-20261009-001`, WI-CORE-013): `GENERATED_TESTS` con artefactos ejecuta **exclusivamente** las rutas de los artefactos aplicados; sin artefactos, la suite configurada. Mientras no exista forma contractual de nombrar los "tests relevantes", `BASELINE` ejecuta la suite configurada. `phase=BASELINE` con `artifacts` no vacío → `400 VALIDATION_ERROR`. Tolerancia transitoria: el Sandbox acepta `phase` omitido con default `GENERATED_TESTS`; Core lo enviará explícito cuando implemente el baseline, y entonces volverá a ser obligatorio. `phase` normalizado forma parte de la identidad lógica del request: el mismo `requestId` con otra `phase` → `409 IDEMPOTENCY_CONFLICT`.
 - Los límites de CPU, memoria, output y tiempo son configuración/política del Sandbox, no parámetros controlables por el request.
 
 ### 7.3 Consultar ejecución y resultado
@@ -1060,6 +1384,7 @@ interface TestCaseFact {
   status: 'PASSED' | 'FAILED' | 'SKIPPED' | 'TODO'
   durationMs: number | null
   errorMessage: string | null
+  failureKind?: 'ASSERTION' | 'ERROR' | null // aditivo 2026-10-09; null si el caso no falló
 }
 
 interface RunnerFacts {
@@ -1116,6 +1441,8 @@ interface SandboxExecutionResultResponse {
 }
 ```
 
+`failureKind` (aditivo, 2026-10-09) es un hecho del runner, no una clasificación: `ASSERTION` = una aserción no se cumplió; `ERROR` = el test lanzó antes o en vez de verificar. PHPUnit lo deriva de JUnit `<failure>`/`<error>` (determinista); Jest/Vitest, con mejor esfuerzo (`matcherResult`, `Error: expect(`, `AssertionError`). Un Sandbox anterior puede omitirlo; Core no lo trata como fuente única de clasificación.
+
 El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrategia experimental ni una conclusión sobre calidad; RAG Core realiza esa normalización y persiste el resultado final en PostgreSQL. La evidencia que exceda el límite no autoriza acceso directo del Sandbox a Storage: se trunca de forma explícita o se entrega a Core mediante un mecanismo futuro aprobado.
 
 ### 7.4 Errores propios de la integración
@@ -1126,6 +1453,7 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `IDEMPOTENCY_KEY_REQUIRED`, `INVALID_IDEMPOTENCY_KEY`, `IDEMPOTENCY_KEY_MISMATCH` → 400.
 - `UNSUPPORTED_PROJECT`, `UNSUPPORTED_RUNNER`, `UNSUPPORTED_PACKAGE_MANAGER` → 422 antes de aceptar cuando puedan detectarse; después del `202` se persisten como resultado `FAILED`/`CONFIGURATION`.
 - `INPUT_URL_EXPIRED`, `INPUT_DOWNLOAD_FAILED`, `INTEGRITY_CHECK_FAILED`, `INVALID_ARCHIVE`, `INVALID_ARTIFACT_PATH` → resultado fallido si ocurren después del `202`.
+- Aditivo (2026-10-09): `TEST_COMPILATION_FAILED`/`COMPILATION` (un archivo de test no compila; en PHP el runner deja el reporte vacío y la falla se emite con `stage: RUNNING_TESTS`, no `COMPILING`) e `IMAGE_UNAVAILABLE`/`INFRASTRUCTURE` (la imagen del profile no pudo descargarse ni construirse). Un reporte del runner ausente o vacío nunca produce `COMPLETED`.
 - Un fallo de Storage al generar la URL ocurre en RAG Core antes de invocar al Sandbox y se normaliza allí; `SANDBOX_UNAVAILABLE` → 503 si el Sandbox no permite aceptar o consultar la operación.
 
 ### 7.5 Health del Sandbox
@@ -1137,12 +1465,12 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 ## 8. Disponibilidad en INTEROP-2.2
 
 - `ProjectVersion` (§6.2) es una versión interna derivada del `AnalysisRun`; la comparación experimental (§6.5) conserva un flujo propio sobre el mismo snapshot.
-- Las operaciones 6.8-6.13 son contrato aprobado para implementar. Su disponibilidad efectiva se declara por componente en las features y tareas correspondientes; Core construye progresivamente las capacidades PR-driven.
+- Las operaciones 6.8-6.13 son contrato aprobado para implementar; 6.15 es contrato implementado en Core (`WI-CORE-022`); 6.16 (INTEROP-2.7) está implementado en Core: el trace (`WI-CORE-026`) y la exportación de evidencia (`WI-CORE-027`). Su disponibilidad efectiva se declara por componente en las features y tareas correspondientes; Core construye progresivamente las capacidades PR-driven.
 - Developer Console conserva únicamente mocks alineados a INTEROP-2.2 y separados de live; no constituyen evidencia ni sustituyen endpoints de Core.
-- Test Execution Sandbox implementa actualmente el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest. `PHP_LARAVEL_PHPUNIT`, `phase` y la evidencia ampliada quedan aprobados pero pendientes de implementación.
+- Core implementa el consumo de `PHP_LARAVEL_PHPUNIT` (`WI-CORE-013`, `WI-CORE-028`, `WI-CORE-029`). El Sandbox publicado implementa el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest; `PHP_LARAVEL_PHPUNIT`, `phase` y `failureKind` los entrega el Sandbox según `CS-SANDBOX-20261009-001` y su estado de implementación se declara en ese componente.
 - La integración Core↔Sandbox actual continúa operativa bajo el subconjunto compatible de 1.6; la adopción completa de los campos 2.0 exige migración coordinada y contract tests en ambos backends.
-- `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-ORG-001`, `DEC-ORG-002`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO`.
-- `DEC-INF-001`, `DEC-VAL-001` y `DEC-EXP-FK-001` permanecen `PENDING` con blocks acotados. Mutation testing fue descartado para este alcance.
+- `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-ORG-001`, `DEC-ORG-002`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO` y, desde `INTEROP-2.7`, `DEC-EXP-003`, `DEC-EXP-FK-001`, `DEC-FK-001`, `DEC-FK-002` y `DEC-ORG-003` (todas `APROBADO`).
+- `DEC-INF-001` y `DEC-VAL-001` permanecen `PENDING` con blocks acotados. Mutation testing fue descartado para este alcance.
 
 ## 9. Reglas de implementación
 

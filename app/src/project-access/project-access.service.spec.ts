@@ -114,11 +114,18 @@ describe('ProjectAccessService (HU59, HU60)', () => {
       expect(records('p')).toEqual([[OWNER.userId, 'ADMIN']]);
     });
 
-    it.each(['maintain', 'write', 'admin'] as const)('an active member with %s on the repository is MAINTAINER', async (level) => {
+    it.each(['maintain', 'admin'] as const)('an active member with %s on the repository is MAINTAINER', async (level) => {
       github.setPermission(REPO, MEMBER_WRITE.githubUserId, level);
 
       await expect(service.require(MEMBER_WRITE.userId, 'p')).resolves.toMatchObject({ role: 'MAINTAINER' });
       expect(records('p')).toEqual([[MEMBER_WRITE.userId, 'MAINTAINER']]);
+    });
+
+    it('an active member with write on the repository is WRITER, never MAINTAINER (INTEROP-2.7 §6.13, WI-CORE-019)', async () => {
+      github.setPermission(REPO, MEMBER_WRITE.githubUserId, 'write');
+
+      await expect(service.require(MEMBER_WRITE.userId, 'p')).resolves.toMatchObject({ role: 'WRITER' });
+      expect(records('p')).toEqual([[MEMBER_WRITE.userId, 'WRITER']]);
     });
 
     it.each(['triage', 'read'] as const)('an active member with %s on the repository is READER', async (level) => {
@@ -205,7 +212,7 @@ describe('ProjectAccessService (HU59, HU60)', () => {
       });
       await expect(service.require(MEMBER_WRITE.userId, 'p', 'ADMIN')).rejects.toMatchObject({
         status: 403,
-        details: { requiredRole: 'ADMIN', currentRole: 'MAINTAINER' },
+        details: { requiredRole: 'ADMIN', currentRole: 'WRITER' },
       });
     });
 
@@ -214,16 +221,16 @@ describe('ProjectAccessService (HU59, HU60)', () => {
       github.calls.length = 0;
       github.permissionMode = 'UNVERIFIABLE';
 
-      await expect(service.require(MEMBER_WRITE.userId, 'p', 'MAINTAINER')).resolves.toMatchObject({ role: 'MAINTAINER' });
+      await expect(service.require(MEMBER_WRITE.userId, 'p', 'WRITER')).resolves.toMatchObject({ role: 'WRITER' });
       expect(github.calls).toEqual([]);
     });
 
-    it('a Maintainer record does not give access once the binding is REVOKED, but the record survives (5b deletes it)', async () => {
+    it('a Writer record does not give access once the binding is REVOKED, but the record survives (5b deletes it)', async () => {
       await service.require(MEMBER_WRITE.userId, 'p');
       (db.tables.repositoryBinding[0] as { status: string }).status = 'REVOKED';
 
       await expect(service.require(MEMBER_WRITE.userId, 'p')).rejects.toMatchObject({ status: 404 });
-      expect(records('p')).toContainEqual([MEMBER_WRITE.userId, 'MAINTAINER']);
+      expect(records('p')).toContainEqual([MEMBER_WRITE.userId, 'WRITER']);
       // El Admin sigue viéndolo para reactivar el binding.
       await expect(service.require(OWNER.userId, 'p')).resolves.toMatchObject({ role: 'ADMIN' });
     });
@@ -325,7 +332,7 @@ describe('ProjectAccessService (HU59, HU60)', () => {
 
       release();
 
-      await expect(alta).resolves.toMatchObject({ status: 'GRANTED', role: 'MAINTAINER' });
+      await expect(alta).resolves.toMatchObject({ status: 'GRANTED', role: 'WRITER' });
       await revocation;
       expect(records('p')).toEqual([]);
     });
@@ -348,8 +355,8 @@ describe('ProjectAccessService (HU59, HU60)', () => {
         service.grantOnEntry('p', MEMBER_WRITE.userId, MEMBER_WRITE.githubUserId),
       ]);
 
-      expect(first).toEqual({ status: 'GRANTED', role: 'MAINTAINER' });
-      expect(second).toEqual({ status: 'GRANTED', role: 'MAINTAINER' });
+      expect(first).toEqual({ status: 'GRANTED', role: 'WRITER' });
+      expect(second).toEqual({ status: 'GRANTED', role: 'WRITER' });
       expect(github.calls.filter((call) => call.method === 'getRepositoryPermission')).toHaveLength(1);
       expect(db.tables.projectAccess).toHaveLength(1);
     });
@@ -392,7 +399,7 @@ describe('ProjectAccessService (HU59, HU60)', () => {
         new VerificationContext(),
       );
 
-      expect(records('ok')).toEqual([[MEMBER_WRITE.userId, 'MAINTAINER']]);
+      expect(records('ok')).toEqual([[MEMBER_WRITE.userId, 'WRITER']]);
       expect(records('bare')).toEqual([]);
       expect(records('revoked')).toEqual([]);
       // Las candidatas que un miembro no puede ver no consumen verificaciones.
@@ -546,12 +553,12 @@ describe('ProjectAccessService: predicate correction and deep links (corte 3, et
     it.each([
       ['without a repository binding', undefined],
       ['with a REVOKED binding', 'REVOKED'],
-    ])('a stale Maintainer/Reader record does not give access to a project %s (404), while the Admin enters', async (_label, status) => {
+    ])('a stale Writer/Reader record does not give access to a project %s (404), while the Admin enters', async (_label, status) => {
       seedProject('p');
       if (status) {
         seedBinding('p', status);
       }
-      grant('p', 'u-writer', 'MAINTAINER');
+      grant('p', 'u-writer', 'WRITER');
       grant('p', 'u-reader', 'READER');
       grant('p', 'u-owner', 'ADMIN');
 
@@ -560,7 +567,7 @@ describe('ProjectAccessService: predicate correction and deep links (corte 3, et
       await expect(service.require('u-owner', 'p', 'ADMIN')).resolves.toMatchObject({ role: 'ADMIN' });
     });
 
-    it('the live verification also denies a Maintainer/Reader without a repository, so no record is (re)created for them', async () => {
+    it('the live verification also denies a Writer/Reader without a repository, so no record is (re)created for them', async () => {
       seedProject('p');
 
       const verdict = await service.grantOnEntry('p', 'u-writer', '1002');
@@ -571,7 +578,7 @@ describe('ProjectAccessService: predicate correction and deep links (corte 3, et
 
     it('the existing-record shortcut of the alta does not grant a non-Admin on a project without binding', async () => {
       seedProject('p');
-      grant('p', 'u-writer', 'MAINTAINER');
+      grant('p', 'u-writer', 'WRITER');
 
       await expect(service.grantOnEntry('p', 'u-writer', '1002')).resolves.toEqual({ status: 'DENIED' });
     });
@@ -597,15 +604,23 @@ describe('ProjectAccessService: predicate correction and deep links (corte 3, et
       ['experiment', 'experiment-1'],
       ['testTarget', 'target-1'],
     ] as const)('a member with access to the repository enters by %s id: alta with the same derived role', async (kind, id) => {
-      const writer = await service.requireForResource('u-writer', kind, id, 'MAINTAINER');
+      const writer = await service.requireForResource('u-writer', kind, id, 'WRITER');
       const reader = await service.requireForResource('u-reader', kind, id, 'READER');
 
-      expect(writer).toMatchObject({ role: 'MAINTAINER' });
+      expect(writer).toMatchObject({ role: 'WRITER' });
       expect(reader).toMatchObject({ role: 'READER' });
       expect(db.tables.projectAccess.map((row) => [row.userId, row.role]).sort()).toEqual([
         ['u-reader', 'READER'],
-        ['u-writer', 'MAINTAINER'],
+        ['u-writer', 'WRITER'],
       ]);
+    });
+
+    it('answers 403 PROJECT_ROLE_INSUFFICIENT to a visible Writer on a Maintainer operation (responder / UNKNOWN, DEC-FK-002)', async () => {
+      await expect(service.requireForResource('u-writer', 'analysisRun', 'run-1', 'MAINTAINER')).rejects.toMatchObject({
+        code: ErrorCode.PROJECT_ROLE_INSUFFICIENT,
+        status: 403,
+        details: { requiredRole: 'MAINTAINER', currentRole: 'WRITER' },
+      });
     });
 
     it('answers 403 PROJECT_ROLE_INSUFFICIENT with details to a visible Reader on a Maintainer operation', async () => {
@@ -669,7 +684,7 @@ describe('roleForPermission', () => {
   it.each([
     ['admin', 'MAINTAINER'],
     ['maintain', 'MAINTAINER'],
-    ['write', 'MAINTAINER'],
+    ['write', 'WRITER'],
     ['triage', 'READER'],
     ['read', 'READER'],
   ] as const)('%s -> %s', (permission, role) => {

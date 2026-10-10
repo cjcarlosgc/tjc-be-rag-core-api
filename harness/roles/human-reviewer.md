@@ -1,0 +1,3 @@
+# Human reviewer
+
+El usuario es el reviewer independiente por defecto antes de declarar un WI terminado. El leader presenta diff, criterios de aceptación, verificaciones y evidencia, y espera el veredicto. Solo por solicitud explícita (WI por WI) o mientras el «Modo fuera de casa» esté activo se delega revisión independiente a un agente `reviewer`. El usuario activa y desactiva ese modo expresamente en chat y queda registrado en `awayMode` de `harness/state.json`; el leader nunca lo activa por inferencia. Una delegación no sustituye la aprobación humana de alcance o arquitectura ni las decisiones `DEC`.

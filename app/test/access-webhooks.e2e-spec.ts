@@ -264,7 +264,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       expect(recordsOf()).toHaveLength(3);
     });
 
-    it('deleted: REVOKED, Maintainer and Reader lose the project (404) while the Admin still sees the REVOKED binding', async () => {
+    it('deleted: REVOKED, Writer and Reader lose the project (404) while the Admin still sees the REVOKED binding', async () => {
       const projectId = await setUpOrgProject();
 
       await deliver('repository', repositoryEvent('deleted')).expect(202);
@@ -350,7 +350,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
   });
 
   describe('installation and installation_repositories', () => {
-    it('installation.deleted: REVOKED, Maintainer/Reader deleted, Admin kept', async () => {
+    it('installation.deleted: REVOKED, Writer/Reader deleted, Admin kept', async () => {
       const projectId = await setUpOrgProject();
       const installationId = (prisma.tables.repositoryBinding[0] as { installationId: string }).installationId;
 
@@ -435,7 +435,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
     const memberEvent = (action: string, userId: string) => ({ action, member: { id: Number(gh(userId)) }, repository: { id: 100, full_name: REPO } });
     const projectAs = (userId: string, projectId: string) => authedRequest(app, userId).get(`/projects/${projectId}`);
 
-    it('member.removed: the job runs after the 202 and, because GitHub confirms the loss, the Maintainer loses the project (404) while the others keep it', async () => {
+    it('member.removed: the job runs after the 202 and, because GitHub confirms the loss, the Writer loses the project (404) while the others keep it', async () => {
       const projectId = await setUpOrgProject();
       github.removePermission(REPO, gh(WRITER));
 
@@ -452,7 +452,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await projectAs(OWNER, projectId).expect(200);
     });
 
-    it('member.edited: a permission change write -> read is applied from the LIVE state (Maintainer -> Reader), never from the payload', async () => {
+    it('member.edited: a permission change write -> read is applied from the LIVE state (Writer -> Reader), never from the payload', async () => {
       const projectId = await setUpOrgProject();
       github.setPermission(REPO, gh(WRITER), 'read');
 
@@ -462,7 +462,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
 
       expect(recordsOf()).toContain(`${WRITER}:READER`);
       await projectAs(WRITER, projectId).expect(200);
-      await authedRequest(app, WRITER).delete(`/projects/${projectId}/integrations/github`).expect(403); // ya no es Maintainer
+      await authedRequest(app, WRITER).delete(`/projects/${projectId}/integrations/github`).expect(403); // ya no es Writer (rol mínimo de vincular, INTEROP-2.7 §6.13)
     });
 
     it('member.added and a duplicate/out-of-order delivery are harmless: the live state wins', async () => {
@@ -474,7 +474,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('member', memberEvent('added', WRITER), { deliveryId: 'd-0' }).expect(202); // llega tarde: "added" después de "removed"
       await runJobs();
 
-      expect(recordsOf()).not.toContain(`${WRITER}:MAINTAINER`);
+      expect(recordsOf()).not.toContain(`${WRITER}:WRITER`);
       await projectAs(WRITER, projectId).expect(404);
     });
 
@@ -505,7 +505,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('membership', { action: 'removed', scope: 'team', member: { id: Number(gh(READER)) }, organization: { id: Number(ORG_ID) } }).expect(202);
       await runJobs();
 
-      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:MAINTAINER`]);
+      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:WRITER`]);
       await projectAs(READER, projectId).expect(404);
     });
 
@@ -533,7 +533,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('team', { action: 'edited', team: { id: 1 }, organization: { id: Number(ORG_ID) } }).expect(202);
       await runJobs();
 
-      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:MAINTAINER`]);
+      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:WRITER`]);
     });
 
     it('repository.privatized: the implicit read of a public repository disappears, so a record that GitHub no longer backs is deleted', async () => {
@@ -544,7 +544,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       expect(binding().status).toBe('ENABLED'); // solo encola
       await runJobs();
 
-      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:MAINTAINER`]);
+      expect(recordsOf()).toEqual([`${OWNER}:ADMIN`, `${WRITER}:WRITER`]);
       await projectAs(READER, projectId).expect(404);
     });
 
@@ -583,7 +583,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
 
       // Reinstalada: el acceso se recrea al entrar, con el binding REVOKED hasta que un Admin lo reactive.
       github.addOrganization({ installationId: 'inst-42', organizationId: ORG_ID, organizationLogin: ORG, avatarUrl: null, suspended: false });
-      await projectAs(WRITER, projectId).expect(404); // Maintainer/Reader no ven un binding REVOKED
+      await projectAs(WRITER, projectId).expect(404); // Writer/Reader no ven un binding REVOKED
       expect((await projectAs(OWNER, projectId).expect(200)).body.role).toBe('ADMIN');
       await authedRequest(app, OWNER).post(`/projects/${projectId}/integrations/github/enable`).expect(200);
       await projectAs(WRITER, projectId).expect(200);
@@ -597,7 +597,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       await deliver('member', memberEvent('removed', WRITER)).expect(202);
       await runJobs();
 
-      expect(recordsOf()).toContain(`${WRITER}:MAINTAINER`);
+      expect(recordsOf()).toContain(`${WRITER}:WRITER`);
       await projectAs(WRITER, projectId).expect(200); // conserva lo existente
       expect(queue.jobs[0]).toMatchObject({ status: 'PENDING', attempts: 0 });
 
@@ -605,7 +605,7 @@ describe('Access webhooks over the ingress (HU61, corte 5a, e2e)', () => {
       queue.advance(60_000);
       await runJobs();
 
-      expect(recordsOf()).not.toContain(`${WRITER}:MAINTAINER`);
+      expect(recordsOf()).not.toContain(`${WRITER}:WRITER`);
       await projectAs(WRITER, projectId).expect(404);
       expect(queue.jobs.every((job) => job.status === 'COMPLETED')).toBe(true);
     });

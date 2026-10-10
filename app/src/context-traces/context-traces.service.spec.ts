@@ -1,6 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { HttpStatus } from '@nestjs/common';
+import type { HttpException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ContextTracesService } from './context-traces.service.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
@@ -296,6 +298,44 @@ describe('ContextTracesService', () => {
     expect(reads.listDiscoveredFilesForOwner).not.toHaveBeenCalled();
   });
 
+  it('maps an AGENT detail carrying budget and per-step budget fields without changing the DTO', async () => {
+    const base = makeTrace('AGENT');
+    const baseDetail = base.detail as { trajectory: Array<Record<string, unknown>> };
+    const detail = {
+      trajectory: baseDetail.trajectory.slice(0, 1).map((step) => ({
+        ...step,
+        contextTokens: 12,
+        truncationReason: 'CHAR_LIMIT',
+      })),
+      budget: {
+        toolCallCap: 20,
+        contextTokenBudget: 6000,
+        contextTokensDelivered: 12,
+        capReached: false,
+        truncatedSteps: 1,
+      },
+    };
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeTrace('AGENT', { detail, toolCalls: 1, filesInspected: 0 })),
+      },
+    });
+
+    const result = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    expect(result).toMatchObject({
+      kind: 'AGENT',
+      toolCalls: 1,
+      filesInspected: 0,
+      trajectory: [expect.objectContaining({ step: 1, toolName: 'list_files', truncated: true })],
+    });
+    expect(result).not.toHaveProperty('budget');
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('contextTokens');
+    expect(serialized).not.toContain('truncationReason');
+    expect(serialized).not.toContain('capReached');
+  });
+
   it('returns an empty observed trajectory when Agent workspace acquisition failed before any tool call', async () => {
     const { service, objectStorage } = makeService({
       reads: {
@@ -408,4 +448,296 @@ describe('ContextTracesService', () => {
       service.listDiscoveredFiles('trace-1', USER_ID, { step: 1 }),
     ).rejects.toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
   });
+
+  it('returns 404 CONTEXT_TRACE_NOT_FOUND when the trace is missing or not owned by the user', async () => {
+    const { service, objectStorage } = makeService({
+      reads: { findForOwner: vi.fn().mockResolvedValue(null) },
+    });
+
+    const error = await service
+      .getContextTraceDetail('foreign-trace', USER_ID)
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: ErrorCode.CONTEXT_TRACE_NOT_FOUND });
+    expect((error as HttpException).getStatus()).toBe(HttpStatus.NOT_FOUND);
+    expect(objectStorage.get).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'SELECTED with a discard reason',
+      { decision: 'SELECTED', discardReason: 'TOP_K_LIMIT' },
+    ],
+    [
+      'DISCARDED without a discard reason',
+      { decision: 'DISCARDED', discardReason: null },
+    ],
+    [
+      'DISCARDED with an unknown discard reason',
+      { decision: 'DISCARDED', discardReason: 'UNKNOWN_REASON' },
+    ],
+  ])(
+    'returns 500 INTERNAL_ERROR for a candidate that is %s',
+    async (_label, overrides) => {
+      const { service } = makeService({
+        reads: {
+          findForOwner: vi
+            .fn()
+            .mockResolvedValue(makeRagTrace([makeRagCandidate(overrides)])),
+        },
+      });
+
+      await expect(
+        service.getContextTraceDetail('trace-1', USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
+    },
+  );
+
+  it('exposes DISCARDED candidates with their reason, rank and effective configuration', async () => {
+    const candidates = [
+      makeRagCandidate({ chunkId: 'selected', rank: 1, combinedScore: 0.9 }),
+      makeRagCandidate({
+        chunkId: 'top-k',
+        rank: 2,
+        combinedScore: 0.8,
+        decision: 'DISCARDED',
+        discardReason: 'TOP_K_LIMIT',
+      }),
+      makeRagCandidate({
+        chunkId: 'budget',
+        rank: 3,
+        combinedScore: 0.7,
+        tokenCount: 90,
+        decision: 'DISCARDED',
+        discardReason: 'TOKEN_BUDGET',
+      }),
+      makeRagCandidate({
+        chunkId: 'below',
+        rank: 4,
+        combinedScore: 0.05,
+        semanticScore: 0.05,
+        decision: 'DISCARDED',
+        discardReason: 'BELOW_MINIMUM_SCORE',
+      }),
+    ];
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace(candidates)),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    expect(detail.kind).toBe('RAG');
+    if (detail.kind !== 'RAG') throw new Error('expected RAG detail');
+    expect(
+      detail.candidates.map(({ chunkId, rank, decision, discardReason }) => [
+        chunkId,
+        rank,
+        decision,
+        discardReason,
+      ]),
+    ).toEqual([
+      ['selected', 1, 'SELECTED', null],
+      ['top-k', 2, 'DISCARDED', 'TOP_K_LIMIT'],
+      ['budget', 3, 'DISCARDED', 'TOKEN_BUDGET'],
+      ['below', 4, 'DISCARDED', 'BELOW_MINIMUM_SCORE'],
+    ]);
+    expect(detail.retrievedChunks).toBe(4);
+    expect(detail.selectedChunks).toBe(1);
+    expect(detail.configuration).toEqual({
+      minimumScore: 0.1,
+      topK: 2,
+      maxContextTokens: 100,
+      semanticWeight: 0.7,
+      structuralWeight: 0.3,
+    });
+  });
+
+  it('preserves the PHP structural relations (WI-CORE-028) in candidates and matchedVia', async () => {
+    const candidates = [
+      makeRagCandidate({
+        chunkId: 'same-namespace',
+        rank: 1,
+        structuralMatch: 'SAME_NAMESPACE',
+        matchedVia: ['SEMANTIC', 'SAME_NAMESPACE'],
+      }),
+      makeRagCandidate({
+        chunkId: 'fully-qualified',
+        rank: 2,
+        structuralMatch: 'FULLY_QUALIFIED_REFERENCE',
+        matchedVia: ['FULLY_QUALIFIED_REFERENCE'],
+      }),
+      makeRagCandidate({
+        chunkId: 'declaring-class',
+        rank: 3,
+        structuralMatch: 'DECLARING_CLASS',
+        matchedVia: ['SEMANTIC', 'DECLARING_CLASS'],
+      }),
+    ];
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace(candidates)),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    if (detail.kind !== 'RAG') throw new Error('expected RAG detail');
+    expect(
+      detail.candidates.map(({ chunkId, structuralMatch, matchedVia }) => [
+        chunkId,
+        structuralMatch,
+        matchedVia,
+      ]),
+    ).toEqual([
+      ['same-namespace', 'SAME_NAMESPACE', ['SEMANTIC', 'SAME_NAMESPACE']],
+      ['fully-qualified', 'FULLY_QUALIFIED_REFERENCE', ['FULLY_QUALIFIED_REFERENCE']],
+      ['declaring-class', 'DECLARING_CLASS', ['SEMANTIC', 'DECLARING_CLASS']],
+    ]);
+  });
+
+  it('keeps the TypeScript relations IMPORTS and IMPORTED_BY and SEMANTIC unchanged', async () => {
+    const candidates = [
+      makeRagCandidate({
+        chunkId: 'imports',
+        rank: 1,
+        structuralMatch: 'IMPORTS',
+        matchedVia: ['SEMANTIC', 'IMPORTS'],
+      }),
+      makeRagCandidate({
+        chunkId: 'imported-by',
+        rank: 2,
+        structuralMatch: 'IMPORTED_BY',
+        matchedVia: ['IMPORTED_BY'],
+      }),
+      makeRagCandidate({ chunkId: 'semantic', rank: 3 }),
+    ];
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace(candidates)),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    if (detail.kind !== 'RAG') throw new Error('expected RAG detail');
+    expect(
+      detail.candidates.map(({ chunkId, structuralMatch, matchedVia }) => [
+        chunkId,
+        structuralMatch,
+        matchedVia,
+      ]),
+    ).toEqual([
+      ['imports', 'IMPORTS', ['SEMANTIC', 'IMPORTS']],
+      ['imported-by', 'IMPORTED_BY', ['IMPORTED_BY']],
+      ['semantic', null, ['SEMANTIC']],
+    ]);
+  });
+
+  it('rejects a structural relation outside the contract as an invalid stored detail', async () => {
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(
+          makeRagTrace([makeRagCandidate({ structuralMatch: 'SOMETHING_ELSE', matchedVia: ['SOMETHING_ELSE'] })]),
+        ),
+      },
+    });
+
+    await expect(service.getContextTraceDetail('trace-1', USER_ID)).rejects.toThrow();
+  });
+
+  it('does not expose the WI-CORE-026 functional rule evidence in the INTEROP §6.7 RAG detail', async () => {
+    const base = makeRagTrace([]);
+    const trace = {
+      ...base,
+      detail: {
+        ...(base.detail as object),
+        functionalRules: {
+          functionalRuleIds: ['rule-1'],
+          retrieved: 2,
+          selected: 1,
+          omitted: [{ knowledgeId: 'rule-2', reason: 'TOKEN_BUDGET' }],
+        },
+      },
+    };
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(trace),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+    const serialized = JSON.stringify(detail);
+
+    expect(detail.kind).toBe('RAG');
+    expect(serialized).not.toContain('functionalRules');
+    expect(serialized).not.toContain('rule-1');
+    expect(serialized).not.toContain('rule-2');
+  });
+
+  it('accepts a RAG trace without candidates as a valid read', async () => {
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace([])),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    expect(detail).toMatchObject({
+      kind: 'RAG',
+      candidates: [],
+      retrievedChunks: 0,
+      selectedChunks: 0,
+      target: { chunkIds: ['target-chunk'], tokenCount: 12 },
+    });
+  });
 });
+
+// Excerpts without line numbers skip the private snapshot, so these fixtures
+// exercise the mapping rules without needing a real workspace extraction.
+function makeNullLineExcerpt(overrides: Record<string, unknown> = {}) {
+  return makeExcerpt({ startLine: null, endLine: null, ...overrides });
+}
+
+function makeRagCandidate(overrides: Record<string, unknown> = {}) {
+  return {
+    chunkId: 'candidate-1',
+    rank: 1,
+    excerpt: makeNullLineExcerpt({ filePath: 'src/bar.ts', snippet: 'bar' }),
+    tokenCount: 8,
+    semanticScore: 0.9,
+    structuralMatch: null,
+    combinedScore: 0.9,
+    matchedVia: ['SEMANTIC'],
+    decision: 'SELECTED',
+    discardReason: null,
+    ...overrides,
+  };
+}
+
+function makeRagTrace(candidates: unknown[]) {
+  return makeTrace('RAG', {
+    detail: {
+      target: {
+        chunkIds: ['target-chunk'],
+        excerpt: makeNullLineExcerpt(),
+        tokenCount: 12,
+      },
+      candidates,
+      retrievedChunks: candidates.length,
+      selectedChunks: candidates.filter(
+        (candidate) => (candidate as { decision: string }).decision === 'SELECTED',
+      ).length,
+      contextTokens: 20,
+      configuration: {
+        minimumScore: 0.1,
+        topK: 2,
+        maxContextTokens: 100,
+        semanticWeight: 0.7,
+        structuralWeight: 0.3,
+      },
+    },
+  });
+}

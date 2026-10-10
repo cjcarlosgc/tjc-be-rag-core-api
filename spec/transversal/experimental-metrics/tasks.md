@@ -1,6 +1,6 @@
 # experimental-metrics — Subtareas vigentes
 
-No hay una subtarea técnica seleccionable en este archivo para SDD 3.0. El comportamiento vigente está en `spec.md` y `plan.md`; la ejecución futura requiere una ST local y un WI registrado antes de comenzar.
+- [x] **ST-CORE-034 · T-DONE · WI-CORE-027 · HU12, HU15, HU17:** exportación de evidencia versionada (`schemaVersion: '1'`) para AnalysisRun, experimento y comparación de retrieval, y jerarquía CF/CO/VT sin derivar CF/CO de `valid`; sin ganador automático ni identificadores `EV-OE*`.
 
 La propuesta de coverage secundaria permanece como `IDEA-004`.
 Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

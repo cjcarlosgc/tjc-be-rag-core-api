@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export const GITHUB_INTEGRATION_FETCH = Symbol('GITHUB_INTEGRATION_FETCH');
@@ -31,6 +31,11 @@ export interface GithubIntegrationRequestOptions {
   headers?: Record<string, string>;
   /** Per-request deadline; publication/blob requests may use up to 180 seconds. */
   timeoutMs?: number;
+  /**
+   * Solo para escrituras cuyo efecto ya ocurrió: una respuesta 2xx con cuerpo vacío o no JSON se devuelve
+   * como `undefined` en vez de lanzar. Los errores HTTP y de transporte no cambian.
+   */
+  tolerateUnreadableSuccessBody?: boolean;
 }
 
 const CONTRACT_ERRORS: Record<
@@ -47,6 +52,8 @@ const CONTRACT_ERRORS: Record<
 
 @Injectable()
 export class GithubIntegrationClient {
+  private readonly logger = new Logger(GithubIntegrationClient.name);
+
   constructor(
     private readonly config: ConfigService,
     @Inject(GITHUB_INTEGRATION_FETCH) private readonly fetcher: typeof fetch,
@@ -126,6 +133,10 @@ export class GithubIntegrationClient {
     try {
       return (await response.json()) as T;
     } catch {
+      if (options.tolerateUnreadableSuccessBody) {
+        this.logger.warn(`GitHub Integration respondió ${response.status} sin cuerpo JSON legible en ${normalizedPath}.`);
+        return undefined as T;
+      }
       throw new GithubIntegrationClientError('GITHUB_UPSTREAM_UNAVAILABLE', response.status, true);
     }
   }

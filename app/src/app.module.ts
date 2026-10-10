@@ -14,6 +14,7 @@ import { ProjectVersionsModule } from './project-versions/project-versions.modul
 import { RetrievalModule } from './retrieval/retrieval.module.js';
 import { GenerationModule } from './generation/generation.module.js';
 import { ExperimentsModule } from './experiments/experiments.module.js';
+import { RetrievalComparisonsModule } from './retrieval-comparisons/retrieval-comparisons.module.js';
 import { RepositoryBindingsModule } from './repository-bindings/repository-bindings.module.js';
 import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
 import { GithubWebhooksModule } from './github-webhooks/github-webhooks.module.js';
@@ -21,6 +22,7 @@ import { SnapshotIntelligenceModule } from './snapshot-intelligence/snapshot-int
 import { FunctionalKnowledgeModule } from './functional-knowledge/functional-knowledge.module.js';
 import { ValidationModule } from './validation/validation.module.js';
 import { PublicationsModule } from './publications/publications.module.js';
+import { EvidenceModule } from './evidence/evidence.module.js';
 import { HealthController } from './common/health/health.controller.js';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware.js';
 import { validateEnv } from './config/env.validation.js';
@@ -46,6 +48,7 @@ import { validateEnv } from './config/env.validation.js';
     RetrievalModule,
     GenerationModule,
     ExperimentsModule,
+    RetrievalComparisonsModule,
     RepositoryBindingsModule,
     AnalysisRunsModule,
     GithubWebhooksModule,
@@ -53,6 +56,7 @@ import { validateEnv } from './config/env.validation.js';
     FunctionalKnowledgeModule,
     ValidationModule,
     PublicationsModule,
+    EvidenceModule,
   ],
   controllers: [HealthController],
 })

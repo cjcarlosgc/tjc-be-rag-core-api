@@ -64,7 +64,7 @@ describe('FunctionalContinuationJobHandler', () => {
   });
 
   it('publishes the ACTION_REQUIRED run atomically returned by the evaluator', async () => {
-    const { handler, analysisRunsRepository, functionalContextEvaluatorService, analysisRunChecksService } =
+    const { handler, analysisRunsRepository, functionalContextEvaluatorService, analysisRunChecksService, jobsService } =
       setup();
     const run = buildRun();
     const actionRequiredRun = buildRun({ status: 'ACTION_REQUIRED' });
@@ -74,6 +74,7 @@ describe('FunctionalContinuationJobHandler', () => {
     await handler.handle({ analysisRunId: 'run-1' });
 
     expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(actionRequiredRun);
+    expect(jobsService.enqueue).not.toHaveBeenCalled();
   });
 
   it('enqueues the Validation job when there is enough functional context now', async () => {

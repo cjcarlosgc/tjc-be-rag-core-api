@@ -1,21 +1,33 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryPrisma } from '../../../test/support/in-memory-prisma.js';
-import { accessibleProject, isRoleAtLeast, rolesAtLeast } from './accessible-project.filter.js';
+import { accessibleProject, isRoleAtLeast, ROLE_RANK, rolesAtLeast } from './accessible-project.filter.js';
 import type { ProjectRole } from '../../generated/prisma/client.js';
 
-describe('rolesAtLeast / isRoleAtLeast (hierarchy ADMIN ⊃ MAINTAINER ⊃ READER)', () => {
+describe('rolesAtLeast / isRoleAtLeast (hierarchy ADMIN ⊃ MAINTAINER ⊃ WRITER ⊃ READER, WI-CORE-019)', () => {
   it('lists the roles that satisfy a minimum, from the lowest to the highest', () => {
-    expect(rolesAtLeast('READER')).toEqual(['READER', 'MAINTAINER', 'ADMIN']);
+    expect(rolesAtLeast('READER')).toEqual(['READER', 'WRITER', 'MAINTAINER', 'ADMIN']);
+    expect(rolesAtLeast('WRITER')).toEqual(['WRITER', 'MAINTAINER', 'ADMIN']);
     expect(rolesAtLeast('MAINTAINER')).toEqual(['MAINTAINER', 'ADMIN']);
     expect(rolesAtLeast('ADMIN')).toEqual(['ADMIN']);
   });
 
+  it('ranks the roles strictly: ADMIN 4 > MAINTAINER 3 > WRITER 2 > READER 1', () => {
+    expect(ROLE_RANK).toEqual({ READER: 1, WRITER: 2, MAINTAINER: 3, ADMIN: 4 });
+  });
+
   it.each([
     ['ADMIN', 'READER', true],
+    ['ADMIN', 'WRITER', true],
     ['ADMIN', 'MAINTAINER', true],
     ['ADMIN', 'ADMIN', true],
+    ['MAINTAINER', 'WRITER', true],
     ['MAINTAINER', 'READER', true],
     ['MAINTAINER', 'ADMIN', false],
+    ['WRITER', 'READER', true],
+    ['WRITER', 'WRITER', true],
+    ['WRITER', 'MAINTAINER', false],
+    ['WRITER', 'ADMIN', false],
+    ['READER', 'WRITER', false],
     ['READER', 'MAINTAINER', false],
     ['READER', 'READER', true],
   ] as const)('%s vs minimum %s -> %s', (role, min, expected) => {
@@ -58,7 +70,7 @@ describe('accessibleProject (predicate evaluated over data)', () => {
     bind('org-enabled', 'ENABLED');
     bind('org-disabled', 'DISABLED');
     bind('org-revoked', 'REVOKED');
-    // Un Admin (owner) en todos; un Maintainer y un Reader con registro en los vivos.
+    // Un Admin (owner) en todos; un Maintainer, un Writer y un Reader con registro en los vivos.
     for (const id of ['org-no-repo', 'org-enabled', 'org-disabled', 'org-revoked', 'org-deleted']) {
       grant(id, 'owner', 'ADMIN');
     }
@@ -66,6 +78,7 @@ describe('accessibleProject (predicate evaluated over data)', () => {
     // binding anterior): el predicado exige que EXISTA un binding no REVOKED, no solo "no REVOKED".
     for (const id of ['org-no-repo', 'org-enabled', 'org-disabled', 'org-revoked']) {
       grant(id, 'maintainer', 'MAINTAINER');
+      grant(id, 'writer', 'WRITER');
       grant(id, 'reader', 'READER');
     }
   });
@@ -103,6 +116,13 @@ describe('accessibleProject (predicate evaluated over data)', () => {
     expect(await visibleTo('reader')).toContain('org-enabled');
   });
 
+  it('a Writer record gives the same access as Maintainer/Reader: visible on a live binding, never while REVOKED or without repository', async () => {
+    expect(await visibleTo('writer')).toEqual(['org-disabled', 'org-enabled']);
+    expect(await visibleTo('writer', 'WRITER')).toEqual(['org-disabled', 'org-enabled']);
+    expect(await visibleTo('writer', 'MAINTAINER')).toEqual([]);
+    expect(await visibleTo('writer', 'READER')).toEqual(['org-disabled', 'org-enabled']);
+  });
+
   it('a project WITHOUT a repository binding is visible only to Admins, even if a Maintainer/Reader record exists', async () => {
     expect(db.tables.projectAccess.some((row) => row.projectId === 'org-no-repo' && row.userId === 'maintainer')).toBe(true);
     expect(await visibleTo('owner')).toContain('org-no-repo');
@@ -110,7 +130,8 @@ describe('accessibleProject (predicate evaluated over data)', () => {
     expect(await visibleTo('reader')).not.toContain('org-no-repo');
   });
 
-  it('honors the minimum role: a Reader does not satisfy MAINTAINER or ADMIN, a Maintainer does not satisfy ADMIN', async () => {
+  it('honors the minimum role: a Reader does not satisfy WRITER, MAINTAINER or ADMIN; a Maintainer does not satisfy ADMIN', async () => {
+    expect(await visibleTo('reader', 'WRITER')).toEqual([]);
     expect(await visibleTo('reader', 'MAINTAINER')).toEqual([]);
     expect(await visibleTo('maintainer', 'MAINTAINER')).toEqual(['org-disabled', 'org-enabled']);
     expect(await visibleTo('maintainer', 'ADMIN')).toEqual([]);

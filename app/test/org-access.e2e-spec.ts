@@ -193,18 +193,18 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
   });
 
   describe('entry by live verification and derived roles (HU59, HU60)', () => {
-    it('registers Maintainer for write and Reader for read on first access, exposing the role in ProjectResponse', async () => {
+    it('registers Writer for write and Reader for read on first access, exposing the role in ProjectResponse', async () => {
       const project = await createBoundProject();
 
       const writer = await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
       const reader = await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);
 
-      expect(writer.body).toMatchObject({ role: 'MAINTAINER', workspace: { kind: 'ORGANIZATION', id: ORG_ID } });
+      expect(writer.body).toMatchObject({ role: 'WRITER', workspace: { kind: 'ORGANIZATION', id: ORG_ID } });
       expect(reader.body.role).toBe('READER');
       expect(prisma.tables.projectAccess.map((row) => [row.userId, row.role]).sort()).toEqual(
         [
           [OWNER, 'ADMIN'],
-          [WRITER, 'MAINTAINER'],
+          [WRITER, 'WRITER'],
           [READER, 'READER'],
         ].sort(),
       );
@@ -238,8 +238,8 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
     });
   });
 
-  describe('roles: PATCH and DELETE only Admin (HU63); binding operations Maintainer (HU60)', () => {
-    it('PATCH renames as Admin (200) and answers 403 PROJECT_ROLE_INSUFFICIENT with details to Maintainer and Reader', async () => {
+  describe('roles: PATCH and DELETE only Admin (HU63); binding operations Writer (HU60, INTEROP-2.7 §6.13)', () => {
+    it('PATCH renames as Admin (200) and answers 403 PROJECT_ROLE_INSUFFICIENT with details to Writer and Reader', async () => {
       const project = await createBoundProject();
       await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
       await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);
@@ -247,7 +247,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       const forbidden = await authedRequest(app, WRITER).patch(`/projects/${project.id}`).send({ name: 'hijack' }).expect(403);
       expect(forbidden.body).toMatchObject({
         code: 'PROJECT_ROLE_INSUFFICIENT',
-        details: { requiredRole: 'ADMIN', currentRole: 'MAINTAINER' },
+        details: { requiredRole: 'ADMIN', currentRole: 'WRITER' },
       });
       const readerForbidden = await authedRequest(app, READER).patch(`/projects/${project.id}`).send({ name: 'x' }).expect(403);
       expect(readerForbidden.body.details).toEqual({ requiredRole: 'ADMIN', currentRole: 'READER' });
@@ -277,7 +277,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       await authedRequest(app, OWNER).delete(`/projects/${project.id}`).expect(404);
     });
 
-    it('a Reader reads the binding (GET) but cannot POST, pause or enable it (403); a Maintainer can pause and enable', async () => {
+    it('a Reader reads the binding (GET) but cannot POST, pause or enable it (403); a Writer can pause and enable', async () => {
       const project = await createBoundProject();
       await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);
       await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
@@ -310,7 +310,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       await bindRepository(project.id).expect(201);
     });
 
-    it('a Maintainer who is not an Admin cannot bind a project without repository: it is invisible to them (404)', async () => {
+    it('a Writer who is not an Admin cannot bind a project without repository: it is invisible to them (404)', async () => {
       const project = await createOrgProject();
 
       const response = await bindRepository(project.id, WRITER).expect(404);
@@ -318,7 +318,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
       expect(response.body.code).toBe('PROJECT_NOT_FOUND');
     });
 
-    it('REVOKED binding: hidden (404) for Maintainer and Reader even though their records remain; the Admin sees and reactivates it', async () => {
+    it('REVOKED binding: hidden (404) for Writer and Reader even though their records remain; the Admin sees and reactivates it', async () => {
       const project = await createBoundProject();
       await authedRequest(app, WRITER).get(`/projects/${project.id}`).expect(200);
       await authedRequest(app, READER).get(`/projects/${project.id}`).expect(200);
@@ -388,7 +388,7 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
 
       expect(list.body.items.map((item: { name: string; role: string }) => [item.name, item.role]).sort()).toEqual(
         [
-          ['team-project', 'MAINTAINER'],
+          ['team-project', 'WRITER'],
           ['writer-personal', 'ADMIN'],
         ].sort(),
       );
@@ -427,6 +427,8 @@ describe('Organization access (HU59, HU60, HU63, HU64, corte 3 etapa 2a, e2e)', 
           repositoryId: '100',
           repositoryName: REPO,
           prNumber: 1,
+          pullRequestCreatedAt: new Date(Date.now() + 60_000),
+          repositoryBindingEligible: true,
           prTitle: 't',
           baseRef: 'main',
           headRef: 'f',

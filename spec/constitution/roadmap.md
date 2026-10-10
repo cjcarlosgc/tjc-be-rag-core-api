@@ -20,7 +20,7 @@ La planificación de producto conserva las seis épicas y 18 HU fijas de `spec/b
 
 ## Backlog técnico P2, no seleccionado
 
-- `WI-CORE-005`: HNSW y reindexación controlada (HU03/HU05); inventario de datos antes de cualquier migración.
+- `WI-CORE-005` (`W-CANCELLED`): HNSW desestimado para el alcance actual (`DEC-VEC-001`); se mantiene búsqueda exacta.
 - `WI-CORE-006`: trazabilidad de candidatos RAG descartados (HU05/HU15/HU17).
 - `WI-CORE-007`: diagnóstico persistido de fallos experimentales (HU12/HU17).
 - `WI-CORE-008`: verificación organizacional y Contract Sync de implementación (HU01/HU02/HU14), sin implicar despliegue autorizado.

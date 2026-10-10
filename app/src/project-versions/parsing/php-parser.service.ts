@@ -30,14 +30,24 @@ const CLASS_NODES = new Map<string, ChunkSymbolKind>([
   ['enum_declaration', 'ENUM'],
 ]);
 
+let phpLanguagePromise: Promise<Language> | undefined;
+
+/** Carga memoizada de la gramática PHP de tree-sitter (compartida con otros extractores). */
+export function loadPhpLanguage(): Promise<Language> {
+  phpLanguagePromise ??= (async () => {
+    await Parser.init();
+    const grammarPath = fileURLToPath(import.meta.resolve('tree-sitter-php/tree-sitter-php.wasm'));
+    return Language.load(grammarPath);
+  })();
+  return phpLanguagePromise;
+}
+
 @Injectable()
 export class PhpParserService {
-  private static languagePromise: Promise<Language> | undefined;
-
   constructor(private readonly configService: ConfigService) {}
 
   async analyze(rootDir: string, relativeSourceFiles: string[]): Promise<PhpAnalysis> {
-    const language = await PhpParserService.getLanguage();
+    const language = await loadPhpLanguage();
     const parser = new Parser();
     parser.setLanguage(language);
     const maxChunkTokens = this.configService.get<number>(
@@ -68,15 +78,6 @@ export class PhpParserService {
     }
 
     return { chunks, candidates };
-  }
-
-  private static getLanguage(): Promise<Language> {
-    this.languagePromise ??= (async () => {
-      await Parser.init();
-      const grammarPath = fileURLToPath(import.meta.resolve('tree-sitter-php/tree-sitter-php.wasm'));
-      return Language.load(grammarPath);
-    })();
-    return this.languagePromise;
   }
 
   private parseFile(

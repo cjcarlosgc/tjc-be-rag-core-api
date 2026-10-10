@@ -11,6 +11,13 @@ import {
   Min,
   validateSync,
 } from 'class-validator';
+import {
+  DEFAULT_AGENT_MAX_TOOL_CALLS,
+  DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS,
+  DEFAULT_GENERATION_TIMEOUT_MS,
+  DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+} from './generation-budget.defaults.js';
+import { REASONING_EFFORT_SCALE } from '../providers/reasoning-effort.scale.js';
 
 class EnvironmentVariables {
   @IsIn(['development', 'production', 'test'])
@@ -49,6 +56,14 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1000)
   JOBS_STALE_LOCK_MS: number = 600_000;
+
+  /**
+   * Intervalo (ms) del latido del lock de cada job en curso (WI-CORE-030, DEC-JOBS-002). Debe ser
+   * como máximo `JOBS_STALE_LOCK_MS / 3`, o un worker vivo podría parecer caído.
+   */
+  @IsInt()
+  @Min(1000)
+  JOBS_HEARTBEAT_INTERVAL_MS: number = 60_000;
 
   /** Siembra y ejecuta la reconciliación horaria de acceso (HU61); `false` la desactiva (local/tests). */
   @IsBoolean()
@@ -95,6 +110,28 @@ class EnvironmentVariables {
   @IsString()
   LLM_REASONING_EFFORT?: string;
 
+  /** Experimentos (DEC-EXP-004): modelo confirmado contra la API al crear el experimento. */
+  @IsString()
+  EXPERIMENT_LLM_MODEL: string = 'gpt-6-luna';
+
+  /** Vacío = esfuerzo máximo común soportado por el modelo (efforts ∩ toolEfforts). */
+  @IsOptional()
+  @IsString()
+  EXPERIMENT_LLM_REASONING_EFFORT?: string;
+
+  @IsOptional()
+  @IsString()
+  EXPERIMENT_LLM_TEMPERATURE?: string;
+
+  @IsOptional()
+  @IsString()
+  EXPERIMENT_LLM_MAX_OUTPUT_TOKENS?: string;
+
+  /** JSON: [{"model","efforts","toolEfforts"}]; sin entrada para el modelo no se crea el experimento. */
+  @IsOptional()
+  @IsString()
+  LLM_SUPPORTED_COMBINATIONS?: string;
+
   @IsInt()
   @Min(1000)
   OPENAI_TIMEOUT_MS: number = 30_000;
@@ -117,7 +154,7 @@ class EnvironmentVariables {
 
   @IsInt()
   @Min(1)
-  RETRIEVAL_MAX_CONTEXT_TOKENS: number = 6000;
+  RETRIEVAL_MAX_CONTEXT_TOKENS: number = DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS;
 
   @IsNumber()
   @Min(0)
@@ -151,15 +188,30 @@ class EnvironmentVariables {
 
   @IsInt()
   @Min(1)
-  AGENT_MAX_TOOL_CALLS: number = 20;
+  @Max(100)
+  AGENT_MAX_TOOL_CALLS: number = DEFAULT_AGENT_MAX_TOOL_CALLS;
 
   @IsInt()
   @Min(1000)
-  GENERATION_TIMEOUT_MS: number = 120_000;
+  GENERATION_TIMEOUT_MS: number = DEFAULT_GENERATION_TIMEOUT_MS;
 
   @IsInt()
   @Min(1)
   EXPERIMENT_REPETITION_CONCURRENCY: number = 3;
+
+  /** Intervalo (ms) del latido de cada repetición en curso (WI-CORE-025, HU17). */
+  @IsInt()
+  @Min(1000)
+  EXPERIMENT_HEARTBEAT_INTERVAL_MS: number = DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS;
+
+  /**
+   * Umbral (ms) sin latido para considerar vencido un intento RUNNING. Vacío = calculado
+   * (GENERATION_TIMEOUT del run + tiempo HTTP máximo del Sandbox); nunca menor que 3 × intervalo.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  EXPERIMENT_HEARTBEAT_STALE_MS?: number;
 
   @IsNumber()
   @Min(0)
@@ -277,7 +329,56 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
     );
   }
 
+  // WI-CORE-030 (DEC-JOBS-002): el latido debe renovar el lock al menos tres veces antes de que venza.
+  if (validated.JOBS_HEARTBEAT_INTERVAL_MS * 3 > validated.JOBS_STALE_LOCK_MS) {
+    throw new Error(
+      'Configuración de entorno inválida: JOBS_HEARTBEAT_INTERVAL_MS debe ser ≤ JOBS_STALE_LOCK_MS / 3.',
+    );
+  }
+
+  validateExperimentLlmSettings(validated);
+
   return validated;
+}
+
+function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
+  const temperature = validated.EXPERIMENT_LLM_TEMPERATURE;
+  if (temperature && !(Number.isFinite(Number(temperature)) && Number(temperature) >= 0 && Number(temperature) <= 2)) {
+    throw new Error('Configuración de entorno inválida: EXPERIMENT_LLM_TEMPERATURE debe estar entre 0 y 2.');
+  }
+
+  const maxOutputTokens = validated.EXPERIMENT_LLM_MAX_OUTPUT_TOKENS;
+  if (maxOutputTokens && !/^[1-9]\d*$/.test(maxOutputTokens)) {
+    throw new Error('Configuración de entorno inválida: EXPERIMENT_LLM_MAX_OUTPUT_TOKENS debe ser un entero positivo.');
+  }
+
+  const combinations = validated.LLM_SUPPORTED_COMBINATIONS;
+  if (combinations) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(combinations);
+    } catch {
+      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser JSON válido.');
+    }
+    const valid = Array.isArray(parsed) && parsed.every((item) =>
+      typeof item === 'object' && item !== null &&
+      typeof (item as { model?: unknown }).model === 'string' &&
+      Array.isArray((item as { efforts?: unknown }).efforts) &&
+      Array.isArray((item as { toolEfforts?: unknown }).toolEfforts),
+    );
+    if (!valid) {
+      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser [{"model","efforts","toolEfforts"}].');
+    }
+    // Un nivel fuera de la escala (p. ej. un error tipográfico) falla en el arranque, no al crear el experimento.
+    const unknownEfforts = (parsed as Array<{ efforts: unknown[]; toolEfforts: unknown[] }>)
+      .flatMap((item) => [...item.efforts, ...item.toolEfforts])
+      .filter((effort) => typeof effort !== 'string' || !REASONING_EFFORT_SCALE.includes(effort));
+    if (unknownEfforts.length > 0) {
+      throw new Error(
+        `Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS contiene esfuerzos desconocidos (${unknownEfforts.map(String).join(', ')}); valores válidos: ${REASONING_EFFORT_SCALE.join(', ')}.`,
+      );
+    }
+  }
 }
 
 function isAllowedGithubIntegrationUrl(value: string, allowHttpLoopback: boolean): boolean {

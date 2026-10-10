@@ -11,6 +11,12 @@
 export const ACCESS_REVERIFY_JOB_TYPE = 'access-reverify';
 
 export type AccessReverifyScope =
+  /**
+   * Siembra al desplegar (WI-CORE-019): TODOS los registros de acceso de los Projects de organización
+   * vivos, con o sin repositorio. Reclasifica por verificación viva (p. ej. Maintainer -> Writer) y
+   * conserva lo no verificable. Un único job pendiente por clave (`ACCESS_REVERIFY:ALL`).
+   */
+  | { scope: 'ALL' }
   /** `member` (`added`/`edited`/`removed`): un usuario sobre los Projects de organización vinculados a un repositorio. */
   | { scope: 'USER_REPOSITORY'; githubUserId: string; repositoryId: string }
   /** `organization.member_removed`: un usuario sobre TODOS los Projects de la organización (borra también su Admin). */
@@ -38,8 +44,14 @@ export function toGithubId(value: unknown): string | null {
   return typeof text === 'string' && GITHUB_ID.test(text) ? text : null;
 }
 
+/** Alcance completo de la siembra al desplegar (`ALL`): su `dedupeKey` es constante. */
+export const ACCESS_REVERIFY_ALL_SCOPE = { scope: 'ALL' } as const satisfies AccessReverifyScope;
+export const ACCESS_REVERIFY_ALL_DEDUPE_KEY = 'ACCESS_REVERIFY:ALL';
+
 export function reverifyDedupeKey(scope: AccessReverifyScope): string {
   switch (scope.scope) {
+    case 'ALL':
+      return ACCESS_REVERIFY_ALL_DEDUPE_KEY;
     case 'USER_REPOSITORY':
       return `ACCESS_REVERIFY:USER_REPOSITORY:${scope.githubUserId}:${scope.repositoryId}`;
     case 'USER_ORGANIZATION':
@@ -71,6 +83,8 @@ export function parseReverifyPayload(payload: unknown): AccessReverifyPayload | 
   const deferrals = typeof raw.deferrals === 'number' && raw.deferrals > 0 ? Math.floor(raw.deferrals) : 0;
 
   switch (raw.scope) {
+    case 'ALL':
+      return { scope: 'ALL', deferrals };
     case 'USER_REPOSITORY':
       return githubUserId && repositoryId ? { scope: 'USER_REPOSITORY', githubUserId, repositoryId, deferrals } : null;
     case 'USER_ORGANIZATION':

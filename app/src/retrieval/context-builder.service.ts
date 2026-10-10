@@ -3,11 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import type { RetrievalResult } from './retrieval.service.js';
 import type {
   ContextChunk,
+  FunctionalRule,
   GenerationContextAuditCandidate,
+  GenerationContextAuditFunctionalRuleOmission,
   GenerationContext,
   RetrievalTarget,
   StructuralMatch,
 } from './generation-context.js';
+import { countFunctionalRuleTokens } from './functional-rule-format.js';
+import { DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS } from '../config/generation-budget.defaults.js';
 
 export interface ContextBuilderOptions {
   minimumScore?: number;
@@ -25,9 +29,14 @@ interface ResolvedConfig {
   structuralWeight: number;
 }
 
+/** Pesos del score combinado `semanticWeight·semántico + structuralWeight·estructural` (WI-CORE-022). */
+export interface ScoringWeights {
+  semanticWeight: number;
+  structuralWeight: number;
+}
+
 const DEFAULT_MINIMUM_SCORE = 0;
 const DEFAULT_TOP_K = 10;
-const DEFAULT_MAX_CONTEXT_TOKENS = 6000;
 const DEFAULT_SEMANTIC_WEIGHT = 0.7;
 const DEFAULT_STRUCTURAL_WEIGHT = 0.3;
 
@@ -38,8 +47,12 @@ export class ContextBuilder {
   build(
     result: RetrievalResult,
     target: RetrievalTarget,
-    metadata: { framework: 'JEST' | 'VITEST' | null },
+    metadata: {
+      framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
+      language?: 'typescript' | 'php';
+    },
     options: ContextBuilderOptions = {},
+    functionalRules: FunctionalRule[] = [],
   ): GenerationContext {
     const config = this.resolveConfig(options);
     const targetContent = result.targetChunks
@@ -52,11 +65,11 @@ export class ContextBuilder {
 
     const ranked = result.candidates
       .map((candidate) => {
-        const semantic = candidate.semanticScore ?? 0;
-        const structuralBoost = candidate.structuralMatch ? 1 : 0;
-        const score =
-          config.semanticWeight * semantic +
-          config.structuralWeight * structuralBoost;
+        const score = this.scoreCandidate(
+          config,
+          candidate.semanticScore,
+          candidate.structuralMatch,
+        );
         const matchedVia: ContextChunk['matchedVia'] = [];
 
         if (candidate.semanticScore !== null) {
@@ -121,8 +134,31 @@ export class ContextBuilder {
       return traceCandidate;
     });
 
-    const relatedChunks: ContextChunk[] = [];
+    // Reglas funcionales antes que los chunks: se cuentan con el mismo tokenizador y en el orden
+    // recibido (createdAt, knowledgeId). Las que no caben se omiten y constan en audit.
+    const selectedRules: FunctionalRule[] = [];
+    const omittedRules: GenerationContextAuditFunctionalRuleOmission[] = [];
     let contextTokens = targetTokens;
+    let functionalRuleTokens = 0;
+
+    for (const rule of functionalRules) {
+      const tokenCount = countFunctionalRuleTokens(rule);
+
+      if (contextTokens + tokenCount > config.maxContextTokens) {
+        omittedRules.push({
+          knowledgeId: rule.knowledgeId,
+          tokenCount,
+          reason: 'TOKEN_BUDGET',
+        });
+        continue;
+      }
+
+      contextTokens += tokenCount;
+      functionalRuleTokens += tokenCount;
+      selectedRules.push(rule);
+    }
+
+    const relatedChunks: ContextChunk[] = [];
 
     for (const entry of topKEntries) {
       const tokenCount = entry.candidate.chunk.tokenCount ?? 0;
@@ -157,11 +193,21 @@ export class ContextBuilder {
         content: targetContent,
       },
       relatedChunks,
-      metadata: { language: 'typescript', framework: metadata.framework },
+      functionalRules: selectedRules,
+      metadata: {
+        language: metadata.language ?? 'typescript',
+        framework: metadata.framework,
+      },
       retrievedChunks: result.candidates.length,
       selectedChunks: relatedChunks.length,
       contextTokens,
       audit: {
+        functionalRules: {
+          retrieved: functionalRules.length,
+          selected: selectedRules.length,
+          tokenCount: functionalRuleTokens,
+          omitted: omittedRules,
+        },
         target: {
           chunkIds: result.targetChunks.map((chunk) => chunk.id),
           chunks: result.targetChunks.map((chunk) => ({
@@ -183,6 +229,34 @@ export class ContextBuilder {
     };
   }
 
+  /**
+   * Pesos vigentes del score combinado: los de `options` o, si faltan, `RETRIEVAL_SEMANTIC_WEIGHT` y
+   * `RETRIEVAL_STRUCTURAL_WEIGHT` (defecto 0.7 / 0.3). API pública para la comparación de retrieval;
+   * no cambia el orden ni la traza del producto.
+   */
+  resolveWeights(options: Pick<ContextBuilderOptions, 'semanticWeight' | 'structuralWeight'> = {}): ScoringWeights {
+    return {
+      semanticWeight:
+        options.semanticWeight ??
+        this.configService.get<number>('RETRIEVAL_SEMANTIC_WEIGHT', DEFAULT_SEMANTIC_WEIGHT),
+      structuralWeight:
+        options.structuralWeight ??
+        this.configService.get<number>('RETRIEVAL_STRUCTURAL_WEIGHT', DEFAULT_STRUCTURAL_WEIGHT),
+    };
+  }
+
+  /** Score combinado de un candidato con la fórmula del producto. Sin estructural, el boost es 0. */
+  scoreCandidate(
+    weights: ScoringWeights,
+    semanticScore: number | null,
+    structuralMatch: StructuralMatch | null,
+  ): number {
+    const semantic = semanticScore ?? 0;
+    const structuralBoost = structuralMatch ? 1 : 0;
+
+    return weights.semanticWeight * semantic + weights.structuralWeight * structuralBoost;
+  }
+
   private resolveConfig(options: ContextBuilderOptions): ResolvedConfig {
     return {
       minimumScore:
@@ -198,20 +272,9 @@ export class ContextBuilder {
         options.maxContextTokens ??
         this.configService.get<number>(
           'RETRIEVAL_MAX_CONTEXT_TOKENS',
-          DEFAULT_MAX_CONTEXT_TOKENS,
+          DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
         ),
-      semanticWeight:
-        options.semanticWeight ??
-        this.configService.get<number>(
-          'RETRIEVAL_SEMANTIC_WEIGHT',
-          DEFAULT_SEMANTIC_WEIGHT,
-        ),
-      structuralWeight:
-        options.structuralWeight ??
-        this.configService.get<number>(
-          'RETRIEVAL_STRUCTURAL_WEIGHT',
-          DEFAULT_STRUCTURAL_WEIGHT,
-        ),
+      ...this.resolveWeights(options),
     };
   }
 }
