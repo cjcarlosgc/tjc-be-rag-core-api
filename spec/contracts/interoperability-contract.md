@@ -1264,6 +1264,7 @@ Reglas:
 - `NODE_TYPESCRIPT` exige `pnpm-lock.yaml`, instala con pnpm y lockfile congelado, y admite Jest/Vitest. npm, Yarn o ausencia de lockfile producen `UNSUPPORTED_PACKAGE_MANAGER`.
 - `PHP_LARAVEL_PHPUNIT` exige `composer.json`, usa `composer.lock` cuando existe, materializa dependencias con Composer y ejecuta PHPUnit en un container PHP/Laravel-compatible. Las versiones concretas son política del profile, no comandos suministrados por Core.
 - `phase=BASELINE` ejecuta únicamente tests relevantes ya existentes; `GENERATED_TESTS` incorpora los artefactos autorizados. Sandbox reporta hechos equivalentes en ambos casos y Core decide `BASELINE_FAILED` u otra clasificación.
+- Aclaración aditiva (2026-10-09, `CS-SANDBOX-20261009-001`, WI-CORE-013): `GENERATED_TESTS` con artefactos ejecuta **exclusivamente** las rutas de los artefactos aplicados; sin artefactos, la suite configurada. Mientras no exista forma contractual de nombrar los "tests relevantes", `BASELINE` ejecuta la suite configurada. `phase=BASELINE` con `artifacts` no vacío → `400 VALIDATION_ERROR`. Tolerancia transitoria: el Sandbox acepta `phase` omitido con default `GENERATED_TESTS`; Core lo enviará explícito cuando implemente el baseline, y entonces volverá a ser obligatorio. `phase` normalizado forma parte de la identidad lógica del request: el mismo `requestId` con otra `phase` → `409 IDEMPOTENCY_CONFLICT`.
 - Los límites de CPU, memoria, output y tiempo son configuración/política del Sandbox, no parámetros controlables por el request.
 
 ### 7.3 Consultar ejecución y resultado
@@ -1299,6 +1300,7 @@ interface TestCaseFact {
   status: 'PASSED' | 'FAILED' | 'SKIPPED' | 'TODO'
   durationMs: number | null
   errorMessage: string | null
+  failureKind?: 'ASSERTION' | 'ERROR' | null // aditivo 2026-10-09; null si el caso no falló
 }
 
 interface RunnerFacts {
@@ -1355,6 +1357,8 @@ interface SandboxExecutionResultResponse {
 }
 ```
 
+`failureKind` (aditivo, 2026-10-09) es un hecho del runner, no una clasificación: `ASSERTION` = una aserción no se cumplió; `ERROR` = el test lanzó antes o en vez de verificar. PHPUnit lo deriva de JUnit `<failure>`/`<error>` (determinista); Jest/Vitest, con mejor esfuerzo (`matcherResult`, `Error: expect(`, `AssertionError`). Un Sandbox anterior puede omitirlo; Core no lo trata como fuente única de clasificación.
+
 El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrategia experimental ni una conclusión sobre calidad; RAG Core realiza esa normalización y persiste el resultado final en PostgreSQL. La evidencia que exceda el límite no autoriza acceso directo del Sandbox a Storage: se trunca de forma explícita o se entrega a Core mediante un mecanismo futuro aprobado.
 
 ### 7.4 Errores propios de la integración
@@ -1365,6 +1369,7 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `IDEMPOTENCY_KEY_REQUIRED`, `INVALID_IDEMPOTENCY_KEY`, `IDEMPOTENCY_KEY_MISMATCH` → 400.
 - `UNSUPPORTED_PROJECT`, `UNSUPPORTED_RUNNER`, `UNSUPPORTED_PACKAGE_MANAGER` → 422 antes de aceptar cuando puedan detectarse; después del `202` se persisten como resultado `FAILED`/`CONFIGURATION`.
 - `INPUT_URL_EXPIRED`, `INPUT_DOWNLOAD_FAILED`, `INTEGRITY_CHECK_FAILED`, `INVALID_ARCHIVE`, `INVALID_ARTIFACT_PATH` → resultado fallido si ocurren después del `202`.
+- Aditivo (2026-10-09): `TEST_COMPILATION_FAILED`/`COMPILATION` (un archivo de test no compila; en PHP el runner deja el reporte vacío y la falla se emite con `stage: RUNNING_TESTS`, no `COMPILING`) e `IMAGE_UNAVAILABLE`/`INFRASTRUCTURE` (la imagen del profile no pudo descargarse ni construirse). Un reporte del runner ausente o vacío nunca produce `COMPLETED`.
 - Un fallo de Storage al generar la URL ocurre en RAG Core antes de invocar al Sandbox y se normaliza allí; `SANDBOX_UNAVAILABLE` → 503 si el Sandbox no permite aceptar o consultar la operación.
 
 ### 7.5 Health del Sandbox
