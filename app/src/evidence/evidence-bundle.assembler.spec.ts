@@ -140,6 +140,7 @@ function experimentRepetition(overrides: Record<string, unknown> = {}) {
     pairPosition: 1,
     technicallyEvaluable: true,
     generationDurationMs: 500,
+    executionDurationMs: 200,
     inputTokens: 10,
     outputTokens: 5,
     artifactHash: REPETITION_HASH,
@@ -187,6 +188,7 @@ function experimentInput(overrides: Partial<ExperimentEvidenceInput> = {}): Expe
         pairPosition: null,
         technicallyEvaluable: false,
         generationDurationMs: null,
+        executionDurationMs: null,
         inputTokens: null,
         outputTokens: null,
         artifactHash: null,
@@ -204,6 +206,7 @@ function experimentInput(overrides: Partial<ExperimentEvidenceInput> = {}): Expe
         pairPosition: null,
         technicallyEvaluable: true,
         generationDurationMs: null,
+        executionDurationMs: null,
         inputTokens: null,
         outputTokens: null,
         artifactHash: null,
@@ -491,7 +494,7 @@ describe('assembleExperimentBundle (WI-CORE-027, kind EXPERIMENT)', () => {
     expect(legacyRag).toMatchObject({ strategy: 'RAG', repetition: 2, durationMs: null, artifactHash: null });
   });
 
-  it('lists a sandbox entry only for a repetition that invoked the Sandbox, with durationMs not observed', () => {
+  it('lists a sandbox entry only for a repetition that invoked the Sandbox, with the measured durationMs', () => {
     const bundle = assembleExperimentBundle(experimentInput());
 
     expect(bundle.sandbox).toHaveLength(1);
@@ -502,11 +505,49 @@ describe('assembleExperimentBundle (WI-CORE-027, kind EXPERIMENT)', () => {
       executionProfile: 'NODE_TYPESCRIPT',
       runnerHint: 'JEST',
       attempt: 2,
-      durationMs: null,
+      durationMs: 200,
       requestId: 'req-r1',
       correlationId: 'corr-r1',
     });
     expect(bundle.sandbox[0].facts.passed).toBe(true);
+  });
+
+  it('gives no sandbox entry for a repetition without invocation, even when the sandbox columns are empty', () => {
+    const bundle = assembleExperimentBundle(
+      experimentInput({
+        repetitions: [
+          experimentRepetition({
+            sandboxExecutionId: null,
+            sandboxRequestId: null,
+            sandboxCorrelationId: null,
+            sandboxFacts: null,
+            executionDurationMs: null,
+          }),
+        ],
+      }),
+    );
+
+    expect(bundle.sandbox).toEqual([]);
+  });
+
+  it('gives durationMs null for an invoked repetition whose execution duration was not recorded', () => {
+    const bundle = assembleExperimentBundle(experimentInput({ repetitions: [experimentRepetition({ executionDurationMs: null })] }));
+
+    expect(bundle.sandbox).toHaveLength(1);
+    expect(bundle.sandbox[0]).toMatchObject({ executionId: 'sbx-r1', durationMs: null });
+  });
+
+  it('gives durationMs null, never 0, for a negative execution duration of an invoked repetition', () => {
+    const bundle = assembleExperimentBundle(experimentInput({ repetitions: [experimentRepetition({ executionDurationMs: -5 })] }));
+
+    expect(bundle.sandbox).toHaveLength(1);
+    expect(bundle.sandbox[0].durationMs).toBeNull();
+  });
+
+  it('keeps a zero execution duration as an observed 0 for an invoked repetition', () => {
+    const bundle = assembleExperimentBundle(experimentInput({ repetitions: [experimentRepetition({ executionDurationMs: 0 })] }));
+
+    expect(bundle.sandbox[0].durationMs).toBe(0);
   });
 
   it('exports every current repetition in experimental with technicallyEvaluable, and keeps the pair null for legacy rows', () => {

@@ -37,13 +37,14 @@ export interface UpsertAnalysisRunExecutionInput {
 }
 
 /**
- * WI-CORE-027 (corte C, corrección de B): `Date.now() - startedAt` puede ser negativo si el reloj salta hacia
- * atrás, y el CHECK `durationMs >= 0` de la columna lo rechazaría. Una duración negativa se persiste como 0
- * (cota inferior de la medición); un valor no observado (`null`, `undefined` o no finito) queda `null`.
+ * WI-CORE-027 (corte C, corrección de B y de la revisión de contrato): `Date.now() - startedAt` puede ser negativo
+ * si el reloj salta hacia atrás, y el CHECK `durationMs >= 0` de la columna lo rechazaría. Una duración negativa
+ * no es una medición válida: se persiste `null` y nunca `0`, porque `0` sería un valor inventado. El CHECK no se
+ * evalúa ante `NULL`. Un valor no observado (`null`, `undefined` o no finito) también queda `null`.
  */
 export function clampDuration(durationMs: number | null | undefined): number | null {
-  if (durationMs === null || durationMs === undefined || !Number.isFinite(durationMs)) return null;
-  return Math.max(0, Math.round(durationMs));
+  if (durationMs === null || durationMs === undefined || !Number.isFinite(durationMs) || durationMs < 0) return null;
+  return Math.round(durationMs);
 }
 
 export interface UpsertAnalysisContextInput {

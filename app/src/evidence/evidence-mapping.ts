@@ -21,7 +21,7 @@ import type { EvidenceRetrievalCandidateResponse, EvidenceRetrievalConfigRespons
 /** SHA-256 de un contenido vacío: la propuesta de excepción se guarda con `content = ''` (sin artefacto real). */
 export const EMPTY_CONTENT_SHA256 = createHash('sha256').update('', 'utf8').digest('hex');
 
-/** Namespace de los UUIDv5 de `snapshotRef` (DEC-EVID-005); el mismo DNS de RFC 4122 que usa el resto de Core. */
+/** Namespace de los UUIDv5 de `snapshotRef` (DEC-EVID-005): namespace URL de RFC 4122 (6ba7b811-9dad-11d1-80b4-00c04fd430c8). */
 export const SNAPSHOT_REF_NAMESPACE = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
@@ -81,6 +81,11 @@ export function toExecutionProfile(value: unknown): ExecutionProfile | null {
     : null;
 }
 
+/**
+ * `runnerHint` de §6.16. Hoy descarta `PHPUNIT` (valor válido de `TestRunner` en §7.1): un runner PHP queda `null`.
+ * WI-CORE-028 (PHP) debe ampliar `RUNNER_HINTS`, el tipo de retorno y el filtro de `runner` en
+ * `sandbox-evidence-facts.ts` (con `RunnerFacts['runner']` de `sandbox.types.ts`) antes de exponerlo.
+ */
 export function toRunnerHint(value: unknown): 'JEST' | 'VITEST' | null {
   return typeof value === 'string' && (RUNNER_HINTS as readonly string[]).includes(value)
     ? (value as 'JEST' | 'VITEST')

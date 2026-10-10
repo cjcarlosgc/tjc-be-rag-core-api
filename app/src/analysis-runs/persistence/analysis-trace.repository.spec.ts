@@ -59,19 +59,21 @@ describe('AnalysisTraceRepository.upsertExecution (WI-CORE-027, DEC-EVID-003)', 
     });
   });
 
-  it('persists a negative duration (clock jump) as 0 so the non-negative CHECK holds', async () => {
+  it('persists a negative duration (clock jump) as null, never 0, so the non-negative CHECK holds', async () => {
     const { repository, upsert } = repositoryWith();
 
     await repository.upsertExecution({ ...base, durationMs: -250 });
 
-    expect(upsert.mock.calls[0][0].create).toMatchObject({ durationMs: 0 });
-    expect(upsert.mock.calls[0][0].update).toMatchObject({ durationMs: 0 });
+    expect(upsert.mock.calls[0][0].create).toMatchObject({ durationMs: null });
+    expect(upsert.mock.calls[0][0].update).toMatchObject({ durationMs: null });
   });
 
-  it('clamps only the value written and keeps unobserved or non-finite durations as null', () => {
-    expect(clampDuration(-1)).toBe(0);
+  it('rounds a non-negative duration and keeps unobserved, non-finite or negative durations as null', () => {
+    expect(clampDuration(-1)).toBeNull();
+    expect(clampDuration(-0.4)).toBeNull();
     expect(clampDuration(0)).toBe(0);
     expect(clampDuration(12.4)).toBe(12);
+    expect(clampDuration(12.5)).toBe(13);
     expect(clampDuration(null)).toBeNull();
     expect(clampDuration(undefined)).toBeNull();
     expect(clampDuration(Number.NaN)).toBeNull();

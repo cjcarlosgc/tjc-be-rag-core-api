@@ -113,6 +113,8 @@ export interface ExperimentRepetitionRow {
   pairPosition: number | null;
   technicallyEvaluable: boolean;
   generationDurationMs: number | null;
+  /** Duración de la llamada al Sandbox (`Date.now()` antes/después); `null` si no hubo invocación. */
+  executionDurationMs: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
   artifactHash: string | null;
@@ -355,8 +357,7 @@ export function assembleExperimentBundle(input: ExperimentEvidenceInput): Eviden
         runnerHint: toRunnerHint(run.runnerHint),
         attempt: repetition.attempt,
         facts,
-        // La duración del Sandbox no se persiste por repetición: se informa como no observada.
-        durationMs: null,
+        durationMs: toCount(repetition.executionDurationMs),
         requestId: toText(repetition.sandboxRequestId),
         correlationId: toText(repetition.sandboxCorrelationId),
       });

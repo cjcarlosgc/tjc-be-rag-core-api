@@ -255,7 +255,7 @@ describe.skipIf(!url)('evidencia sobre PostgreSQL local: captura y lectura (WI-C
     expect(bundle.experimental[0]).toMatchObject({ repetition: 2, technicallyEvaluable: false });
   });
 
-  it('stores a negative execution duration as 0 (clamp) and reads the Run evidence with the sandbox identity', async () => {
+  it('stores a negative execution duration as null (clamp, never 0) and reads the Run evidence with the sandbox identity', async () => {
     const project = await prisma.project.create({ data: { name: `pg-run-${crypto.randomUUID()}` } });
     const version = await prisma.projectVersion.create({ data: { projectId: project.id } });
     const run = await prisma.analysisRun.create({
@@ -316,7 +316,7 @@ describe.skipIf(!url)('evidencia sobre PostgreSQL local: captura y lectura (WI-C
     });
 
     const [execution] = await evidence.findExecutionsForEvidence(run.id);
-    expect(execution.durationMs).toBe(0);
+    expect(execution.durationMs).toBeNull();
 
     const bundle = assembleAnalysisRunBundle({
       correlationId: 'corr-pg',
@@ -330,7 +330,7 @@ describe.skipIf(!url)('evidencia sobre PostgreSQL local: captura y lectura (WI-C
       executions: await evidence.findExecutionsForEvidence(run.id),
     } as never);
 
-    expect(bundle.sandbox[0]).toMatchObject({ executionId: 'sbx-run-pg', requestId: 'req-run-pg', correlationId: 'corr-run-pg', durationMs: 0, attempt: 1 });
+    expect(bundle.sandbox[0]).toMatchObject({ executionId: 'sbx-run-pg', requestId: 'req-run-pg', correlationId: 'corr-run-pg', durationMs: null, attempt: 1 });
     expect(bundle.generation[0]).toMatchObject({ attempt: 1, provider: 'openai', durationMs: 12, artifactHash: 'd'.repeat(64) });
   });
 
