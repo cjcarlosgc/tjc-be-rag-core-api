@@ -338,7 +338,7 @@
       "id": "WI-CORE-007",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-READY",
+      "status": "W-SELECTED",
       "priority": "P1",
       "sprint": "P2",
       "title": "Persistir diagnóstico detallado de fallos experimentales",
@@ -365,6 +365,22 @@
         "El detalle de SandboxFailureFact (stage, category, code, message) se persiste como JSONB nulo `failure` en ExperimentRepetition, con message saneado de secretos y sin backfill, mediante una migración diseñada y revisada. Solo experimentos: no se toca TargetRunResult.",
         "El detalle no cambia ExperimentRepetitionResponse; se expone únicamente en la evidencia de WI-CORE-027 y los valores no observables son null, nunca cero.",
         "Se actualizan experiment-job.handler y el repositorio de experimentos y sus pruebas de lectura sin secretos. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI persiste el diagnóstico de fallos experimentales sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-007-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI persiste el diagnóstico de fallos experimentales sin cambio de contrato público, sin tocar binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-007-contract-sync-scope-review.md"
+        }
       ]
     },
     {
