@@ -265,6 +265,164 @@ describe('WorkspaceAgentTools', () => {
     expect(result).toContain('No se encontró una declaración');
   });
 
+  describe('inspect_symbol con archivos PHP', () => {
+    beforeEach(async () => {
+      await mkdir(join(dir, 'app/Models'), { recursive: true });
+      await writeFile(
+        join(dir, 'app/Models/Invoice.php'),
+        [
+          '<?php',
+          'namespace App\\Models;',
+          '',
+          'class Invoice {',
+          '    public function total(): int {',
+          '        return 1;',
+          '    }',
+          '}',
+        ].join('\n'),
+      );
+      await writeFile(
+        join(dir, 'app/Services.php'),
+        [
+          '<?php',
+          'namespace App;',
+          '',
+          'use App\\Models\\Invoice;',
+          '',
+          'function billing(): void {',
+          '    $invoice = new Invoice();',
+          '}',
+        ].join('\n'),
+      );
+    });
+
+    function makePhpTools() {
+      return new WorkspaceAgentTools(dir, [
+        'app/Models/Invoice.php',
+        'app/Services.php',
+      ]);
+    }
+
+    it('finds a namespaced class with its 1-based lines and references in other PHP files', async () => {
+      const tools = makePhpTools();
+
+      const result = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'Invoice',
+      });
+
+      expect(result.result).toBe(
+        'Declarado en app/Models/Invoice.php:\nclass Invoice {\n    public function total(): int {\n        return 1;\n    }\n}\n\nReferenciado también en: app/Services.php',
+      );
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.observations[0]).toMatchObject({
+        kind: 'SYMBOL',
+        filePath: 'app/Models/Invoice.php',
+        symbolName: 'Invoice',
+        excerpt: {
+          symbolName: 'Invoice',
+          startLine: 4,
+          endLine: 8,
+        },
+      });
+    });
+
+    it('finds interfaces, traits, enums and top-level functions', async () => {
+      await writeFile(
+        join(dir, 'app/Kinds.php'),
+        [
+          '<?php',
+          'namespace App;',
+          '',
+          'interface Shape {',
+          '    public function area(): float;',
+          '}',
+          '',
+          'trait Loggable {',
+          '    public function log(): void {}',
+          '}',
+          '',
+          'enum Status: string {',
+          "    case Open = 'open';",
+          '}',
+          '',
+          'function helper_fn(): int {',
+          '    return 1;',
+          '}',
+        ].join('\n'),
+      );
+      const tools = new WorkspaceAgentTools(dir, ['app/Kinds.php']);
+
+      const expected: Array<[string, number, number]> = [
+        ['Shape', 4, 6],
+        ['Loggable', 8, 10],
+        ['Status', 12, 14],
+        ['helper_fn', 16, 18],
+      ];
+      for (const [symbolName, startLine, endLine] of expected) {
+        const result = await tools.dispatchWithObservations('inspect_symbol', {
+          symbolName,
+        });
+
+        expect(result.status).toBe('SUCCEEDED');
+        expect(result.observations[0]?.excerpt).toMatchObject({
+          startLine,
+          endLine,
+        });
+      }
+    });
+
+    it('marks an unknown PHP symbol as EMPTY', async () => {
+      const tools = makePhpTools();
+
+      const result = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'MissingPhpClass',
+      });
+
+      expect(result).toMatchObject({
+        status: 'EMPTY',
+        observations: [],
+      });
+      expect(result.result).toContain('No se encontró una declaración');
+    });
+
+    it('does not break when a PHP file has a syntax error', async () => {
+      await writeFile(
+        join(dir, 'app/Broken.php'),
+        '<?php\nclass Broken {\n    public function (( {\n',
+      );
+      const tools = new WorkspaceAgentTools(dir, [
+        'app/Broken.php',
+        'app/Models/Invoice.php',
+      ]);
+
+      const result = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'Invoice',
+      });
+      const broken = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'Broken',
+      });
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.observations[0]?.filePath).toBe('app/Models/Invoice.php');
+      expect(broken.status).toBe('EMPTY');
+    });
+
+    it('prefers the first declaration in sorted pool order when TypeScript and PHP both declare it', async () => {
+      await mkdir(join(dir, 'a'), { recursive: true });
+      await writeFile(join(dir, 'a/Dup.ts'), 'export class Invoice {}\n');
+      const tools = new WorkspaceAgentTools(dir, [
+        'app/Models/Invoice.php',
+        'a/Dup.ts',
+      ]);
+
+      const result = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'Invoice',
+      });
+
+      expect(result.result).toContain('Declarado en a/Dup.ts:');
+    });
+  });
+
   it('dispatch returns a message for an unknown tool name', async () => {
     const tools = makeTools();
 
