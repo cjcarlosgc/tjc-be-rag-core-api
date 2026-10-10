@@ -48,3 +48,6 @@ No hay decisión `PENDING`/`PROPOSED` con `Blocks` que alcance este WI (`DEC-INF
 
 ## Nota del leader (2026-10-09)
 Aprobación de alcance: la confirmación de una línea del usuario sobre `WI-CORE-007` (no está listado literalmente en `smart-v3-scope-approval.md`) está **PENDIENTE**; la solicita el agente principal. El leader implementa hasta `W-IN_REVIEW` y no cierra `W-DONE` sin esa confirmación y el veredicto humano de la revisión. `approved=true` en el estado refleja la instrucción del agente principal de proceder, no la confirmación del usuario.
+
+## Actualización del leader (2026-10-09, tras la confirmación del usuario)
+El usuario confirmó en chat que `WI-CORE-007` entra en el alcance aprobado (`smart-v3-scope-approval.md`): la confirmación de alcance pendiente queda **resuelta**. La revisión independiente la delegó explícitamente el usuario a un agente `reviewer` (ciclo 1: CHANGES_REQUESTED; ver `wi-core-007-independent-review.md`).
