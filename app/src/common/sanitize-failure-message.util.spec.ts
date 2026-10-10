@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FAILURE_MESSAGE_MAX_LENGTH,
+  FAILURE_MESSAGE_SCAN_MAX_LENGTH,
   sanitizeFailureMessage,
 } from './sanitize-failure-message.util.js';
 
@@ -128,5 +129,203 @@ describe('sanitizeFailureMessage (WI-CORE-007)', () => {
     expect(sanitizeFailureMessage(`${'x'.repeat(489)} password=hunter2`)).toMatch(
       /password=\[$/,
     );
+  });
+});
+
+/**
+ * Regresiones de la revisión independiente de WI-CORE-007 (ciclo 1). Cada caso del informe tiene su prueba;
+ * las coberturas que ya funcionaban se fijan también para no regresar.
+ */
+describe('sanitizeFailureMessage regresiones del ciclo 1 de revisión (WI-CORE-007)', () => {
+  const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+  function timedSanitize(input: string): { output: string; elapsedMs: number } {
+    const started = performance.now();
+    const output = sanitizeFailureMessage(input);
+    return { output, elapsedMs: performance.now() - started };
+  }
+
+  describe('1. rendimiento: el coste queda acotado con entradas largas', () => {
+    it('sanea 100 000 caracteres de guiones en menos de 250 ms', () => {
+      const { output, elapsedMs } = timedSanitize('a-'.repeat(50000));
+      expect(elapsedMs).toBeLessThan(250);
+      expect(output).toHaveLength(FAILURE_MESSAGE_MAX_LENGTH);
+    });
+
+    it('sanea un blob base64url de 200 000 caracteres en menos de 250 ms', () => {
+      const blob = Array.from({ length: 200000 }, (_, i) => B64URL[(i * 7919) % 64]).join('');
+      const { output, elapsedMs } = timedSanitize(blob);
+      expect(elapsedMs).toBeLessThan(250);
+      expect(output).toHaveLength(FAILURE_MESSAGE_MAX_LENGTH);
+    });
+
+    it('sanea repeticiones de pares sensibles y de comillas sin degradarse', () => {
+      const { elapsedMs: keys } = timedSanitize('token: '.repeat(3000));
+      const { elapsedMs: quotes } = timedSanitize('password="'.repeat(3000));
+      expect(keys).toBeLessThan(250);
+      expect(quotes).toBeLessThan(250);
+    });
+
+    it('acota la entrada: un secreto más allá del tope no aparece en la salida', () => {
+      const message = `${'x'.repeat(FAILURE_MESSAGE_SCAN_MAX_LENGTH + 4000)} password=hunter2`;
+      const sanitized = sanitizeFailureMessage(message);
+      expect(sanitized).toBe('x'.repeat(FAILURE_MESSAGE_MAX_LENGTH));
+      expect(sanitized).not.toContain('hunter');
+    });
+
+    it('el tope no deja un fragmento de token cortado a mitad (regresión del ciclo 1)', () => {
+      // El tope cae tras "ghp_01": sin descartar el último token quedaría "ghp_01" visible.
+      const message = `Bearer ${'A'.repeat(16370)} ghp_0123456789abcdefABCDEF`;
+      const sanitized = sanitizeFailureMessage(message);
+      expect(sanitized).toBe('Bearer [REDACTED]');
+      expect(sanitized).not.toContain('ghp_');
+    });
+  });
+
+  describe('2a. valores entre corchetes y listas JSON sensibles', () => {
+    it.each([
+      ['password=[hunter2]', 'password=[REDACTED]'],
+      ['token=[abc123def456]', 'token=[REDACTED]'],
+      ['{"password":["hunter2","other"]}', '{"password":[REDACTED]}'],
+      ['{"token":["a]b","c"]}', '{"token":[REDACTED]}'],
+    ])('redacta %s', (input, expected) => {
+      const sanitized = sanitizeFailureMessage(input);
+      expect(sanitized).toBe(expected);
+      expect(sanitized).not.toMatch(/hunter2|abc123|other|"c"/);
+      expect(sanitizeFailureMessage(sanitized)).toBe(sanitized);
+    });
+
+    it('deja intacto el marcador literal [REDACTED] (idempotencia)', () => {
+      expect(sanitizeFailureMessage('password=[REDACTED]')).toBe('password=[REDACTED]');
+    });
+  });
+
+  describe('2b. credenciales de URL con @ o / dentro de la clave', () => {
+    it('no deja fragmento de una clave que contiene @', () => {
+      const sanitized = sanitizeFailureMessage('git clone https://user:p@ssw0rd@github.com/o/r');
+      expect(sanitized).toBe('git clone https://[REDACTED]@github.com/o/r');
+      expect(sanitized).not.toContain('ssw0rd');
+    });
+
+    it('no deja la clave cuando contiene /', () => {
+      const sanitized = sanitizeFailureMessage('https://user:pa/ss1234@host/x');
+      expect(sanitized).toBe('https://[REDACTED]@host/x');
+      expect(sanitized).not.toContain('ss1234');
+      expect(sanitized).not.toContain('user');
+    });
+
+    it('oculta el usuario cuando el valor de un par contiene una URL con credenciales', () => {
+      const sanitized = sanitizeFailureMessage('token=https://u:a=b@h.example/p');
+      expect(sanitized).not.toContain('u:a');
+      expect(sanitized).toBe('token=[REDACTED]');
+    });
+
+    it('sigue quitando usuario y clave simples y la query de una URL firmada', () => {
+      expect(sanitizeFailureMessage('https://user:pass@example.com/repo.git')).toBe(
+        'https://[REDACTED]@example.com/repo.git',
+      );
+      expect(sanitizeFailureMessage('https://h.example/o.zip?X-Amz-Signature=abc#frag')).toBe(
+        'https://h.example/o.zip',
+      );
+    });
+  });
+
+  describe('2c. comillas escapadas y valores entre comillas sin cierre', () => {
+    it('redacta el valor completo cuando contiene una comilla escapada', () => {
+      const sanitized = sanitizeFailureMessage('password="ab\\"cd efgh"');
+      expect(sanitized).toBe('password=[REDACTED]');
+      expect(sanitized).not.toContain('cd efgh');
+    });
+
+    it('redacta un valor entre comillas simples con espacios', () => {
+      expect(sanitizeFailureMessage("password='abc def' fin")).toBe('password=[REDACTED] fin');
+    });
+
+    it('redacta un valor entre comillas sin cierre hasta el final', () => {
+      const sanitized = sanitizeFailureMessage('password="abc def');
+      expect(sanitized).toBe('password=[REDACTED]');
+      expect(sanitized).not.toContain('abc');
+    });
+  });
+
+  describe('3. bloques PEM sin distinguir mayúsculas y bloques PGP', () => {
+    it('redacta un bloque PEM en minúsculas', () => {
+      const sanitized = sanitizeFailureMessage(
+        'x -----begin private key-----\nMIIEabc\n-----end private key----- y',
+      );
+      expect(sanitized).toBe('x [REDACTED] y');
+    });
+
+    it('redacta un bloque PGP PRIVATE KEY BLOCK', () => {
+      const sanitized = sanitizeFailureMessage(
+        '-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOYBGabc\n-----END PGP PRIVATE KEY BLOCK-----',
+      );
+      expect(sanitized).toBe('[REDACTED]');
+      expect(sanitized).not.toContain('lQOYBG');
+    });
+  });
+
+  describe('cobertura previa que no debe regresar', () => {
+    it.each([
+      ['Bearer en mayúsculas', 'AUTH BEARER abc.def-123', 'AUTH Bearer [REDACTED]'],
+      ['bearer en minúsculas', 'auth bearer abc.def-123', 'auth Bearer [REDACTED]'],
+      ['ASIA', 'key ASIAIOSFODNN7EXAMPLE used', 'key [REDACTED] used'],
+      ['OPENSSH PEM', 'a -----BEGIN OPENSSH PRIVATE KEY-----\nb3Blbn\n-----END OPENSSH PRIVATE KEY----- b', 'a [REDACTED] b'],
+      ['ENCRYPTED PEM', 'a -----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIFH\n-----END ENCRYPTED PRIVATE KEY----- b', 'a [REDACTED] b'],
+      ['PEM sin cierre', 'key -----BEGIN RSA PRIVATE KEY-----\nMIIEabc', 'key [REDACTED]'],
+      ['password=', 'password=a1', 'password=[REDACTED]'],
+      ['token:', 'token: a1', 'token: [REDACTED]'],
+      ['secret=', 'secret=a1', 'secret=[REDACTED]'],
+      ['apikey=', 'apikey=a1', 'apikey=[REDACTED]'],
+      ['api_key=', 'api_key=a1', 'api_key=[REDACTED]'],
+      ['api-key=', 'api-key=a1', 'api-key=[REDACTED]'],
+      ['x-api-key:', 'x-api-key: a1', 'x-api-key: [REDACTED]'],
+      ['api_key JSON', '{"api_key":"a1"}', '{"api_key":[REDACTED]}'],
+      ['OPENAI_API_KEY=', 'OPENAI_API_KEY=a1', 'OPENAI_API_KEY=[REDACTED]'],
+      ['sk- suelto', 'key sk-abcdefgh1234 fin', 'key [REDACTED] fin'],
+      ['URL con userinfo', 'https://user:pass@h.example/p', 'https://[REDACTED]@h.example/p'],
+      ['query y fragmento firmados', 'https://h.example/o?sig=1#f', 'https://h.example/o'],
+      ['saltos \\n, \\r\\n y tabulador', 'token=a1\r\nsecret=b2\tfin', 'token=[REDACTED]  secret=[REDACTED] fin'],
+      ['Unicode junto a un par', 'пароль123 password=hunter2', 'пароль123 password=[REDACTED]'],
+      ['NUL embebido', 'pass\u0000word=hunter2', 'password=[REDACTED]'],
+    ])('%s', (_name, input, expected) => {
+      const sanitized = sanitizeFailureMessage(input);
+      expect(sanitized).toBe(expected);
+      expect(sanitizeFailureMessage(sanitized)).toBe(sanitized);
+    });
+  });
+
+  describe('redacción antes de truncar en todas las posiciones de corte', () => {
+    // Cada familia se coloca en cada posición 0..499 para que el límite de 500 caiga en cualquier punto
+    // del secreto. La prueba exige: sin fragmento del valor, longitud <= 500 e idempotencia.
+    const FAMILIES: ReadonlyArray<{ name: string; secret: string; forbidden: string[] }> = [
+      { name: 'Authorization Bearer', secret: 'Authorization: Bearer Zq9Wx7Vb2Mn4', forbidden: ['Zq9W'] },
+      { name: 'JWT', secret: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.Zq9Wc2lnbmF0dXJl', forbidden: ['Zq9W', 'eyJzdWIi'] },
+      { name: 'sk-', secret: 'sk-proj-Zq9Wx7Vb2Mn4', forbidden: ['Zq9W'] },
+      { name: 'ghp_', secret: 'ghp_Zq9Wx7Vb2Mn4Pr8Lk', forbidden: ['Zq9W'] },
+      { name: 'AKIA', secret: 'AKIAZQ9WX7VB2MN4PR8L', forbidden: ['ZQ9W'] },
+      { name: 'password=', secret: 'password=Zq9Wx7Vb2', forbidden: ['Zq9W'] },
+      { name: 'URL con userinfo', secret: 'https://user:Zq9Wx7@host.example/path', forbidden: ['Zq9W', 'user:'] },
+      { name: 'PEM', secret: '-----BEGIN PRIVATE KEY----- MIIZq9Wx7 -----END PRIVATE KEY-----', forbidden: ['Zq9W'] },
+      { name: 'query firmada', secret: 'https://h.example/o?X-Amz-Signature=Zq9Wx7', forbidden: ['Zq9W'] },
+      { name: 'JSON con espacio', secret: '{"password":"Zq9Wx7 Vb2"}', forbidden: ['Zq9W', 'Vb2'] },
+      { name: 'comilla escapada', secret: 'password="ab\\"Zq9W cd"', forbidden: ['Zq9W', ' cd'] },
+      { name: 'lista JSON', secret: '{"token":["Zq9Wx7","Vb2"]}', forbidden: ['Zq9W', 'Vb2'] },
+    ];
+
+    it('no deja fragmento, respeta el límite e es idempotente en cada posición', () => {
+      const failures: string[] = [];
+      for (const family of FAMILIES) {
+        for (let start = 0; start < FAILURE_MESSAGE_MAX_LENGTH; start += 1) {
+          const input = `${'x'.repeat(start)} ${family.secret} ${'tail '.repeat(120)}`;
+          const output = sanitizeFailureMessage(input);
+          const leaked = family.forbidden.filter((fragment) => output.includes(fragment));
+          if (leaked.length > 0) failures.push(`${family.name}@${start}: fuga ${leaked.join(',')}`);
+          if (output.length > FAILURE_MESSAGE_MAX_LENGTH) failures.push(`${family.name}@${start}: longitud`);
+          if (sanitizeFailureMessage(output) !== output) failures.push(`${family.name}@${start}: no idempotente`);
+        }
+      }
+      expect(failures).toEqual([]);
+    });
   });
 });

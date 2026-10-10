@@ -2517,4 +2517,24 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     expect(deps.contextTracesRepository.finishTrace).not.toHaveBeenCalled();
     expect(deps.contextTracesRepository.failTrace).not.toHaveBeenCalled();
   });
+
+  it('leaves failure absent when generation fails before the Sandbox (outer catch, regla (a))', async () => {
+    const generationError = new Error('generation exploded');
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)) },
+      generalistAgentService: { generate: vi.fn().mockRejectedValue(generationError) },
+      llmProvider: {
+        generate: vi.fn().mockRejectedValue(generationError),
+        resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-12');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    expect(writes.every((write) => write.failureType === 'UNKNOWN')).toBe(true);
+    expect(writes.every((write) => !('failure' in write))).toBe(true);
+    expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+  });
 });
