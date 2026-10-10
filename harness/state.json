@@ -6315,7 +6315,7 @@
     ],
     "caseIds": [],
     "sprint": "P2",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/features/008-experimental-comparison/spec.md",
       "spec/features/008-experimental-comparison/plan.md",
@@ -6339,25 +6339,56 @@
       }
     ],
     "transversalPaths": [],
-    "approved": false,
+    "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-EXP-FK-001",
+        "DEC-EXP-003",
+        "DEC-EXP-004",
+        "DEC-EXP-002",
+        "DEC-IDEMP-001"
+      ],
+      "checkedAt": "2026-10-10T01:15:16.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "SPEC_VERIFIED sin blockers; contractImpact=false confirmado; ExperimentRepetitionResponse no cambia.",
+            "Columna JSONB failure en experiment_repetitions, escritura en la misma updateMany con guarda RUNNING; helper nuevo sanitizeFailureMessage; sin backfill.",
+            "smart-v3-scope-approval.md cubre WI-CORE-017 a 027 y no nombra 007: confirmación de alcance de una línea por parte del usuario PENDIENTE (la solicita el agente principal); no cerrar W-DONE sin ella."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-007-sdd-verification.md",
+            "spec/features/008-experimental-comparison/plan.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-007-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar cortes A (migración + helper) y B (repositorio + handler); confirmación de alcance del usuario antes de W-DONE.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -6365,7 +6396,7 @@
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -6387,9 +6418,17 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-007-contract-sync-scope-review.md"
+      "harness/reports/wi-core-007-contract-sync-scope-review.md",
+      "harness/reports/wi-core-007-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-007-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-007-sdd-verification.md"
+      ]
+    }
   }
 }
