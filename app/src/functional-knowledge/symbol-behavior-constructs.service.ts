@@ -15,6 +15,7 @@ import {
   scenarioKeyFor,
   type BehaviorConstruct,
 } from './behavior-fingerprint/behavior-fingerprint.js';
+import { extractPhpBehaviorConstructs } from './behavior-fingerprint/php-behavior-fingerprint.js';
 
 export interface SymbolBehaviorConstructsRequest {
   /** Workspace del HEAD materializado por el job de snapshot. */
@@ -33,7 +34,7 @@ export type BehaviorSymbolCandidate = Pick<
 
 function qualifiesForBehaviorConstructs(symbol: BehaviorSymbolCandidate): boolean {
   return (
-    symbol.language === 'TYPESCRIPT' &&
+    (symbol.language === 'TYPESCRIPT' || symbol.language === 'PHP') &&
     symbol.changeKind === 'DIRECTLY_CHANGED' &&
     (symbol.kind === 'METHOD' || symbol.kind === 'FUNCTION')
   );
@@ -42,8 +43,8 @@ function qualifiesForBehaviorConstructs(symbol: BehaviorSymbolCandidate): boolea
 /**
  * WI-CORE-018 (DEC-FK-003/DEC-FK-004): calcula, dentro del job de snapshot y con el HEAD en disco,
  * las construcciones de comportamiento nuevas o modificadas de cada símbolo `DIRECTLY_CHANGED`
- * `METHOD`/`FUNCTION` de TypeScript, comparando con el código base del Run. La continuación solo lee
- * el resultado; no hace I/O.
+ * `METHOD`/`FUNCTION` de TypeScript (ts-morph) o PHP (tree-sitter), comparando con el código base del
+ * Run. La continuación solo lee el resultado; no hace I/O.
  */
 @Injectable()
 export class SymbolBehaviorConstructsService {
@@ -76,7 +77,7 @@ export class SymbolBehaviorConstructsService {
       const baseSource = await this.loadBaseSource(request, filePath, changesetByFile.get(filePath));
 
       for (const { index, symbol } of entries) {
-        results[index] = this.constructsFor(symbol, headSource, baseSource);
+        results[index] = await this.constructsFor(symbol, headSource, baseSource);
       }
     }
 
@@ -101,14 +102,17 @@ export class SymbolBehaviorConstructsService {
     );
   }
 
-  private constructsFor(
+  private async constructsFor(
     symbol: BehaviorSymbolCandidate,
     headSource: string,
     baseSource: string | null,
-  ): BehaviorConstructRecord[] {
-    const head = extractBehaviorConstructs(headSource, symbol.qualifiedName);
-    const base: BehaviorConstruct[] =
-      baseSource === null ? [] : extractBehaviorConstructs(baseSource, symbol.qualifiedName);
+  ): Promise<BehaviorConstructRecord[]> {
+    const extract = (source: string): Promise<BehaviorConstruct[]> | BehaviorConstruct[] =>
+      symbol.language === 'PHP'
+        ? extractPhpBehaviorConstructs(source, symbol.qualifiedName)
+        : extractBehaviorConstructs(source, symbol.qualifiedName);
+    const head = await extract(headSource);
+    const base: BehaviorConstruct[] = baseSource === null ? [] : await extract(baseSource);
     const targetRef = `${symbol.filePath}::${symbol.qualifiedName}`;
 
     return diffBehaviorConstructs(base, head).map((construct) => ({

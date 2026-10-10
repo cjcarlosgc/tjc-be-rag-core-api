@@ -26,12 +26,12 @@ function symbolScope(kind: AnalysisSymbol['kind']): FunctionalScope {
 }
 
 /**
- * DEC-FK-003: solo una función o método TypeScript `DIRECTLY_CHANGED` puede generar preguntas, y
+ * DEC-FK-003: solo una función o método TypeScript o PHP `DIRECTLY_CHANGED` puede generar preguntas, y
  * únicamente si el job de snapshot persistió construcciones nuevas o modificadas.
  */
 function isBehaviorTarget(symbol: AnalysisSymbol): boolean {
   return (
-    symbol.language === 'TYPESCRIPT' &&
+    (symbol.language === 'TYPESCRIPT' || symbol.language === 'PHP') &&
     symbol.changeKind === 'DIRECTLY_CHANGED' &&
     (symbol.kind === 'METHOD' || symbol.kind === 'FUNCTION')
   );
@@ -74,7 +74,7 @@ function buildRationale(symbol: AnalysisSymbol, construct: BehaviorConstructReco
  * de snapshot con el HEAD en disco; no hace I/O de GitHub ni de disco.
  *
  * Elegibilidad (WI-CORE-020): una pregunta por construcción nueva o modificada de un target
- * `DIRECTLY_CHANGED` `METHOD`/`FUNCTION` TypeScript, sin regla `ACTIVE` con la misma `scenarioKey`
+ * `DIRECTLY_CHANGED` `METHOD`/`FUNCTION` TypeScript o PHP (WI-CORE-032), sin regla `ACTIVE` con la misma `scenarioKey`
  * y sin pregunta no `OBSOLETE` con esa clave. Una pregunta histórica (`scenarioKey` nulo) cubre todo
  * el target. Las preguntas se plantean de una en una, en orden estable (archivo, nombre, `order`).
  */
