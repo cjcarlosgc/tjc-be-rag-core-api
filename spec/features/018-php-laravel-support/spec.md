@@ -89,7 +89,7 @@ Con esta regla determinista, un target sin ramificaciones, `throw` ni escrituras
 
 ## WI-CORE-028 — Relaciones estructurales PHP R-PHP1 a R-PHP5 en el retrieval SE
 
-**Estado:** PROPUESTO para aprobación humana (2026-10-09). Depende de WI-CORE-013 (aprobado).
+**Estado:** APROBADO por el usuario (2026-10-09), con R-PHP3 exigiendo la mención del nombre corto. Depende de WI-CORE-013 (aprobado).
 **Contrato:** INTEROP-2.7 §6.15 ya define `StructuralRelation` con las cinco relaciones; este WI las implementa y retira el `422` PHP **solo** en la comparación de retrieval. Los experimentos siguen respondiendo `422` para PHP hasta WI-CORE-029.
 
 ### Hallazgos
@@ -99,7 +99,7 @@ Con esta regla determinista, un target sin ramificaciones, `throw` ni escrituras
 3. El tipo interno `StructuralMatch` y el contrato de trazas de contexto (`RagMatchedVia`, `RagCandidateNodeResponse.structuralMatch`) solo admiten `IMPORTS`/`IMPORTED_BY`, y `context-traces.service.ts` descarta otros valores. Los Runs PHP (WI-CORE-013) ya producen trazas.
 4. `retrieval-comparisons.service.ts` responde `422 UNSUPPORTED_PROJECT` para PHP (DEC-RC-001, "hasta que WI-CORE-028 lo retire").
 
-### Reglas (DEC-PHP-RET-001, PROPUESTA)
+### Reglas (DEC-PHP-RET-001, APROBADA)
 
 Notación: `A` = chunk ancla (target); `C(A)` = FQCN de la clase que declara el target (`parentSymbolName`), o `null` si es una función; `ns(X)` = namespace de un FQCN; para un candidato `K`, `O(K)` = `K.parentSymbolName`, o `K.symbolName` si `K` es una declaración de clase, interfaz, trait o enum. Se excluye siempre el propio símbolo.
 
