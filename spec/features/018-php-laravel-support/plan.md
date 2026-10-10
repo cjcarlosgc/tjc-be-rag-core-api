@@ -13,3 +13,12 @@ Los cortes trazan a EP02 (inteligencia de repositorio) y EP04 (generación/valid
 - Pruebas de parser y descubrimiento cubren namespace/FQCN, class/trait/function/method, tests existentes, exclusiones, PHP sobre TS cuando ambos manifests están presentes, y regresión TS sin cambios.
 - Prisma migration backfillea versiones existentes a `TYPESCRIPT`; nuevas versiones PHP persisten `PHP`; DTOs corresponden exactamente a INTEROP-2.6.
 - Lint, suite focal/full según factibilidad, build, SDD y Harness. Los límites de sandbox/runner real se registran sin afirmar verificación E2E.
+
+## WI-CORE-013 — cortes
+
+1. Tipos: `sandbox.types.ts` (`PHPUNIT`, `failureKind`), `EXECUTION_PROFILE_BY_RUNNER.PHPUNIT`, `GenerationContext.metadata` por lenguaje.
+2. `PromptBuilder` PHP + saneamiento de la respuesta; `phpTestPath` (DEC-PHP-GEN-001).
+3. `AnalysisRunValidationJobHandler`: quitar el bloqueo PHP y ramificar por lenguaje (prompt, ruta, CREATED, runner).
+4. `mapSandboxResult` con `failureKind` (DEC-PHP-GEN-002).
+5. INTEROP canónico §7.3/§7.4 + Contract Sync a Console y Sandbox.
+6. Pruebas unitarias por regla; regresión TypeScript intacta.
