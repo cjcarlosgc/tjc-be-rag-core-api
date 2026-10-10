@@ -115,7 +115,7 @@ Notación: `A` = chunk ancla (target); `C(A)` = FQCN de la clase que declara el 
 
 ## WI-CORE-029 — OE5 con PHP/PHPUnit
 
-**Estado:** PROPUESTO para aprobación humana (2026-10-09). Dependencias cerradas: WI-CORE-013, WI-CORE-025 y WI-CORE-028 (aprobados).
+**Estado:** APROBADO por el usuario (2026-10-09). Dependencias cerradas: WI-CORE-013, WI-CORE-025 y WI-CORE-028 (aprobados).
 **Contrato:** INTEROP-2.7 §6.5/§6.5.1 (experimentos). Se retira el `422 UNSUPPORTED_PROJECT` para proyectos PHP con PHPUnit; Contract Sync a Console.
 
 ### Hallazgos
