@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-014
+source: core
+sourceWorkItem: WI-CORE-013
+targets: [console, sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.7 §7 (aditivo, Core canónico): TestCaseFact.failureKind ASSERTION|ERROR|null; GENERATED_TESTS ejecuta solo los artefactos aplicados y BASELINE la suite configurada; phase=BASELINE con artifacts → 400; tolerancia transitoria de phase omitido (default GENERATED_TESTS) en el Sandbox; phase en la identidad idempotente; códigos TEST_COMPILATION_FAILED/COMPILATION e IMAGE_UNAVAILABLE/INFRASTRUCTURE. Origen: CS-SANDBOX-20261009-001.
+requiredAction:
+  - Console: sincronizar el espejo INTEROP-2.7 byte a byte; sin cambio funcional requerido (failureKind no se expone en DTOs de Console).
+sourceRevision: 123f8ed
+status: C-PENDING
