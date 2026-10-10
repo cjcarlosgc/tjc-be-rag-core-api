@@ -6828,5 +6828,11 @@
         "harness/reports/wi-core-027-sdd-verification.md"
       ]
     }
+  },
+  "awayMode": {
+    "enabled": true,
+    "activatedBy": "user",
+    "activatedAt": "2026-10-09T00:00:00.000Z",
+    "quote": "la revisión de 027 se haga con justamente este agente. Yo no lo voy a hacer porque estoy fuera de casa en este momento"
   }
 }

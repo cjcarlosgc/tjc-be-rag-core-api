@@ -30,10 +30,17 @@ claude:
     modelAlias: "Sonnet 5.5"
     exactModelId: "claude-sonnet-5-5"
     reasoningEffort: "low"
+  reviewer:
+    role: reviewer
+    modelAlias: "Sonnet 5.5"
+    exactModelId: "claude-sonnet-5-5"
+    reasoningEffort: "medium"
   human-reviewer:
     role: human-reviewer
     actor: user
 
-# Roles permanentes: leader, sdd-analyst, implementer, contract-reviewer y human-reviewer.
+# Roles permanentes: leader, sdd-analyst, implementer, contract-reviewer, reviewer y human-reviewer.
 # contract-reviewer se activa solo para impacto contractual. human-reviewer (el usuario) es el reviewer independiente
-# por defecto; un agente `reviewer` solo existe si el usuario delega explícitamente la revisión.
+# por defecto; el agente `reviewer` (Sonnet 5.5 / medium, techo automático: las revisiones previas encontraron defectos
+# reales como ReDoS, fugas y mutaciones sobrevivientes que un esfuerzo bajo podía pasar por alto) solo revisa si el
+# usuario delega explícitamente WI por WI o mientras el «Modo fuera de casa» (`awayMode`) esté activo.
