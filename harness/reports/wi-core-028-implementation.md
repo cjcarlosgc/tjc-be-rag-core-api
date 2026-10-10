@@ -36,3 +36,18 @@ Modelo: implementer (cortes A y B) · configurado claude-haiku-5-5 · atendido u
 ## Pendiente
 
 Revisión humana. Después, WI-CORE-029 (OE5 con PHP).
+
+## Revisión humana
+
+```json
+{
+  "agent": "human-reviewer",
+  "status": "APPROVED",
+  "findings": [],
+  "blockers": [],
+  "filesAffected": ["rango ff318b4..a429336"],
+  "evidence": "harness/reports/wi-core-028-implementation.md",
+  "recommendedNextStep": "Registrar el cierre de WI-CORE-028 al integrar con feature/jean; continuar con WI-CORE-029.",
+  "reviewedAt": "2026-10-09"
+}
+```
