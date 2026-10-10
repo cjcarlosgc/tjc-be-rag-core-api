@@ -24,3 +24,14 @@ Cortes A y B por `implementer-high` (Haiku 5.5 / high; motivo: migración y sane
 - `code` del hecho se trunca pero no se redacta (se asume un identificador corto del Sandbox); un patrón de secreto no cubierto llegaría a la evidencia de `WI-CORE-027`.
 - Migración `20261009180000` no aplicada a ninguna base real; verificación con Postgres real pendiente del agente principal.
 - `WI-CORE-027` debe reutilizar `sanitizeFailureMessage` para el `failureMessage` de la evidencia de un `AnalysisRun`.
+
+## Corte C — corrección del saneado (respuesta al ciclo 1 de la revisión independiente)
+Reporte del reviewer: `harness/reports/wi-core-007-independent-review.md` (CHANGES_REQUESTED, 2 importantes y 2 menores). Corte C por `implementer-high` (Haiku 5.5 / high). `reviewCycles` sigue en 1 de 2.
+- `aa141ce` (3 archivos: `sanitize-failure-message.util.ts`, su spec y `experiment-job.handler.spec.ts`; +284/-18):
+  - Rendimiento: se quitó el prefijo `[\w-]*` de `SENSITIVE_PAIR` y se acota la entrada a 16 384 puntos de código antes de las expresiones (el último token se descarta entero si el tope corta).
+  - Fugas cerradas: listas `[...]`, userinfo de URL hasta el último `@` (también con `/` en la clave), comillas escapadas y sin cierre; PEM insensible a mayúsculas y bloque PGP.
+  - Prueba del camino de fallo LLM con `failure` ausente.
+- Decisiones del implementer: sobre-redacción aceptada (`https://host/@scope/pkg` queda `https://[REDACTED]@scope/pkg`; una comilla sin cierre consume hasta el final); la clave no exige límite de palabra antes (`monkey=` también se redacta).
+- Medición del leader (`node --experimental-strip-types`, solo la llamada): `'a-'.repeat(50000)` 3,7 ms; `'a-'.repeat(100000)` 2,2 ms; base64url de 200k 1,8 ms; `password=[` x20000 1,4 ms; `password="` x20000 1,8 ms; `u:p@` x30000 1,5 ms. Antes (reviewer): 53 s con 100k.
+- Verificación del leader en HEAD: lint 0; build 0; `tsc --noEmit` 43 con cliente regenerado (también en `aa141ce` por worktree desechable); `pnpm test` x3: 1770 pasan, 82 omitidos, 1852 total; e2e 237. El implementer enmendó dos veces su commit local antes de cerrar (sin publicar).
+- `IDEA-016` ampliada con `credential|auth|signature=` y `password hunter2` sin separador; conviene ampliar el helper antes de que `WI-CORE-027` lo reutilice.
