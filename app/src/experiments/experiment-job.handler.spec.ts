@@ -2328,3 +2328,189 @@ describe('ExperimentJobHandler onExhausted (WI-CORE-030, DEC-JOBS-001)', () => {
     expect(repoOf(missing.deps).markFailed).not.toHaveBeenCalled();
   });
 });
+
+describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
+  const PHP_TARGET = makeTarget({
+    filePath: 'app/Services/Calculator.php',
+    symbolName: 'App\\Services\\Calculator',
+    methodName: 'add',
+    targetType: 'METHOD',
+  });
+  const PHP_PATH = 'tests/Unit/Services/CalculatorAddTest.php';
+  const PHP_NAMESPACE = 'Tests\\Unit\\Services';
+  const PHP_TEST = '<?php\n\nnamespace Tests\\Unit\\Services;\n\nuse PHPUnit\\Framework\\TestCase;\n\nfinal class CalculatorAddTest extends TestCase {}\n';
+
+  function phpDeps(overrides: Record<string, unknown> = {}) {
+    const built = makeDeps({
+      projectVersionsRepository: {
+        findById: vi.fn().mockResolvedValue({
+          id: 'version-1',
+          snapshotKey: 'snapshot-key',
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+        }),
+      },
+      testTargetsRepository: { findById: vi.fn().mockResolvedValue(PHP_TARGET) },
+      ...overrides,
+    });
+    (built.deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+      seededRun({ runnerHint: 'PHPUNIT', executionProfile: 'PHP_LARAVEL_PHPUNIT' }),
+    );
+    return built;
+  }
+
+  it('runs PHP experiments instead of failing the job (WI-CORE-029)', async () => {
+    const { deps } = phpDeps();
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: PHP_TEST,
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    expect(deps.experimentRunsRepository.markFailed).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    expect(executionsOf(deps)).toHaveLength(3);
+  });
+
+  it('RAG arm: builds the context with language php and framework PHPUNIT, prompts with the PHP namespace and path, and writes a CREATED artifact', async () => {
+    const { deps } = phpDeps();
+    (deps.zipExtractionService.extract as ReturnType<typeof vi.fn>).mockResolvedValue({
+      dir: '/tmp/workspace-does-not-exist',
+      cleanup: vi.fn().mockResolvedValue(undefined),
+    });
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: PHP_TEST,
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+    // Un test existente en el target no se fusiona en PHP: siempre es un archivo nuevo.
+    (deps.testTargetsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...PHP_TARGET,
+      hasTest: true,
+      testFilePaths: ['tests/Unit/Services/CalculatorTest.php'],
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    const contextCalls = (deps.contextBuilder.build as ReturnType<typeof vi.fn>).mock.calls;
+    expect(contextCalls.length).toBeGreaterThan(0);
+    for (const call of contextCalls) {
+      expect(call[2]).toEqual({ framework: 'PHPUNIT', language: 'php' });
+    }
+    const promptCalls = (deps.promptBuilder.build as ReturnType<typeof vi.fn>).mock.calls;
+    expect(promptCalls.length).toBe(3);
+    for (const call of promptCalls) {
+      expect(call[1]).toEqual({ testNamespace: PHP_NAMESPACE, testPath: PHP_PATH });
+    }
+
+    const executions = executionsOf(deps);
+    expect(executions).toHaveLength(3);
+    for (const execution of executions) {
+      expect(execution.runnerHint).toBe('PHPUNIT');
+      expect(execution.executionProfile).toBe('PHP_LARAVEL_PHPUNIT');
+      const artifacts = execution.artifacts as Array<Record<string, unknown>>;
+      expect(artifacts[0]).toMatchObject({ relativePath: PHP_PATH, artifactType: 'CREATED' });
+      expect((artifacts[0].content as Buffer).toString('utf8')).toBe(PHP_TEST);
+    }
+    expect(deps.testFileMergeService.applyMerge).not.toHaveBeenCalled();
+    expect(deps.testFileMergeService.applyCreate).not.toHaveBeenCalled();
+  });
+
+  it('agent arm: instructions ask for a full PHPUnit 11 file starting with <?php, with the namespace and path, and no TypeScript wording', async () => {
+    const { deps } = phpDeps();
+    const originalGenerate = deps.generalistAgentService.generate.getMockImplementation()!;
+    deps.generalistAgentService.generate.mockImplementation(async (...args: unknown[]) => {
+      const result = await originalGenerate(...args);
+      return { ...result, content: PHP_TEST };
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    const calls = deps.generalistAgentService.generate.mock.calls;
+    expect(calls).toHaveLength(3);
+    for (const call of calls) {
+      const instructions = call[0] as string;
+      expect(instructions).toContain('PHP');
+      expect(instructions).toContain('PHPUnit 11');
+      expect(instructions).toContain('<?php');
+      expect(instructions).toContain(PHP_NAMESPACE);
+      expect(instructions).toContain(PHP_PATH);
+      expect(instructions).toContain('Tests\\TestCase');
+      expect(instructions).toContain('PHPUnit\\Framework\\TestCase');
+      expect(instructions).toContain('list_files, read_file, search_text, inspect_symbol');
+      expect(instructions).not.toContain('TypeScript');
+      expect(instructions).not.toContain('Jest');
+    }
+    for (const execution of executionsOf(deps)) {
+      expect(execution.runnerHint).toBe('PHPUNIT');
+      const artifacts = execution.artifacts as Array<Record<string, unknown>>;
+      expect(artifacts[0]).toMatchObject({ relativePath: PHP_PATH, artifactType: 'CREATED' });
+    }
+  });
+
+  it('records a response without <?php as INVALID/COMPILATION without calling the Sandbox or retrying, in both arms', async () => {
+    const { deps } = phpDeps();
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: 'Aquí tienes la prueba: class X {}',
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+    const originalGenerate = deps.generalistAgentService.generate.getMockImplementation()!;
+    deps.generalistAgentService.generate.mockImplementation(async (...args: unknown[]) => {
+      const result = await originalGenerate(...args);
+      return { ...result, content: 'class X {}' };
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    expect(executionsOf(deps)).toHaveLength(0);
+    expect(beginsOf(deps)).toHaveLength(6);
+    expect(deps.contextTracesRepository.failTrace).not.toHaveBeenCalled();
+    expect(deps.contextTracesRepository.finishTrace).toHaveBeenCalledTimes(6);
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    for (const write of writes) {
+      expect(write).toMatchObject({
+        compiled: false,
+        executed: false,
+        passed: false,
+        valid: false,
+        failureType: 'COMPILATION',
+        errorSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+      });
+      expect(write).not.toHaveProperty('technicallyEvaluable');
+    }
+    const terminalStates = (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[2],
+    );
+    expect(terminalStates).toEqual(Array(6).fill('COMPLETED'));
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+  });
+
+  it('reports a missing PHPUnit framework as PHPUnit, not Jest/Vitest, without calling the Sandbox', async () => {
+    const { deps } = makeDeps({
+      projectVersionsRepository: {
+        findById: vi.fn().mockResolvedValue({
+          id: 'version-1',
+          snapshotKey: 'snapshot-key',
+          language: 'PHP',
+          detectedFramework: null,
+        }),
+      },
+      testTargetsRepository: { findById: vi.fn().mockResolvedValue(PHP_TARGET) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    expect(executionsOf(deps)).toHaveLength(0);
+    const writes = writesOf(deps);
+    expect(writes.length).toBeGreaterThan(0);
+    for (const write of writes) {
+      expect(write).toMatchObject({ failureType: 'CONFIGURATION' });
+      expect(String(write.errorSummary)).toContain('PHPUnit');
+      expect(String(write.errorSummary)).not.toContain('Jest');
+    }
+  });
+});
