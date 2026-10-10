@@ -22,3 +22,9 @@ Los cortes trazan a EP02 (inteligencia de repositorio) y EP04 (generación/valid
 4. `mapSandboxResult` con `failureKind` (DEC-PHP-GEN-002).
 5. INTEROP canónico §7.3/§7.4 + Contract Sync a Console y Sandbox.
 6. Pruebas unitarias por regla; regresión TypeScript intacta.
+
+## WI-CORE-032 — cortes
+
+1. `behavior-fingerprint/php-behavior-fingerprint.ts`: extractor PHP puro (recibe el árbol o el código y el `qualifiedName`) + pruebas por categoría, determinismo y normalización.
+2. `SymbolBehaviorConstructsService` y `FunctionalContextEvaluator`: elegibilidad por lenguaje y despacho al extractor según `language`; parser tree-sitter compartido con `PhpParserService`.
+3. Regresión TypeScript intacta; prueba del evaluador con un símbolo PHP que produce `ACTION_REQUIRED`.

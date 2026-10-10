@@ -60,3 +60,29 @@ Laravel routes, Eloquent/provider-role específico, cobertura semántica de Pest
 - **WI-CORE-028:** relaciones estructurales PHP R-PHP1 a R-PHP5 en el retrieval SE (OE2).
 - **WI-CORE-029:** OE5 con PHP: levantar el `422` de experimentos, herramientas del agente generalista para PHP y prompt PHP en el brazo RAG.
 - Baseline real con `phase=BASELINE` (requiere decisión contractual sobre cómo nombrar los tests relevantes).
+
+## WI-CORE-032 — Construcciones de comportamiento PHP para ACTION_REQUIRED (ST-CORE-039)
+
+**Estado:** PROPUESTO para aprobación humana (2026-10-09). Depende de WI-CORE-013 (aprobado).
+
+### Hallazgo
+
+DEC-FK-003/004 (spec 013) definen la activación de `ACTION_REQUIRED` en términos independientes del lenguaje: target `METHOD`/`FUNCTION` `DIRECTLY_CHANGED`, sin regla `ACTIVE` aplicable, cuando el diff introduce o modifica una ramificación, un `throw` o una transición o escritura de estado. La implementación (`SymbolBehaviorConstructsService`, `FunctionalContextEvaluator`, `behavior-fingerprint.ts`) solo la calcula para TypeScript (ts-morph); un Run PHP nunca hace preguntas funcionales.
+
+### Reglas
+
+1. **Paridad de reglas.** Para PHP se aplican exactamente las mismas cuatro categorías V1 y la misma comparación base/HEAD por huella (`diffBehaviorConstructs`, `scenarioKeyFor` sin cambios). Solo cambia el extractor.
+2. **Extractor PHP (tree-sitter, mismo parser aprobado en DEC-PHP-AST-001).** Dentro del cuerpo del método o función que identifica `qualifiedName` (`Namespace\Clase.metodo` o `Namespace\funcion`):
+   - `if_statement` y `else_if_clause` → `BOUNDARY` si la condición contiene `<`, `<=`, `>` o `>=`; si no, `EXPECTED_RESULT`.
+   - `conditional_expression` (ternario) → misma regla que `if`.
+   - `switch_statement` y `match_expression` → misma regla aplicada al discriminante, con las etiquetas de los casos en la forma.
+   - `throw_expression`/`throw_statement` → `EXCEPTION`.
+   - Asignación simple o compuesta (`assignment_expression`, `augmented_assignment_expression`) y `++`/`--` (`update_expression`) cuyo destino sea estado → `STATE_TRANSITION`. Estado = acceso a miembro (`$this->x`, `$obj->x`), propiedad estática (`self::$x`, `static::$x`) o subíndice de un destino de estado. Una variable local (`$x`) no es estado, igual que una variable declarada dentro del símbolo en TypeScript.
+   - No cuentan las llamadas a métodos, `??` ni `?:` abreviado (paridad con TypeScript).
+3. **Forma normalizada.** Estructura del AST sin comentarios ni espacios; literales por valor; variables locales (incluidos los parámetros, excepto `$this`) reemplazadas por marcadores posicionales en orden de aparición; `formHash` = SHA-256 de la forma; `snippet` = texto colapsado a una línea, máximo 160 caracteres. Mismo contrato `BehaviorConstruct` que TypeScript.
+4. **Elegibilidad.** `qualifiesForBehaviorConstructs` e `isBehaviorTarget` aceptan `language` `TYPESCRIPT` o `PHP`. TypeScript no cambia; sus pruebas existentes deben seguir pasando sin modificaciones.
+5. **Determinismo.** Mismo código → misma huella y misma `scenarioKey`; un cambio solo de formato o comentarios no crea preguntas nuevas.
+
+### Consecuencia para el piloto (registrada, sin decisión de producto)
+
+Con esta regla determinista, un target sin ramificaciones, `throw` ni escrituras de estado no activa `ACTION_REQUIRED`, aunque su caso sea F. En el piloto actual, SAL-2 y RES-3 sí tienen construcciones (condiciones con comparación); `Subscription::nextChargeAmount` (SUB-3) no tiene ninguna. Ajustar el caso es una decisión del protocolo del piloto, fuera de este WI.
