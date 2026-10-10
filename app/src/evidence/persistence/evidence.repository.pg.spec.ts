@@ -204,7 +204,7 @@ describe.skipIf(!url)('evidencia sobre PostgreSQL local: captura y lectura (WI-C
       runnerHint: 'JEST',
       requestId: 'req-pg-1',
       correlationId: 'corr-pg-1',
-      durationMs: null,
+      durationMs: 200,
     });
     expect(bundle.sandbox[0].facts).toMatchObject({ runner: 'JEST', totalTests: 4, failedTests: 1, failureCode: 'ASSERT_FAILED' });
     expect(bundle.sandbox[0].facts.failureMessage).toBe('expected 2 password=[REDACTED]');
