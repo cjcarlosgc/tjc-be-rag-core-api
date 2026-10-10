@@ -6658,9 +6658,7 @@
             "Nota del leader: el validador exige noBlockingDecisions G-PASSED en W-IN_PROGRESS; DEC-EVID-001 se registra como no bloqueante del avance con alcance acotado al corte D. El leader NO toca el corte D ni cierra W-DONE hasta que el usuario la resuelva.",
             "Cortes A (saneado + IDEA-015), B (persistencia y captura, migración aditiva) y C (ensamblado y rutas) implementables; contract-reviewer antes del primer corte que toque §6.16."
           ],
-          "blockers": [
-            "DEC-EVID-001 (corte D)"
-          ],
+          "blockers": [],
           "filesAffected": [
             "harness/reports/wi-core-027-sdd-verification.md",
             "spec/transversal/experimental-metrics/plan.md"
@@ -6685,9 +6683,7 @@
             "Enmienda B de §6.16 aditiva y conforme; schemaVersion se mantiene en 1; IDEA-015 sin enmienda de DTO ni Contract Sync propio.",
             "Corte D: DECISION_REQUIRED solo por DEC-EVID-001; §6.16 no se declara Implementado hasta decidirla."
           ],
-          "blockers": [
-            "DEC-EVID-001 (corte D)"
-          ],
+          "blockers": [],
           "filesAffected": [
             "harness/reports/wi-core-027-contract-review.md"
           ],
@@ -6700,6 +6696,28 @@
             "configuredModel": "claude-sonnet-5-5",
             "servedModel": "unknown",
             "effort": "low"
+          }
+        },
+        {
+          "agent": "leader",
+          "status": "APPROVED",
+          "findings": [
+            "DEC-EVID-001 APROBADA por el usuario en chat (2026-10-09): opción A, null + contadores. Ya no hay decisiones pendientes; el corte D queda desbloqueado."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/transversal/experimental-metrics/plan.md"
+          ],
+          "evidence": [
+            "spec/transversal/experimental-metrics/plan.md"
+          ],
+          "recommendedNextStep": "Cortes A, B, C y D; contract-reviewer ratifica el texto exacto de §6.5 antes del corte D.",
+          "reason": "registro de decisión",
+          "executedBy": {
+            "agent": "leader",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
           }
         }
       ],
