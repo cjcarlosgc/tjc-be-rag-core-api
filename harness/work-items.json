@@ -1487,7 +1487,7 @@
       "sprint": "SMART V3",
       "caseIds": [],
       "contractImpact": true,
-      "publishesContract": false,
+      "publishesContract": true,
       "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
       "id": "WI-CORE-029",
       "title": "OE5 con PHP/PHPUnit",
@@ -1503,14 +1503,16 @@
         "WI-CORE-028"
       ],
       "acceptanceCriteria": [
-        "Los experimentos usan PHP_LARAVEL_PHPUNIT con runnerHint PHPUNIT y se retira el bloqueo experimental PHP solo cuando sus dependencias estén cerradas.",
-        "Diferido hasta cerrar WI-CORE-013, WI-CORE-025 y WI-CORE-028; Sandbox no se cambia desde este WI. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "POST /experiments acepta proyectos PHP con PHPUnit (runner PHPUNIT, perfil PHP_LARAVEL_PHPUNIT); PHP sin PHPUnit conserva 422; el job no bloquea PHP.",
+        "Ambos brazos usan DEC-PHP-GEN-001 (CREATED), sanitizeGeneratedPhp y el mismo Sandbox; RAG con contexto/prompt PHP y FK aplicable; el agente con instrucciones PHP equivalentes y las mismas herramientas.",
+        "inspect_symbol encuentra declaraciones y referencias PHP con tree-sitter con el mismo formato que TypeScript; TypeScript sin cambios.",
+        "INTEROP §6.5/§6.5.1 actualizado y Contract Sync a Console; Harness, lint, tests y build pasan antes de la revisión humana."
       ],
       "specPaths": [
-        "spec/features/008-experimental-comparison/spec.md",
-        "spec/features/008-experimental-comparison/plan.md",
-        "spec/features/008-experimental-comparison/tasks.md",
         "spec/contracts/interoperability-contract.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
         "spec/features/018-php-laravel-support/spec.md"
       ]
     },

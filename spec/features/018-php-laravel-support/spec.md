@@ -112,3 +112,24 @@ Notación: `A` = chunk ancla (target); `C(A)` = FQCN de la clase que declara el 
 - **Despacho por lenguaje:** los chunks TypeScript conservan exactamente su resolución actual.
 - **Contrato de trazas (aditivo):** `RagMatchedVia` y `RagCandidateNodeResponse.structuralMatch` admiten además `SAME_NAMESPACE`, `FULLY_QUALIFIED_REFERENCE` y `DECLARING_CLASS`; `context-traces.service.ts` los acepta. Contract Sync a Console (Context Explorer debe tolerar y etiquetar los valores nuevos).
 - **Comparación OE2:** se retira el `422` PHP solo en `POST /retrieval-comparisons`; el texto de §6.15 se actualiza.
+
+## WI-CORE-029 — OE5 con PHP/PHPUnit
+
+**Estado:** PROPUESTO para aprobación humana (2026-10-09). Dependencias cerradas: WI-CORE-013, WI-CORE-025 y WI-CORE-028 (aprobados).
+**Contrato:** INTEROP-2.7 §6.5/§6.5.1 (experimentos). Se retira el `422 UNSUPPORTED_PROJECT` para proyectos PHP con PHPUnit; Contract Sync a Console.
+
+### Hallazgos
+
+1. `ExperimentsService` responde `422 UNSUPPORTED_PROJECT` si `detectedFramework` no es Jest/Vitest; `ExperimentJobHandler` además lanza si la versión es PHP.
+2. La ruta del test usa `coLocatedSpecPath` o el primer test existente y fusiona con ts-morph (`TestFileMergeService`).
+3. El brazo RAG construye el contexto y el prompt sin lenguaje; las instrucciones del agente generalista dicen "TypeScript" y "Jest o Vitest".
+4. `inspect_symbol` del agente generalista solo analiza `.ts`/`.tsx` (ts-morph). `list_files`, `read_file` y `search_text` ya incluyen archivos PHP (`isPoolFile`).
+
+### Reglas
+
+1. **Elegibilidad.** Se admite un experimento sobre un proyecto PHP si `detectedFramework = PHPUNIT`; el runner persistido es `PHPUNIT` y el perfil `PHP_LARAVEL_PHPUNIT`. PHP sin PHPUnit sigue con `422 UNSUPPORTED_PROJECT`. Se conserva la precedencia actual de validaciones (§6.5.1).
+2. **Mismas condiciones para ambos brazos (Tabla 65 de la tesis).** Ruta del test por DEC-PHP-GEN-001 (archivo nuevo por target, siempre `CREATED`, sin fusión), saneamiento con `sanitizeGeneratedPhp` y el mismo Sandbox. Una respuesta sin `<?php` es un resultado técnico desfavorable de la estrategia (`TECHNICAL`/`COMPILATION`, sin reintento), no un fallo externo.
+3. **Brazo RAG.** `ContextBuilder` con `language: 'php'` y `framework: 'PHPUNIT'`; prompt PHP con el namespace y la ruta del test (WI-CORE-013). Functional Knowledge `ACTIVE` aplicable igual que en TypeScript (ADR-09).
+4. **Brazo GENERALIST_AGENT.** Instrucciones equivalentes en semántica a las de TypeScript pero para PHP/PHPUnit 11 (archivo completo con `<?php`, namespace y ruta indicados, `Tests\TestCase` solo si el código usa Laravel). Mismas herramientas, presupuesto y tope de llamadas.
+5. **`inspect_symbol` para PHP (paridad de herramientas).** Busca con tree-sitter la declaración de clase, interfaz, trait, enum o función con ese nombre corto en los archivos `.php` del pool, devuelve su texto y líneas, y las referencias por palabra completa en otros archivos, con el mismo formato de resultado y observaciones que TypeScript. Sin shell, Composer ni PHPUnit.
+6. **TypeScript sin cambios** en ambos brazos.

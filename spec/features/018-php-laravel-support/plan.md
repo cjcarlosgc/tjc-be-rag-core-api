@@ -35,3 +35,9 @@ Los cortes trazan a EP02 (inteligencia de repositorio) y EP04 (generación/valid
 2. Trazas: `context-trace.response.ts` y `context-traces.service.ts` aceptan las relaciones nuevas; INTEROP §6 (trazas) aditivo.
 3. `retrieval-comparisons.service.ts`: retirar el `422` PHP; INTEROP §6.15; pruebas.
 4. Contract Sync a Console.
+
+## WI-CORE-029 — cortes
+
+1. `WorkspaceAgentTools.inspect_symbol` para PHP (tree-sitter, `loadPhpLanguage`) + pruebas.
+2. `ExperimentsService` (elegibilidad PHPUNIT) y `ExperimentJobHandler` (sin bloqueo PHP; ruta, saneamiento y `CREATED` por DEC-PHP-GEN-001; contexto/prompt PHP en RAG; instrucciones PHP del agente) + pruebas.
+3. INTEROP §6.5/§6.5.1 y Contract Sync a Console.
