@@ -34,7 +34,7 @@ Laravel routes, Eloquent/provider-role específico, cobertura semántica de Pest
 
 ## WI-CORE-013 — Generación y validación PHPUnit (ST-CORE-020)
 
-**Estado:** PROPUESTO para aprobación humana (2026-10-09). El usuario levantó el diferimiento de WI-CORE-013/028/029 con acuerdo del otro desarrollador; se trabaja en `feature/php-core` desde `feature/jean`.
+**Estado:** APROBADO e implementado (revisión humana APPROVED, 2026-10-09). El usuario levantó el diferimiento de WI-CORE-013/028/029 con acuerdo del otro desarrollador; se trabaja en `feature/php-core` desde `feature/jean`.
 **Contrato:** INTEROP §7 (Core↔Sandbox). Coordinación recibida: `CS-SANDBOX-20261009-001` (Sandbox `feature/php-profile`, corte T-003).
 
 ### Hallazgos del análisis (código al 2026-10-09, `777f6bc`)
@@ -63,7 +63,7 @@ Laravel routes, Eloquent/provider-role específico, cobertura semántica de Pest
 
 ## WI-CORE-032 — Construcciones de comportamiento PHP para ACTION_REQUIRED (ST-CORE-039)
 
-**Estado:** PROPUESTO para aprobación humana (2026-10-09). Depende de WI-CORE-013 (aprobado).
+**Estado:** APROBADO por el usuario (2026-10-09). Depende de WI-CORE-013 (aprobado).
 
 ### Hallazgo
 
