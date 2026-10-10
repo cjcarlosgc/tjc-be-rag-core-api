@@ -7099,6 +7099,1041 @@
         ]
       },
       "closedAt": "2026-10-10T14:20:18.000Z"
+    },
+    {
+      "id": "WI-CORE-013",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU10",
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-020"
+      ],
+      "caseIds": [],
+      "sprint": "PHP V1",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/006-validation-orchestration/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-PHP-GEN-001",
+          "DEC-PHP-GEN-002"
+        ],
+        "checkedAt": "2026-10-10T19:11:19.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "implementer",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "WI-CORE-013 implementado y revisado en feature/php-core (PR #13) por otro leader (Claude Opus 5.5 según sus reportes); no es trabajo de este leader. Se registra su cierre al integrar con feature/jean, con la evidencia de su reporte."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-013-implementation.md"
+            ],
+            "recommendedNextStep": "Integración WI-CORE-033.",
+            "reason": "registro de cierre al integrar",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-opus-5-5",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Implementación del WI en feature/php-core (cortes y commits en su reporte)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-013-implementation.md"
+            ],
+            "recommendedNextStep": "Revisión humana.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ratificación del INTEROP fusionado (§6.5, §6.15, §6.16, §7, trazas) en la integración WI-CORE-033; el WI no traía handoff de contract-reviewer."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-033-contract-review.md"
+            ],
+            "recommendedNextStep": "Cerrar.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Veredicto humano APPROVED de la revisión del WI registrado en su reporte (2026-10-09)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-013-implementation.md"
+            ],
+            "recommendedNextStep": "Cerrar."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-013",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-10T19:11:19.836Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-013",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:19.950Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-013",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:20.077Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-013",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:20.180Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261009-016"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-013-implementation.md",
+        "harness/reports/wi-core-033-contract-review.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-013-implementation.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-013-implementation.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-013-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-013-implementation.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-013-implementation.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-013-implementation.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-033-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-033-contract-review.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/wi-core-013-implementation.md"
+        ]
+      },
+      "closedAt": "2026-10-10T19:11:22.000Z"
+    },
+    {
+      "id": "WI-CORE-032",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU07",
+        "HU08"
+      ],
+      "taskIds": [
+        "ST-CORE-039"
+      ],
+      "caseIds": [],
+      "sprint": "PHP V1",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-FK-003",
+          "DEC-FK-004"
+        ],
+        "checkedAt": "2026-10-10T19:11:20.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "WI-CORE-032 implementado y revisado en feature/php-core (PR #13) por otro leader (Claude Opus 5.5 según sus reportes); no es trabajo de este leader. Se registra su cierre al integrar con feature/jean, con la evidencia de su reporte."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-032-implementation.md"
+            ],
+            "recommendedNextStep": "Integración WI-CORE-033.",
+            "reason": "registro de cierre al integrar",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-opus-5-5",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Implementación del WI en feature/php-core (cortes y commits en su reporte)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-032-implementation.md"
+            ],
+            "recommendedNextStep": "Revisión humana.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Veredicto humano APPROVED de la revisión del WI registrado en su reporte (2026-10-09)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-032-implementation.md"
+            ],
+            "recommendedNextStep": "Cerrar."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-032",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-10T19:11:20.317Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-032",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:20.435Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-032",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:20.558Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-032",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:20.655Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-032-implementation.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-032-implementation.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-032-implementation.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-032-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-032-implementation.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-032-implementation.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-032-implementation.md"
+        ]
+      },
+      "closedAt": "2026-10-10T19:11:22.000Z"
+    },
+    {
+      "id": "WI-CORE-028",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU05",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-035"
+      ],
+      "caseIds": [],
+      "sprint": "SMART V3",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-PHP-RET-001"
+        ],
+        "checkedAt": "2026-10-10T19:11:20.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "implementer",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "WI-CORE-028 implementado y revisado en feature/php-core (PR #13) por otro leader (Claude Opus 5.5 según sus reportes); no es trabajo de este leader. Se registra su cierre al integrar con feature/jean, con la evidencia de su reporte."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-028-implementation.md"
+            ],
+            "recommendedNextStep": "Integración WI-CORE-033.",
+            "reason": "registro de cierre al integrar",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-opus-5-5",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Implementación del WI en feature/php-core (cortes y commits en su reporte)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-028-implementation.md"
+            ],
+            "recommendedNextStep": "Revisión humana.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ratificación del INTEROP fusionado (§6.5, §6.15, §6.16, §7, trazas) en la integración WI-CORE-033; el WI no traía handoff de contract-reviewer."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-033-contract-review.md"
+            ],
+            "recommendedNextStep": "Cerrar.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Veredicto humano APPROVED de la revisión del WI registrado en su reporte (2026-10-09)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-028-implementation.md"
+            ],
+            "recommendedNextStep": "Cerrar."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-028",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-10T19:11:20.804Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-028",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:20.938Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-028",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:21.082Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-028",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:21.190Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261009-017"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-028-implementation.md",
+        "harness/reports/wi-core-033-contract-review.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-028-implementation.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-028-implementation.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-028-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-028-implementation.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-028-implementation.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-028-implementation.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-033-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-033-contract-review.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/wi-core-028-implementation.md"
+        ]
+      },
+      "closedAt": "2026-10-10T19:11:23.000Z"
+    },
+    {
+      "id": "WI-CORE-029",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-036"
+      ],
+      "caseIds": [],
+      "sprint": "SMART V3",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-PHP-GEN-001",
+          "DEC-EXP-004"
+        ],
+        "checkedAt": "2026-10-10T19:11:21.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "WI-CORE-029 implementado y revisado en feature/php-core (PR #13) por otro leader (Claude Opus 5.5 según sus reportes); no es trabajo de este leader. Se registra su cierre al integrar con feature/jean, con la evidencia de su reporte."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-029-implementation.md"
+            ],
+            "recommendedNextStep": "Integración WI-CORE-033.",
+            "reason": "registro de cierre al integrar",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-opus-5-5",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Implementación del WI en feature/php-core (cortes y commits en su reporte)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-029-implementation.md"
+            ],
+            "recommendedNextStep": "Revisión humana.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ratificación del INTEROP fusionado (§6.5, §6.15, §6.16, §7, trazas) en la integración WI-CORE-033; el WI no traía handoff de contract-reviewer."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-033-contract-review.md"
+            ],
+            "recommendedNextStep": "Cerrar.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Veredicto humano APPROVED de la revisión del WI registrado en su reporte (2026-10-09)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-029-implementation.md"
+            ],
+            "recommendedNextStep": "Cerrar."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-029",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-10T19:11:21.324Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-029",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:21.437Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-029",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:21.549Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-029",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-10T19:11:21.642Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261009-018"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-029-implementation.md",
+        "harness/reports/wi-core-033-contract-review.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-029-implementation.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-029-implementation.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-029-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-029-implementation.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-029-implementation.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-029-implementation.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-033-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-033-contract-review.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/wi-core-029-implementation.md"
+        ]
+      },
+      "closedAt": "2026-10-10T19:11:23.000Z"
     }
   ],
   "activeWorkItem": null,

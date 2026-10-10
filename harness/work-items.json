@@ -633,7 +633,7 @@
       "id": "WI-CORE-013",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-READY",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "PHP V1",
       "title": "Generar y validar pruebas PHPUnit en proyectos PHP",
@@ -666,6 +666,22 @@
         "spec/features/018-php-laravel-support/plan.md",
         "spec/features/018-php-laravel-support/spec.md",
         "spec/features/018-php-laravel-support/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
       ]
     },
     {
@@ -1479,7 +1495,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1509,12 +1525,28 @@
         "spec/features/004-rag-retrieval-context/spec.md",
         "spec/features/004-rag-retrieval-context/tasks.md",
         "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
       ]
     },
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "SMART V3",
       "caseIds": [],
@@ -1546,6 +1578,22 @@
         "spec/features/008-experimental-comparison/spec.md",
         "spec/features/008-experimental-comparison/tasks.md",
         "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
       ]
     },
     {
@@ -1660,7 +1708,7 @@
       "id": "WI-CORE-032",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "PHP V1",
       "title": "Construcciones de comportamiento PHP para ACTION_REQUIRED",
@@ -1685,6 +1733,22 @@
       "specPaths": [
         "spec/features/013-pr-driven-analysis/spec.md",
         "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; este WI (PHP/PHPUnit) no toca binding, auth ni despliegue de ese evento.",
+          "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
+        }
       ]
     }
   ]
