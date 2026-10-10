@@ -86,3 +86,26 @@ Migraciones 130000, 140000, 150000 y 160000 sin aplicar a Supabase y verificaci�
 
 ## Veredicto
 CHANGES_REQUESTED por los hallazgos 1 y 2 (importantes). No hay blockers ni incumplimiento de las decisiones aprobadas por el usuario salvo la lectura literal de DEC-TRACE-002 en el hallazgo 1, que el usuario puede aceptar explícitamente. Este veredicto no sustituye la aprobación humana de alcance y arquitectura ya dada en DEC-TRACE-001, DEC-TRACE-002 y `smart-v3-scope-approval.md`.
+
+## Segunda pasada (ciclo 2; diff `b03ae56^..HEAD -- app`: b03ae56, 70b10d3, c37b27d; docs hasta 777f6bc)
+
+Veredicto: **APPROVED** (sin blockers ni importantes; 1 menor residual no bloqueante).
+
+### Ejecutado
+- `pnpm lint` exit 0; `pnpm test` x2: 1689 passed / 82 skipped en ambas; `pnpm build` exit 0; `pnpm test:e2e` x2: 237 passed en ambas; `tsc -p tsconfig.json`: 43 (línea base con cliente regenerado); `validate-harness` passed; `contract-sync check --checkpoint before-review`: sin pendientes relevantes, sin registrar.
+- Compilación por commit (worktree desechable, `prisma generate`): tsconfig.build con 0 errores en b03ae56, 70b10d3 y c37b27d. tsc con specs: 44, 44, 43 (el error intermedio es el fixture de `github-webhooks.service.spec.ts` sin `checkPublishedAt`, corregido en c37b27d; solo specs).
+- PostgreSQL 14 desechable (shim solo en historial previo): las 44 migraciones aplican, incluida `20261009170000_analysis_run_check_published_at` (columna `TIMESTAMP(3)` nullable); specs pg: 3 files, 82 passed; `prisma migrate diff` sin diferencias en tablas ni columnas del WI; rollback documentado válido (BEGIN/ROLLBACK). Postgres y worktree bajados y borrados.
+- INTEROP, CS-CORE-20261009-013 y demás spec/contract-sync: sin cambios en el rango (`git diff --stat` vacío). Commits con `Refs: HU12, HU15` y trailer; sin ramas ni worktrees sobrantes; `git status` limpio salvo este reporte.
+
+### Hallazgos previos
+1. Resuelto: `publication.status` = PRESENT si `checkId`, `checkPublishedAt` o TestPublication; NOT_APPLICABLE sin ninguno (`analysis-run-trace.service.ts:149`). Los tres casos de DEC-TRACE-002 (Check con 204 sin id, Check con id, solo TestPublication) y el caso sin ninguno están cubiertos en unitarias y pg real. Mutaciones detectadas: ignorar `checkPublishedAt`, PRESENT siempre, marcar solo si hay id.
+2. Resuelto: `context` comparado con `toEqual` sobre filas completas. Mutaciones de exponer conteos/omitidas en el servicio y en el servicio + `select` con pg real: ambas detectadas (antes sobrevivían).
+3. Resuelto: desempate por `qualifiedName` detectado.
+4. Resuelto: HELD y catch usan `recordExecutionBestEffort`; ambas mutaciones (volver a no best-effort en HELD y en el catch) detectadas.
+5. Resuelto: prueba dividida.
+
+### Residual (menor, no bloqueante)
+- `app/src/analysis-runs/analysis-runs.repository.ts:90-94` (`markCheckPublished`): nada prueba que con `checkId === null` se conserve un `checkId` ya guardado. La mutación `data: { checkPublishedAt: new Date(), checkId }` sobrevive (el spec de checks mockea el repositorio y el spec pg escribe las columnas directamente con Prisma). Escenario: un republish que responda 204 tras uno que devolvió id (despliegue mixto de GitHub Integration) borraría el id. Corrección: prueba unitaria del repositorio con Prisma simulado o caso pg que llame a `markCheckPublished(id, 'x')` y luego `(id, null)`.
+- Cosmético: `analysis-runs.repository.ts:88-89` tiene dos comentarios de documentación apilados (el de `setCheckId`, ya obsoleto). El desempate final por `id` del orden de targets tampoco tiene prueba (M2c no detectada; irrelevante en la práctica).
+
+Este veredicto no sustituye la aprobación humana de alcance (DEC-TRACE-001, DEC-TRACE-002, smart-v3-scope-approval.md).
