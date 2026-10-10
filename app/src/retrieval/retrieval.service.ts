@@ -42,6 +42,37 @@ function resolveRelativeImport(fromFilePath: string, specifier: string): string 
   return stripExtension(posix.normalize(posix.join(fromDir, specifier)));
 }
 
+const PHP_SOURCE_PATTERN = /\.php$/;
+const PHP_TYPE_KINDS = new Set(['CLASS', 'INTERFACE', 'TRAIT', 'ENUM']);
+
+function isPhpChunk(chunk: CodeChunk): boolean {
+  return PHP_SOURCE_PATTERN.test(chunk.filePath);
+}
+
+/** Namespace de un FQCN: todo antes del último `\\`; vacío si no hay. */
+function namespaceOf(fqcn: string): string {
+  const index = fqcn.lastIndexOf('\\');
+  return index === -1 ? '' : fqcn.slice(0, index);
+}
+
+/** Nombre corto de un FQCN: todo después del último `\\`. */
+function shortNameOf(fqcn: string): string {
+  return fqcn.slice(fqcn.lastIndexOf('\\') + 1);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function stripLeadingBackslash(fqcn: string): string {
+  return fqcn.replace(/^\\/, '');
+}
+
+/** `O(K)` de DEC-PHP-RET-001: clase/interfaz/trait/enum que contiene o es el símbolo K. */
+function phpOwnerOf(chunk: CodeChunk): string | null {
+  return chunk.parentSymbolName ?? (PHP_TYPE_KINDS.has(chunk.symbolKind) ? chunk.symbolName : null);
+}
+
 function isSameSymbol(a: CodeChunk, b: CodeChunk): boolean {
   return (
     a.filePath === b.filePath &&
@@ -119,7 +150,11 @@ export class RetrievalService {
       });
     }
 
-    for (const { chunk, relation } of this.resolveStructuralMatches(anchor, allChunks)) {
+    const structuralMatches = isPhpChunk(anchor)
+      ? this.resolvePhpStructuralMatches(anchor, allChunks)
+      : this.resolveStructuralMatches(anchor, allChunks);
+
+    for (const { chunk, relation } of structuralMatches) {
       const existing = candidatesById.get(chunk.id);
 
       if (existing) {
@@ -133,7 +168,97 @@ export class RetrievalService {
   }
 
   /**
-   * Relaciones estructurales V1 (principalmente imports), resueltas por chunk:
+   * Relaciones estructurales PHP (DEC-PHP-RET-001, WI-CORE-028). Solo considera candidatos `.php`.
+   * Una etiqueta por candidato: la primera que aplica en el orden R-PHP1 → R-PHP5.
+   */
+  private resolvePhpStructuralMatches(
+    anchor: CodeChunk,
+    allChunks: CodeChunk[],
+  ): Array<{ chunk: CodeChunk; relation: StructuralMatch }> {
+    const anchorClass = anchor.parentSymbolName; // C(A); null si el ancla es una función
+    const anchorNamespace = namespaceOf(anchorClass ?? anchor.symbolName ?? ''); // ns(A)
+    const anchorImports = new Set(anchor.importsUsed.map(stripLeadingBackslash));
+    const matches: Array<{ chunk: CodeChunk; relation: StructuralMatch }> = [];
+
+    for (const chunk of allChunks) {
+      if (!isPhpChunk(chunk) || isSameSymbol(chunk, anchor)) {
+        continue;
+      }
+
+      const owner = phpOwnerOf(chunk); // O(K)
+      const relation = this.classifyPhpRelation(chunk, {
+        anchorClass,
+        anchorNamespace,
+        anchorImports,
+        anchorContent: anchor.content,
+        owner,
+      });
+
+      if (relation) {
+        matches.push({ chunk, relation });
+      }
+    }
+
+    return matches;
+  }
+
+  private classifyPhpRelation(
+    chunk: CodeChunk,
+    context: {
+      anchorClass: string | null;
+      anchorNamespace: string;
+      anchorImports: Set<string>;
+      anchorContent: string;
+      owner: string | null;
+    },
+  ): StructuralMatch | null {
+    const { anchorClass, anchorNamespace, anchorImports, anchorContent, owner } = context;
+
+    // R-PHP1 IMPORTS: el target usa una clase importada con `use` que es O(K).
+    if (owner !== null && anchorImports.has(owner)) {
+      return 'IMPORTS';
+    }
+
+    // R-PHP2 IMPORTED_BY: el candidato importa la clase que declara el target.
+    if (
+      anchorClass !== null &&
+      chunk.importsUsed.map(stripLeadingBackslash).includes(anchorClass)
+    ) {
+      return 'IMPORTED_BY';
+    }
+
+    // R-PHP3 SAME_NAMESPACE: mismo namespace y el target menciona el nombre corto como palabra completa.
+    if (
+      owner !== null &&
+      owner !== anchorClass &&
+      namespaceOf(owner) === anchorNamespace &&
+      new RegExp(`\\b${escapeRegExp(shortNameOf(owner))}\\b`).test(anchorContent)
+    ) {
+      return 'SAME_NAMESPACE';
+    }
+
+    // R-PHP4 FULLY_QUALIFIED_REFERENCE: el target contiene `\O(K)` seguido de un no-identificador o fin.
+    if (
+      owner !== null &&
+      new RegExp(`\\\\${escapeRegExp(owner)}(?![\\w\\u0080-\\uFFFF])`).test(anchorContent)
+    ) {
+      return 'FULLY_QUALIFIED_REFERENCE';
+    }
+
+    // R-PHP5 DECLARING_CLASS: K es la declaración de la clase, interfaz, trait o enum C(A).
+    if (
+      anchorClass !== null &&
+      PHP_TYPE_KINDS.has(chunk.symbolKind) &&
+      chunk.symbolName === anchorClass
+    ) {
+      return 'DECLARING_CLASS';
+    }
+
+    return null;
+  }
+
+  /**
+   * Relaciones estructurales V1 TypeScript (principalmente imports), resueltas por chunk:
    * IMPORTS = el chunk destino es referenciado por un import usado dentro del
    * propio chunk target; IMPORTED_BY = el chunk destino referencia, dentro de
    * su propio contenido, un import que resuelve al archivo del target.

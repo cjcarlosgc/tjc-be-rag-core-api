@@ -18,6 +18,7 @@ export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 export const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {
   JEST: 'NODE_TYPESCRIPT',
   VITEST: 'NODE_TYPESCRIPT',
+  PHPUNIT: 'PHP_LARAVEL_PHPUNIT',
 };
 
 interface EphemeralDownloadRef {

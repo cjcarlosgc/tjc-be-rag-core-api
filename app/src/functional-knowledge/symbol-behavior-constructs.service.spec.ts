@@ -30,6 +30,30 @@ class Account {
 }
 `;
 
+const PHP_PATH = 'src/Billing/Account.php';
+const PHP_QUALIFIED_NAME = 'App\\Billing\\Account.withdraw';
+
+const PHP_BASE_WITHOUT_BRANCH = `<?php
+namespace App\\Billing;
+class Account {
+  public function withdraw(int $amount): int {
+    return $amount;
+  }
+}
+`;
+
+const PHP_HEAD_WITH_BRANCH = `<?php
+namespace App\\Billing;
+class Account {
+  public function withdraw(int $amount): int {
+    if ($amount <= 0) {
+      throw new DomainError('invalid');
+    }
+    return $amount;
+  }
+}
+`;
+
 function symbol(overrides: Partial<BehaviorSymbolCandidate> = {}): BehaviorSymbolCandidate {
   return {
     language: 'TYPESCRIPT',
@@ -230,7 +254,7 @@ export function parse(value: number) {
   });
 
   it.each([
-    ['a PHP symbol', symbol({ language: 'PHP' })],
+    ['a PHP symbol that is not DIRECTLY_CHANGED', symbol({ language: 'PHP', changeKind: 'POTENTIALLY_IMPACTED', filePath: PHP_PATH, qualifiedName: PHP_QUALIFIED_NAME })],
     ['a CLASS symbol', symbol({ kind: 'CLASS' })],
     ['a potentially impacted symbol', symbol({ changeKind: 'POTENTIALLY_IMPACTED' })],
   ])('returns null without any I/O for %s', async (_label, candidate) => {
@@ -239,6 +263,44 @@ export function parse(value: number) {
     expect(constructs).toBeNull();
     expect(getFileContent).not.toHaveBeenCalled();
     expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it('reports the new branch and throw of a modified PHP method, with scenarioKey', async () => {
+    getFileContent.mockResolvedValue(PHP_BASE_WITHOUT_BRANCH);
+    headFiles[join(WORKSPACE, PHP_PATH)] = PHP_HEAD_WITH_BRANCH;
+
+    const [constructs] = await service.compute(
+      request([{ filename: PHP_PATH, status: 'modified' }]),
+      [symbol({ language: 'PHP', filePath: PHP_PATH, qualifiedName: PHP_QUALIFIED_NAME })],
+    );
+
+    expect(getFileContent).toHaveBeenCalledWith(INSTALLATION_ID, REPOSITORY, PHP_PATH, BASE_SHA);
+    expect(constructs).toEqual([
+      {
+        scenarioKind: 'BOUNDARY',
+        scenarioKey: expect.stringMatching(/^BOUNDARY:[0-9a-f]{16}$/),
+        order: 0,
+        snippet: 'if ($amount <= 0)',
+      },
+      {
+        scenarioKind: 'EXCEPTION',
+        scenarioKey: expect.stringMatching(/^EXCEPTION:[0-9a-f]{16}$/),
+        order: 1,
+        snippet: expect.stringContaining("throw new DomainError('invalid')"),
+      },
+    ]);
+  });
+
+  it('treats every PHP construct of an added file as new without fetching a base', async () => {
+    headFiles[join(WORKSPACE, PHP_PATH)] = PHP_HEAD_WITH_BRANCH;
+
+    const [constructs] = await service.compute(
+      request([{ filename: PHP_PATH, status: 'added' }]),
+      [symbol({ language: 'PHP', filePath: PHP_PATH, qualifiedName: PHP_QUALIFIED_NAME })],
+    );
+
+    expect(getFileContent).not.toHaveBeenCalled();
+    expect(constructs?.map((construct) => construct.scenarioKind)).toEqual(['BOUNDARY', 'EXCEPTION']);
   });
 
   it('keeps the input order and returns null only for the symbols that do not qualify', async () => {

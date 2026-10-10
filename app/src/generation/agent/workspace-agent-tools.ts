@@ -2,8 +2,17 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Project } from 'ts-morph';
+import { Parser, type Node as SyntaxNode, type Tree } from 'web-tree-sitter';
+import { loadPhpLanguage } from '../../project-versions/parsing/php-parser.service.js';
 
 const MAX_SEARCH_RESULTS = 30;
+const PHP_DECLARATION_TYPES = new Set([
+  'class_declaration',
+  'interface_declaration',
+  'trait_declaration',
+  'enum_declaration',
+  'function_definition',
+]);
 const MAX_READ_CHARS = 20_000;
 const MAX_OBSERVATION_SNIPPET_CHARS = 2_000;
 
@@ -195,6 +204,31 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
   },
 ];
 
+function findPhpDeclarationNode(
+  root: SyntaxNode,
+  symbolName: string,
+): SyntaxNode | undefined {
+  const namedChildrenOf = (node: SyntaxNode): SyntaxNode[] =>
+    (node.namedChildren ?? []).filter((child): child is SyntaxNode => child !== null);
+
+  for (const topLevel of namedChildrenOf(root)) {
+    const body = topLevel.childForFieldName('body');
+    const candidates =
+      topLevel.type === 'namespace_definition'
+        ? (body ? namedChildrenOf(body) : [])
+        : [topLevel];
+    const found = candidates.find(
+      (node) =>
+        PHP_DECLARATION_TYPES.has(node.type) &&
+        node.childForFieldName('name')?.text === symbolName,
+    );
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
 /**
  * Herramientas read-only del GENERALIST_AGENT (DEC-EXP-002), acotadas al
  * snapshot materializado del ProjectVersion. Las pruebas existentes son
@@ -335,6 +369,39 @@ export class WorkspaceAgentTools {
     return result(toolResult, status, observations);
   }
 
+  /**
+   * Busca la primera declaración PHP (clase, interfaz, trait, enum o función)
+   * con ese nombre corto, top-level o dentro de un namespace con llaves.
+   * Archivos con errores de sintaxis no aportan declaraciones.
+   */
+  private async findPhpDeclaration(
+    content: string,
+    symbolName: string,
+  ): Promise<{ content: string; startLine: number; endLine: number } | null> {
+    const language = await loadPhpLanguage();
+    const parser = new Parser();
+    let tree: Tree | null = null;
+    try {
+      parser.setLanguage(language);
+      tree = parser.parse(content);
+      if (!tree || tree.rootNode.hasError) {
+        return null;
+      }
+      const node = findPhpDeclarationNode(tree.rootNode, symbolName);
+      if (!node) {
+        return null;
+      }
+      return {
+        content: node.text.trim(),
+        startLine: node.startPosition.row + 1,
+        endLine: node.endPosition.row + 1,
+      };
+    } finally {
+      tree?.delete();
+      parser.delete();
+    }
+  }
+
   private async inspectSymbolWithObservation(
     symbolName: string,
   ): Promise<AgentToolDispatchResult> {
@@ -360,7 +427,9 @@ export class WorkspaceAgentTools {
     const referencePattern = new RegExp(`\\b${escapedSymbolName}\\b`);
 
     for (const filePath of [...this.allowedFiles].sort()) {
-      if (!/\.tsx?$/.test(filePath)) {
+      const isTypeScript = /\.tsx?$/.test(filePath);
+      const isPhp = filePath.endsWith('.php');
+      if (!isTypeScript && !isPhp) {
         continue;
       }
 
@@ -376,7 +445,14 @@ export class WorkspaceAgentTools {
         continue;
       }
 
-      if (!declaration) {
+      if (!declaration && isPhp) {
+        const phpDeclaration = await this.findPhpDeclaration(content, symbolName);
+        if (phpDeclaration) {
+          declaration = { filePath, ...phpDeclaration };
+        }
+      }
+
+      if (!declaration && isTypeScript) {
         const sourceFile = project.createSourceFile(
           `${filePath}.virtual.ts`,
           content,

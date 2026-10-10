@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
@@ -16,7 +17,8 @@ import { DEFAULT_VECTOR_TOP_K, RetrievalService, type RetrievalResult } from '..
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import type { GenerationContext } from '../retrieval/generation-context.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
-import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import { PromptBuilder, sanitizeGeneratedPhp } from '../generation/prompt-builder.service.js';
+import { phpTestLocation } from '../generation/php-test-path.js';
 import { TestFileMergeService, coLocatedSpecPath } from '../generation/test-file-merge.service.js';
 import {
   SandboxAcceptedExecutionError,
@@ -66,6 +68,12 @@ interface SymbolOutcome {
   kind: SymbolOutcomeKind;
 }
 
+/** Ruta y namespace del test de un símbolo; `namespace` solo existe para PHP. */
+interface TestPlacement {
+  relativePath: string;
+  namespace: string | null;
+}
+
 /**
  * WI-CORE-027 (DEC-EVID-003): generación de la propuesta a partir de la respuesta del proveedor. Lo que el adaptador
  * no informa queda null; `modelVersion` es null porque la llamada del producto no consulta la versión del modelo.
@@ -100,6 +108,8 @@ function toProposalGeneration(result: LLMGenerationResult, durationMs: number): 
  *   TECHNICAL_GENERATION_FAILURE. Sin juicio semántico vía LLM para afinar
  *   esta distinción todavía.
  * - Símbolos procesados en serie, un solo intento cada uno.
+ * - PHP (WI-CORE-013): solo PHPUnit, un archivo nuevo por símbolo (DEC-PHP-GEN-001) y sin
+ *   baseline todavía; `phase` no se envía al Sandbox en este corte.
  */
 @Injectable()
 export class AnalysisRunValidationJobHandler
@@ -172,19 +182,7 @@ export class AnalysisRunValidationJobHandler
         return;
       }
 
-      if (version.language === 'PHP' || version.detectedFramework === 'PHPUNIT') {
-        const unsupported = await this.analysisRunsService.completeRunFromSystem(
-          run,
-          'TECHNICAL_GENERATION_FAILURE',
-          {
-            resultSummary: 'El snapshot PHP fue indexado, pero la generación y ejecución PHPUnit siguen pendientes de WI-CORE-013.',
-          },
-        );
-        if (unsupported) {
-          await this.analysisRunChecksService.publishForRun(unsupported);
-        }
-        return;
-      }
+      const language: 'typescript' | 'php' = version.language === 'PHP' ? 'php' : 'typescript';
 
       const candidates = symbols.filter(
         (symbol) =>
@@ -206,12 +204,18 @@ export class AnalysisRunValidationJobHandler
           continue;
         }
 
-        if (!version.detectedFramework) {
+        const placement = this.resolvePlacement(language, symbol, workspace.dir);
+        const framework = version.detectedFramework;
+
+        if (!framework || (language === 'php' && framework !== 'PHPUNIT')) {
           await this.persistProposal(run, symbol, {
-            relativePath: coLocatedSpecPath(symbol.filePath),
+            relativePath: placement.relativePath,
             content: '',
             status: 'HELD',
-            failureSummary: 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+            failureSummary:
+              language === 'php'
+                ? 'El proyecto PHP no declara PHPUnit; solo PHPUnit está soportado en V1.'
+                : 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
             contextId: null,
           });
           outcomes.push({ symbol, kind: 'TECHNICAL_GENERATION_FAILURE' });
@@ -222,7 +226,9 @@ export class AnalysisRunValidationJobHandler
           run,
           jobId,
           symbol,
-          framework: version.detectedFramework,
+          framework,
+          language,
+          placement,
           workspace,
           snapshotKey,
           snapshotBuffer,
@@ -258,16 +264,36 @@ export class AnalysisRunValidationJobHandler
     }
   }
 
+  /**
+   * Ruta del test de la propuesta por símbolo. TypeScript conserva la ruta co-ubicada; PHP usa la
+   * ubicación DEC-PHP-GEN-001 (nunca existente en el snapshot, por eso siempre es `CREATED`).
+   */
+  private resolvePlacement(
+    language: 'typescript' | 'php',
+    symbol: AnalysisSymbol,
+    snapshotDir: string,
+  ): TestPlacement {
+    if (language === 'php') {
+      return phpTestLocation(toRetrievalTarget(symbol), (relativePath) =>
+        existsSync(join(snapshotDir, relativePath)),
+      );
+    }
+    return { relativePath: coLocatedSpecPath(symbol.filePath), namespace: null };
+  }
+
   private async generateAndValidate(context: {
     run: AnalysisRun;
     jobId: string;
     symbol: AnalysisSymbol;
-    framework: 'JEST' | 'VITEST';
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT';
+    language: 'typescript' | 'php';
+    placement: TestPlacement;
     workspace: ExtractedWorkspace;
     snapshotKey: string;
     snapshotBuffer: Buffer;
   }): Promise<SymbolOutcome> {
-    const { run, jobId, symbol, framework, workspace, snapshotKey, snapshotBuffer } = context;
+    const { run, jobId, symbol, framework, language, placement, workspace, snapshotKey, snapshotBuffer } = context;
+    const { relativePath } = placement;
     let contextId: string | null = null;
     let generation: ProposalGenerationEvidence | null = null;
 
@@ -278,22 +304,49 @@ export class AnalysisRunValidationJobHandler
       const generationContext = this.contextBuilder.build(
         retrieval,
         retrievalTarget,
-        { framework },
+        { framework, language },
         {},
         functionalRules,
       );
       contextId = await this.persistTraceEvidence(run, symbol, retrieval, generationContext);
-      const prompt = this.promptBuilder.build(generationContext);
+      const prompt =
+        language === 'php'
+          ? this.promptBuilder.build(generationContext, {
+              testNamespace: placement.namespace ?? undefined,
+              testPath: relativePath,
+            })
+          : this.promptBuilder.build(generationContext);
       const generationStart = Date.now();
       const llmResult = await this.llmProvider.generate(prompt);
       generation = toProposalGeneration(llmResult, Date.now() - generationStart);
 
-      const relativePath = coLocatedSpecPath(symbol.filePath);
-      const existingContent = await readFile(join(workspace.dir, relativePath), 'utf8').catch(() => null);
-      const mergedContent =
-        existingContent === null
-          ? this.testFileMergeService.applyCreate(llmResult.content)
-          : this.testFileMergeService.applyMerge(existingContent, llmResult.content);
+      let artifactType: 'CREATED' | 'MODIFIED';
+      let mergedContent: string;
+
+      if (language === 'php') {
+        const phpContent = sanitizeGeneratedPhp(llmResult.content);
+        if (phpContent === null) {
+          const proposalId = await this.persistProposal(run, symbol, {
+            relativePath,
+            content: llmResult.content,
+            status: 'HELD',
+            failureSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+            contextId,
+            generation,
+          });
+          this.logger.debug(`Propuesta ${proposalId} retenida: respuesta PHP sin <?php.`);
+          return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
+        }
+        artifactType = 'CREATED';
+        mergedContent = `${phpContent}\n`;
+      } else {
+        const existingContent = await readFile(join(workspace.dir, relativePath), 'utf8').catch(() => null);
+        artifactType = existingContent === null ? 'CREATED' : 'MODIFIED';
+        mergedContent =
+          existingContent === null
+            ? this.testFileMergeService.applyCreate(llmResult.content)
+            : this.testFileMergeService.applyMerge(existingContent, llmResult.content);
+      }
 
       const sandboxResult = await this.sandboxExecutionService.execute({
         requestId: sandboxGenerationRequestId(jobId, symbol.id),
@@ -305,7 +358,7 @@ export class AnalysisRunValidationJobHandler
           {
             artifactId: randomUUID(),
             relativePath,
-            artifactType: existingContent === null ? 'CREATED' : 'MODIFIED',
+            artifactType,
             content: Buffer.from(mergedContent, 'utf8'),
           },
         ],
@@ -355,7 +408,7 @@ export class AnalysisRunValidationJobHandler
         `Símbolo ${symbol.qualifiedName} (${symbol.filePath}) del AnalysisRun ${run.id} no pudo validarse: ${summary}`,
       );
       const proposalId = await this.persistProposal(run, symbol, {
-        relativePath: coLocatedSpecPath(symbol.filePath),
+        relativePath,
         content: '',
         status: 'HELD',
         // WI-CORE-027 (IDEA-015): el mensaje de excepción puede traer URLs firmadas o credenciales.

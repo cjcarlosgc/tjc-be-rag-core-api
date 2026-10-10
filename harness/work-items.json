@@ -633,7 +633,7 @@
       "id": "WI-CORE-013",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-READY",
       "priority": "P1",
       "sprint": "PHP V1",
       "title": "Generar y validar pruebas PHPUnit en proyectos PHP",
@@ -651,17 +651,21 @@
       "contractImpact": true,
       "publishesContract": true,
       "acceptanceCriteria": [
-        "Generación V1 produce propuestas de pruebas PHPUnit solo cuando PHPUnit está declarado y no atribuye soporte Pest.",
-        "Core envía executionProfile PHP_LARAVEL_PHPUNIT compatible con runnerHint PHPUNIT a Sandbox y maneja evidencia validada sin auto-reparación.",
-        "Contrato Core–Sandbox coordinado con el dueño de Sandbox antes de seleccionar; Sandbox no se cambia desde este WI Core.",
-        "Pruebas del profile, generación y validación; Harness, lint, tests y build pasan antes de revisión humana."
+        "Genera propuestas PHPUnit para símbolos PHP DIRECTLY_CHANGED METHOD/FUNCTION sin test existente solo cuando detectedFramework=PHPUNIT; sin PHPUnit la propuesta queda HELD con motivo; no atribuye Pest.",
+        "GenerationContext.metadata y PromptBuilder son conscientes del lenguaje (php/PHPUNIT); la respuesta se sanea y un contenido sin <?php es fallo técnico de generación.",
+        "Ruta del test según DEC-PHP-GEN-001 (archivo nuevo por target bajo tests/Unit, siempre CREATED, sufijo Generated si existe).",
+        "Core envía executionProfile PHP_LARAVEL_PHPUNIT y runnerHint PHPUNIT; no envía phase en este WI; sin auto-reparación.",
+        "mapSandboxResult usa TestCaseFact.failureKind (DEC-PHP-GEN-002): ERROR → TEST_RUNTIME, solo ASSERTION → TEST_ASSERTION; sin failureKind conserva la regla actual.",
+        "INTEROP canónico §7.3/§7.4 incorpora failureKind, la tolerancia de phase y los códigos nuevos; Contract Sync publicado a Console y Sandbox.",
+        "Pruebas unitarias por regla y regresión TypeScript intacta; Harness, lint, tests y build pasan antes de la revisión humana."
       ],
       "specPaths": [
-        "spec/features/018-php-laravel-support/spec.md",
-        "spec/features/018-php-laravel-support/plan.md",
-        "spec/features/018-php-laravel-support/tasks.md",
         "spec/contracts/interoperability-contract.md",
-        "spec/features/006-validation-orchestration/spec.md"
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/006-validation-orchestration/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/tasks.md"
       ]
     },
     {
@@ -1479,8 +1483,8 @@
       "priority": "P2",
       "sprint": "SMART V3",
       "caseIds": [],
-      "contractImpact": false,
-      "publishesContract": false,
+      "contractImpact": true,
+      "publishesContract": true,
       "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
       "id": "WI-CORE-028",
       "title": "Relaciones estructurales PHP R-PHP1 a R-PHP5 en retrieval",
@@ -1495,15 +1499,16 @@
         "WI-CORE-013"
       ],
       "acceptanceCriteria": [
-        "SE para proyectos PHP incorpora IMPORTS, IMPORTED_BY, mismo namespace, referencia fully qualified y clase declarante, con pruebas por relación.",
-        "La comparación OE2 admite PHP sin cambiar el contrato de §6.15.",
-        "Diferido hasta cerrar WI-CORE-013 y la coordinación contractual con el dueño de Sandbox. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "SE para proyectos PHP incorpora IMPORTS, IMPORTED_BY, SAME_NAMESPACE, FULLY_QUALIFIED_REFERENCE y DECLARING_CLASS según DEC-PHP-RET-001, con pruebas por relación; TypeScript sin cambios.",
+        "Las trazas de contexto aceptan las relaciones PHP (INTEROP aditivo) y la comparación OE2 admite PHP sin cambiar la forma de §6.15 (se retira solo su 422 PHP).",
+        "Contract Sync a Console publicado; Harness, lint, tests y build pasan antes de la revisión humana."
       ],
       "specPaths": [
-        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/contracts/interoperability-contract.md",
         "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
         "spec/features/004-rag-retrieval-context/tasks.md",
-        "spec/contracts/interoperability-contract.md"
+        "spec/features/018-php-laravel-support/spec.md"
       ]
     },
     {
@@ -1514,7 +1519,7 @@
       "sprint": "SMART V3",
       "caseIds": [],
       "contractImpact": true,
-      "publishesContract": false,
+      "publishesContract": true,
       "scopeApprovalReport": "harness/reports/smart-v3-scope-approval.md",
       "id": "WI-CORE-029",
       "title": "OE5 con PHP/PHPUnit",
@@ -1530,14 +1535,16 @@
         "WI-CORE-028"
       ],
       "acceptanceCriteria": [
-        "Los experimentos usan PHP_LARAVEL_PHPUNIT con runnerHint PHPUNIT y se retira el bloqueo experimental PHP solo cuando sus dependencias estén cerradas.",
-        "Diferido hasta cerrar WI-CORE-013, WI-CORE-025 y WI-CORE-028; Sandbox no se cambia desde este WI. Harness, lint, tests y build pasan antes de la revisión humana y el Contract Sync aplicable cierra en los cuatro checkpoints."
+        "POST /experiments acepta proyectos PHP con PHPUnit (runner PHPUNIT, perfil PHP_LARAVEL_PHPUNIT); PHP sin PHPUnit conserva 422; el job no bloquea PHP.",
+        "Ambos brazos usan DEC-PHP-GEN-001 (CREATED), sanitizeGeneratedPhp y el mismo Sandbox; RAG con contexto/prompt PHP y FK aplicable; el agente con instrucciones PHP equivalentes y las mismas herramientas.",
+        "inspect_symbol encuentra declaraciones y referencias PHP con tree-sitter con el mismo formato que TypeScript; TypeScript sin cambios.",
+        "INTEROP §6.5/§6.5.1 actualizado y Contract Sync a Console; Harness, lint, tests y build pasan antes de la revisión humana."
       ],
       "specPaths": [
-        "spec/features/008-experimental-comparison/spec.md",
-        "spec/features/008-experimental-comparison/plan.md",
-        "spec/features/008-experimental-comparison/tasks.md",
         "spec/contracts/interoperability-contract.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
         "spec/features/018-php-laravel-support/spec.md"
       ]
     },
@@ -1648,6 +1655,37 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-031-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-032",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "PHP V1",
+      "title": "Construcciones de comportamiento PHP para ACTION_REQUIRED",
+      "storyIds": [
+        "HU07",
+        "HU08"
+      ],
+      "taskIds": [
+        "ST-CORE-039"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-013"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "DEC-FK-003/004 se extienden a PHP: huella determinista (tree-sitter) de ramificaciones, throw y transiciones/escrituras de estado de métodos y funciones PHP.",
+        "Un target PHP DIRECTLY_CHANGED con construcciones nuevas o modificadas y sin regla ACTIVE aplicable produce ACTION_REQUIRED; TypeScript conserva su comportamiento.",
+        "Pruebas por tipo de construcción y regresión TypeScript; Harness, lint, tests y build pasan antes de la revisión humana."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ]
     }
   ]
 }

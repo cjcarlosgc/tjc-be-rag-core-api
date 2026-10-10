@@ -11,7 +11,16 @@ import type {
   FunctionalScope,
 } from '../generated/prisma/client.js';
 
-export type StructuralMatch = 'IMPORTS' | 'IMPORTED_BY';
+/**
+ * Relación estructural de un candidato. `IMPORTS`/`IMPORTED_BY` son TypeScript (V1). Las tres
+ * últimas son PHP (DEC-PHP-RET-001, WI-CORE-028): R-PHP3, R-PHP4 y R-PHP5.
+ */
+export type StructuralMatch =
+  | 'IMPORTS'
+  | 'IMPORTED_BY'
+  | 'SAME_NAMESPACE'
+  | 'FULLY_QUALIFIED_REFERENCE'
+  | 'DECLARING_CLASS';
 
 /**
  * Procedencia de una regla funcional (INTEROP-2.7, WI-CORE-019). Cada campo es nulo en reglas
@@ -49,8 +58,8 @@ export interface ContextChunk {
 }
 
 export interface GenerationContextMetadata {
-  language: 'typescript';
-  framework: 'JEST' | 'VITEST' | null;
+  language: 'typescript' | 'php';
+  framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
 }
 
 export interface GenerationContextTarget {

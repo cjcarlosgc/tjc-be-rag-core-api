@@ -491,7 +491,7 @@ function isMemberNamePosition(identifier: Node): boolean {
   return false;
 }
 
-function collapseSnippet(text: string): string {
+export function collapseSnippet(text: string): string {
   const singleLine = text.replace(/\s+/g, ' ').trim();
   if (singleLine.length <= SNIPPET_MAX_LENGTH) {
     return singleLine;

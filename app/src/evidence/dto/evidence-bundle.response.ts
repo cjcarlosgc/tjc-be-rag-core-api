@@ -21,6 +21,9 @@ export type EvidenceStrategy = 'PRODUCT' | 'RAG' | 'GENERALIST_AGENT';
 
 export type EvidenceRetrievalMode = 'SE' | 'SEM';
 
+/** `runnerHint` de §6.16: los valores de `TestRunner` (§7.1); cualquier otro valor se exporta como `null`. */
+export type EvidenceRunnerHint = 'JEST' | 'VITEST' | 'PHPUNIT';
+
 export interface EvidenceAnalysisRunResponse {
   analysisRunId: string;
   repositoryName: string;
@@ -109,7 +112,7 @@ export interface EvidenceSandboxResponse {
   strategy: EvidenceStrategy;
   repetition: number | null;
   executionProfile: ExecutionProfile | null;
-  runnerHint: 'JEST' | 'VITEST' | null;
+  runnerHint: EvidenceRunnerHint | null;
   attempt: number;
   /** Las 14 claves cerradas de §6.16 (solo conteos y banderas, con `failureMessage` ya saneado). */
   facts: SandboxEvidenceFacts;

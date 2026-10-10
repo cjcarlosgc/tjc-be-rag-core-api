@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
@@ -17,7 +18,8 @@ import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import type { RetrievalTarget } from '../retrieval/generation-context.js';
-import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import { PromptBuilder, sanitizeGeneratedPhp } from '../generation/prompt-builder.service.js';
+import { phpTestLocation, type PhpTestLocation } from '../generation/php-test-path.js';
 import {
   TestFileMergeService,
   coLocatedSpecPath,
@@ -115,7 +117,9 @@ interface RunContext {
   projectVersionId: string;
   snapshotKey: string;
   snapshotBuffer: Buffer;
-  framework: 'JEST' | 'VITEST' | null;
+  framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
+  /** WI-CORE-029: lenguaje del proyecto (`version.language`); PHP usa la ruta DEC-PHP-GEN-001. */
+  language: 'php' | 'typescript';
   target: TestTarget;
   config: LLMEffectiveConfig;
   budget: ExperimentBudget;
@@ -249,9 +253,9 @@ const INTERRUPTED_ATTEMPT_SUMMARY =
   'El intento quedó interrumpido: su latido venció antes de terminar.';
 
 /** Valores ausentes (`null` o no presentes en corridas previas) no son error: usan la versión actual. */
-function parseRunnerHint(value: string | null | undefined): 'JEST' | 'VITEST' | null {
+function parseRunnerHint(value: string | null | undefined): 'JEST' | 'VITEST' | 'PHPUNIT' | null {
   if (value === null || value === undefined) return null;
-  if (value === 'JEST' || value === 'VITEST') return value;
+  if (value === 'JEST' || value === 'VITEST' || value === 'PHPUNIT') return value;
   throw new Error('runnerHint del experimento no es válido.');
 }
 
@@ -278,6 +282,16 @@ interface RepetitionEvidence {
   sandbox: SandboxExecutionEvidence | null;
   /** SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación. */
   artifactHash: string | null;
+}
+
+/** Target de recuperación a partir de la fila persistida (misma forma que usa el brazo RAG). */
+function toRetrievalTarget(target: TestTarget): RetrievalTarget {
+  return {
+    filePath: target.filePath,
+    symbolName: target.symbolName,
+    methodName: target.methodName,
+    targetType: target.targetType as 'METHOD' | 'FUNCTION',
+  };
 }
 
 @Injectable()
@@ -367,12 +381,8 @@ export class ExperimentJobHandler
       }
 
       const detectedFramework = version.detectedFramework;
-      if (
-        version.language === 'PHP'
-        || detectedFramework === 'PHPUNIT'
-      ) {
-        throw new Error('Los experimentos PHP/PHPUnit requieren WI-CORE-013 y aún no están habilitados.');
-      }
+      // WI-CORE-029: el lenguaje viaja en el contexto del run; el runner persistido decide el framework.
+      const language: 'php' | 'typescript' = version.language === 'PHP' ? 'php' : 'typescript';
 
       // Runner, perfil y presupuesto persistidos al crear el experimento (WI-CORE-025).
       // Corridas previas sin esos valores usan la versión actual y el entorno.
@@ -386,6 +396,7 @@ export class ExperimentJobHandler
         snapshotKey,
         snapshotBuffer,
         framework: parseRunnerHint(run.runnerHint) ?? detectedFramework,
+        language,
         target,
         config,
         budget,
@@ -690,7 +701,15 @@ export class ExperimentJobHandler
       workspace = await this.zipExtractionService.extract(
         context.snapshotBuffer,
       );
+      const workspaceDir = workspace.dir;
       const timeoutMs = context.budget.maxDurationMs;
+      // WI-CORE-029: PHP usa la ubicación DEC-PHP-GEN-001 (archivo nuevo); TypeScript conserva la suya.
+      const phpPlacement =
+        context.language === 'php'
+          ? phpTestLocation(toRetrievalTarget(context.target), (candidate) =>
+              existsSync(join(workspaceDir, candidate)),
+            )
+          : null;
 
       generation =
         context.strategy === 'RAG'
@@ -701,6 +720,8 @@ export class ExperimentJobHandler
                 context.projectVersionId,
                 context.target,
                 context.framework,
+                context.language,
+                phpPlacement,
                 context.config,
                 context.budget,
               ),
@@ -713,6 +734,7 @@ export class ExperimentJobHandler
                 workspace.dir,
                 context.target,
                 context.framework,
+                phpPlacement,
                 context.config,
                 context.budget,
               ),
@@ -721,21 +743,18 @@ export class ExperimentJobHandler
             );
 
       generationDurationMs = Date.now() - generationStart;
-      const relativePath =
-        context.target.hasTest && context.target.testFilePaths.length > 0
+      // TypeScript: ruta co-ubicada o la del primer test existente, con fusión. PHP: archivo nuevo, sin leer ni fusionar.
+      const relativePath = phpPlacement
+        ? phpPlacement.relativePath
+        : context.target.hasTest && context.target.testFilePaths.length > 0
           ? context.target.testFilePaths[0]
           : coLocatedSpecPath(context.target.filePath);
-      const existingContent = await readFile(
-        join(workspace.dir, relativePath),
-        'utf8',
-      ).catch(() => null);
-      const mergedContent =
-        existingContent === null
-          ? this.testFileMergeService.applyCreate(generation.content)
-          : this.testFileMergeService.applyMerge(
-              existingContent,
-              generation.content,
-            );
+      const existingContent = phpPlacement
+        ? null
+        : await readFile(
+            join(workspace.dir, relativePath),
+            'utf8',
+          ).catch(() => null);
 
       if (!context.framework) {
         await this.recordRepetition(
@@ -752,12 +771,50 @@ export class ExperimentJobHandler
             valid: null,
             failureType: 'CONFIGURATION',
             errorSummary:
-              'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+              context.language === 'php'
+                ? 'No se pudo determinar el framework de test (PHPUnit) durante la indexación.'
+                : 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
           },
           false,
         );
         finalized = true;
         return false;
+      }
+
+      let mergedContent: string;
+      if (phpPlacement) {
+        const phpContent = sanitizeGeneratedPhp(generation.content);
+        if (phpContent === null) {
+          // Resultado técnico desfavorable de la estrategia (no fallo externo): sin Sandbox y sin reintento.
+          await this.recordRepetition(
+            begun,
+            context,
+            generation,
+            generationDurationMs,
+            null,
+            {
+              status: 'INVALID',
+              compiled: false,
+              executed: false,
+              passed: false,
+              valid: false,
+              failureType: 'COMPILATION',
+              errorSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+            },
+            false,
+          );
+          finalized = true;
+          return false;
+        }
+        mergedContent = `${phpContent}\n`;
+      } else {
+        mergedContent =
+          existingContent === null
+            ? this.testFileMergeService.applyCreate(generation.content)
+            : this.testFileMergeService.applyMerge(
+                existingContent,
+                generation.content,
+              );
       }
 
       const executionStart = Date.now();
@@ -931,16 +988,13 @@ export class ExperimentJobHandler
     projectId: string,
     projectVersionId: string,
     target: TestTarget,
-    framework: 'JEST' | 'VITEST' | null,
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null,
+    language: 'php' | 'typescript',
+    placement: PhpTestLocation | null,
     config: LLMEffectiveConfig,
     budget: ExperimentBudget,
   ): Promise<GenerationOutcome> {
-    const retrievalTarget: RetrievalTarget = {
-      filePath: target.filePath,
-      symbolName: target.symbolName,
-      methodName: target.methodName,
-      targetType: target.targetType as 'METHOD' | 'FUNCTION',
-    };
+    const retrievalTarget = toRetrievalTarget(target);
     const retrieval = await this.retrievalService.retrieve(
       projectVersionId,
       retrievalTarget,
@@ -953,7 +1007,7 @@ export class ExperimentJobHandler
     const generationContext = this.contextBuilder.build(
       retrieval,
       retrievalTarget,
-      { framework },
+      { framework, language },
       { maxContextTokens: budget.contextTokenBudget },
       functionalRules,
     );
@@ -961,7 +1015,12 @@ export class ExperimentJobHandler
       traceId,
       this.makeRagDetail(generationContext),
     );
-    const prompt = this.promptBuilder.build(generationContext);
+    const prompt = placement
+      ? this.promptBuilder.build(generationContext, {
+          testNamespace: placement.namespace,
+          testPath: placement.relativePath,
+        })
+      : this.promptBuilder.build(generationContext);
     const generation = await this.llmProvider.generate(prompt, config);
 
     return {
@@ -985,19 +1044,14 @@ export class ExperimentJobHandler
    */
   private async initializeTraceDetail(
     traceId: string,
-    context: Pick<AttemptContext, 'target' | 'framework' | 'strategy' | 'budget'>,
+    context: Pick<AttemptContext, 'target' | 'framework' | 'language' | 'strategy' | 'budget'>,
   ): Promise<void> {
     if (context.strategy === 'RAG') {
-      const target: RetrievalTarget = {
-        filePath: context.target.filePath,
-        symbolName: context.target.symbolName,
-        methodName: context.target.methodName,
-        targetType: context.target.targetType as 'METHOD' | 'FUNCTION',
-      };
+      const target = toRetrievalTarget(context.target);
       const emptyContext = this.contextBuilder.build(
         { targetChunks: [], candidates: [] },
         target,
-        { framework: context.framework },
+        { framework: context.framework, language: context.language },
         { maxContextTokens: context.budget.contextTokenBudget },
         [],
       );
@@ -1023,7 +1077,8 @@ export class ExperimentJobHandler
     traceId: string,
     workspaceDir: string,
     target: TestTarget,
-    framework: 'JEST' | 'VITEST' | null,
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null,
+    placement: PhpTestLocation | null,
     config: LLMEffectiveConfig,
     budget: ExperimentBudget,
   ): Promise<GenerationOutcome> {
@@ -1039,6 +1094,7 @@ export class ExperimentJobHandler
     const instructions = this.buildAgentInstructions(
       target,
       framework,
+      placement,
       maxContextTokens,
       maxToolCalls,
     );
@@ -1121,10 +1177,15 @@ export class ExperimentJobHandler
 
   private buildAgentInstructions(
     target: TestTarget,
-    framework: 'JEST' | 'VITEST' | null,
+    framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null,
+    placement: PhpTestLocation | null,
     maxContextTokens: number,
     maxToolCalls: number,
   ): string {
+    if (placement) {
+      return this.buildPhpAgentInstructions(target, placement, maxContextTokens, maxToolCalls);
+    }
+
     const label = target.methodName
       ? `${target.symbolName}.${target.methodName}`
       : target.symbolName;
@@ -1141,6 +1202,31 @@ export class ExperimentJobHandler
       `Tienes como máximo ${maxToolCalls} llamadas a herramientas; al alcanzar ese límite deberás responder sin más herramientas.`,
       `Presupuesto de contexto: los resultados de las herramientas suman como máximo ${maxContextTokens} tokens en total; lo que exceda se trunca y queda marcado como truncado.`,
       'Cuando tengas suficiente información, responde ÚNICAMENTE con código TypeScript válido (imports + bloques de prueba). No incluyas explicaciones ni envuelvas la respuesta en fences de markdown.',
+    ].join('\n\n');
+  }
+
+  /** Instrucciones del agente para PHP (WI-CORE-029): mismas semánticas que TypeScript, PHPUnit 11. */
+  private buildPhpAgentInstructions(
+    target: TestTarget,
+    placement: PhpTestLocation,
+    maxContextTokens: number,
+    maxToolCalls: number,
+  ): string {
+    const label = target.methodName
+      ? `${target.symbolName}.${target.methodName}`
+      : target.symbolName;
+    const kind = target.targetType === 'METHOD' ? 'el método' : 'la función';
+
+    return [
+      'Eres un ingeniero de software senior escribiendo pruebas unitarias en PHP.',
+      `Objetivo: escribir una prueba unitaria para ${kind} "${label}", declarada en el archivo "${target.filePath}".`,
+      'No se te entrega el código del objetivo directamente: debes explorarlo tú mismo usando las herramientas disponibles (list_files, read_file, search_text, inspect_symbol) antes de generar la prueba.',
+      'Usa el framework de pruebas PHPUnit 11.',
+      `El archivo de prueba es "${placement.relativePath}" y debe declarar el namespace "${placement.namespace}".`,
+      'Usa declaraciones use con nombres de clase completos (namespace completo). Extiende Tests\\TestCase solo si el código usa el contenedor de Laravel; en otro caso extiende PHPUnit\\Framework\\TestCase.',
+      `Tienes como máximo ${maxToolCalls} llamadas a herramientas; al alcanzar ese límite deberás responder sin más herramientas.`,
+      `Presupuesto de contexto: los resultados de las herramientas suman como máximo ${maxContextTokens} tokens en total; lo que exceda se trunca y queda marcado como truncado.`,
+      'Cuando tengas suficiente información, responde ÚNICAMENTE con el archivo PHP completo: empieza con <?php, declara el namespace y los use, y contiene la clase de prueba. No incluyas explicaciones ni envuelvas la respuesta en fences de markdown.',
     ].join('\n\n');
   }
 

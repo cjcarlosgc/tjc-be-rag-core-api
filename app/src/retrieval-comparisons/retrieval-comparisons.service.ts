@@ -7,7 +7,6 @@ import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisSymbol, Prisma } from '../generated/prisma/client.js';
 import { JobsService } from '../jobs/jobs.service.js';
-import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { RETRIEVAL_COMPARISON_JOB_TYPE, type RetrievalComparisonJobPayload } from './retrieval-comparison-job.handler.js';
 import { RetrievalComparisonsRepository } from './persistence/retrieval-comparisons.repository.js';
 import type { RetrievalComparison } from '../generated/prisma/client.js';
@@ -58,7 +57,6 @@ export class RetrievalComparisonsService {
     private readonly jobsService: JobsService,
     private readonly idempotencyService: IdempotencyService,
     private readonly configService: ConfigService,
-    private readonly projectVersionsRepository: ProjectVersionsRepository,
   ) {}
 
   /**
@@ -84,9 +82,8 @@ export class RetrievalComparisonsService {
 
     const projectVersionId = run.projectVersionId;
 
-    // DEC-RC-001 (aprobada): un proyecto PHP responde 422 UNSUPPORTED_PROJECT, mismo código que los
-    // experimentos. WI-CORE-028 retirará este rechazo solo en la comparación.
-    await this.requireNotPhpVersion(projectVersionId);
+    // WI-CORE-028 (DEC-PHP-RET-001): la comparación acepta proyectos PHP. El `422 UNSUPPORTED_PROJECT`
+    // de DEC-RC-001 se retiró solo aquí; los experimentos conservan su rechazo hasta WI-CORE-029.
 
     const symbol = await this.requireComparableSymbol(run.id, dto.symbolFilePath, dto.symbolQualifiedName);
 
@@ -225,19 +222,6 @@ export class RetrievalComparisonsService {
     }
 
     return comparison;
-  }
-
-  /** `422 UNSUPPORTED_PROJECT` si la versión analizada es PHP (DEC-RC-001). */
-  private async requireNotPhpVersion(projectVersionId: string): Promise<void> {
-    const version = await this.projectVersionsRepository.findById(projectVersionId);
-
-    if (version?.language === 'PHP') {
-      throw new AppException(
-        ErrorCode.UNSUPPORTED_PROJECT,
-        'La comparación de retrieval todavía no soporta proyectos PHP.',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-      );
-    }
   }
 
   /**

@@ -207,4 +207,98 @@ describe('mapSandboxResult', () => {
       expect(failed.errorSummary).toBe('Cannot find name');
     });
   });
+
+  describe('failureKind (DEC-PHP-GEN-002)', () => {
+    const failingFacts = (testCases: Array<{ name: string; failureKind?: 'ASSERTION' | 'ERROR' | null; errorMessage: string | null }>) =>
+      makeFacts({
+        runner: 'PHPUNIT',
+        passed: false,
+        testCases: testCases.map((testCase) => ({
+          suitePath: null,
+          status: 'FAILED' as const,
+          durationMs: 1,
+          ...testCase,
+        })),
+      });
+
+    it('classifies a failed case with failureKind ERROR as TEST_RUNTIME and uses its message, even when other cases are ASSERTION', () => {
+      const outcome = mapSandboxResult({
+        status: 'COMPLETED',
+        facts: failingFacts([
+          { name: 'asserts', failureKind: 'ASSERTION', errorMessage: 'expected 1, got 2' },
+          { name: 'calls missing class', failureKind: 'ERROR', errorMessage: 'Class "Foo" not found' },
+        ]),
+        failure: null,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'PHP_LARAVEL_PHPUNIT',
+        requestId: 'req-1',
+        correlationId: 'corr-1',
+        durationMs: 1,
+      });
+
+      expect(outcome).toMatchObject({
+        status: 'INVALID',
+        valid: false,
+        failureType: 'TEST_RUNTIME',
+        errorSummary: 'Class "Foo" not found',
+      });
+    });
+
+    it('keeps TEST_ASSERTION when every failed case is ASSERTION', () => {
+      const outcome = mapSandboxResult({
+        status: 'COMPLETED',
+        facts: failingFacts([
+          { name: 'a', failureKind: 'ASSERTION', errorMessage: 'first' },
+          { name: 'b', failureKind: 'ASSERTION', errorMessage: 'second' },
+        ]),
+        failure: null,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'PHP_LARAVEL_PHPUNIT',
+        requestId: 'req-1',
+        correlationId: 'corr-1',
+        durationMs: 1,
+      });
+
+      expect(outcome).toMatchObject({ failureType: 'TEST_ASSERTION', errorSummary: 'first', valid: false });
+    });
+
+    it('applies the previous rule when no failed case carries failureKind', () => {
+      const outcome = mapSandboxResult({
+        status: 'COMPLETED',
+        facts: failingFacts([
+          { name: 'a', errorMessage: 'expected true' },
+          { name: 'b', failureKind: null, errorMessage: 'other' },
+        ]),
+        failure: null,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'NODE_TYPESCRIPT',
+        requestId: 'req-1',
+        correlationId: 'corr-1',
+        durationMs: 1,
+      });
+
+      expect(outcome).toMatchObject({ failureType: 'TEST_ASSERTION', errorSummary: 'expected true', valid: false });
+    });
+
+    it('ignores failureKind on passed cases and keeps VALID for passing executions', () => {
+      const outcome = mapSandboxResult({
+        status: 'COMPLETED',
+        facts: makeFacts({
+          testCases: [{ suitePath: null, name: 'ok', status: 'PASSED', durationMs: 1, errorMessage: null, failureKind: 'ERROR' }],
+        }),
+        failure: null,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'PHP_LARAVEL_PHPUNIT',
+        requestId: 'req-1',
+        correlationId: 'corr-1',
+        durationMs: 1,
+      });
+
+      expect(outcome).toMatchObject({ status: 'VALID', valid: true, failureType: 'NONE' });
+    });
+  });
 });

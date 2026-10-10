@@ -262,15 +262,29 @@ describe('FunctionalContextEvaluatorService', () => {
     );
   });
 
-  it('does not ask about PHP symbols even when they carry constructs', async () => {
+  it('asks about a PHP DIRECTLY_CHANGED METHOD with constructs and no ACTIVE rule (WI-CORE-032)', async () => {
     analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
-      buildSymbol({ language: 'PHP', behaviorConstructs: [buildConstruct()] }),
+      buildSymbol({
+        language: 'PHP',
+        qualifiedName: 'App\\Billing\\Account.withdraw',
+        filePath: 'src/Billing/Account.php',
+        behaviorConstructs: [buildConstruct({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:bbbbbbbbbbbbbbbb' })],
+      }),
     ]);
 
     const result = await service.evaluate(RUN);
 
-    expect(result).toEqual({ actionRequired: false });
-    expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+    expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+    expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbolLanguage: 'PHP',
+        qualifiedName: 'App\\Billing\\Account.withdraw',
+        filePath: 'src/Billing/Account.php',
+        scenarioKind: 'BOUNDARY',
+        scenarioKey: 'BOUNDARY:bbbbbbbbbbbbbbbb',
+      }),
+      'PROCESSING',
+    );
   });
 
   it('does not report ACTION_REQUIRED when the run became obsolete before the atomic write', async () => {

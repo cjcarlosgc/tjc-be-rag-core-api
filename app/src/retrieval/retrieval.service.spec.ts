@@ -234,3 +234,270 @@ describe('RetrievalService modes (WI-CORE-022)', () => {
   });
 });
 
+
+describe('RetrievalService PHP structural relations (WI-CORE-028, DEC-PHP-RET-001)', () => {
+  const PHP_FILE = 'app/Pricing/OrderPricingService.php';
+  const anchorMethod = makeChunk({
+    id: 'anchor',
+    filePath: PHP_FILE,
+    symbolKind: 'METHOD',
+    symbolName: 'total',
+    parentSymbolName: 'App\\Pricing\\OrderPricingService',
+    content: 'public function total() { return (new Discount())->apply(); }',
+    importsUsed: ['App\\Money\\Money'],
+  });
+  const target = {
+    filePath: PHP_FILE,
+    symbolName: 'OrderPricingService',
+    methodName: 'total',
+    targetType: 'METHOD' as const,
+  };
+
+  function phpService(allChunks: CodeChunk[], options: { anchor?: CodeChunk; semantic?: CodeChunk[] } = {}) {
+    return new RetrievalService({
+      findBySymbol: vi.fn().mockResolvedValue([options.anchor ?? anchorMethod]),
+      findSimilarByEmbedding: vi.fn().mockResolvedValue(options.semantic ?? []),
+      findByProjectVersion: vi.fn().mockResolvedValue(allChunks),
+    } as never);
+  }
+
+  function labels(candidates: Array<{ chunk: CodeChunk; semanticScore: number | null; structuralMatch: string | null }>) {
+    return candidates.map((candidate) => [candidate.chunk.id, candidate.structuralMatch]);
+  }
+
+  it('R-PHP1 IMPORTS: labels a candidate whose class is imported by the target with use', async () => {
+    const money = makeChunk({
+      id: 'money',
+      filePath: 'app/Money/Money.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Money\\Money',
+      parentSymbolName: null,
+    });
+
+    const result = await phpService([anchorMethod, money]).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['money', 'IMPORTS']]);
+  });
+
+  it('R-PHP2 IMPORTED_BY: labels a candidate that imports the class declaring the target', async () => {
+    const controller = makeChunk({
+      id: 'controller',
+      filePath: 'app/Http/OrderController.php',
+      symbolKind: 'METHOD',
+      symbolName: 'show',
+      parentSymbolName: 'App\\Http\\OrderController',
+      importsUsed: ['\\App\\Pricing\\OrderPricingService'],
+    });
+
+    const result = await phpService([anchorMethod, controller]).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['controller', 'IMPORTED_BY']]);
+  });
+
+  it('R-PHP3 SAME_NAMESPACE: labels a same-namespace class whose short name the target mentions', async () => {
+    const discount = makeChunk({
+      id: 'discount',
+      filePath: 'app/Pricing/Discount.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\Discount',
+      parentSymbolName: null,
+    });
+
+    const result = await phpService([anchorMethod, discount]).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['discount', 'SAME_NAMESPACE']]);
+  });
+
+  it('R-PHP3 does not label a same-namespace class that the target does not mention', async () => {
+    const coupon = makeChunk({
+      id: 'coupon',
+      filePath: 'app/Pricing/Coupon.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\Coupon',
+      parentSymbolName: null,
+    });
+    const discountPolicy = makeChunk({
+      id: 'discount-policy',
+      filePath: 'app/Pricing/DiscountPolicy.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\DiscountPolicy',
+      parentSymbolName: null,
+    });
+    const policyOnlyAnchor = makeChunk({
+      ...anchorMethod,
+      id: 'anchor',
+      content: 'public function total() { return new DiscountPolicy(); }',
+      importsUsed: [],
+    });
+
+    const result = await phpService([policyOnlyAnchor, coupon, discountPolicy], {
+      anchor: policyOnlyAnchor,
+    }).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['discount-policy', 'SAME_NAMESPACE']]);
+  });
+
+  it('R-PHP4 FULLY_QUALIFIED_REFERENCE: labels a class referenced with a leading backslash', async () => {
+    const mailer = makeChunk({
+      id: 'mailer',
+      filePath: 'app/Legacy/Mailer.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Legacy\\Mailer',
+      parentSymbolName: null,
+    });
+    const anchor = makeChunk({ ...anchorMethod, id: 'anchor', content: 'return new \\App\\Legacy\\Mailer();', importsUsed: [] });
+
+    const result = await phpService([anchor, mailer], { anchor }).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['mailer', 'FULLY_QUALIFIED_REFERENCE']]);
+  });
+
+  it('R-PHP4 does not label a reference without a leading backslash or a longer identifier', async () => {
+    const mailer = makeChunk({
+      id: 'mailer',
+      filePath: 'app/Legacy/Mailer.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Legacy\\Mailer',
+      parentSymbolName: null,
+    });
+    const withoutSlash = makeChunk({ ...anchorMethod, id: 'anchor', content: 'return new App\\Legacy\\Mailer();', importsUsed: [] });
+    const longerName = makeChunk({ ...anchorMethod, id: 'anchor', content: 'return new \\App\\Legacy\\MailerX();', importsUsed: [] });
+
+    const resultWithoutSlash = await phpService([withoutSlash, mailer], { anchor: withoutSlash }).retrieve('version-1', target);
+    const resultLongerName = await phpService([longerName, mailer], { anchor: longerName }).retrieve('version-1', target);
+
+    expect(resultWithoutSlash.candidates).toEqual([]);
+    expect(resultLongerName.candidates).toEqual([]);
+  });
+
+  it('R-PHP5 DECLARING_CLASS: labels the declaration chunk of the class that declares the target', async () => {
+    const declaration = makeChunk({
+      id: 'declaration',
+      filePath: PHP_FILE,
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\OrderPricingService',
+      parentSymbolName: null,
+    });
+
+    const result = await phpService([anchorMethod, declaration]).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['declaration', 'DECLARING_CLASS']]);
+  });
+
+  it('applies priority R-PHP1 over R-PHP4 when both hold for the same candidate', async () => {
+    const money = makeChunk({
+      id: 'money',
+      filePath: 'app/Money/Money.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Money\\Money',
+      parentSymbolName: null,
+    });
+    const anchor = makeChunk({ ...anchorMethod, id: 'anchor', content: 'return new \\App\\Money\\Money();' });
+
+    const result = await phpService([anchor, money], { anchor }).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['money', 'IMPORTS']]);
+  });
+
+  it('applies priority R-PHP3 over R-PHP4 when both hold for the same candidate', async () => {
+    const discount = makeChunk({
+      id: 'discount',
+      filePath: 'app/Pricing/Discount.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\Discount',
+      parentSymbolName: null,
+    });
+    const anchor = makeChunk({ ...anchorMethod, id: 'anchor', content: 'return new \\App\\Pricing\\Discount();', importsUsed: [] });
+
+    const result = await phpService([anchor, discount], { anchor }).retrieve('version-1', target);
+
+    expect(labels(result.candidates)).toEqual([['discount', 'SAME_NAMESPACE']]);
+  });
+
+  it('uses the namespace of the anchor function when the anchor is a top-level function', async () => {
+    const functionAnchor = makeChunk({
+      id: 'anchor',
+      filePath: 'app/Pricing/helpers.php',
+      symbolKind: 'FUNCTION',
+      symbolName: 'App\\Pricing\\computeTotal',
+      parentSymbolName: null,
+      content: 'function computeTotal() { return new Discount(); }',
+      importsUsed: [],
+    });
+    const discount = makeChunk({
+      id: 'discount',
+      filePath: 'app/Pricing/Discount.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\Discount',
+      parentSymbolName: null,
+    });
+    const functionTarget = { filePath: functionAnchor.filePath, symbolName: 'computeTotal', methodName: null, targetType: 'FUNCTION' as const };
+
+    const result = await phpService([functionAnchor, discount], { anchor: functionAnchor }).retrieve('version-1', functionTarget);
+
+    expect(labels(result.candidates)).toEqual([['discount', 'SAME_NAMESPACE']]);
+  });
+
+  it('does not apply R-PHP2 or R-PHP5 to a top-level function anchor, which has no declaring class', async () => {
+    const functionAnchor = makeChunk({
+      id: 'anchor',
+      filePath: 'app/Pricing/helpers.php',
+      symbolKind: 'FUNCTION',
+      symbolName: 'App\\Pricing\\computeTotal',
+      parentSymbolName: null,
+      content: 'return 1;',
+      importsUsed: [],
+    });
+    const importer = makeChunk({
+      id: 'importer',
+      filePath: 'app/Http/Ctl.php',
+      symbolKind: 'METHOD',
+      symbolName: 'show',
+      parentSymbolName: 'App\\Http\\Ctl',
+      importsUsed: ['App\\Pricing\\computeTotal'],
+    });
+    const sameNameClass = makeChunk({
+      id: 'same-name',
+      filePath: 'app/Pricing/computeTotal.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\computeTotal',
+      parentSymbolName: null,
+    });
+    const functionTarget = { filePath: functionAnchor.filePath, symbolName: 'computeTotal', methodName: null, targetType: 'FUNCTION' as const };
+
+    const result = await phpService([functionAnchor, importer, sameNameClass], { anchor: functionAnchor }).retrieve('version-1', functionTarget);
+
+    expect(result.candidates).toEqual([]);
+  });
+
+  it('keeps a semantic candidate that is also structural in one entry with both values', async () => {
+    const discount = makeChunk({
+      id: 'discount',
+      filePath: 'app/Pricing/Discount.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Pricing\\Discount',
+      parentSymbolName: null,
+    });
+
+    const result = await phpService([anchorMethod, discount], {
+      semantic: [{ ...discount, semanticScore: 0.7 } as CodeChunk],
+    }).retrieve('version-1', target);
+
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({ semanticScore: 0.7, structuralMatch: 'SAME_NAMESPACE' });
+  });
+
+  it('only considers .php candidates when the anchor is PHP', async () => {
+    const tsMoney = makeChunk({
+      id: 'ts-money',
+      filePath: 'src/money.ts',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Money\\Money',
+      parentSymbolName: null,
+    });
+
+    const result = await phpService([anchorMethod, tsMoney]).retrieve('version-1', target);
+
+    expect(result.candidates).toEqual([]);
+  });
+});

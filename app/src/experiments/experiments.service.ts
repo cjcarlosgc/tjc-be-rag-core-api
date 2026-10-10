@@ -155,14 +155,14 @@ export class ExperimentsService {
       );
     }
 
-    // WI-CORE-025: el runner decide el perfil del Sandbox; PHP/PHPUnit o sin framework JEST|VITEST no se acepta
-    // y no se crea experimento ni job (antes fallaba dentro del job).
+    // WI-CORE-025: el runner decide el perfil del Sandbox; sin framework JEST|VITEST|PHPUNIT no se acepta
+    // y no se crea experimento ni job (antes fallaba dentro del job). WI-CORE-029: PHPUNIT se admite.
     const runnerHint = version.detectedFramework;
 
-    if (runnerHint !== 'JEST' && runnerHint !== 'VITEST') {
+    if (runnerHint !== 'JEST' && runnerHint !== 'VITEST' && runnerHint !== 'PHPUNIT') {
       throw new AppException(
         ErrorCode.UNSUPPORTED_PROJECT,
-        'Los experimentos requieren un proyecto con Jest o Vitest detectado.',
+        'Los experimentos requieren un proyecto con Jest, Vitest o PHPUnit detectado.',
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
     }

@@ -10,7 +10,11 @@ import type { StructuralRelation } from '../retrieval-comparisons/dto/retrieval-
 import type { RetrievalMetricsResponse } from '../retrieval-comparisons/dto/retrieval-comparison.response.js';
 import type { SandboxEvidenceFacts } from '../sandbox/sandbox-evidence-facts.js';
 import type { ExecutionProfile } from '../sandbox/sandbox.types.js';
-import type { EvidenceRetrievalCandidateResponse, EvidenceRetrievalConfigResponse } from './dto/evidence-bundle.response.js';
+import type {
+  EvidenceRetrievalCandidateResponse,
+  EvidenceRetrievalConfigResponse,
+  EvidenceRunnerHint,
+} from './dto/evidence-bundle.response.js';
 
 /**
  * WI-CORE-027 (INTEROP-2.7 §6.16): funciones puras que leen valores persistidos (JSONB y columnas) y los
@@ -26,7 +30,7 @@ export const SNAPSHOT_REF_NAMESPACE = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const EXECUTION_PROFILES: readonly ExecutionProfile[] = ['NODE_TYPESCRIPT', 'PHP_LARAVEL_PHPUNIT'];
-const RUNNER_HINTS = ['JEST', 'VITEST'] as const;
+const RUNNER_HINTS: readonly EvidenceRunnerHint[] = ['JEST', 'VITEST', 'PHPUNIT'];
 const STRUCTURAL_RELATIONS: readonly StructuralRelation[] = [
   'IMPORTS',
   'IMPORTED_BY',
@@ -82,13 +86,12 @@ export function toExecutionProfile(value: unknown): ExecutionProfile | null {
 }
 
 /**
- * `runnerHint` de §6.16. Hoy descarta `PHPUNIT` (valor válido de `TestRunner` en §7.1): un runner PHP queda `null`.
- * WI-CORE-028 (PHP) debe ampliar `RUNNER_HINTS`, el tipo de retorno y el filtro de `runner` en
- * `sandbox-evidence-facts.ts` (con `RunnerFacts['runner']` de `sandbox.types.ts`) antes de exponerlo.
+ * `runnerHint` de §6.16: los valores de `TestRunner` (§7.1), incluido `PHPUNIT` (WI-CORE-029). Un valor fuera de
+ * esa lista (o que no es texto) queda `null`; nunca se inventa un runner.
  */
-export function toRunnerHint(value: unknown): 'JEST' | 'VITEST' | null {
+export function toRunnerHint(value: unknown): EvidenceRunnerHint | null {
   return typeof value === 'string' && (RUNNER_HINTS as readonly string[]).includes(value)
-    ? (value as 'JEST' | 'VITEST')
+    ? (value as EvidenceRunnerHint)
     : null;
 }
 

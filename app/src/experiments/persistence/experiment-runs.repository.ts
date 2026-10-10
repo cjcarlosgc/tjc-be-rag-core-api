@@ -51,7 +51,7 @@ export interface CreateExperimentRunInput {
   /** Perfil de ejecución del Sandbox, tomado de EXECUTION_PROFILE_BY_RUNNER (WI-CORE-025). */
   executionProfile: string;
   /** Runner detectado en la versión al crear (WI-CORE-025). */
-  runnerHint: 'JEST' | 'VITEST';
+  runnerHint: 'JEST' | 'VITEST' | 'PHPUNIT';
 }
 
 export interface ExperimentRepetitionInput {

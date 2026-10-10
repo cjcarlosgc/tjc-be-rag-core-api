@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { PromptBuilder } from './prompt-builder.service.js';
-import type { GenerationContext } from '../retrieval/generation-context.js';
+import { PromptBuilder, sanitizeGeneratedPhp } from './prompt-builder.service.js';
+import type { FunctionalRule, GenerationContext } from '../retrieval/generation-context.js';
+import { renderFunctionalRule } from '../retrieval/functional-rule-format.js';
 
 function makeContext(overrides: Partial<GenerationContext> = {}): GenerationContext {
   return {
@@ -125,5 +126,109 @@ describe('PromptBuilder', () => {
     const prompt = new PromptBuilder().build(makeContext());
 
     expect(prompt).not.toContain('Reglas funcionales');
+  });
+});
+
+describe('PromptBuilder (PHP)', () => {
+  function makePhpContext(overrides: Partial<GenerationContext> = {}): GenerationContext {
+    return makeContext({
+      target: {
+        filePath: 'app/Pricing/PremiumDiscountPolicy.php',
+        symbolName: 'App\\Pricing\\PremiumDiscountPolicy',
+        methodName: 'discountFor',
+        targetType: 'METHOD',
+        content: 'public function discountFor(int $n): int { return $n; }',
+      },
+      metadata: { language: 'php', framework: 'PHPUNIT' },
+      ...overrides,
+    });
+  }
+
+  it('asks for a complete PHPUnit 11 file starting with <?php and the given namespace', () => {
+    const prompt = new PromptBuilder().build(makePhpContext(), {
+      testNamespace: 'Tests\\Unit\\Pricing',
+      testPath: 'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php',
+    });
+
+    expect(prompt).toContain('<?php');
+    expect(prompt).toContain('PHPUnit 11');
+    expect(prompt).toContain('namespace Tests\\Unit\\Pricing');
+    expect(prompt).toContain('tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php');
+    expect(prompt).toContain('PHPUnit\\Framework\\TestCase');
+    expect(prompt).toContain('Tests\\TestCase');
+    expect(prompt).toContain('```php');
+    expect(prompt).toContain('public function discountFor(int $n): int { return $n; }');
+    expect(prompt).toContain('empezando por `<?php`');
+    expect(prompt).toContain('No envuelvas la respuesta en fences de markdown');
+    expect(prompt).not.toContain('Jest o Vitest');
+    expect(prompt).not.toContain('```ts');
+  });
+
+  it('includes functional rules and related chunks as in TypeScript', () => {
+    const rule: FunctionalRule = {
+      knowledgeId: 'rule-1',
+      scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+      normalizedRule: 'Devuelve 10% a clientes premium.',
+      scope: 'SYMBOL',
+      targetRef: 'app/Pricing/PremiumDiscountPolicy.php::discountFor',
+      source: 'HUMAN_ANSWER',
+      provenance: {
+        confirmedByUserId: null,
+        confirmedRole: null,
+        originHeadSha: null,
+        sourceRef: null,
+      },
+    };
+    const prompt = new PromptBuilder().build(
+      makePhpContext({
+        functionalRules: [rule],
+        relatedChunks: [
+          {
+            filePath: 'app/Models/Subscription.php',
+            symbolKind: 'METHOD',
+            symbolName: 'plan',
+            parentSymbolName: 'Subscription',
+            content: 'public function plan() {}',
+            score: 0.8,
+            matchedVia: ['SEMANTIC'],
+          },
+        ],
+      }),
+    );
+
+    expect(prompt).toContain('Reglas funcionales');
+    expect(prompt).toContain(renderFunctionalRule(rule));
+    expect(prompt).toContain('--- app/Models/Subscription.php (METHOD Subscription.plan) ---');
+  });
+
+  it('keeps the TypeScript prompt free of PHP instructions when language is typescript', () => {
+    const prompt = new PromptBuilder().build(makeContext(), {
+      testNamespace: 'Tests\\Unit',
+      testPath: 'tests/Unit/Foo.php',
+    });
+
+    expect(prompt).toContain('TypeScript');
+    expect(prompt).not.toContain('<?php');
+    expect(prompt).not.toContain('PHPUnit');
+  });
+});
+
+describe('sanitizeGeneratedPhp', () => {
+  it('returns the content unchanged when there are no fences', () => {
+    expect(sanitizeGeneratedPhp('<?php\nclass A {}\n')).toBe('<?php\nclass A {}');
+  });
+
+  it('removes a ```php fence', () => {
+    expect(sanitizeGeneratedPhp('```php\n<?php\nclass A {}\n```')).toBe('<?php\nclass A {}');
+  });
+
+  it('removes a bare ``` fence and surrounding whitespace', () => {
+    expect(sanitizeGeneratedPhp('  \n```\n<?php\nclass B {}\n```\n  ')).toBe('<?php\nclass B {}');
+  });
+
+  it('returns null when the result does not start with <?php', () => {
+    expect(sanitizeGeneratedPhp('Aquí tienes:\n```php\n<?php\n```')).toBeNull();
+    expect(sanitizeGeneratedPhp('class A {}')).toBeNull();
+    expect(sanitizeGeneratedPhp('```php\n```')).toBeNull();
   });
 });

@@ -13,3 +13,31 @@ Los cortes trazan a EP02 (inteligencia de repositorio) y EP04 (generación/valid
 - Pruebas de parser y descubrimiento cubren namespace/FQCN, class/trait/function/method, tests existentes, exclusiones, PHP sobre TS cuando ambos manifests están presentes, y regresión TS sin cambios.
 - Prisma migration backfillea versiones existentes a `TYPESCRIPT`; nuevas versiones PHP persisten `PHP`; DTOs corresponden exactamente a INTEROP-2.6.
 - Lint, suite focal/full según factibilidad, build, SDD y Harness. Los límites de sandbox/runner real se registran sin afirmar verificación E2E.
+
+## WI-CORE-013 — cortes
+
+1. Tipos: `sandbox.types.ts` (`PHPUNIT`, `failureKind`), `EXECUTION_PROFILE_BY_RUNNER.PHPUNIT`, `GenerationContext.metadata` por lenguaje.
+2. `PromptBuilder` PHP + saneamiento de la respuesta; `phpTestPath` (DEC-PHP-GEN-001).
+3. `AnalysisRunValidationJobHandler`: quitar el bloqueo PHP y ramificar por lenguaje (prompt, ruta, CREATED, runner).
+4. `mapSandboxResult` con `failureKind` (DEC-PHP-GEN-002).
+5. INTEROP canónico §7.3/§7.4 + Contract Sync a Console y Sandbox.
+6. Pruebas unitarias por regla; regresión TypeScript intacta.
+
+## WI-CORE-032 — cortes
+
+1. `behavior-fingerprint/php-behavior-fingerprint.ts`: extractor PHP puro (recibe el árbol o el código y el `qualifiedName`) + pruebas por categoría, determinismo y normalización.
+2. `SymbolBehaviorConstructsService` y `FunctionalContextEvaluator`: elegibilidad por lenguaje y despacho al extractor según `language`; parser tree-sitter compartido con `PhpParserService`.
+3. Regresión TypeScript intacta; prueba del evaluador con un símbolo PHP que produce `ACTION_REQUIRED`.
+
+## WI-CORE-028 — cortes
+
+1. Tipo `StructuralMatch` con las cinco relaciones; resolución PHP R-PHP1..5 en `RetrievalService` (despacho por lenguaje del chunk ancla) + pruebas por relación, prioridad y regresión TypeScript.
+2. Trazas: `context-trace.response.ts` y `context-traces.service.ts` aceptan las relaciones nuevas; INTEROP §6 (trazas) aditivo.
+3. `retrieval-comparisons.service.ts`: retirar el `422` PHP; INTEROP §6.15; pruebas.
+4. Contract Sync a Console.
+
+## WI-CORE-029 — cortes
+
+1. `WorkspaceAgentTools.inspect_symbol` para PHP (tree-sitter, `loadPhpLanguage`) + pruebas.
+2. `ExperimentsService` (elegibilidad PHPUNIT) y `ExperimentJobHandler` (sin bloqueo PHP; ruta, saneamiento y `CREATED` por DEC-PHP-GEN-001; contexto/prompt PHP en RAG; instrucciones PHP del agente) + pruebas.
+3. INTEROP §6.5/§6.5.1 y Contract Sync a Console.

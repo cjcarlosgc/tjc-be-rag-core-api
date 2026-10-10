@@ -316,14 +316,47 @@ describe('ExperimentsService', () => {
       expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
     });
 
+    it('accepts a PHPUNIT version: creates the run with runner PHPUNIT and the PHP_LARAVEL_PHPUNIT profile (WI-CORE-029)', async () => {
+      const deps = makeDeps({
+        configService: {
+          get: (key: string, fallback?: unknown) =>
+            ({ AGENT_MAX_TOOL_CALLS: 7, RETRIEVAL_MAX_CONTEXT_TOKENS: 4096, GENERATION_TIMEOUT_MS: 90_000 })[key] ?? fallback,
+        },
+        projectVersionsRepository: {
+          hasActiveVersion: vi.fn().mockResolvedValue(false),
+          findById: vi.fn().mockResolvedValue({
+            id: 'version-1',
+            status: 'COMPLETED',
+            language: 'PHP',
+            detectedFramework: 'PHPUNIT',
+          }),
+        },
+      });
+      const service = makeService(deps);
+
+      const accepted = await service.createRun(
+        { projectId: 'project-1', targetId: 'target-1' },
+        undefined,
+        OWNER_USER_ID,
+      );
+
+      expect(accepted).toMatchObject({ experimentId: 'exp-1', projectVersionId: 'version-1', status: 'PENDING' });
+      expect(deps.experimentRunsRepository.create).toHaveBeenCalledTimes(1);
+      expect(deps.experimentRunsRepository.create.mock.calls[0][0]).toMatchObject({
+        executionProfile: 'PHP_LARAVEL_PHPUNIT',
+        runnerHint: 'PHPUNIT',
+      });
+      expect(deps.jobsService.enqueue).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
-      ['PHPUNIT', 'PHPUNIT'],
-      ['no framework', null],
-    ])('answers 422 UNSUPPORTED_PROJECT for a %s version without creating the run or the job', async (_label, framework) => {
+      ['PHP without PHPUnit', { language: 'PHP', detectedFramework: null }],
+      ['no framework', { language: 'TYPESCRIPT', detectedFramework: null }],
+    ])('answers 422 UNSUPPORTED_PROJECT for a %s version without creating the run or the job', async (_label, versionFields) => {
       const deps = makeDeps({
         projectVersionsRepository: {
           hasActiveVersion: vi.fn().mockResolvedValue(false),
-          findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED', detectedFramework: framework }),
+          findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED', ...versionFields }),
         },
       });
       const service = makeService(deps);

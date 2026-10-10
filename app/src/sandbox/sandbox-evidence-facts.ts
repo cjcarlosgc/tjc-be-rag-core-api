@@ -123,7 +123,7 @@ export function buildSandboxEvidenceFacts(input: SandboxEvidenceInput): SandboxE
 
   return {
     executionProfile: input.executionProfile,
-    runner: runner === 'JEST' || runner === 'VITEST' ? runner : null,
+    runner: runner === 'JEST' || runner === 'VITEST' || runner === 'PHPUNIT' ? runner : null,
     compiled: observedFlag(facts?.compiled),
     executed: observedFlag(facts?.executed),
     passed: observedFlag(facts?.passed),
