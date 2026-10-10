@@ -35,6 +35,11 @@ claude:
     modelAlias: "Sonnet 5.5"
     exactModelId: "claude-sonnet-5-5"
     reasoningEffort: "medium"
+  merge-reviewer:
+    role: merge-reviewer
+    modelAlias: "Sonnet 5.5"
+    exactModelId: "claude-sonnet-5-5"
+    reasoningEffort: "medium"
   human-reviewer:
     role: human-reviewer
     actor: user
@@ -44,3 +49,6 @@ claude:
 # por defecto; el agente `reviewer` (Sonnet 5.5 / medium, techo automático: las revisiones previas encontraron defectos
 # reales como ReDoS, fugas y mutaciones sobrevivientes que un esfuerzo bajo podía pasar por alto) solo revisa si el
 # usuario delega explícitamente WI por WI o mientras el «Modo fuera de casa» (`awayMode`) esté activo.
+# merge-reviewer (Sonnet 5.5 / medium) revisa UNA FUSIÓN antes de integrar una rama de tercero o de integración en
+# una línea compartida (feature/jean, develop o main) o antes de publicarla; no sustituye al reviewer de un WI ni lo
+# relaja el Modo fuera de casa. Rol canónico: harness/roles/merge-reviewer.md.

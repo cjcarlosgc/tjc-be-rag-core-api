@@ -89,3 +89,6 @@ Campo opcional de primer nivel de `harness/state.json`. Ausente o `enabled: fals
 
 Al desactivarse se conserva el registro con `enabled: false`, `deactivatedAt` y `deactivationQuote`. Mientras `enabled` sea `true`, la revisión independiente la hace el agente `reviewer` (`execution.reviewAgent: "reviewer"`, handoff con `executedBy`); no sustituye decisiones `DEC` ni aprobaciones de alcance o contrato, no autoriza push/PR/infraestructura externa y no relaja gates. El validador exige la forma del campo cuando existe.
 
+## Merge reviewer
+
+La fusión de una rama de tercero o de integración se revisa con el agente `merge-reviewer` antes de entrar en una línea compartida o de publicarla; su veredicto vive en `harness/reports/merge-review-<scope>.md` y no es un gate de `W-DONE` de un WI ni lo sustituye `awayMode`. No añade campos a `harness/state.json`.
