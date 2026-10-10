@@ -743,7 +743,7 @@ describe('ExperimentsService', () => {
       expect(results.repetitions.filter((r) => r.technicallyEvaluable === false)).toHaveLength(1);
     });
 
-    it('answers zero rates and null means, never NaN, when every repetition of a strategy is non-evaluable (WI-CORE-025 (5))', async () => {
+    it('answers null rates and means, never NaN nor 0, with counters 0/3 when every repetition of a strategy is non-evaluable (WI-CORE-025 (5), WI-CORE-027 DEC-EVID-001)', async () => {
       const deps = makeDeps();
       deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
         id: 'exp-1',
@@ -765,24 +765,157 @@ describe('ExperimentsService', () => {
       const results = await service.getResults('exp-1', OWNER_USER_ID);
       const agent = results.strategies.find((s) => s.strategy === 'GENERALIST_AGENT')!;
 
-      for (const value of [
-        agent.validRate,
-        agent.compilationRate,
-        agent.executionRate,
-        agent.passedRate,
-        agent.generationDurationMs,
-        agent.executionDurationMs,
-        agent.totalDurationMs,
-      ]) {
-        expect(Number.isNaN(value)).toBe(false);
-      }
-      expect(agent.validRate).toBe(0);
-      expect(agent.compilationRate).toBe(0);
-      expect(agent.passedRate).toBe(0);
-      expect(agent.generationDurationMs).toBe(0);
-      expect(agent.inputTokens).toBeNull();
-      expect(agent.estimatedCost).toBeNull();
-      expect(agent.failures).toEqual({});
+      expect(agent).toMatchObject({
+        evaluableRepetitions: 0,
+        nonEvaluableRepetitions: 3,
+        validRate: null,
+        compilationRate: null,
+        executionRate: null,
+        passedRate: null,
+        generationDurationMs: null,
+        executionDurationMs: null,
+        totalDurationMs: null,
+        inputTokens: null,
+        estimatedCost: null,
+        failures: {},
+      });
+      expect(JSON.stringify(agent)).not.toContain('NaN');
+    });
+
+    it('counts evaluable and non-evaluable repetitions with a mixed 2/1 split and ignores the non-evaluable slot in every metric (WI-CORE-027)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1', projectVersionId: 'version-1', targetId: 'target-1', status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      const row = (overrides: Record<string, unknown>) => ({
+        strategy: 'RAG', attempt: 1, compiled: true, executed: true, passed: true, valid: true, failureType: 'NONE',
+        generationDurationMs: 100, executionDurationMs: 200, totalDurationMs: 300,
+        inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+        retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: null, filesInspected: null,
+        technicallyEvaluable: true, ...overrides,
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([
+        row({ repetition: 1 }),
+        row({ repetition: 2, passed: false, valid: false, failureType: 'TEST_ASSERTION', generationDurationMs: 101, executionDurationMs: null, totalDurationMs: 101 }),
+        row({ repetition: 3, compiled: false, executed: false, passed: false, valid: false, failureType: 'INFRASTRUCTURE',
+          generationDurationMs: 9_999, executionDurationMs: 9_999, totalDurationMs: 9_999, technicallyEvaluable: false }),
+      ]);
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+      const rag = results.strategies.find((s) => s.strategy === 'RAG')!;
+
+      expect(rag.evaluableRepetitions).toBe(2);
+      expect(rag.nonEvaluableRepetitions).toBe(1);
+      expect(rag.validRate).toBe(1 / 2);
+      expect(rag.compilationRate).toBe(1);
+      expect(rag.passedRate).toBe(1 / 2);
+      expect(rag.generationDurationMs).toBe(Math.round((100 + 101) / 2));
+      // executionDurationMs: media de los no nulos de las evaluables (la no evaluable no cuenta)
+      expect(rag.executionDurationMs).toBe(200);
+      expect(rag.totalDurationMs).toBe(Math.round((300 + 101) / 2));
+      expect(rag.failures).toEqual({ NONE: 1, TEST_ASSERTION: 1 });
+      // Estrategia sin filas: contadores 0/0 y métricas null
+      const agent = results.strategies.find((s) => s.strategy === 'GENERALIST_AGENT')!;
+      expect(agent).toMatchObject({ evaluableRepetitions: 0, nonEvaluableRepetitions: 0, validRate: null, executionDurationMs: null });
+    });
+
+    it('keeps a real zero when there are evaluable repetitions and none passed: passedRate 0, not null (WI-CORE-027)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1', projectVersionId: 'version-1', targetId: 'target-1', status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      const failing = (repetition: number) => ({
+        repetition, strategy: 'RAG', attempt: 1, compiled: true, executed: true, passed: false, valid: false,
+        failureType: 'TEST_ASSERTION', generationDurationMs: 40, executionDurationMs: 60, totalDurationMs: 100,
+        inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+        retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: null, filesInspected: null,
+        technicallyEvaluable: true,
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([1, 2].map(failing));
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+      const rag = results.strategies.find((s) => s.strategy === 'RAG')!;
+
+      expect(rag).toMatchObject({ evaluableRepetitions: 2, nonEvaluableRepetitions: 0, passedRate: 0, validRate: 0, executionRate: 1 });
+    });
+
+    it('counts pre-OE5 repetitions without technicallyEvaluable as evaluable: n evaluable and 0 non-evaluable (WI-CORE-027)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1', projectVersionId: 'version-1', targetId: 'target-1', status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([1, 2, 3].map((repetition) => ({
+        repetition, strategy: 'RAG', attempt: 1, compiled: true, executed: true, passed: true, valid: true,
+        failureType: 'NONE', generationDurationMs: 100, executionDurationMs: 200, totalDurationMs: 300,
+        inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+        retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: null, filesInspected: null,
+      })));
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+      const rag = results.strategies.find((s) => s.strategy === 'RAG')!;
+
+      expect(rag).toMatchObject({ evaluableRepetitions: 3, nonEvaluableRepetitions: 0, validRate: 1, passedRate: 1 });
+    });
+
+    it('answers executionDurationMs null, not 0, when evaluable repetitions exist but none invoked the Sandbox (WI-CORE-027, DEC-EVID-001)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1', projectVersionId: 'version-1', targetId: 'target-1', status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      const invalidGeneration = (repetition: number) => ({
+        repetition, strategy: 'RAG', attempt: 1, compiled: false, executed: false, passed: false, valid: false,
+        failureType: 'COMPILATION', generationDurationMs: 70, executionDurationMs: null, totalDurationMs: 70,
+        inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+        retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: null, filesInspected: null,
+        technicallyEvaluable: true,
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([1, 2, 3].map(invalidGeneration));
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+      const rag = results.strategies.find((s) => s.strategy === 'RAG')!;
+
+      expect(rag).toMatchObject({
+        evaluableRepetitions: 3,
+        nonEvaluableRepetitions: 0,
+        executionDurationMs: null,
+        executionRate: 0,
+        generationDurationMs: 70,
+        totalDurationMs: 70,
+      });
+    });
+
+    it('keeps the repetition shape unchanged: ExperimentRepetitionResponse does not gain the strategy counters (WI-CORE-027)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1', projectVersionId: 'version-1', targetId: 'target-1', status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([
+        {
+          repetition: 1, strategy: 'RAG', attempt: 1, compiled: true, executed: true, passed: true, valid: true,
+          failureType: 'NONE', errorSummary: null, generationDurationMs: 10, executionDurationMs: 20, totalDurationMs: 30,
+          inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+          retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: null, filesInspected: null,
+          pairId: null, pairPosition: null, technicallyEvaluable: true,
+        },
+      ]);
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+
+      expect(Object.keys(results.repetitions[0]).sort()).toEqual([
+        'attempt', 'errorSummary', 'estimatedCost', 'executionDurationMs', 'failureType', 'generationDurationMs',
+        'inputTokens', 'outputTokens', 'pairId', 'pairPosition', 'repetition', 'strategy', 'technicallyEvaluable',
+        'totalDurationMs', 'totalTokens', 'valid',
+      ]);
     });
   });
 });

@@ -55,15 +55,24 @@ export interface ExperimentStatusResponse {
   randomizationSeed: string | null;
 }
 
+/**
+ * INTEROP-2.7 §6.5/§6.5.1 (DEC-EVID-001, WI-CORE-027): `null` = sin datos (ninguna repetición evaluable o, en
+ * duraciones de Sandbox, ninguna evaluable invocó el Sandbox); `0` = cero real sobre al menos una evaluable.
+ */
 export interface StrategyMetricsResponse {
   strategy: ExperimentStrategy;
-  validRate: number;
-  compilationRate: number;
-  executionRate: number;
-  passedRate: number;
-  generationDurationMs: number;
-  executionDurationMs: number;
-  totalDurationMs: number;
+  /** Repeticiones vigentes con technicallyEvaluable !== false (0..3). Denominador de las tasas y medias. */
+  evaluableRepetitions: number;
+  /** Repeticiones vigentes con technicallyEvaluable === false. evaluable + noEvaluable = vigentes de la estrategia. */
+  nonEvaluableRepetitions: number;
+  validRate: number | null;
+  compilationRate: number | null;
+  executionRate: number | null;
+  passedRate: number | null;
+  generationDurationMs: number | null;
+  /** Media de los valores no nulos de las repeticiones evaluables; null si ninguna invocó el Sandbox. */
+  executionDurationMs: number | null;
+  totalDurationMs: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;

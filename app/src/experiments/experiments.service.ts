@@ -84,8 +84,9 @@ function toPairPosition(value: number | null): 1 | 2 | null {
   return value === 1 || value === 2 ? value : null;
 }
 
-function rate(repetitions: ExperimentRepetition[], predicate: (r: ExperimentRepetition) => boolean): number {
-  return repetitions.length > 0 ? repetitions.filter(predicate).length / repetitions.length : 0;
+/** WI-CORE-027 (DEC-EVID-001): sin repeticiones evaluables la tasa es null (sin datos), nunca 0. */
+function rate(repetitions: ExperimentRepetition[], predicate: (r: ExperimentRepetition) => boolean): number | null {
+  return repetitions.length > 0 ? repetitions.filter(predicate).length / repetitions.length : null;
 }
 
 @Injectable()
@@ -319,6 +320,7 @@ export class ExperimentsService {
   ): StrategyMetricsResponse {
     // WI-CORE-025: un slot no evaluable (agotó el reintento externo) no entra en tasas, promedios
     // ni conteo de fallos; cambia el denominador de las métricas, no la forma de StrategyMetricsResponse.
+    // WI-CORE-027 (DEC-EVID-001): los contadores dicen cuántas repeticiones sustentan cada métrica.
     const repetitions = allRepetitions.filter((repetition) => repetition.technicallyEvaluable !== false);
     const failures: Partial<Record<FailureType, number>> = {};
 
@@ -331,13 +333,16 @@ export class ExperimentsService {
 
     return {
       strategy,
+      evaluableRepetitions: repetitions.length,
+      nonEvaluableRepetitions: allRepetitions.length - repetitions.length,
       validRate: rate(repetitions, (r) => r.valid === true),
       compilationRate: rate(repetitions, (r) => r.compiled === true),
       executionRate: rate(repetitions, (r) => r.executed === true),
       passedRate: rate(repetitions, (r) => r.passed === true),
-      generationDurationMs: Math.round(mean(repetitions.map((r) => r.generationDurationMs)) ?? 0),
-      executionDurationMs: Math.round(mean(repetitions.map((r) => r.executionDurationMs)) ?? 0),
-      totalDurationMs: Math.round(mean(repetitions.map((r) => r.totalDurationMs)) ?? 0),
+      generationDurationMs: roundOrNull(mean(repetitions.map((r) => r.generationDurationMs))),
+      // Media de no nulos: null si ninguna evaluable invocó el Sandbox (interpretación aprobada, DEC-EVID-001).
+      executionDurationMs: roundOrNull(mean(repetitions.map((r) => r.executionDurationMs))),
+      totalDurationMs: roundOrNull(mean(repetitions.map((r) => r.totalDurationMs))),
       inputTokens: roundOrNull(mean(repetitions.map((r) => r.inputTokens))),
       outputTokens: roundOrNull(mean(repetitions.map((r) => r.outputTokens))),
       totalTokens: roundOrNull(mean(repetitions.map((r) => r.totalTokens))),
