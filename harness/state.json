@@ -6637,7 +6637,8 @@
         "DEC-EVID-003",
         "DEC-EVID-004",
         "DEC-EVID-005",
-        "DEC-EVID-006"
+        "DEC-EVID-006",
+        "DEC-EVID-007"
       ],
       "checkedAt": "2026-10-10T02:28:57.000Z"
     },
@@ -6671,6 +6672,31 @@
           "recommendedNextStep": "Corte A; contract-reviewer sobre la enmienda B de §6.16; cortes B y C; consultar DEC-EVID-001 antes del corte D.",
           "executedBy": {
             "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Cortes A y B APPROVED; corte C APPROVED con la condición C1 (retrieval[].config nullable), resuelta por el usuario como DEC-EVID-007 («Permitir null»).",
+            "Enmienda B de §6.16 aditiva y conforme; schemaVersion se mantiene en 1; IDEA-015 sin enmienda de DTO ni Contract Sync propio.",
+            "Corte D: DECISION_REQUIRED solo por DEC-EVID-001; §6.16 no se declara Implementado hasta decidirla."
+          ],
+          "blockers": [
+            "DEC-EVID-001 (corte D)"
+          ],
+          "filesAffected": [
+            "harness/reports/wi-core-027-contract-review.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-027-contract-review.md"
+          ],
+          "recommendedNextStep": "Cortes A, B y C; Contract Sync CS-1 a Console al cerrar C; consultar DEC-EVID-001 antes del corte D.",
+          "executedBy": {
+            "agent": "contract-reviewer",
             "configuredModel": "claude-sonnet-5-5",
             "servedModel": "unknown",
             "effort": "low"
@@ -6721,7 +6747,8 @@
     "evidence": [
       "harness/reports/wi-core-027-contract-sync-scope-review.md",
       "harness/reports/smart-v3-scope-approval.md",
-      "harness/reports/wi-core-027-sdd-verification.md"
+      "harness/reports/wi-core-027-sdd-verification.md",
+      "harness/reports/wi-core-027-contract-review.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
