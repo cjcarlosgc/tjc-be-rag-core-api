@@ -11,7 +11,7 @@ import type {
   TracePublicationResponse,
   TraceTargetResponse,
 } from './dto/analysis-run-trace.response.js';
-import type { AnalysisSymbol } from '../generated/prisma/client.js';
+import type { AnalysisRun, AnalysisSymbol } from '../generated/prisma/client.js';
 
 const NOT_FINISHED_STATUSES: ReadonlySet<string> = new Set(['QUEUED', 'PROCESSING']);
 
@@ -68,16 +68,14 @@ export class AnalysisRunTraceService {
       );
     }
 
-    const [symbols, retrievals, contexts, proposals, executions, publications] = await Promise.all([
-      this.analysisSymbolsRepository.findByAnalysisRun(run.id),
+    const [{ targetSymbols, publication }, retrievals, contexts, proposals, executions] = await Promise.all([
+      this.loadTargets(run),
       this.analysisTraceRepository.findRetrievalsByRun(run.id),
       this.analysisTraceRepository.findContextsByRun(run.id),
       this.analysisTraceRepository.findProposalsByRun(run.id),
       this.analysisTraceRepository.findExecutionsByRun(run.id),
-      this.analysisTraceRepository.findTestPublicationsByRun(run.id),
     ]);
 
-    const targetSymbols = symbols.filter(isTraceTarget).sort(compareSymbolPosition);
     const retrievalBySymbol = new Map(retrievals.map((row) => [row.analysisSymbolId, row]));
     const contextBySymbol = new Map(contexts.map((row) => [row.analysisSymbolId, row]));
     const proposalsBySymbol = groupBy(proposals, (row) => row.analysisSymbolId);
@@ -85,8 +83,6 @@ export class AnalysisRunTraceService {
       [...executions].sort((a, b) => a.attempt - b.attempt),
       (row) => row.proposal.analysisSymbolId,
     );
-    const latestPublication = [...publications].sort(compareLatestPublication)[0] ?? null;
-
     const targets: TraceTargetResponse[] = targetSymbols.map((symbol) => {
       const retrieval = retrievalBySymbol.get(symbol.id);
       const context = contextBySymbol.get(symbol.id);
@@ -130,6 +126,26 @@ export class AnalysisRunTraceService {
         targetCount: targets.length,
       },
       targets,
+      publication,
+    };
+  }
+
+  /**
+   * WI-CORE-027: objetivos (símbolos DIRECTLY_CHANGED METHOD/FUNCTION en el orden del trace) y publicación del
+   * Run. Lo usan el trace y la exportación de evidencia, para que ninguna de las dos repita la regla. Solo lee;
+   * el estado terminal lo exige el llamador.
+   */
+  async loadTargets(
+    run: Pick<AnalysisRun, 'id' | 'checkId' | 'checkPublishedAt'>,
+  ): Promise<{ targetSymbols: AnalysisSymbol[]; publication: TracePublicationResponse }> {
+    const [symbols, publications] = await Promise.all([
+      this.analysisSymbolsRepository.findByAnalysisRun(run.id),
+      this.analysisTraceRepository.findTestPublicationsByRun(run.id),
+    ]);
+    const latestPublication = [...publications].sort(compareLatestPublication)[0] ?? null;
+
+    return {
+      targetSymbols: symbols.filter(isTraceTarget).sort(compareSymbolPosition),
       publication: toPublication(latestPublication, run.checkId ?? null, run.checkPublishedAt ?? null),
     };
   }

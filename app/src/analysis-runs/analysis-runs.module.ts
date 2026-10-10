@@ -29,6 +29,12 @@ import { PullRequestMetadataBackfillJobHandler } from './pull-request-metadata-b
     AnalysisRunTraceService,
     PullRequestMetadataBackfillJobHandler,
   ],
-  exports: [AnalysisRunsService, AnalysisRunsRepository, AnalysisSymbolsRepository, AnalysisTraceRepository],
+  exports: [
+    AnalysisRunsService,
+    AnalysisRunsRepository,
+    AnalysisSymbolsRepository,
+    AnalysisTraceRepository,
+    AnalysisRunTraceService,
+  ],
 })
 export class AnalysisRunsModule {}
