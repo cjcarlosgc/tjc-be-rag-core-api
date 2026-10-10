@@ -31,9 +31,15 @@ import type {
   AgentTrajectoryStep,
 } from '../generation/agent/generalist-agent.service.js';
 import {
+  SandboxAcceptedExecutionError,
   SandboxExecutionService,
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
+import {
+  toAcceptedSandboxEvidence,
+  toSandboxExecutionEvidence,
+  type SandboxExecutionEvidence,
+} from '../sandbox/sandbox-evidence-facts.js';
 import {
   mapSandboxResult,
   type FailureTypeValue,
@@ -265,6 +271,13 @@ interface GenerationOutcome {
   toolCalls: number | null;
   filesInspected: number | null;
   trajectory: unknown;
+}
+
+/** WI-CORE-027 (DEC-EVID-003): evidencia de una repetición; todo es null si no hubo invocación al Sandbox. */
+interface RepetitionEvidence {
+  sandbox: SandboxExecutionEvidence | null;
+  /** SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación. */
+  artifactHash: string | null;
 }
 
 @Injectable()
@@ -668,6 +681,9 @@ export class ExperimentJobHandler
     };
     let externalFailure = false;
     let finalized = false;
+    // WI-CORE-027: evidencia del Sandbox y hash del contenido enviado; null mientras no haya invocación.
+    let sandboxEvidence: SandboxExecutionEvidence | null = null;
+    let artifactHash: string | null = null;
 
     try {
       await this.initializeTraceDetail(begun.trace.id, context);
@@ -760,6 +776,11 @@ export class ExperimentJobHandler
       let sandboxFailure: ExperimentRepetitionFailure | null = null;
 
       try {
+        // WI-CORE-027: mismo contenido que se envía al Sandbox; sin contenido generado no hay artefacto.
+        artifactHash =
+          generation.content.trim().length > 0
+            ? createHash('sha256').update(mergedContent, 'utf8').digest('hex')
+            : null;
         const sandboxResult = await this.sandboxExecutionService.execute({
           requestId: sandboxExperimentRequestId(
             context.jobId,
@@ -786,6 +807,7 @@ export class ExperimentJobHandler
         });
         executionDurationMs = Date.now() - executionStart;
         const outcome = mapSandboxResult(sandboxResult);
+        sandboxEvidence = toSandboxExecutionEvidence(sandboxResult, outcome.failureType);
         // TIMED_OUT es fallo de la prueba generada, no externo: se persiste con la columna interna.
         sandboxTimedOut = sandboxResult.status === 'TIMED_OUT';
         sandboxFailure =
@@ -818,6 +840,10 @@ export class ExperimentJobHandler
         // un único reintento), sea SandboxUnavailableError u otro error (red, respuesta inesperada).
         // Decisión del usuario, WI-CORE-025 (2).
         executionDurationMs = Date.now() - executionStart;
+        // WI-CORE-027: una ejecución aceptada que no llegó a resultado conserva su executionId y sus ids.
+        if (error instanceof SandboxAcceptedExecutionError) {
+          sandboxEvidence = toAcceptedSandboxEvidence(error);
+        }
         const sandboxErrorSummary =
           error instanceof SandboxUnavailableError
             ? 'Sandbox no disponible.'
@@ -847,6 +873,7 @@ export class ExperimentJobHandler
         externalFailure,
         sandboxTimedOut,
         sandboxFailure,
+        { sandbox: sandboxEvidence, artifactHash },
       );
       finalized = true;
       return externalFailure;
@@ -878,6 +905,9 @@ export class ExperimentJobHandler
             errorSummary: unknownErrorSummary,
           },
           externalFailure,
+          false,
+          null,
+          { sandbox: sandboxEvidence, artifactHash },
         );
         finalized = true;
       }
@@ -1322,6 +1352,41 @@ export class ExperimentJobHandler
     );
   }
 
+  /**
+   * WI-CORE-027 (best-effort): escribe el resultado terminal con su evidencia en una sola escritura guardada por
+   * RUNNING. Si esa escritura falla, la evidencia no degrada el intento: se loguea solo el nombre del error y el
+   * resultado se escribe sin las columnas de evidencia (las guardas no cambian).
+   */
+  private async writeTerminalRepetition(
+    repetitionId: string,
+    context: { strategy: Strategy; repetition: number },
+    input: ExperimentRepetitionInput,
+    evidence: RepetitionEvidence,
+    state: 'COMPLETED' | 'FAILED',
+  ): Promise<boolean> {
+    const evidenceColumns: Partial<ExperimentRepetitionInput> = {
+      sandboxExecutionId: evidence.sandbox?.executionId ?? null,
+      sandboxRequestId: evidence.sandbox?.requestId ?? null,
+      sandboxCorrelationId: evidence.sandbox?.correlationId ?? null,
+      sandboxFacts: evidence.sandbox?.facts ?? null,
+      artifactHash: evidence.artifactHash,
+    };
+
+    try {
+      return await this.experimentRunsRepository.updateRepetitionById(
+        repetitionId,
+        { ...input, ...evidenceColumns },
+        state,
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo registrar la evidencia de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se escribe sin ella.`,
+      );
+      return this.experimentRunsRepository.updateRepetitionById(repetitionId, input, state);
+    }
+  }
+
   private async recordRepetition(
     begun: BegunContextTraceAttempt,
     context: {
@@ -1345,6 +1410,7 @@ export class ExperimentJobHandler
     externalFailure: boolean,
     sandboxTimedOut = false,
     failure: ExperimentRepetitionFailure | null = null,
+    evidence: RepetitionEvidence = { sandbox: null, artifactHash: null },
   ): Promise<void> {
     const totalTokens =
       generation.inputTokens !== null && generation.outputTokens !== null
@@ -1396,9 +1462,11 @@ export class ExperimentJobHandler
     };
 
     const terminalState = outcome.status === 'FAILED' ? 'FAILED' : 'COMPLETED';
-    const written = await this.experimentRunsRepository.updateRepetitionById(
+    const written = await this.writeTerminalRepetition(
       begun.repetition.id,
+      context,
       input,
+      evidence,
       terminalState,
     );
     if (!written) {

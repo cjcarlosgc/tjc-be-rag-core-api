@@ -316,6 +316,53 @@ describe.skipIf(!url)('AnalysisTraceRepository against a local PostgreSQL (WI-CO
       ]);
     });
 
+    it('stores the sandbox evidence as JSON and leaves unobserved values as SQL NULL, never 0 (WI-CORE-027, DEC-EVID-003)', async () => {
+      const { runId, symbolId } = await createRunWithSymbol();
+      const proposal = await proposals.upsertForSymbol(
+        proposalInput(runId, symbolId, {
+          generation: { provider: 'openai', model: 'gpt-x', modelVersion: null, reasoningEffort: null, inputTokens: 3, outputTokens: 4, durationMs: 5 },
+        }),
+      );
+      const facts = {
+        executionProfile: 'NODE_TYPESCRIPT',
+        runner: 'JEST',
+        compiled: true,
+        executed: true,
+        passed: false,
+        totalTests: 2,
+        passedTests: 1,
+        failedTests: 1,
+        skippedTests: 0,
+        testCasesTruncated: false,
+        failureStage: null,
+        failureCategory: 'TEST_ASSERTION',
+        failureCode: null,
+        failureMessage: null,
+      } as const;
+
+      await repository.upsertExecution({
+        analysisRunId: runId,
+        proposalId: proposal.id,
+        executionId: 'exec-ev-1',
+        attempt: 1,
+        executionProfile: 'NODE_TYPESCRIPT',
+        outcome: 'BEHAVIORAL_MISMATCH',
+        requestId: 'req-ev-1',
+        correlationId: 'corr-ev-1',
+        durationMs: 0,
+        facts,
+        failure: null,
+      });
+      await repository.upsertExecution({ analysisRunId: runId, proposalId: proposal.id, executionId: 'exec-ev-2', attempt: 2, executionProfile: 'NODE_TYPESCRIPT', outcome: 'TECHNICAL_GENERATION_FAILURE' });
+
+      const [first, second] = await prisma.analysisRunExecution.findMany({ where: { proposalId: proposal.id }, orderBy: { attempt: 'asc' } });
+      expect(first).toMatchObject({ requestId: 'req-ev-1', correlationId: 'corr-ev-1', durationMs: 0, failure: null });
+      expect(first.facts).toEqual(facts);
+      expect(second).toMatchObject({ requestId: null, correlationId: null, durationMs: null, facts: null, failure: null });
+      const stored = await prisma.generatedTestProposal.findUniqueOrThrow({ where: { id: proposal.id } });
+      expect(stored.generation).toEqual({ provider: 'openai', model: 'gpt-x', modelVersion: null, reasoningEffort: null, inputTokens: 3, outputTokens: 4, durationMs: 5 });
+    });
+
     it('rejects an execution that references a proposal which does not exist', async () => {
       const { runId } = await createRunWithSymbol();
 

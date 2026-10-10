@@ -1,8 +1,10 @@
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import { createHash } from 'node:crypto';
+import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentJobHandler } from './experiment-job.handler.js';
-import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import { SandboxAcceptedExecutionError, SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { SANDBOX_TIMED_OUT_ERROR_SUMMARY } from '../sandbox/map-sandbox-result.js';
 import { LLMProviderUnavailableError } from '../providers/llm-provider-unavailable.error.js';
@@ -2545,5 +2547,283 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     expect(writes.every((write) => write.failureType === 'UNKNOWN')).toBe(true);
     expect(writes.every((write) => !('failure' in write))).toBe(true);
     expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
+  const COMPILE_FACT = {
+    stage: 'COMPILING',
+    category: 'COMPILATION',
+    code: 'TS2304',
+    message: "Cannot find name 'foo'",
+  };
+  /** Hash del contenido que mockea `applyCreate` (la prueba enviada al Sandbox). */
+  const ARTIFACT_HASH = createHash('sha256').update('export function test() {}', 'utf8').digest('hex');
+  const FACT_KEYS = [
+    'executionProfile',
+    'runner',
+    'compiled',
+    'executed',
+    'passed',
+    'totalTests',
+    'passedTests',
+    'failedTests',
+    'skippedTests',
+    'testCasesTruncated',
+    'failureStage',
+    'failureCategory',
+    'failureCode',
+    'failureMessage',
+  ];
+
+  function identified(overrides: Record<string, unknown> = {}) {
+    return {
+      ...successfulSandboxResult(),
+      executionId: 'exec-1',
+      executionProfile: 'NODE_TYPESCRIPT',
+      requestId: 'req-1',
+      correlationId: 'corr-1',
+      durationMs: 9,
+      ...overrides,
+    };
+  }
+
+  it('records the sandbox identity, the 14 closed facts and the artifact hash of an executed repetition', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(identified()) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-ev-1');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    for (const write of writes) {
+      expect(write).toMatchObject({
+        sandboxExecutionId: 'exec-1',
+        sandboxRequestId: 'req-1',
+        sandboxCorrelationId: 'corr-1',
+        artifactHash: ARTIFACT_HASH,
+        sandboxFacts: {
+          executionProfile: 'NODE_TYPESCRIPT',
+          runner: 'VITEST',
+          compiled: true,
+          executed: true,
+          passed: true,
+          totalTests: 1,
+          passedTests: 1,
+          failedTests: 0,
+          skippedTests: 0,
+          testCasesTruncated: false,
+          failureStage: null,
+          failureCategory: null,
+          failureCode: null,
+          failureMessage: null,
+        },
+      });
+      expect(Object.keys(write.sandboxFacts as object).sort()).toEqual([...FACT_KEYS].sort());
+    }
+  });
+
+  it('records COMPLETED with failing tests as TEST_ASSERTION without stage, code or message, and never the test messages (DEC-EVID-006)', async () => {
+    const failing = identified({
+      facts: {
+        runner: 'VITEST',
+        compiled: true,
+        executed: true,
+        passed: false,
+        totalTests: 2,
+        passedTests: 1,
+        failedTests: 1,
+        skippedTests: 0,
+        testCases: [
+          { suitePath: null, name: 'falla', status: 'FAILED', durationMs: 1, errorMessage: 'expected 1 got 2 token=abc123' },
+        ],
+        testCasesTruncated: false,
+      },
+    });
+    const { deps } = makeDeps({ sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failing) } });
+
+    await makeHandler(deps).handle(payload, 'job-ev-2');
+
+    const writes = writesOf(deps);
+    expect(writes.every((write) => write.failure === undefined)).toBe(true);
+    expect(writes[0].sandboxFacts).toMatchObject({
+      passed: false,
+      totalTests: 2,
+      failedTests: 1,
+      failureCategory: 'TEST_ASSERTION',
+      failureStage: null,
+      failureCode: null,
+      failureMessage: null,
+    });
+    expect(JSON.stringify(writes[0].sandboxFacts)).not.toContain('expected 1 got 2');
+    expect(JSON.stringify(writes[0].sandboxFacts)).not.toContain('abc123');
+    expect(Object.keys(writes[0].sandboxFacts as object)).not.toContain('testCases');
+  });
+
+  it('records the validated fact of a FAILED result in the sandbox facts, with the failure column unchanged', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue({
+          ...identified(),
+          status: 'FAILED',
+          facts: null,
+          failure: COMPILE_FACT,
+        }),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-ev-3');
+
+    const writes = writesOf(deps);
+    expect(writes[0].failure).toEqual(COMPILE_FACT);
+    expect(writes[0].sandboxFacts).toEqual({
+      executionProfile: 'NODE_TYPESCRIPT',
+      runner: null,
+      compiled: null,
+      executed: null,
+      passed: null,
+      totalTests: null,
+      passedTests: null,
+      failedTests: null,
+      skippedTests: null,
+      testCasesTruncated: null,
+      failureStage: 'COMPILING',
+      failureCategory: 'COMPILATION',
+      failureCode: 'TS2304',
+      failureMessage: "Cannot find name 'foo'",
+    });
+  });
+
+  it('records a TIMED_OUT result without a fact as the observed identity only, with no invented category', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue({ ...identified(), status: 'TIMED_OUT', facts: null, failure: null }),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-ev-4');
+
+    const writes = writesOf(deps);
+    expect(writes.every((write) => write.sandboxExecutionId === 'exec-1')).toBe(true);
+    expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(true);
+    expect(writes[0].sandboxFacts).toMatchObject({
+      executionProfile: 'NODE_TYPESCRIPT',
+      passed: null,
+      failureCategory: null,
+      failureStage: null,
+      failureCode: null,
+      failureMessage: null,
+    });
+  });
+
+  it('records every evidence column as null when the Sandbox was never invoked', async () => {
+    const generationError = new Error('generation exploded');
+    const { deps } = makeDeps({
+      generalistAgentService: { generate: vi.fn().mockRejectedValue(generationError) },
+      llmProvider: {
+        generate: vi.fn().mockRejectedValue(generationError),
+        resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-ev-5');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+    for (const write of writes) {
+      expect(write).toMatchObject({
+        sandboxExecutionId: null,
+        sandboxRequestId: null,
+        sandboxCorrelationId: null,
+        sandboxFacts: null,
+        artifactHash: null,
+      });
+    }
+  });
+
+  it('keeps the identity of an accepted execution that failed afterwards and leaves the unobserved identifiers null', async () => {
+    const accepted = new SandboxAcceptedExecutionError('La ejecución exec-9 no terminó.', 'exec-9', 'NODE_TYPESCRIPT');
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockRejectedValue(accepted) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-ev-6');
+
+    const writes = writesOf(deps);
+    expect(writes[0]).toMatchObject({
+      sandboxExecutionId: 'exec-9',
+      sandboxRequestId: null,
+      sandboxCorrelationId: null,
+      artifactHash: ARTIFACT_HASH,
+    });
+    expect(writes[0].sandboxFacts).toMatchObject({ executionProfile: 'NODE_TYPESCRIPT', passed: null, failureCategory: null });
+  });
+
+  it('stores no artifact hash when the generated content is empty', async () => {
+    const { deps } = makeDeps({
+      llmProvider: {
+        generate: vi.fn().mockResolvedValue({ content: '   ', inputTokens: 1, outputTokens: 1 }),
+        resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-ev-7');
+
+    const rag = writesOf(deps).filter((write) => write.strategy === 'RAG');
+    expect(rag.length).toBeGreaterThan(0);
+    expect(rag.every((write) => write.artifactHash === null)).toBe(true);
+  });
+
+  it('redacts a secret inside the failure message before it reaches the sandbox facts', async () => {
+    const raw = 'Falló con token xoxb-123456789012-abcdefghijk en el paso';
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue({
+          ...identified(),
+          status: 'FAILED',
+          facts: null,
+          failure: { ...COMPILE_FACT, message: raw },
+        }),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-ev-8');
+
+    const facts = writesOf(deps)[0].sandboxFacts as { failureMessage: string };
+    expect(facts.failureMessage).not.toContain('xoxb-');
+    expect(facts.failureMessage).toContain('[REDACTED]');
+    expect(JSON.stringify(writesOf(deps))).not.toContain('xoxb-123456789012');
+  });
+
+  it('keeps the repetition result when the write with evidence fails, retries without it and logs only the error name', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(identified()) },
+    });
+    const withEvidence = new Error('connection string postgresql://user:secret@host');
+    withEvidence.name = 'PrismaClientKnownRequestError';
+    (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_id: string, input: Record<string, unknown>) => {
+        if ('sandboxFacts' in input) {
+          throw withEvidence;
+        }
+        return true;
+      },
+    );
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await makeHandler(deps).handle(payload, 'job-ev-9');
+
+    const calls = (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(12);
+    const retries = calls.filter((call) => !('sandboxFacts' in (call[1] as Record<string, unknown>)));
+    expect(retries).toHaveLength(6);
+    expect(retries.every((call) => call[2] === 'COMPLETED')).toBe(true);
+    expect(deps.contextTracesRepository.finishTrace).toHaveBeenCalledTimes(6);
+    const logged = warn.mock.calls.map((call) => String(call[0])).join(' ');
+    expect(logged).toContain('PrismaClientKnownRequestError');
+    expect(logged).not.toContain('secret');
+    warn.mockRestore();
   });
 });

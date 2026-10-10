@@ -20,13 +20,13 @@ function makeFacts(overrides: Partial<SandboxExecutionResult['facts']> = {}) {
 
 describe('mapSandboxResult', () => {
   it('maps TIMED_OUT to FAILED/INFRASTRUCTURE', () => {
-    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT' });
+    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1 });
 
     expect(outcome).toMatchObject({ status: 'FAILED', valid: false, failureType: 'INFRASTRUCTURE' });
   });
 
   it('keeps the timeout text only as errorSummary and exposes no timeout flag in the outcome (WI-CORE-025 (1))', () => {
-    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT' });
+    const outcome = mapSandboxResult({ status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1 });
 
     expect(outcome.errorSummary).toBe(SANDBOX_TIMED_OUT_ERROR_SUMMARY);
     expect(Object.keys(outcome).sort()).toEqual(
@@ -41,14 +41,14 @@ describe('mapSandboxResult', () => {
       failure: { stage: 'INSTALLING_DEPENDENCIES', category: 'DEPENDENCY', code: 'E1', message: 'npm install failed' },
       stageDurations: [],
       executionId: 'exec-1',
-      executionProfile: 'NODE_TYPESCRIPT',
+      executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1,
     });
 
     expect(outcome).toMatchObject({ status: 'FAILED', failureType: 'DEPENDENCY', errorSummary: 'npm install failed' });
   });
 
   it('maps a passing execution to VALID/NONE', () => {
-    const outcome = mapSandboxResult({ status: 'COMPLETED', facts: makeFacts(), failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT' });
+    const outcome = mapSandboxResult({ status: 'COMPLETED', facts: makeFacts(), failure: null, stageDurations: [], executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1 });
 
     expect(outcome).toEqual({
       status: 'VALID',
@@ -68,7 +68,7 @@ describe('mapSandboxResult', () => {
       failure: null,
       stageDurations: [],
       executionId: 'exec-1',
-      executionProfile: 'NODE_TYPESCRIPT',
+      executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1,
     });
 
     expect(outcome).toMatchObject({ status: 'INVALID', failureType: 'COMPILATION' });
@@ -86,7 +86,7 @@ describe('mapSandboxResult', () => {
       failure: null,
       stageDurations: [],
       executionId: 'exec-1',
-      executionProfile: 'NODE_TYPESCRIPT',
+      executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1,
     });
 
     expect(outcome).toMatchObject({
@@ -106,7 +106,7 @@ describe('mapSandboxResult', () => {
         failure,
         stageDurations: [],
         executionId: 'exec-1',
-        executionProfile: 'NODE_TYPESCRIPT',
+        executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1,
       }) as unknown as SandboxExecutionResult;
 
     it.each(['COMPILATION', 'TEST_ASSERTION', 'TEST_RUNTIME', 'DEPENDENCY', 'CONFIGURATION', 'INFRASTRUCTURE', 'UNKNOWN'])(
@@ -175,7 +175,7 @@ describe('mapSandboxResult', () => {
         failure: null,
         stageDurations: [],
         executionId: 'exec-1',
-        executionProfile: 'NODE_TYPESCRIPT',
+        executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1,
       });
       expect(outcome.errorSummary?.startsWith('Authorization: [REDACTED] ')).toBe(true);
       expect(outcome.errorSummary).not.toContain('abc.def-123');
@@ -189,7 +189,7 @@ describe('mapSandboxResult', () => {
         failure: null,
         stageDurations: [],
         executionId: 'exec-1',
-        executionProfile: 'NODE_TYPESCRIPT',
+        executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1,
       });
       expect(passing.errorSummary).toBeNull();
       const timedOut = mapSandboxResult({
@@ -198,7 +198,7 @@ describe('mapSandboxResult', () => {
         failure: null,
         stageDurations: [],
         executionId: 'exec-1',
-        executionProfile: 'NODE_TYPESCRIPT',
+        executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 1,
       });
       expect(timedOut.errorSummary).toBe(SANDBOX_TIMED_OUT_ERROR_SUMMARY);
       const failed = mapSandboxResult(

@@ -24,15 +24,23 @@ import {
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
 import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-result.js';
+import {
+  toAcceptedSandboxEvidence,
+  toSandboxExecutionEvidence,
+  type SandboxExecutionEvidence,
+} from '../sandbox/sandbox-evidence-facts.js';
 import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
-import { GeneratedTestProposalsRepository } from './generated-test-proposals.repository.js';
+import {
+  GeneratedTestProposalsRepository,
+  type ProposalGenerationEvidence,
+} from './generated-test-proposals.repository.js';
 import { AnalysisTraceRepository } from '../analysis-runs/persistence/analysis-trace.repository.js';
 import { toAnalysisContextEvidence, toRetrievalEvidence } from '../analysis-runs/analysis-trace-evidence.util.js';
 import { toRetrievalTarget, findMatchingTestTarget } from './symbol-target.util.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
-import type { LLMProvider } from '../providers/llm-provider.interface.js';
+import type { LLMGenerationResult, LLMProvider } from '../providers/llm-provider.interface.js';
 import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.js';
 import type { AnalysisRun, AnalysisSymbol } from '../generated/prisma/client.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
@@ -56,6 +64,22 @@ function toExecutionOutcome(kind: ExecutionOutcomeKind): string {
 interface SymbolOutcome {
   symbol: AnalysisSymbol;
   kind: SymbolOutcomeKind;
+}
+
+/**
+ * WI-CORE-027 (DEC-EVID-003): generación de la propuesta a partir de la respuesta del proveedor. Lo que el adaptador
+ * no informa queda null; `modelVersion` es null porque la llamada del producto no consulta la versión del modelo.
+ */
+function toProposalGeneration(result: LLMGenerationResult, durationMs: number): ProposalGenerationEvidence {
+  return {
+    provider: result.effective?.provider ?? null,
+    model: result.effective?.model ?? null,
+    modelVersion: null,
+    reasoningEffort: result.effective?.reasoningEffort ?? null,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    durationMs,
+  };
 }
 
 /**
@@ -245,6 +269,7 @@ export class AnalysisRunValidationJobHandler
   }): Promise<SymbolOutcome> {
     const { run, jobId, symbol, framework, workspace, snapshotKey, snapshotBuffer } = context;
     let contextId: string | null = null;
+    let generation: ProposalGenerationEvidence | null = null;
 
     try {
       const retrievalTarget = toRetrievalTarget(symbol);
@@ -259,14 +284,16 @@ export class AnalysisRunValidationJobHandler
       );
       contextId = await this.persistTraceEvidence(run, symbol, retrieval, generationContext);
       const prompt = this.promptBuilder.build(generationContext);
-      const generation = await this.llmProvider.generate(prompt);
+      const generationStart = Date.now();
+      const llmResult = await this.llmProvider.generate(prompt);
+      generation = toProposalGeneration(llmResult, Date.now() - generationStart);
 
       const relativePath = coLocatedSpecPath(symbol.filePath);
       const existingContent = await readFile(join(workspace.dir, relativePath), 'utf8').catch(() => null);
       const mergedContent =
         existingContent === null
-          ? this.testFileMergeService.applyCreate(generation.content)
-          : this.testFileMergeService.applyMerge(existingContent, generation.content);
+          ? this.testFileMergeService.applyCreate(llmResult.content)
+          : this.testFileMergeService.applyMerge(existingContent, llmResult.content);
 
       const sandboxResult = await this.sandboxExecutionService.execute({
         requestId: sandboxGenerationRequestId(jobId, symbol.id),
@@ -288,6 +315,7 @@ export class AnalysisRunValidationJobHandler
       });
 
       const outcome = mapSandboxResult(sandboxResult);
+      const evidence = toSandboxExecutionEvidence(sandboxResult, outcome.failureType);
 
       if (outcome.status === 'VALID') {
         const proposalId = await this.persistProposal(run, symbol, {
@@ -295,9 +323,10 @@ export class AnalysisRunValidationJobHandler
           content: mergedContent,
           status: 'AVAILABLE',
           contextId,
+          generation,
         });
         // Best-effort: un fallo al registrar la ejecución no degrada una propuesta ya válida (WI-CORE-026).
-        await this.recordExecutionBestEffort(run, proposalId, sandboxResult, 'AVAILABLE');
+        await this.recordExecutionBestEffort(run, proposalId, evidence, 'AVAILABLE');
         return { symbol, kind: 'AVAILABLE' };
       }
 
@@ -311,8 +340,9 @@ export class AnalysisRunValidationJobHandler
           outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
         ),
         contextId,
+        generation,
       });
-      await this.recordExecutionBestEffort(run, proposalId, sandboxResult, kind);
+      await this.recordExecutionBestEffort(run, proposalId, evidence, kind);
       return { symbol, kind };
     } catch (error) {
       const summary =
@@ -331,11 +361,17 @@ export class AnalysisRunValidationJobHandler
         // WI-CORE-027 (IDEA-015): el mensaje de excepción puede traer URLs firmadas o credenciales.
         failureSummary: sanitizeFailureMessage(summary),
         contextId,
+        generation,
       });
       // Solo si el Sandbox aceptó la ejecución hay un executionId que conservar (WI-CORE-026). Best-effort:
       // un fallo aquí no sale del handler ni reclasifica la propuesta ya guardada.
       if (error instanceof SandboxAcceptedExecutionError) {
-        await this.recordExecutionBestEffort(run, proposalId, error, 'TECHNICAL_GENERATION_FAILURE');
+        await this.recordExecutionBestEffort(
+          run,
+          proposalId,
+          toAcceptedSandboxEvidence(error),
+          'TECHNICAL_GENERATION_FAILURE',
+        );
       }
       return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
     }
@@ -420,16 +456,21 @@ export class AnalysisRunValidationJobHandler
   private async recordExecution(
     run: AnalysisRun,
     proposalId: string,
-    execution: { executionId: string; executionProfile: string },
+    evidence: SandboxExecutionEvidence,
     kind: ExecutionOutcomeKind,
   ): Promise<void> {
     await this.analysisTraceRepository.upsertExecution({
       analysisRunId: run.id,
       proposalId,
-      executionId: execution.executionId,
+      executionId: evidence.executionId,
       attempt: run.attemptCount + 1,
-      executionProfile: execution.executionProfile,
+      executionProfile: evidence.executionProfile,
       outcome: toExecutionOutcome(kind),
+      requestId: evidence.requestId,
+      correlationId: evidence.correlationId,
+      durationMs: evidence.durationMs,
+      facts: evidence.facts,
+      failure: evidence.failure,
     });
   }
 
@@ -441,20 +482,23 @@ export class AnalysisRunValidationJobHandler
   private async recordExecutionBestEffort(
     run: AnalysisRun,
     proposalId: string,
-    execution: { executionId: string; executionProfile: string },
+    evidence: SandboxExecutionEvidence,
     kind: ExecutionOutcomeKind,
   ): Promise<void> {
     try {
-      await this.recordExecution(run, proposalId, execution, kind);
+      await this.recordExecution(run, proposalId, evidence, kind);
     } catch (error) {
       const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
       this.logger.warn(
-        `No se pudo registrar la ejecución ${execution.executionId} del AnalysisRun ${run.id} (${reason}); la propuesta conserva su contenido y su clasificación.`,
+        `No se pudo registrar la ejecución ${evidence.executionId} del AnalysisRun ${run.id} (${reason}); la propuesta conserva su contenido y su clasificación.`,
       );
     }
   }
 
-  /** Upsert por símbolo: devuelve el id de la propuesta, que liga la ejecución. */
+  /**
+   * Upsert por símbolo: devuelve el id de la propuesta, que liga la ejecución. WI-CORE-027 (best-effort): si la
+   * escritura con la generación falla, la propuesta se guarda igualmente sin ella (generación null).
+   */
   private async persistProposal(
     run: AnalysisRun,
     symbol: AnalysisSymbol,
@@ -464,13 +508,14 @@ export class AnalysisRunValidationJobHandler
       status: 'AVAILABLE' | 'HELD';
       failureSummary?: string;
       contextId: string | null;
+      generation?: ProposalGenerationEvidence | null;
     },
   ): Promise<string> {
     const storageKey = `analysis-runs/${run.id}/proposals/${randomUUID()}`;
     const buffer = Buffer.from(input.content, 'utf8');
     await this.objectStorageService.put(storageKey, buffer, 'text/plain');
 
-    const proposal = await this.generatedTestProposalsRepository.upsertForSymbol({
+    const fields = {
       analysisRunId: run.id,
       analysisSymbolId: symbol.id,
       relativePath: input.relativePath,
@@ -483,8 +528,21 @@ export class AnalysisRunValidationJobHandler
       status: input.status,
       contextId: input.contextId,
       failureSummary: input.failureSummary ?? null,
-    });
+    };
 
-    return proposal.id;
+    try {
+      const proposal = await this.generatedTestProposalsRepository.upsertForSymbol({
+        ...fields,
+        generation: input.generation ?? null,
+      });
+      return proposal.id;
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo registrar la generación de ${symbol.qualifiedName} del AnalysisRun ${run.id} (${reason}); la propuesta se guarda sin ella.`,
+      );
+      const proposal = await this.generatedTestProposalsRepository.upsertForSymbol({ ...fields, generation: null });
+      return proposal.id;
+    }
   }
 }

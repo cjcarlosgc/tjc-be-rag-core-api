@@ -91,6 +91,7 @@ export class OpenAiLLMProvider implements LLMProvider {
       content: outputText(response.output),
       inputTokens: response.usage?.input_tokens ?? null,
       outputTokens: response.usage?.output_tokens ?? null,
+      effective: { provider: 'openai', model, reasoningEffort },
     };
   }
 

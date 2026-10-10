@@ -58,6 +58,12 @@ export interface SandboxExecutionResult {
   executionId: string;
   /** Perfil con el que se ejecutó: el persistido en la petición o el derivado de `runnerHint`. */
   executionProfile: ExecutionProfile;
+  /** WI-CORE-027: `requestId` de la petición aceptada (el mismo que se envió al Sandbox). */
+  requestId: string;
+  /** WI-CORE-027: `x-correlation-id` enviado en las llamadas de esta ejecución. */
+  correlationId: string;
+  /** WI-CORE-027: milisegundos desde el envío de `POST /executions` hasta el resultado obtenido. */
+  durationMs: number;
 }
 
 export interface SandboxArtifactInput {

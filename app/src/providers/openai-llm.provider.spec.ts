@@ -185,7 +185,17 @@ describe('OpenAiLLMProvider', () => {
         content: 'export function test() {}',
         inputTokens: 100,
         outputTokens: 20,
+        effective: { provider: 'openai', model: 'gpt-4o-mini', reasoningEffort: null },
       });
+    });
+
+    it('reports the effective provider, model and reasoning effort it sent (WI-CORE-027)', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(makeConfigService({ LLM_MODEL: 'gpt-5-test', LLM_REASONING_EFFORT: 'high' }));
+      const result = await provider.generate('prompt');
+
+      expect(result.effective).toEqual({ provider: 'openai', model: 'gpt-5-test', reasoningEffort: 'high' });
     });
 
     it('does not send reasoning, include or max_output_tokens when no effort or limit is configured', async () => {
@@ -226,6 +236,7 @@ describe('OpenAiLLMProvider', () => {
         content: 'x',
         inputTokens: null,
         outputTokens: null,
+        effective: { provider: 'openai', model: 'gpt-4o-mini', reasoningEffort: null },
       });
     });
 

@@ -527,4 +527,72 @@ describe('SandboxExecutionService', () => {
     expect(serialized).not.toContain('functionalRules');
     expect(serialized).not.toContain('REGLA_NO_PERMITIDA');
   });
+
+  describe('identidad y duración de la llamada real (WI-CORE-027)', () => {
+    const request = {
+      requestId: 'request-27',
+      testRunId: 'run-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'key',
+      snapshotBuffer: Buffer.from('zip'),
+      artifacts: [],
+      scope: 'TARGET' as const,
+      targetIds: ['target-1'],
+      runnerHint: 'JEST' as const,
+    };
+
+    function headerOf(call: unknown[]): string | undefined {
+      const init = call[1] as { headers: Record<string, string> };
+      return init.headers['x-correlation-id'];
+    }
+
+    it('returns the requestId sent, the correlation id sent on every call, and a non-negative duration', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-ev', pollAfterMs: 1 }))
+        .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+        .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+
+      const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+      const result = await service.execute(request);
+
+      expect(result.requestId).toBe('request-27');
+      expect(result.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(fetchMock.mock.calls.map(headerOf)).toEqual([result.correlationId, result.correlationId, result.correlationId]);
+      expect(Number.isInteger(result.durationMs)).toBe(true);
+      expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('carries the requestId, correlation id and duration in the accepted error when the execution fails afterwards', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ executionId: 'exec-lost-27', pollAfterMs: 1 }));
+      fetchMock.mockResolvedValue(jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }));
+
+      const service = new SandboxExecutionService(
+        makeConfigService({ SANDBOX_MAX_POLL_ATTEMPTS: 2 }),
+        objectStorageService as never,
+      );
+      const failure = await service.execute(request).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(SandboxAcceptedExecutionError);
+      expect(failure).toMatchObject({ executionId: 'exec-lost-27', requestId: 'request-27' });
+      expect((failure as SandboxAcceptedExecutionError).correlationId).toBe(headerOf(fetchMock.mock.calls[0]));
+      expect((failure as SandboxAcceptedExecutionError).durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('invents no identifiers for a failure before the Sandbox accepted the request', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, false, 503));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+      const failure = await service.execute(request).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(SandboxUnavailableError);
+      expect(failure).not.toHaveProperty('requestId');
+      expect(failure).not.toHaveProperty('correlationId');
+      expect(failure).not.toHaveProperty('durationMs');
+    });
+  });
 });

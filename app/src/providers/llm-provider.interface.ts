@@ -2,6 +2,11 @@ export interface LLMGenerationResult {
   content: string;
   inputTokens: number | null;
   outputTokens: number | null;
+  /**
+   * WI-CORE-027: configuración efectiva con la que el adaptador envió la llamada. Opcional: fakes y adaptadores
+   * que no la informan dejan la evidencia de generación con `null`, nunca con un valor inventado.
+   */
+  effective?: { provider: LLMEffectiveConfig['provider']; model: string; reasoningEffort: string | null };
 }
 
 /**

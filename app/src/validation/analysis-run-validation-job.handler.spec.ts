@@ -84,7 +84,7 @@ function buildGenerationContext(overrides: Record<string, unknown> = {}) {
 }
 
 function sandboxResult(
-  overrides: Partial<{ status: string; facts: unknown; failure: unknown; executionId: string; executionProfile: string }> = {},
+  overrides: Partial<{ status: string; facts: unknown; failure: unknown; executionId: string; executionProfile: string; durationMs: number }> = {},
 ) {
   return {
     status: 'COMPLETED',
@@ -93,9 +93,48 @@ function sandboxResult(
     stageDurations: [],
     executionId: 'exec-1',
     executionProfile: 'NODE_TYPESCRIPT',
+    requestId: 'request-1',
+    correlationId: 'correlation-1',
+    durationMs: 7,
     ...overrides,
   };
 }
+
+/** `sandboxFacts` de una ejecución COMPLETED y aprobada: solo conteos y banderas, sin testCases. */
+const PASSED_FACTS = {
+  executionProfile: 'NODE_TYPESCRIPT',
+  runner: 'JEST',
+  compiled: true,
+  executed: true,
+  passed: true,
+  totalTests: 1,
+  passedTests: 1,
+  failedTests: 0,
+  skippedTests: 0,
+  testCasesTruncated: false,
+  failureStage: null,
+  failureCategory: null,
+  failureCode: null,
+  failureMessage: null,
+};
+
+/** `sandboxFacts` de una ejecución aceptada sin resultado: solo el perfil es observado. */
+const NOT_OBSERVED_FACTS = {
+  executionProfile: 'NODE_TYPESCRIPT',
+  runner: null,
+  compiled: null,
+  executed: null,
+  passed: null,
+  totalTests: null,
+  passedTests: null,
+  failedTests: null,
+  skippedTests: null,
+  testCasesTruncated: null,
+  failureStage: null,
+  failureCategory: null,
+  failureCode: null,
+  failureMessage: null,
+};
 
 describe('AnalysisRunValidationJobHandler', () => {
   let createdDirs: string[] = [];
@@ -499,6 +538,11 @@ describe('AnalysisRunValidationJobHandler', () => {
         attempt: 1,
         executionProfile: 'NODE_TYPESCRIPT',
         outcome: 'SUCCESS',
+        requestId: 'request-1',
+        correlationId: 'correlation-1',
+        durationMs: 7,
+        facts: PASSED_FACTS,
+        failure: null,
       });
     });
 
@@ -619,6 +663,11 @@ describe('AnalysisRunValidationJobHandler', () => {
         attempt: 1,
         executionProfile: 'NODE_TYPESCRIPT',
         outcome: 'TECHNICAL_GENERATION_FAILURE',
+        requestId: null,
+        correlationId: null,
+        durationMs: null,
+        facts: NOT_OBSERVED_FACTS,
+        failure: null,
       });
     });
 
@@ -780,6 +829,179 @@ describe('AnalysisRunValidationJobHandler', () => {
       expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'HELD', contextId: 'context-1' }),
       );
+    });
+  });
+
+  describe('evidencia de ejecución y de generación (WI-CORE-027, corte B)', () => {
+    const COMPILE_FAILURE = { stage: 'COMPILING', category: 'COMPILATION', code: 'TS2304', message: "Cannot find name 'foo'" };
+
+    function evidenceOf(analysisTraceRepository: { upsertExecution: ReturnType<typeof vi.fn> }) {
+      return analysisTraceRepository.upsertExecution.mock.calls.map((call: unknown[]) => call[0] as Record<string, unknown>);
+    }
+
+    it('records the generation of the proposal with the effective provider, model, tokens and a non-negative duration', async () => {
+      const { handler, llmProvider, generatedTestProposalsRepository } = await setup();
+      llmProvider.generate.mockResolvedValueOnce({
+        content: 'test content',
+        inputTokens: 10,
+        outputTokens: 20,
+        effective: { provider: 'openai', model: 'gpt-x', reasoningEffort: 'high' },
+      });
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generation: {
+            provider: 'openai',
+            model: 'gpt-x',
+            modelVersion: null,
+            reasoningEffort: 'high',
+            inputTokens: 10,
+            outputTokens: 20,
+            durationMs: expect.any(Number),
+          },
+        }),
+      );
+      const generation = generatedTestProposalsRepository.upsertForSymbol.mock.calls[0]![0].generation as { durationMs: number };
+      expect(generation.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('stores null for each generation field the adapter did not report, keeping the reported tokens', async () => {
+      const { handler, generatedTestProposalsRepository } = await setup();
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generation: expect.objectContaining({ provider: null, model: null, modelVersion: null, reasoningEffort: null, inputTokens: 10, outputTokens: 20 }),
+        }),
+      );
+    });
+
+    it('records COMPLETED with failing tests as TEST_ASSERTION without stage, code or message (DEC-EVID-006)', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } = await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: { runner: 'JEST', compiled: true, executed: true, passed: false, totalTests: 2, passedTests: 1, failedTests: 1, skippedTests: 0, testCases: [{ suitePath: null, name: 'falla', status: 'FAILED', durationMs: 1, errorMessage: 'expected 1 got 2 token=abc123' }], testCasesTruncated: false },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [execution] = evidenceOf(analysisTraceRepository);
+      expect(execution).toMatchObject({
+        outcome: 'BEHAVIORAL_MISMATCH',
+        failure: null,
+        facts: {
+          runner: 'JEST',
+          passed: false,
+          totalTests: 2,
+          failedTests: 1,
+          failureCategory: 'TEST_ASSERTION',
+          failureStage: null,
+          failureCode: null,
+          failureMessage: null,
+        },
+      });
+      expect(JSON.stringify(execution)).not.toContain('expected 1 got 2');
+      expect(JSON.stringify(execution)).not.toContain('abc123');
+      expect(Object.keys((execution.facts as object))).not.toContain('testCases');
+    });
+
+    it('records the validated fact of a FAILED result with its secrets redacted and no raw field', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } = await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'FAILED',
+          facts: null,
+          failure: { ...COMPILE_FAILURE, message: "Cannot find name 'foo' token xoxb-123456789012-abcdefghijk" },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [execution] = evidenceOf(analysisTraceRepository);
+      expect(execution.failure).toEqual({
+        stage: 'COMPILING',
+        category: 'COMPILATION',
+        code: 'TS2304',
+        message: "Cannot find name 'foo' token [REDACTED]",
+      });
+      expect(execution.facts).toMatchObject({
+        executionProfile: 'NODE_TYPESCRIPT',
+        failureStage: 'COMPILING',
+        failureCategory: 'COMPILATION',
+        failureCode: 'TS2304',
+        failureMessage: "Cannot find name 'foo' token [REDACTED]",
+      });
+      expect(JSON.stringify(execution)).not.toContain('xoxb-');
+    });
+
+    it('records a TIMED_OUT execution without a fact as the observed identity only, with no invented category', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } = await setup();
+      sandboxExecutionService.execute.mockResolvedValue(sandboxResult({ status: 'TIMED_OUT', facts: null, failure: null }));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [execution] = evidenceOf(analysisTraceRepository);
+      expect(execution).toMatchObject({
+        executionId: 'exec-1',
+        requestId: 'request-1',
+        correlationId: 'correlation-1',
+        durationMs: 7,
+        failure: null,
+        facts: { executionProfile: 'NODE_TYPESCRIPT', passed: null, failureCategory: null, failureStage: null },
+      });
+    });
+
+    it('keeps the identity and duration of an accepted execution that failed afterwards when the error carries them', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } = await setup();
+      sandboxExecutionService.execute.mockRejectedValue(
+        new SandboxAcceptedExecutionError('La ejecución exec-8 no terminó.', 'exec-8', 'NODE_TYPESCRIPT', 'req-8', 'corr-8', 12),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(evidenceOf(analysisTraceRepository)[0]).toMatchObject({ executionId: 'exec-8', requestId: 'req-8', correlationId: 'corr-8', durationMs: 12 });
+    });
+
+    it('records a null generation and no execution when the provider fails before a result', async () => {
+      const { handler, llmProvider, generatedTestProposalsRepository, sandboxExecutionService, analysisTraceRepository } = await setup();
+      llmProvider.generate.mockRejectedValue(new Error('LLM caído'));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', generation: null }),
+      );
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertExecution).not.toHaveBeenCalled();
+    });
+
+    it('keeps the proposal and its contents when writing the generation fails, retries without it and logs only the error name', async () => {
+      const { handler, generatedTestProposalsRepository, analysisTraceRepository } = await setup();
+      const failing = new Error('connection string postgresql://user:secret@host');
+      failing.name = 'PrismaClientKnownRequestError';
+      generatedTestProposalsRepository.upsertForSymbol.mockImplementation(async (input: { generation: unknown }) => {
+        if (input.generation !== null) {
+          throw failing;
+        }
+        return { id: 'proposal-1' };
+      });
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(handler.handle({ analysisRunId: 'run-1' }, 'job-1')).resolves.toBeUndefined();
+
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledTimes(2);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'AVAILABLE', generation: null, failureSummary: null }),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(expect.objectContaining({ proposalId: 'proposal-1', outcome: 'SUCCESS' }));
+      const logged = warn.mock.calls.map((call) => String(call[0])).join(' ');
+      expect(logged).toContain('PrismaClientKnownRequestError');
+      expect(logged).not.toContain('secret');
+      warn.mockRestore();
     });
   });
 });

@@ -420,6 +420,17 @@ model AnalysisRunExecution {
   attempt          Int
   executionProfile String
   outcome          String
+  /// WI-CORE-027 (DEC-EVID-003): interno, no expuesto en DTO ni INTEROP hasta WI-CORE-027 corte C. Identidad
+  /// de la petición del Sandbox; null si no se observó (filas previas o fallo antes de la aceptación).
+  requestId        String?
+  /// WI-CORE-027: `x-correlation-id` de la ejecución; null si no se observó.
+  correlationId    String?
+  /// WI-CORE-027: duración de la llamada real al Sandbox en ms; null si no se observó (nunca 0 inventado).
+  durationMs       Int?
+  /// WI-CORE-027: hechos del Sandbox (14 claves cerradas de §6.16). Solo conteos y banderas; sin testCases.
+  facts            Json?
+  /// WI-CORE-027: hecho de fallo `{ stage, category, code, message }` ya validado y saneado; null si no hay.
+  failure          Json?
   createdAt        DateTime              @default(now())
 
   @@unique([proposalId, attempt])
@@ -488,6 +499,9 @@ model GeneratedTestProposal {
   /// WI-CORE-026 (corte B): símbolo del que se generó la propuesta. Clave natural (analysisRunId, analysisSymbolId).
   analysisSymbolId String?
   analysisSymbol   AnalysisSymbol?           @relation(fields: [analysisSymbolId], references: [id])
+  /// WI-CORE-027 (DEC-EVID-003): generación de la propuesta `{ provider, model, modelVersion, reasoningEffort,
+  /// inputTokens, outputTokens, durationMs }`; null en Runs previos o si la generación no devolvió resultado.
+  generation     Json?
   executions       AnalysisRunExecution[]
   createdAt      DateTime                    @default(now())
 
@@ -867,6 +881,15 @@ model ExperimentRepetition {
   /// Hecho de fallo `{ stage, category, code, message }` del Sandbox, con `message` ya saneado. NULL si el
   /// Sandbox no devolvió hecho de fallo (filas previas, excepciones del cliente, timeouts sin hecho, éxito).
   failure              Json?
+  /// WI-CORE-027 (DEC-EVID-003): interno. Identidad y hechos de la ejecución del Sandbox de la repetición;
+  /// null si la repetición no invocó al Sandbox o en filas previas. Sin backfill.
+  sandboxExecutionId   String?
+  sandboxRequestId     String?
+  sandboxCorrelationId String?
+  /// WI-CORE-027: 14 claves cerradas de §6.16 (solo conteos y banderas); null si no hubo invocación.
+  sandboxFacts         Json?
+  /// WI-CORE-027: SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación.
+  artifactHash         String?
   contextTraces        ContextTrace[]
   createdAt            DateTime                  @default(now())
 

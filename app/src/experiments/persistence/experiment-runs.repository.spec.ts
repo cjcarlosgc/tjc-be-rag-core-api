@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentRunsRepository } from './experiment-runs.repository.js';
+import { Prisma } from '../../generated/prisma/client.js';
 
 describe('ExperimentRunsRepository.create', () => {
   it('persists the effective LLM config in the modelConfig column as a plain JSON object', async () => {
@@ -795,5 +796,114 @@ describe('ExperimentRunsRepository failure fact (WI-CORE-007)', () => {
 
       expect(create.mock.calls[0][0].data).not.toHaveProperty('failure');
     });
+  });
+});
+
+describe('ExperimentRunsRepository evidence columns (WI-CORE-027, DEC-EVID-003)', () => {
+  const metrics = {
+    repetition: 1,
+    strategy: 'RAG' as const,
+    compiled: true,
+    executed: true,
+    passed: true,
+    valid: true,
+    failureType: null,
+    errorSummary: null,
+    generationDurationMs: 1,
+    executionDurationMs: 1,
+    totalDurationMs: 2,
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+    estimatedCost: null,
+    retrievedChunks: null,
+    selectedChunks: null,
+    contextTokens: null,
+    toolCalls: null,
+    filesInspected: null,
+    trajectory: undefined,
+  };
+  const FACTS = {
+    executionProfile: 'NODE_TYPESCRIPT',
+    runner: 'JEST',
+    compiled: true,
+    executed: true,
+    passed: true,
+    totalTests: 1,
+    passedTests: 1,
+    failedTests: 0,
+    skippedTests: 0,
+    testCasesTruncated: false,
+    failureStage: null,
+    failureCategory: null,
+    failureCode: null,
+    failureMessage: null,
+  } as const;
+  const HASH = 'a'.repeat(64);
+
+  it('writes the sandbox identity, the facts and the artifact hash in the terminal write, guarded by RUNNING', async () => {
+    const update = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new ExperimentRunsRepository({ experimentRepetition: { updateMany: update } } as never);
+
+    await repository.updateRepetitionById(
+      'repetition-1',
+      { ...metrics, sandboxExecutionId: 'exec-1', sandboxRequestId: 'req-1', sandboxCorrelationId: 'corr-1', sandboxFacts: FACTS, artifactHash: HASH },
+      'COMPLETED',
+    );
+
+    expect(update.mock.calls[0][0]).toMatchObject({
+      where: { id: 'repetition-1', state: 'RUNNING' },
+      data: expect.objectContaining({
+        sandboxExecutionId: 'exec-1',
+        sandboxRequestId: 'req-1',
+        sandboxCorrelationId: 'corr-1',
+        sandboxFacts: FACTS,
+        artifactHash: HASH,
+      }),
+    });
+    expect(update.mock.calls[0][0].data).not.toHaveProperty('repetition');
+    expect(update.mock.calls[0][0].data).not.toHaveProperty('strategy');
+  });
+
+  it('writes a null sandboxFacts as DbNull and a null identifier as null, so no column keeps a stale value', async () => {
+    const update = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new ExperimentRunsRepository({ experimentRepetition: { updateMany: update } } as never);
+
+    await repository.updateRepetitionById(
+      'repetition-1',
+      { ...metrics, sandboxExecutionId: null, sandboxRequestId: null, sandboxCorrelationId: null, sandboxFacts: null, artifactHash: null },
+      'FAILED',
+    );
+
+    const data = update.mock.calls[0][0].data as Record<string, unknown>;
+    expect(data.sandboxExecutionId).toBeNull();
+    expect(data.sandboxRequestId).toBeNull();
+    expect(data.sandboxCorrelationId).toBeNull();
+    expect(data.artifactHash).toBeNull();
+    expect(data.sandboxFacts).toBe(Prisma.DbNull);
+  });
+
+  it('does not touch the evidence columns when the caller omits them', async () => {
+    const update = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new ExperimentRunsRepository({ experimentRepetition: { updateMany: update } } as never);
+
+    await repository.updateRepetitionById('repetition-1', metrics, 'COMPLETED');
+
+    const data = update.mock.calls[0][0].data as Record<string, unknown>;
+    for (const key of ['sandboxExecutionId', 'sandboxRequestId', 'sandboxCorrelationId', 'sandboxFacts', 'artifactHash']) {
+      expect(data).not.toHaveProperty(key);
+    }
+  });
+
+  it('maps the same evidence columns on insert, with the same DbNull rule', async () => {
+    const create = vi.fn().mockResolvedValue({ id: 'repetition-2' });
+    const repository = new ExperimentRunsRepository({ experimentRepetition: { create } } as never);
+
+    await repository.insertRepetition('experiment-1', { ...metrics, sandboxExecutionId: 'exec-2', sandboxFacts: null, artifactHash: null });
+
+    const data = create.mock.calls[0][0].data as Record<string, unknown>;
+    expect(data).toMatchObject({ experimentId: 'experiment-1', sandboxExecutionId: 'exec-2', artifactHash: null });
+    expect(data.sandboxFacts).toBe(Prisma.DbNull);
+    expect(data).not.toHaveProperty('sandboxRequestId');
   });
 });

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import type {
-  ExperimentRepetition,
-  ExperimentRun,
+import {
   Prisma,
+  type ExperimentRepetition,
+  type ExperimentRun,
 } from '../../generated/prisma/client.js';
 import {
   ExperimentRepetitionState,
@@ -16,6 +16,7 @@ import {
   toExperimentRepetitionFailure,
   type ExperimentRepetitionFailure,
 } from '../experiment-failure-fact.js';
+import type { SandboxEvidenceFacts } from '../../sandbox/sandbox-evidence-facts.js';
 
 /**
  * WI-CORE-027 (DEC-EVID-004): guarda del límite de escritura para el hecho de fallo. Lo vuelve a normalizar
@@ -93,6 +94,33 @@ export interface ExperimentRepetitionInput {
    * cuando no lo hay (queda NULL). Solo se escribe en la escritura terminal de `updateRepetitionById`.
    */
   failure?: ExperimentRepetitionFailure;
+  /**
+   * WI-CORE-027 (DEC-EVID-003): evidencia de la repetición. Cada clave `undefined` no se escribe; `null` escribe
+   * un valor no observado. Solo se escribe en la escritura terminal o en la de inserción, nunca en un RUNNING ajeno.
+   */
+  sandboxExecutionId?: string | null;
+  sandboxRequestId?: string | null;
+  sandboxCorrelationId?: string | null;
+  sandboxFacts?: SandboxEvidenceFacts | null;
+  artifactHash?: string | null;
+}
+
+/**
+ * WI-CORE-027 (DEC-EVID-003): columnas de evidencia de la repetición por mapeo explícito. Un `sandboxFacts` nulo
+ * se escribe como DbNull (una columna Json no admite el null literal); una clave ausente no toca la columna.
+ */
+function evidenceWriteColumns(
+  repetition: ExperimentRepetitionInput,
+): Partial<Prisma.ExperimentRepetitionUncheckedCreateInput> {
+  const { sandboxExecutionId, sandboxRequestId, sandboxCorrelationId, sandboxFacts, artifactHash } = repetition;
+
+  return {
+    ...(sandboxExecutionId === undefined ? {} : { sandboxExecutionId }),
+    ...(sandboxRequestId === undefined ? {} : { sandboxRequestId }),
+    ...(sandboxCorrelationId === undefined ? {} : { sandboxCorrelationId }),
+    ...(sandboxFacts === undefined ? {} : { sandboxFacts: sandboxFacts ?? Prisma.DbNull }),
+    ...(artifactHash === undefined ? {} : { artifactHash }),
+  };
 }
 
 @Injectable()
@@ -296,12 +324,13 @@ export class ExperimentRunsRepository {
     experimentId: string,
     repetition: ExperimentRepetitionInput,
   ): Promise<ExperimentRepetition> {
-    const { failure, ...columns } = repetition;
+    const { failure, sandboxExecutionId: _id, sandboxRequestId: _req, sandboxCorrelationId: _corr, sandboxFacts: _facts, artifactHash: _hash, ...columns } = repetition;
     const normalizedFailure = normalizeWriteFailure(failure);
     return this.prisma.experimentRepetition.create({
       data: {
         experimentId,
         ...columns,
+        ...evidenceWriteColumns(repetition),
         ...(normalizedFailure === undefined ? {} : { failure: normalizedFailure }),
       },
     });
@@ -321,6 +350,11 @@ export class ExperimentRunsRepository {
       strategy: _strategy,
       trajectory,
       failure,
+      sandboxExecutionId: _id,
+      sandboxRequestId: _req,
+      sandboxCorrelationId: _corr,
+      sandboxFacts: _facts,
+      artifactHash: _hash,
       ...metrics
     } = repetition;
     const normalizedFailure = normalizeWriteFailure(failure);
@@ -333,6 +367,7 @@ export class ExperimentRunsRepository {
         ...(trajectory === undefined ? {} : { trajectory }),
         // WI-CORE-007: sin hecho no se escribe la clave (nunca un null explícito en una columna Json).
         ...(normalizedFailure === undefined ? {} : { failure: normalizedFailure }),
+        ...evidenceWriteColumns(repetition),
       },
     });
 

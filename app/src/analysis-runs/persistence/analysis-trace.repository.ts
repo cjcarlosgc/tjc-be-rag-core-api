@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import type {
-  AnalysisContext,
-  AnalysisRetrieval,
-  AnalysisRunExecution,
+import {
   Prisma,
-  RetrievalMode,
+  type AnalysisContext,
+  type AnalysisRetrieval,
+  type AnalysisRunExecution,
+  type RetrievalMode,
 } from '../../generated/prisma/client.js';
+import type { ExperimentRepetitionFailure } from '../../experiments/experiment-failure-fact.js';
+import type { SandboxEvidenceFacts } from '../../sandbox/sandbox-evidence-facts.js';
 
 export interface UpsertAnalysisRetrievalInput {
   analysisRunId: string;
@@ -23,6 +25,15 @@ export interface UpsertAnalysisRunExecutionInput {
   attempt: number;
   executionProfile: string;
   outcome: string;
+  /**
+   * WI-CORE-027 (DEC-EVID-003): evidencia de la ejecución. Ausente o null significa no observado y se guarda
+   * como null (nunca como 0 ni como cadena vacía).
+   */
+  requestId?: string | null;
+  correlationId?: string | null;
+  durationMs?: number | null;
+  facts?: SandboxEvidenceFacts | null;
+  failure?: ExperimentRepetitionFailure | null;
 }
 
 export interface UpsertAnalysisContextInput {
@@ -64,7 +75,16 @@ export class AnalysisTraceRepository {
    * repetir la captura del mismo intento no duplica la fila.
    */
   upsertExecution(input: UpsertAnalysisRunExecutionInput): Promise<AnalysisRunExecution> {
-    const { proposalId, attempt, ...fields } = input;
+    const { proposalId, attempt, requestId, correlationId, durationMs, facts, failure, ...identity } = input;
+    // Los JSON nulos se escriben como DbNull (una columna Json no admite el null literal).
+    const fields = {
+      ...identity,
+      requestId: requestId ?? null,
+      correlationId: correlationId ?? null,
+      durationMs: durationMs ?? null,
+      facts: facts ?? Prisma.DbNull,
+      failure: failure ?? Prisma.DbNull,
+    };
 
     return this.prisma.analysisRunExecution.upsert({
       where: { proposalId_attempt: { proposalId, attempt } },

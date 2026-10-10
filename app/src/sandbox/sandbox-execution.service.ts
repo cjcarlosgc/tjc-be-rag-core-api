@@ -36,16 +36,26 @@ export class SandboxUnavailableError extends Error {}
  * Es un `SandboxUnavailableError`, así que los llamadores existentes no cambian de comportamiento.
  */
 export class SandboxAcceptedExecutionError extends SandboxUnavailableError {
+  /**
+   * WI-CORE-027: `requestId`, `correlationId` y `durationMs` solo existen tras la aceptación; por defecto son
+   * `null` (no observados). Un fallo previo a `POST /executions` no los informa, nunca con valores inventados.
+   */
   constructor(
     message: string,
     readonly executionId: string,
     readonly executionProfile: ExecutionProfile,
+    readonly requestId: string | null = null,
+    readonly correlationId: string | null = null,
+    readonly durationMs: number | null = null,
   ) {
     super(message);
   }
 }
 
-type SandboxExecutionOutcome = Omit<SandboxExecutionResult, 'executionId' | 'executionProfile'>;
+type SandboxExecutionOutcome = Omit<
+  SandboxExecutionResult,
+  'executionId' | 'executionProfile' | 'requestId' | 'correlationId' | 'durationMs'
+>;
 
 @Injectable()
 export class SandboxExecutionService {
@@ -99,6 +109,8 @@ export class SandboxExecutionService {
       runnerHint: request.runnerHint,
     };
 
+    // WI-CORE-027: el cronómetro cubre la llamada real, desde el envío de `POST /executions`.
+    const startedAt = Date.now();
     const accepted = await this.postJson<{ executionId: string; pollAfterMs: number }>(
       `${baseUrl}/executions`,
       body,
@@ -117,10 +129,24 @@ export class SandboxExecutionService {
       );
 
       const outcome = await this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
-      return { ...outcome, executionId: accepted.executionId, executionProfile };
+      return {
+        ...outcome,
+        executionId: accepted.executionId,
+        executionProfile,
+        requestId,
+        correlationId,
+        durationMs: Date.now() - startedAt,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Fallo desconocido tras aceptar la ejecución.';
-      throw new SandboxAcceptedExecutionError(message, accepted.executionId, executionProfile);
+      throw new SandboxAcceptedExecutionError(
+        message,
+        accepted.executionId,
+        executionProfile,
+        requestId,
+        correlationId,
+        Date.now() - startedAt,
+      );
     }
   }
 
