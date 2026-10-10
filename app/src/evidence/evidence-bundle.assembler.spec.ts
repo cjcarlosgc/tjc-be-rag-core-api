@@ -403,6 +403,82 @@ describe('assembleAnalysisRunBundle (WI-CORE-027, kind ANALYSIS_RUN)', () => {
     });
   });
 
+  it('emits runnerHint PHPUNIT in sandbox[] when the Sandbox reported it, and null for a runner outside TestRunner', () => {
+    const bundle = assembleAnalysisRunBundle(
+      analysisRunInput({
+        executions: [
+          {
+            id: 'ex-php',
+            proposalId: 'prop-1',
+            executionId: 'sbx-php',
+            attempt: 1,
+            executionProfile: 'PHP_LARAVEL_PHPUNIT',
+            requestId: 'req-php',
+            correlationId: 'corr-php',
+            durationMs: 1200,
+            facts: {
+              executionProfile: 'PHP_LARAVEL_PHPUNIT',
+              runner: 'PHPUNIT',
+              compiled: true,
+              executed: true,
+              passed: true,
+              totalTests: 4,
+              passedTests: 4,
+              failedTests: 0,
+              skippedTests: 0,
+              testCasesTruncated: false,
+            },
+          },
+          {
+            id: 'ex-other',
+            proposalId: 'prop-2',
+            executionId: 'sbx-other',
+            attempt: 1,
+            executionProfile: 'NODE_TYPESCRIPT',
+            requestId: null,
+            correlationId: null,
+            durationMs: null,
+            facts: { runner: 'MOCHA', totalTests: 1 },
+          },
+        ],
+      }),
+    );
+    const [php, other] = bundle.sandbox;
+
+    expect(php).toMatchObject({ executionId: 'sbx-php', executionProfile: 'PHP_LARAVEL_PHPUNIT', runnerHint: 'PHPUNIT' });
+    expect(php.facts.runner).toBe('PHPUNIT');
+    expect(other).toMatchObject({ executionId: 'sbx-other', runnerHint: null });
+    expect(other.facts.runner).toBeNull();
+  });
+
+  it('exports the PHP structural relations of §6.15 in retrieval candidates and null for any other value', () => {
+    const bundle = assembleAnalysisRunBundle(
+      analysisRunInput({
+        retrievals: [
+          {
+            id: 'ret-php',
+            analysisSymbolId: 'sym-1',
+            mode: 'SE',
+            config: { mode: 'SE', vectorTopK: 20, targetChunkIds: ['t1'] },
+            candidates: [
+              { chunkId: 'p1', filePath: 'app/Svc.php', symbolName: 'run', parentSymbolName: 'Svc', semanticScore: 0.5, structuralMatch: 'SAME_NAMESPACE' },
+              { chunkId: 'p2', filePath: 'app/Use.php', symbolName: null, parentSymbolName: null, semanticScore: 0.4, structuralMatch: 'FULLY_QUALIFIED_REFERENCE' },
+              { chunkId: 'p3', filePath: 'app/Decl.php', symbolName: 'make', parentSymbolName: 'Decl', semanticScore: 0.3, structuralMatch: 'DECLARING_CLASS' },
+              { chunkId: 'p4', filePath: 'app/Odd.php', symbolName: null, parentSymbolName: null, semanticScore: 0.2, structuralMatch: 'NAMESPACE_ONLY' },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(bundle.retrieval[0].candidates.map((candidate) => candidate.structuralRelation)).toEqual([
+      'SAME_NAMESPACE',
+      'FULLY_QUALIFIED_REFERENCE',
+      'DECLARING_CLASS',
+      null,
+    ]);
+  });
+
   it('leaves each section empty when the Run has no targets, without inventing links', () => {
     const bundle = assembleAnalysisRunBundle(
       analysisRunInput({ targets: [], retrievals: [], contexts: [], proposals: [], executions: [] }),
@@ -510,6 +586,32 @@ describe('assembleExperimentBundle (WI-CORE-027, kind EXPERIMENT)', () => {
       correlationId: 'corr-r1',
     });
     expect(bundle.sandbox[0].facts.passed).toBe(true);
+  });
+
+  it('emits the experiment runnerHint PHPUNIT in sandbox[] of an invoked PHP repetition, and null for a runner outside TestRunner', () => {
+    const phpRepetition = experimentRepetition({
+      sandboxFacts: {
+        ...(experimentRepetition().sandboxFacts as Record<string, unknown>),
+        executionProfile: 'PHP_LARAVEL_PHPUNIT',
+        runner: 'PHPUNIT',
+      },
+    });
+    const phpRun = {
+      id: 'exp-php',
+      randomizationSeed: 'seed-1',
+      executionProfile: 'PHP_LARAVEL_PHPUNIT',
+      runnerHint: 'PHPUNIT',
+      modelConfig: null,
+    };
+
+    const [php] = assembleExperimentBundle(experimentInput({ run: phpRun, repetitions: [phpRepetition] })).sandbox;
+    expect(php).toMatchObject({ executionProfile: 'PHP_LARAVEL_PHPUNIT', runnerHint: 'PHPUNIT', strategy: 'RAG' });
+    expect(php.facts.runner).toBe('PHPUNIT');
+
+    const [unknown] = assembleExperimentBundle(
+      experimentInput({ run: { ...phpRun, runnerHint: 'MOCHA' }, repetitions: [phpRepetition] }),
+    ).sandbox;
+    expect(unknown.runnerHint).toBeNull();
   });
 
   it('gives no sandbox entry for a repetition without invocation, even when the sandbox columns are empty', () => {
@@ -720,6 +822,13 @@ const FORBIDDEN_KEYS = [
   'retrievedChunks',
   'selectedChunks',
   'contextTokens',
+  // Campos que PHP/PHPUnit puede introducir en el Sandbox o en el retrieval y que la evidencia nunca exporta.
+  'failureKind',
+  'phase',
+  'stdout',
+  'stderr',
+  'namespace',
+  'composerLock',
 ];
 
 /** Fragmentos que no pueden aparecer en ningún valor: código de muestra, credenciales sembradas, URLs firmadas, claves de storage e identificadores EV-OE. */
@@ -736,6 +845,8 @@ const FORBIDDEN_VALUE_FRAGMENTS = [
   'proposals/',
   'chainOfThought',
   'OTHER_SNIPPET',
+  'SECRET_STDERR',
+  'SECRET_STDOUT',
 ];
 
 function collectKeys(value: unknown, keys: Set<string>): void {
@@ -783,6 +894,10 @@ function hostileBundles() {
           failureMessage: SECRET_FAILURE,
           testCases: [{ name: 'x', errorMessage: 'SECRET_TEST_CASE' }],
           logs: 'SECRET_LOG',
+          failureKind: 'ERROR',
+          phase: 'PHPUNIT_RUN',
+          stdout: 'SECRET_STDOUT',
+          stderr: 'SECRET_STDERR',
         },
       },
     ] as never,
@@ -799,7 +914,14 @@ function hostileBundles() {
         detail: {
           configuration: { topK: 5, maxContextTokens: 4000, semanticWeight: 0.7, structuralWeight: 0.3 },
           candidates: [
-            { chunkId: 'k1', rank: 1, excerpt: { filePath: 'src/x.ts', symbolName: 'f', snippet: 'SECRET_SNIPPET' }, tokenCount: 3, decision: 'SELECTED' },
+            {
+              chunkId: 'k1',
+              rank: 1,
+              excerpt: { filePath: 'src/x.ts', symbolName: 'f', snippet: 'SECRET_SNIPPET', namespace: 'App\\Models' },
+              tokenCount: 3,
+              decision: 'SELECTED',
+              structuralMatch: 'SAME_NAMESPACE',
+            },
           ],
           contextTokens: 300,
           functionalRules: { functionalRuleIds: ['kn-9'], omitted: [{ knowledgeId: 'kn-x', reason: 'TOKEN_BUDGET' }] },

@@ -107,6 +107,11 @@ describe('sandbox evidence facts (WI-CORE-027, DEC-EVID-003)', () => {
     });
   });
 
+  it('keeps the PHPUNIT runner reported by the Sandbox (WI-CORE-029) and nulls any other runner', () => {
+    expect(buildSandboxEvidenceFacts(input({ facts: { ...RUNNER_FACTS, runner: 'PHPUNIT' } })).runner).toBe('PHPUNIT');
+    expect(buildSandboxEvidenceFacts(input({ facts: { ...RUNNER_FACTS, runner: 'PEST' as never } })).runner).toBeNull();
+  });
+
   it('answers null for every count or flag that is not an observed value, never zero', () => {
     const facts = buildSandboxEvidenceFacts(
       input({

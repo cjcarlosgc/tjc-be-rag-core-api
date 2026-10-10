@@ -16,6 +16,7 @@ import {
   toRetrievalMetrics,
   toRunCandidates,
   toRunRetrievalConfig,
+  toRunnerHint,
   toSha256,
   toText,
   toTextList,
@@ -115,9 +116,16 @@ describe('sandbox facts: 14 claves cerradas, con validación y saneado al leer (
     );
   });
 
+  it('keeps the PHPUNIT runner (WI-CORE-029) and drops any runner outside TestRunner to null', () => {
+    expect(toEvidenceFacts({ runner: 'PHPUNIT' }).runner).toBe('PHPUNIT');
+    expect(toEvidenceFacts({ runner: 'JEST' }).runner).toBe('JEST');
+    expect(toEvidenceFacts({ runner: 'MOCHA' }).runner).toBeNull();
+    expect(toEvidenceFacts({ runner: 'phpunit' }).runner).toBeNull();
+  });
+
   it('drops values outside their type or domain to null', () => {
     const facts = toEvidenceFacts({
-      runner: 'PHPUNIT',
+      runner: 'MOCHA',
       compiled: 'yes',
       totalTests: -2,
       failureStage: 'MADE_UP',
@@ -154,7 +162,36 @@ describe('sandbox facts: 14 claves cerradas, con validación y saneado al leer (
   });
 });
 
+describe('runnerHint de la evidencia (§6.16: valores de TestRunner, §7.1)', () => {
+  it.each(['JEST', 'VITEST', 'PHPUNIT'])('emits %s as is', (runner) => {
+    expect(toRunnerHint(runner)).toBe(runner);
+  });
+
+  it('answers null for a value outside TestRunner, an empty string or a non-string, never an invented runner', () => {
+    expect(toRunnerHint('MOCHA')).toBeNull();
+    expect(toRunnerHint('')).toBeNull();
+    expect(toRunnerHint('phpunit')).toBeNull();
+    expect(toRunnerHint(42)).toBeNull();
+    expect(toRunnerHint(undefined)).toBeNull();
+    expect(toRunnerHint(null)).toBeNull();
+  });
+});
+
 describe('retrieval config and candidates', () => {
+  it('maps the five structural relations of §6.15 (TypeScript and PHP) and nulls any other value', () => {
+    const relations = ['IMPORTS', 'IMPORTED_BY', 'SAME_NAMESPACE', 'FULLY_QUALIFIED_REFERENCE', 'DECLARING_CLASS'];
+    const candidates = toComparisonCandidates(
+      [...relations, 'UNKNOWN_RELATION'].map((structuralRelation, index) => ({
+        rank: index + 1,
+        chunkId: `c${index}`,
+        filePath: 'app/Foo.php',
+        structuralRelation,
+      })),
+    );
+
+    expect(candidates.map((candidate) => candidate.structuralRelation)).toEqual([...relations, null]);
+  });
+
   it('maps the Run config to semanticTopK and leaves the rest null', () => {
     expect(toRunRetrievalConfig({ mode: 'SE', vectorTopK: 20, targetChunkIds: ['t'] })).toEqual({
       semanticTopK: 20,
