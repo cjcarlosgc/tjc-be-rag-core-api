@@ -443,7 +443,7 @@ interface SourceExcerptResponse {
   truncated: boolean
 }
 
-type RagMatchedVia = 'SEMANTIC' | 'IMPORTS' | 'IMPORTED_BY'
+type RagMatchedVia = 'SEMANTIC' | 'IMPORTS' | 'IMPORTED_BY' | 'SAME_NAMESPACE' | 'FULLY_QUALIFIED_REFERENCE' | 'DECLARING_CLASS' // las tres últimas: PHP, aditivo 2026-10-09 (WI-CORE-028)
 type RagCandidateDecision = 'SELECTED' | 'DISCARDED'
 type RagDiscardReason = 'BELOW_MINIMUM_SCORE' | 'TOP_K_LIMIT' | 'TOKEN_BUDGET'
 
@@ -459,7 +459,7 @@ interface RagCandidateNodeResponse {
   excerpt: SourceExcerptResponse
   tokenCount: number
   semanticScore: number | null
-  structuralMatch: 'IMPORTS' | 'IMPORTED_BY' | null
+  structuralMatch: 'IMPORTS' | 'IMPORTED_BY' | 'SAME_NAMESPACE' | 'FULLY_QUALIFIED_REFERENCE' | 'DECLARING_CLASS' | null
   combinedScore: number
   matchedVia: RagMatchedVia[]
   decision: RagCandidateDecision
@@ -1043,9 +1043,9 @@ Core firma la evidencia con una clave exclusiva (`GITHUB_BINDING_EVIDENCE_SECRET
 - `GET /retrieval-comparisons/{retrievalComparisonId}/results` → `200 RetrievalComparisonResultsResponse`; en `PENDING`/`RUNNING`, `409 RETRIEVAL_COMPARISON_NOT_FINISHED`; en una comparación `FAILED`, `409 RETRIEVAL_COMPARISON_FAILED` (mismo cuerpo de error de §4; el detalle `failureCode`/`failureMessage` se obtiene del status); el `200` trae siempre exactamente `SE` y `SEM`.
 - `GET /analysis-runs/{analysisRunId}/retrieval-comparisons?cursor&limit` → `200 Page<RetrievalComparisonStatusResponse>`.
 
-El target se identifica igual que en §6.5 (`AnalysisRun` + símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED`); ausente: `404 ANALYSIS_SYMBOL_NOT_FOUND`; tipo no elegible: `422 UNSUPPORTED_SYMBOL_KIND`; un `AnalysisRun` visible que aún no tiene `projectVersionId`: `409 ANALYSIS_NOT_FINISHED`; un símbolo de un proyecto PHP (`ProjectVersion.language = PHP`): `422 UNSUPPORTED_PROJECT`, el mismo código que rechaza los experimentos con PHP, hasta que `WI-CORE-028` lo retire solo en la comparación; comparación inexistente o no visible: `404 RETRIEVAL_COMPARISON_NOT_FOUND`; un `AnalysisRun` inexistente o no visible responde el mismo `404` que `GET /analysis-runs/{analysisRunId}`; rol insuficiente: `403 PROJECT_ROLE_INSUFFICIENT`; validación de cuerpo y `Idempotency-Key`: los errores `400` de §4. La operación es asíncrona (§5) y de solo retrieval: no invoca LLM, Functional Knowledge, `ACTION_REQUIRED`, generación, Sandbox ni publicación, y no cambia el estado del `AnalysisRun`.
+El target se identifica igual que en §6.5 (`AnalysisRun` + símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED`); ausente: `404 ANALYSIS_SYMBOL_NOT_FOUND`; tipo no elegible: `422 UNSUPPORTED_SYMBOL_KIND`; un `AnalysisRun` visible que aún no tiene `projectVersionId`: `409 ANALYSIS_NOT_FINISHED`; un símbolo de un proyecto PHP se acepta desde `WI-CORE-028` (2026-10-09; los experimentos siguen respondiendo `422 UNSUPPORTED_PROJECT` para PHP hasta `WI-CORE-029`); comparación inexistente o no visible: `404 RETRIEVAL_COMPARISON_NOT_FOUND`; un `AnalysisRun` inexistente o no visible responde el mismo `404` que `GET /analysis-runs/{analysisRunId}`; rol insuficiente: `403 PROJECT_ROLE_INSUFFICIENT`; validación de cuerpo y `Idempotency-Key`: los errores `400` de §4. La operación es asíncrona (§5) y de solo retrieval: no invoca LLM, Functional Knowledge, `ACTION_REQUIRED`, generación, Sandbox ni publicación, y no cambia el estado del `AnalysisRun`.
 
-Ambos modos comparten `Project`/`ProjectVersion`, snapshot, target, chunks, embeddings, query anchor, los 20 primeros candidatos semánticos y las exclusiones generales. `SEM` es solo semántico (coseno), conserva `semanticScore`, no aplica refuerzo estructural y selecciona los 10 primeros. `SE` une y deduplica los 20 semánticos con los candidatos estructurales, pondera `0.7·semántico + 0.3·estructural` (configurable, sin presentarse como verdad científica) y selecciona los 10 primeros. Para PHP, las relaciones estructurales son `IMPORTS`, `IMPORTED_BY`, `SAME_NAMESPACE`, `FULLY_QUALIFIED_REFERENCE` y `DECLARING_CLASS` (su implementación PHP queda diferida con `WI-CORE-028`).
+Ambos modos comparten `Project`/`ProjectVersion`, snapshot, target, chunks, embeddings, query anchor, los 20 primeros candidatos semánticos y las exclusiones generales. `SEM` es solo semántico (coseno), conserva `semanticScore`, no aplica refuerzo estructural y selecciona los 10 primeros. `SE` une y deduplica los 20 semánticos con los candidatos estructurales, pondera `0.7·semántico + 0.3·estructural` (configurable, sin presentarse como verdad científica) y selecciona los 10 primeros. Para PHP, las relaciones estructurales son `IMPORTS`, `IMPORTED_BY`, `SAME_NAMESPACE`, `FULLY_QUALIFIED_REFERENCE` y `DECLARING_CLASS`, implementadas en `WI-CORE-028` según `DEC-PHP-RET-001` (spec 018): `SAME_NAMESPACE` exige que el target mencione el nombre corto de la clase; `FULLY_QUALIFIED_REFERENCE` exige barra inicial; un candidato lleva una sola relación, la primera en ese orden.
 
 `Precision@10` y `Recall@10` son las métricas principales; `Precision@5` y `Recall@5`, secundarias. La verdad de terreno, Cohen κ, bootstrap y Wilcoxon son externos a Core: Core calcula P@k y R@k solo si la solicitud trae `groundTruth` y, si no, `metrics` es `null`. Nunca se inventa una verdad de terreno ni se declara un ganador. `groundTruth` admite hasta 200 elementos; más, o elementos mal formados, responden `400`. `failureCode` es abierto (`string | null`); Core emite hoy `RETRIEVAL_TARGET_UNRESOLVABLE`, `RETRIEVAL_COMPARISON_FAILED` y `RETRIEVAL_COMPARISON_WORKER_LOST`, y `failureMessage` nunca incluye trazas ni credenciales.
 
