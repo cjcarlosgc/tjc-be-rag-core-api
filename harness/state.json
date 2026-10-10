@@ -6827,6 +6827,52 @@
             "effort": "high"
           },
           "reason": "Escalado a implementer-high: ensamblado y seguridad de exportación."
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "Corte C: decisiones 1, 3, 4, 5, 6, 9, 10 y 11 APPROVED; 2 (sandbox[].durationMs observable en EXPERIMENT) y 8 (durationMs negativo => null, no 0) CHANGES, ambas correcciones de código sin decisión del usuario; 7 APPROVED con corrección de la etiqueta del namespace (URL, no DNS).",
+            "Texto exacto de §6.16 congelado con tipos | null aplicado por el leader sin marcar Implementado (eso es el corte D); CS-1 breaking: true con sourceRevision del corte F."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/contracts/interoperability-contract.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-027-contract-review-c.md"
+          ],
+          "recommendedNextStep": "Corte F (decisiones 2, 7, 8), CS-1 y corte D.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        },
+        {
+          "agent": "implementer-high",
+          "status": "APPROVED",
+          "findings": [
+            "Corte E (a5513a8): ContextTracesRepository.beginAttempt usa $executeRaw para pg_advisory_xact_lock; pg spec que llama a beginAttempt de verdad (4 casos) y unitaria del uso de $executeRaw; barrido de $queryRaw listado (sin otros casos void).",
+            "Rojo-verde con $queryRaw temporal: 6 pruebas fallan con «Failed to deserialize column of type void».",
+            "Deudas: comentario obsoleto en evidence.repository.pg.spec.ts; el patrón $queryRaw con funciones void no está cubierto por lint; PG desechable fue 14, la confirmación en 17.6 la hizo el agente principal."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/context-traces"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-027-contract-review-c.md"
+          ],
+          "recommendedNextStep": "Checks completos y revisión.",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          },
+          "reason": "Escalado a implementer-high: concurrencia."
         }
       ],
       "reviewCycles": 0,
@@ -6875,7 +6921,8 @@
       "harness/reports/smart-v3-scope-approval.md",
       "harness/reports/wi-core-027-sdd-verification.md",
       "harness/reports/wi-core-027-contract-review.md",
-      "harness/reports/wi-core-027-contract-review-6-5.md"
+      "harness/reports/wi-core-027-contract-review-6-5.md",
+      "harness/reports/wi-core-027-contract-review-c.md"
     ],
     "blockedReason": null,
     "gateEvidence": {

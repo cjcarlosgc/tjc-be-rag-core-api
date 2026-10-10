@@ -1129,7 +1129,7 @@ interface RetrievalComparisonResultsResponse {
 
 ### 6.16 Trace operativo y exportación de evidencia
 
-**`GET /analysis-runs/{analysisRunId}/trace` implementado en Core** (`WI-CORE-026`, 2026-10-09; la Console lo consume en `WI-CONSOLE-020`). **La exportación de evidencia (`/evidence`) sigue definida y pendiente de implementar y verificar** (`WI-CORE-027`; la Console la consume en `WI-CONSOLE-017`). El trace operativo del `AnalysisRun` (HU15) es distinto del `ContextTrace` experimental de §6.7. Core introduce `retrieval_id` y `context_id` y reutiliza el `execution_id` del Sandbox; no crea otros identificadores ni identificadores de evidencia académica (`EV-OE*`).
+**`GET /analysis-runs/{analysisRunId}/trace` implementado en Core** (`WI-CORE-026`, 2026-10-09; la Console lo consume en `WI-CONSOLE-020`). **La exportación de evidencia (`/evidence`) está implementada en Core hasta el corte C de `WI-CORE-027`, con la forma de `EvidenceBundleResponse` congelada en `schemaVersion '1'`; sigue pendiente de verificación final y de la declaración de «Implementado» y de la entrega del consumidor** (`WI-CORE-027`; la Console la consume en `WI-CONSOLE-017`). El trace operativo del `AnalysisRun` (HU15) es distinto del `ContextTrace` experimental de §6.7. Core introduce `retrieval_id` y `context_id` y reutiliza el `execution_id` del Sandbox; no crea otros identificadores ni identificadores de evidencia académica (`EV-OE*`).
 
 - `GET /analysis-runs/{analysisRunId}/trace` → `200 AnalysisRunTraceResponse` (Reader). Antes de un estado terminal (`QUEUED`, `PROCESSING`), `409 EVIDENCE_NOT_FINISHED`; un `AnalysisRun` inexistente o no visible responde el `404` de `GET /analysis-runs/{analysisRunId}`. Con Reader como rol mínimo no hay `403` alcanzable en esta ruta.
 - `GET /analysis-runs/{analysisRunId}/evidence`, `GET /experiments/{experimentId}/evidence`, `GET /retrieval-comparisons/{retrievalComparisonId}/evidence` → `200 EvidenceBundleResponse` (Reader). Antes de un estado terminal, `409 EVIDENCE_NOT_FINISHED`; un `AnalysisRun`, experimento o comparación inexistente o no visible responde el `404` de su ruta de estado; rol insuficiente: `403 PROJECT_ROLE_INSUFFICIENT`.
@@ -1137,6 +1137,8 @@ interface RetrievalComparisonResultsResponse {
 Los nueve enlaces se mapean a los DTO así: (1) repositorio/PR/HEAD → `repositoryName`, `pullRequestNumber`, `headSha`; (2) `AnalysisRun` → `analysisRunId`; (3) changeset/targets → `changeset` y `targets[].symbol`; (4) retrieval → `targets[].retrieval`; (5) contexto → `targets[].context`; (6) generación → `targets[].generation`; (7) Sandbox y (8) resultados → `targets[].executions` (`executionId` y `outcome`); (9) publicación → `publication`. Un enlace es `NOT_APPLICABLE` solo cuando el flujo termina legítimamente antes (por ejemplo, un Run sin targets no tiene retrieval). La traza y la evidencia de un `AnalysisRun` están disponibles en cualquier estado salvo `QUEUED` y `PROCESSING` (`409 EVIDENCE_NOT_FINISHED`), incluido `ACTION_REQUIRED`, donde los enlaces posteriores constan `NOT_APPLICABLE`; un experimento o una comparación de retrieval son terminales en `COMPLETED` y `FAILED`. La traza responde ese mismo `409`. La evidencia no incluye chain-of-thought ni credenciales, y los fragmentos de código se tratan como datos potencialmente confidenciales (§6.7).
 
 Aclaraciones del trace implementado (`WI-CORE-026`): `targets` son los símbolos `DIRECTLY_CHANGED` de tipo `METHOD` o `FUNCTION`, ordenados por `filePath`, `qualifiedName` e `id`; `executions.items` van por `attempt` ascendente y un target sin ejecución (por ejemplo, un Run en `ACTION_REQUIRED`) devuelve `executions.status = NOT_APPLICABLE` con `items: []`. `outcome` usa el vocabulario de clasificación técnica del Run (`SUCCESS`, `BEHAVIORAL_MISMATCH`, `TECHNICAL_GENERATION_FAILURE`), asignado a cada ejecución registrada; `executions.items[].attempt` es el intento del Run. Los runs y propuestas anteriores a la implementación no se rellenan (sin backfill): sus enlaces constan `NOT_APPLICABLE`. `publication.status = PRESENT` si existe un Check o una publicación de pruebas (con varias, la más reciente por `createdAt`) y `NOT_APPLICABLE` si no hay ninguno; `freshness` es `CURRENT` solo con la publicación `PUBLISHED`, `STALE` con `STALE` y `null` en `PENDING`, `PUBLISHING`, `FAILED`, `CLOSED` o sin publicación; `companionBranch`, `companionPullRequestUrl` y `sourceHeadSha` salen de la publicación y son `null` si solo hay Check. `checkId` es el id del Check run que devuelve GitHub Integration (`GH-INTEROP-1.3`; `null` mientras responda `204` o no lo informe). El trace no expone conteos, reglas omitidas ni `knowledgeId` de Functional Knowledge: la procedencia de las reglas se reconstruye internamente por `knowledgeId`, y `functionalRuleIds` es la única referencia pública.
+
+Aclaraciones de la exportación de evidencia (`WI-CORE-027`): un dato no observado es `null`, nunca `0` ni cadena vacía; los runs, propuestas y repeticiones anteriores a la implementación no se rellenan (sin backfill) y emiten `null` en `executionId`, `requestId`, `correlationId`, `durationMs`, `artifactHash` y en los campos de generación. Una duración que no pudo medirse (por ejemplo, reloj retrocedido) es `null`. `sandbox[]` y `generation[]` llevan `repetition` y `strategy` para unirse con `experimental[]` (`repetition` es `null` y `strategy` es `PRODUCT` en un `AnalysisRun`). `generation[].attempt` es, en un `AnalysisRun`, el mayor `attempt` de las ejecuciones registradas de la propuesta (`null` si no hay ejecución), no un contador de intentos del LLM, y en un `EXPERIMENT`, el `attempt` de la repetición vigente. `experimental[].technicallyEvaluable` refleja la exclusión de repeticiones no evaluables del agregado (§6.5.1) y no debe usarse para inferir CF ni CO; `pairId`, `pairPosition` y `randomizationSeed` son `null` en experimentos anteriores a OE5. `retrievalId` y `contextId` de un `EXPERIMENT` son el `id` de la `ContextTrace` del brazo RAG, cuyo `mode` es siempre `SE`; `retrieval[].config` es un tipo propio de la evidencia (no alias de §6.15) con `null` en cada valor no persistido: en un `AnalysisRun` solo `semanticTopK` se persiste, en un `EXPERIMENT` solo `finalTopK` (el `topK` configurado del brazo RAG) y los pesos, y `embeddingModel` es `null` en ambos. En un candidato de retrieval cada campo es `null` si el dato no se persistió; `selected` es `null` si no hay contexto o decisión. `retrieval[].metrics` solo se informa en `RETRIEVAL_COMPARISON`; `groundTruth` no se exporta. `analysisRun.projectVersionId` y `analysisRun.snapshotRef` son `null` mientras el Run no tenga `projectVersionId`; `snapshotRef` es un UUID versión 5 (namespace URL de RFC 4122, `6ba7b811-9dad-11d1-80b4-00c04fd430c8`) del nombre `urn:tjc:snapshot-ref:v1:{projectVersionId}:{headSha}`, una referencia opaca que no es clave de almacenamiento ni URL. `artifactHash` es el SHA-256 del contenido de prueba enviado al Sandbox (`null` si no hubo contenido). `sandbox[].durationMs` es la duración de la llamada al Sandbox. `sandbox[].runnerHint` es el runner reportado por el Sandbox en un `AnalysisRun` (`null` si la ejecución no devolvió resultado) y el `runnerHint` del experimento en un `EXPERIMENT`; los valores son los de `TestRunner` (§7.1). En una repetición `COMPLETED` con pruebas fallidas, `sandbox.facts.failureCategory` es el tipo de fallo observado y `failureStage`, `failureCode` y `failureMessage` son `null`; `failureMessage` y `failureCode` se emiten saneados. `agentExploration[].steps` es `[]` y `filesInspected` es `null` cuando la exploración no llegó a persistirse. Una comparación `FAILED` y un experimento `FAILED` responden `200`; la comparación `FAILED` trae `retrieval: []`. La evidencia no incluye `excerpt` ni contenido de código, `testCases`, logs, URLs ni claves de almacenamiento, `knowledgeId`, reglas omitidas ni conteos de Functional Knowledge. `schemaVersion` permanece `'1'`: cualquier clave nueva o eliminada posterior exige un nuevo valor.
 
 ```ts
 type TraceLinkStatus = 'PRESENT' | 'NOT_APPLICABLE'
@@ -1177,6 +1179,26 @@ interface AnalysisRunTraceResponse {
 }
 
 type EvidenceKind = 'ANALYSIS_RUN' | 'EXPERIMENT' | 'RETRIEVAL_COMPARISON'
+type EvidenceStrategy = ExperimentStrategy | 'PRODUCT'
+
+interface EvidenceRetrievalCandidateResponse {
+  rank: number | null
+  chunkId: Id | null
+  filePath: RelativePath | null
+  symbolQualifiedName: string | null
+  semanticScore: number | null
+  structuralRelation: StructuralRelation | null
+  combinedScore: number | null
+  selected: boolean | null
+}
+
+interface EvidenceRetrievalConfigResponse {
+  semanticTopK: number | null
+  finalTopK: number | null
+  semanticWeight: number | null
+  structuralWeight: number | null
+  embeddingModel: string | null
+}
 
 interface EvidenceBundleResponse {
   schemaVersion: '1'
@@ -1184,13 +1206,71 @@ interface EvidenceBundleResponse {
   subjectId: Id
   generatedAt: IsoDateTime
   correlationId: string
-  analysisRun: { analysisRunId: Id; repositoryName: string; pullRequestNumber: number; headSha: string; projectVersionId: Id; snapshotRef: string /* referencia opaca; nunca una URL firmada */; targets: AnalysisSymbolResponse[]; createdAt: IsoDateTime } | null
-  retrieval: { retrievalId: Id; mode: RetrievalMode; config: RetrievalModeResultResponse['config']; candidates: RetrievalCandidateResponse[] }[]
-  context: { contextId: Id; selectedChunkIds: Id[]; discardedChunkIds: Id[]; tokenCounts: { selected: number; budget: number | null }; functionalRuleIds: Id[] }[]
-  generation: { strategy: ExperimentStrategy | 'PRODUCT'; provider: string; model: string; modelVersion: string | null; reasoningEffort: string | null; inputTokens: number | null; outputTokens: number | null; durationMs: number; artifactHash: Sha256 }[]
-  agentExploration: { toolCallCap: number; steps: { step: number; toolName: string; status: string }[]; filesInspected: number | null; contextTokenBudget: number }[]
-  sandbox: { executionId: string; executionProfile: string; runnerHint: string; attempt: number; facts: Record<string, string | number | boolean | null> /* claves cerradas: executionProfile, runner, compiled, executed, passed, totalTests, passedTests, failedTests, skippedTests, testCasesTruncated, failureStage, failureCategory, failureCode, failureMessage; sin logs, evidencias ni URLs y con failureMessage saneado */; durationMs: number; requestId: string; correlationId: string }[]
-  experimental: { experimentId: Id; strategy: ExperimentStrategy; repetition: number; pairId: Id; pairPosition: 1 | 2; attempt: number; randomizationSeed: string }[]
+  analysisRun: {
+    analysisRunId: Id
+    repositoryName: string
+    pullRequestNumber: number
+    headSha: string
+    projectVersionId: Id | null
+    snapshotRef: string | null // referencia opaca; nunca una URL firmada
+    targets: AnalysisSymbolResponse[]
+    createdAt: IsoDateTime
+  } | null
+  retrieval: {
+    retrievalId: Id
+    mode: RetrievalMode
+    config: EvidenceRetrievalConfigResponse
+    candidates: EvidenceRetrievalCandidateResponse[]
+    metrics: RetrievalMetricsResponse | null // solo RETRIEVAL_COMPARISON con groundTruth
+  }[]
+  context: {
+    contextId: Id
+    selectedChunkIds: Id[]
+    discardedChunkIds: Id[]
+    tokenCounts: { selected: number | null; budget: number | null }
+    functionalRuleIds: Id[]
+  }[]
+  generation: {
+    strategy: EvidenceStrategy
+    repetition: number | null
+    attempt: number | null
+    provider: string | null
+    model: string | null
+    modelVersion: string | null
+    reasoningEffort: string | null
+    inputTokens: number | null
+    outputTokens: number | null
+    durationMs: number | null
+    artifactHash: Sha256 | null
+  }[]
+  agentExploration: {
+    toolCallCap: number | null
+    steps: { step: number | null; toolName: string | null; status: string | null }[]
+    filesInspected: number | null
+    contextTokenBudget: number | null
+  }[]
+  sandbox: {
+    executionId: string | null
+    strategy: EvidenceStrategy
+    repetition: number | null
+    executionProfile: string | null
+    runnerHint: string | null
+    attempt: number
+    facts: Record<string, string | number | boolean | null> // claves cerradas: executionProfile, runner, compiled, executed, passed, totalTests, passedTests, failedTests, skippedTests, testCasesTruncated, failureStage, failureCategory, failureCode, failureMessage; sin logs, evidencias ni URLs y con failureMessage saneado
+    durationMs: number | null
+    requestId: string | null
+    correlationId: string | null
+  }[]
+  experimental: {
+    experimentId: Id
+    strategy: ExperimentStrategy
+    repetition: number
+    pairId: Id | null
+    pairPosition: 1 | 2 | null
+    attempt: number
+    randomizationSeed: string | null
+    technicallyEvaluable: boolean
+  }[]
   publication: TracePublicationResponse | null
 }
 ```
