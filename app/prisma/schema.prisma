@@ -863,6 +863,10 @@ model ExperimentRepetition {
   /// al iniciarlo y se renueva mientras corre); un RUNNING con latido vencido es un intento interrumpido.
   /// NULL solo en filas previas a la migración (se evalúan por createdAt).
   lastHeartbeatAt      DateTime?
+  /// WI-CORE-007 (HU12/HU17): interno, no expuesto en DTO ni INTEROP; lo leerá WI-CORE-027 como evidencia.
+  /// Hecho de fallo `{ stage, category, code, message }` del Sandbox, con `message` ya saneado. NULL si el
+  /// Sandbox no devolvió hecho de fallo (filas previas, excepciones del cliente, timeouts sin hecho, éxito).
+  failure              Json?
   contextTraces        ContextTrace[]
   createdAt            DateTime                  @default(now())
 
