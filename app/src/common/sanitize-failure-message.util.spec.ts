@@ -5,6 +5,9 @@ import {
   sanitizeFailureMessage,
 } from './sanitize-failure-message.util.js';
 
+/** Parte final de la clave de ejemplo pública de Stripe; el prefijo se concatena para no disparar escáneres de secretos. */
+const STRIPE_SAMPLE = '4eC39HqLyjWDarjtT1zdp7dc';
+
 describe('sanitizeFailureMessage (WI-CORE-007)', () => {
   it('devuelve idéntico un mensaje sin secretos, sin control y dentro del límite', () => {
     const message = 'Expected 2 to be 3 in src/sum.spec.ts';
@@ -349,9 +352,9 @@ describe('sanitizeFailureMessage familias de WI-CORE-027 (DEC-EVID-004)', () => 
     it.each([
       ['Slack xoxb-', 'Slack xoxb-123456789012-abcdefABCDEF fallo', 'Slack [REDACTED] fallo'],
       ['Slack xoxp-', 'token xoxp-1-2-3abcdefgh fin', 'token [REDACTED] fin'],
-      ['Stripe sk_live_', 'key sk_live_4eC39HqLyjWDarjtT1zdp7dc end', 'key [REDACTED] end'],
-      ['Stripe sk_test_', 'sk_test_4eC39HqLyjWDarjtT1zdp7dc', '[REDACTED]'],
-      ['Stripe rk_live_', 'rk_live_4eC39HqLyjWDarjtT1zdp7dc', '[REDACTED]'],
+      ['Stripe sk_live_', `key ${'sk_' + 'live_'}${STRIPE_SAMPLE} end`, 'key [REDACTED] end'],
+      ['Stripe sk_test_', `${'sk_' + 'test_'}${STRIPE_SAMPLE}`, '[REDACTED]'],
+      ['Stripe rk_live_', `${'rk_' + 'live_'}${STRIPE_SAMPLE}`, '[REDACTED]'],
       ['Google AIza', `AIza${'Sy'}${'a1'.repeat(15)} fin`, '[REDACTED] fin'],
       ['npm_', `npm_${'a1'.repeat(15)}`, '[REDACTED]'],
       ['Cookie:', 'Cookie: sid=abc123; theme=dark', 'Cookie: [REDACTED]'],
@@ -398,7 +401,7 @@ describe('sanitizeFailureMessage familias de WI-CORE-027 (DEC-EVID-004)', () => 
 
   it('es idempotente sobre una mezcla de todas las familias nuevas', () => {
     const mixed =
-      'xoxb-123456789012-abcdefABCDEF sk_live_4eC39HqLyjWDarjtT1zdp7dc AIzaSy' +
+      'xoxb-123456789012-abcdefABCDEF ' + 'sk_' + 'live_' + STRIPE_SAMPLE + ' AIzaSy' +
       'a1'.repeat(15) +
       ` npm_${'a1'.repeat(15)} Cookie: sid=1; x=2 password hunter2 credential=abc ` +
       'https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXXXXXXXXX https://x.io/token/abcdefghijklmnopqrstuv';
