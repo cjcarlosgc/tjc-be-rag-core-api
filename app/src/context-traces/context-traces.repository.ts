@@ -55,7 +55,8 @@ export class ContextTracesRepository {
 
     return this.prisma.$transaction(async (tx) => {
       const lockKey = `context-trace:${input.experimentId}:${input.strategy}:${input.repetition}`;
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}::text, 0))`;
+      // pg_advisory_xact_lock devuelve void: Prisma no puede deserializar esa columna con $queryRaw.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}::text, 0))`;
 
       const previous = await tx.experimentRepetition.findFirst({
         where: {

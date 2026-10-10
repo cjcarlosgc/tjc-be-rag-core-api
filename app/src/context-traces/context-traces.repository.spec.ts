@@ -3,6 +3,7 @@ import { ContextTracesRepository } from './context-traces.repository.js';
 
 function makeRepository(overrides: Record<string, unknown> = {}) {
   const tx = {
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $queryRaw: vi.fn().mockResolvedValue([]),
     experimentRepetition: {
       findFirst: vi.fn().mockResolvedValue(null),
@@ -51,7 +52,7 @@ describe('ContextTracesRepository', () => {
     const result = await repository.beginAttempt(input);
 
     expect(prisma.$transaction).toHaveBeenCalledOnce();
-    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
     expect(tx.experimentRepetition.create).toHaveBeenCalledWith({
       data: {
         experimentId: 'experiment-1',
@@ -77,6 +78,18 @@ describe('ContextTracesRepository', () => {
       repetition: { id: 'repetition-1', attempt: 1 },
       trace: { id: 'trace-1', attempt: 1 },
     });
+  });
+
+  it('takes the transactional advisory lock with $executeRaw, never $queryRaw (void result cannot be deserialized)', async () => {
+    const { repository, tx } = makeRepository();
+
+    await repository.beginAttempt(input);
+
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
+    const [template, ...values] = tx.$executeRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    expect(template.join('?')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(');
+    expect(values).toEqual(['context-trace:experiment-1:RAG:2']);
   });
 
   it('copies the pair identity onto the first attempt when it is given (WI-CORE-025)', async () => {
