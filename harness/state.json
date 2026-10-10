@@ -6597,7 +6597,7 @@
     ],
     "caseIds": [],
     "sprint": "SMART V3",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
       "spec/transversal/experimental-metrics/spec.md",
       "spec/transversal/experimental-metrics/plan.md",
@@ -6627,25 +6627,61 @@
       }
     ],
     "transversalPaths": [],
-    "approved": false,
+    "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-EVID-001",
+        "DEC-EVID-002",
+        "DEC-EVID-003",
+        "DEC-EVID-004",
+        "DEC-EVID-005",
+        "DEC-EVID-006"
+      ],
+      "checkedAt": "2026-10-10T02:28:57.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": "contract-reviewer",
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "DECISION_REQUIRED",
+          "findings": [
+            "DEC-EVID-002, 003, 004, 005 y 006 APROBADAS por el usuario en chat (2026-10-09); DEC-EVID-004 ampliada con IDEA-015 en el corte A.",
+            "DEC-EVID-001 (tasas null sin slots evaluables) PENDIENTE: bloquea solo el corte D.",
+            "Nota del leader: el validador exige noBlockingDecisions G-PASSED en W-IN_PROGRESS; DEC-EVID-001 se registra como no bloqueante del avance con alcance acotado al corte D. El leader NO toca el corte D ni cierra W-DONE hasta que el usuario la resuelva.",
+            "Cortes A (saneado + IDEA-015), B (persistencia y captura, migración aditiva) y C (ensamblado y rutas) implementables; contract-reviewer antes del primer corte que toque §6.16."
+          ],
+          "blockers": [
+            "DEC-EVID-001 (corte D)"
+          ],
+          "filesAffected": [
+            "harness/reports/wi-core-027-sdd-verification.md",
+            "spec/transversal/experimental-metrics/plan.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-027-sdd-verification.md",
+            "harness/reports/smart-v3-scope-approval.md"
+          ],
+          "recommendedNextStep": "Corte A; contract-reviewer sobre la enmienda B de §6.16; cortes B y C; consultar DEC-EVID-001 antes del corte D.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -6653,7 +6689,7 @@
       "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -6684,9 +6720,17 @@
     },
     "evidence": [
       "harness/reports/wi-core-027-contract-sync-scope-review.md",
-      "harness/reports/smart-v3-scope-approval.md"
+      "harness/reports/smart-v3-scope-approval.md",
+      "harness/reports/wi-core-027-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-027-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-027-sdd-verification.md"
+      ]
+    }
   }
 }
