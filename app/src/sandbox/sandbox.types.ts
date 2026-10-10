@@ -13,10 +13,12 @@ export interface TestCaseFact {
   status: 'PASSED' | 'FAILED' | 'SKIPPED' | 'TODO';
   durationMs: number | null;
   errorMessage: string | null;
+  /** DEC-PHP-GEN-002: ausente en Sandboxes anteriores; `ERROR` = fallo técnico (clase/método inexistente, excepción). */
+  failureKind?: 'ASSERTION' | 'ERROR' | null;
 }
 
 export interface RunnerFacts {
-  runner: 'JEST' | 'VITEST';
+  runner: 'JEST' | 'VITEST' | 'PHPUNIT';
   compiled: boolean;
   executed: boolean;
   passed: boolean;
@@ -78,7 +80,7 @@ export interface SandboxExecutionRequest {
   artifacts: SandboxArtifactInput[];
   scope: 'TARGET' | 'BATCH';
   targetIds: string[];
-  runnerHint: 'JEST' | 'VITEST';
+  runnerHint: 'JEST' | 'VITEST' | 'PHPUNIT';
   /** Perfil persistido al crear el experimento (WI-CORE-025); si se omite se deriva de runnerHint. */
   executionProfile?: ExecutionProfile;
 }

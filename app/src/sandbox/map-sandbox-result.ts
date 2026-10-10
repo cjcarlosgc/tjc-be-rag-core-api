@@ -71,8 +71,18 @@ export function mapSandboxResult(result: SandboxExecutionResult): MappedSandboxO
     };
   }
 
-  const failureType = !facts.compiled ? 'COMPILATION' : !facts.executed ? 'TEST_RUNTIME' : 'TEST_ASSERTION';
-  const failedCase = facts.testCases.find((testCase) => testCase.status === 'FAILED');
+  const failedCases = facts.testCases.filter((testCase) => testCase.status === 'FAILED');
+  // DEC-PHP-GEN-002: un caso fallido con failureKind ERROR es fallo técnico y gana sobre las aserciones.
+  // Sin failureKind (Sandbox anterior) o solo con ASSERTION se conserva la clasificación previa.
+  const errorCase = facts.compiled && facts.executed
+    ? failedCases.find((testCase) => testCase.failureKind === 'ERROR')
+    : undefined;
+  const failureType = !facts.compiled
+    ? 'COMPILATION'
+    : !facts.executed || errorCase
+      ? 'TEST_RUNTIME'
+      : 'TEST_ASSERTION';
+  const failedCase = errorCase ?? failedCases[0];
 
   return {
     status: 'INVALID',

@@ -366,6 +366,34 @@ describe('SandboxExecutionService', () => {
     expect(persisted).toMatchObject({ executionId: 'exec-persisted', executionProfile: 'NODE_TYPESCRIPT' });
   });
 
+  it('maps runnerHint PHPUNIT to PHP_LARAVEL_PHPUNIT and never sends phase in the body (WI-CORE-013, regla 4)', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-php', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const result = await service.execute({
+      requestId: 'request-php',
+      testRunId: 'run-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'key',
+      snapshotBuffer: Buffer.from('zip'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'PHPUNIT',
+    });
+
+    expect(result).toMatchObject({ executionId: 'exec-php', executionProfile: 'PHP_LARAVEL_PHPUNIT' });
+    const postedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(postedBody.executionProfile).toBe('PHP_LARAVEL_PHPUNIT');
+    expect(postedBody.runnerHint).toBe('PHPUNIT');
+    expect(postedBody).not.toHaveProperty('phase');
+  });
+
   it('keeps the executionId in the error when the Sandbox accepted the execution but never produced a result (WI-CORE-026)', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
