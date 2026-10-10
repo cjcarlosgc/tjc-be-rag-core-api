@@ -329,3 +329,130 @@ describe('sanitizeFailureMessage regresiones del ciclo 1 de revisión (WI-CORE-0
     });
   });
 });
+
+/**
+ * WI-CORE-027 (DEC-EVID-004, IDEA-016): familias nuevas del saneado. Cada familia tiene su caso positivo, sus
+ * casos negativos (el criterio es cerrado y no debe sobre-redactar), una prueba de idempotencia, otra de
+ * redacción antes de truncar en cada posición y peores casos de rendimiento a 200 000 caracteres.
+ */
+describe('sanitizeFailureMessage familias de WI-CORE-027 (DEC-EVID-004)', () => {
+  const N = 200_000;
+  const TOKEN = 'Zq9Wx7Vb2Mn4Pr8Lk';
+
+  function timedSanitize(input: string): { output: string; elapsedMs: number } {
+    const started = performance.now();
+    const output = sanitizeFailureMessage(input);
+    return { output, elapsedMs: performance.now() - started };
+  }
+
+  describe('positivos por familia', () => {
+    it.each([
+      ['Slack xoxb-', 'Slack xoxb-123456789012-abcdefABCDEF fallo', 'Slack [REDACTED] fallo'],
+      ['Slack xoxp-', 'token xoxp-1-2-3abcdefgh fin', 'token [REDACTED] fin'],
+      ['Stripe sk_live_', 'key sk_live_4eC39HqLyjWDarjtT1zdp7dc end', 'key [REDACTED] end'],
+      ['Stripe sk_test_', 'sk_test_4eC39HqLyjWDarjtT1zdp7dc', '[REDACTED]'],
+      ['Stripe rk_live_', 'rk_live_4eC39HqLyjWDarjtT1zdp7dc', '[REDACTED]'],
+      ['Google AIza', `AIza${'Sy'}${'a1'.repeat(15)} fin`, '[REDACTED] fin'],
+      ['npm_', `npm_${'a1'.repeat(15)}`, '[REDACTED]'],
+      ['Cookie:', 'Cookie: sid=abc123; theme=dark', 'Cookie: [REDACTED]'],
+      ['Set-Cookie:', 'Set-Cookie: sid=abc123; Path=/', 'Set-Cookie: [REDACTED]'],
+      ['Cookie en mitad de prosa', 'request failed Cookie: sid=1 tail', 'request failed Cookie: [REDACTED]'],
+      ['credential=', 'credential=abc123 ok', 'credential=[REDACTED] ok'],
+      ['auth=', 'auth=abc123 ok', 'auth=[REDACTED] ok'],
+      ['signature=', 'signature=abc123', 'signature=[REDACTED]'],
+      ['sig=', 'sig=abc123', 'sig=[REDACTED]'],
+      ['password sin separador', 'password hunter2', 'password [REDACTED]'],
+      ['token sin separador', 'token ab12cd tail', 'token [REDACTED] tail'],
+      [
+        'webhook de Slack en la ruta',
+        'https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXXXXXXXXX',
+        'https://hooks.slack.com/services/[REDACTED]',
+      ],
+      [
+        'segmento largo tras /token/',
+        'https://x.io/token/abcdefghijklmnopqrstuv/path',
+        'https://x.io/token/[REDACTED]/path',
+      ],
+      ['segmento largo tras /key/', 'https://x.io/key/abcdefghijklmnopqrstuv', 'https://x.io/key/[REDACTED]'],
+    ])('redacta %s', (_name, input, expected) => {
+      const sanitized = sanitizeFailureMessage(input);
+      expect(sanitized).toBe(expected);
+      expect(sanitizeFailureMessage(sanitized)).toBe(sanitized);
+    });
+  });
+
+  describe('negativos: el criterio cerrado no sobre-redacta', () => {
+    it.each([
+      ['author= no es auth=', 'author=Ana'],
+      ['design= no es sig=', 'design=dark'],
+      ['palabra sensible seguida de prosa', 'token expired after retries'],
+      ['password seguido de palabra sin dígito', 'password format rules'],
+      ['task_live_ no es sk_live_', 'task_live_4eC39HqLyjWDarjtT1zdp7dc'],
+      ['ruta corta con /key/', 'https://example.com/docs/key/short'],
+      ['ruta normal', 'https://example.com/api/v1/items/abc'],
+      ['SHA de commit en ruta', 'https://github.com/o/r/commit/0123456789abcdef0123456789abcdef01234567'],
+    ])('no toca %s', (_name, input) => {
+      expect(sanitizeFailureMessage(input)).toBe(input);
+    });
+  });
+
+  it('es idempotente sobre una mezcla de todas las familias nuevas', () => {
+    const mixed =
+      'xoxb-123456789012-abcdefABCDEF sk_live_4eC39HqLyjWDarjtT1zdp7dc AIzaSy' +
+      'a1'.repeat(15) +
+      ` npm_${'a1'.repeat(15)} Cookie: sid=1; x=2 password hunter2 credential=abc ` +
+      'https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXXXXXXXXX https://x.io/token/abcdefghijklmnopqrstuv';
+    const once = sanitizeFailureMessage(mixed);
+    expect(sanitizeFailureMessage(once)).toBe(once);
+    expect(once).not.toMatch(/xoxb-|sk_live_|AIza|npm_a|sid=1|hunter2|credential=abc|XXXXXXXX|abcdefghijklmnop/);
+  });
+
+  it('redacta antes de truncar en cada posición de corte para las familias nuevas', () => {
+    const FAMILIES: ReadonlyArray<{ name: string; secret: string }> = [
+      { name: 'Slack', secret: `xoxb-${TOKEN}` },
+      { name: 'Stripe', secret: `sk_live_${TOKEN}` },
+      { name: 'npm', secret: `npm_${TOKEN}Pr8Lk` },
+      { name: 'Cookie', secret: `Cookie: sid=${TOKEN}` },
+      { name: 'webhook Slack', secret: `https://hooks.slack.com/services/T0A1B2C/B3D4E5F/${TOKEN}` },
+      { name: 'segmento /token/', secret: `https://x.io/token/${TOKEN}Pr8Lk` },
+      { name: 'password sin separador', secret: `password ${TOKEN}` },
+      { name: 'credential=', secret: `credential=${TOKEN}` },
+    ];
+    const failures: string[] = [];
+    for (const family of FAMILIES) {
+      for (let start = 0; start < FAILURE_MESSAGE_MAX_LENGTH; start += 1) {
+        const output = sanitizeFailureMessage(`${'x'.repeat(start)} ${family.secret} ${'tail '.repeat(120)}`);
+        if (output.includes('Zq9W')) failures.push(`${family.name}@${start}: fuga`);
+        if (output.length > FAILURE_MESSAGE_MAX_LENGTH) failures.push(`${family.name}@${start}: longitud`);
+        if (sanitizeFailureMessage(output) !== output) failures.push(`${family.name}@${start}: no idempotente`);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  describe('rendimiento: peores casos de las familias nuevas a 200 000 caracteres', () => {
+    it.each([
+      ['xoxb- largo', `xoxb-${'a'.repeat(N)}`],
+      ['sk_live_ largo', `sk_live_${'a'.repeat(N)}`],
+      ['AIza largo', `AIza${'a'.repeat(N)}`],
+      ['npm_ repetido', 'npm_'.repeat(N / 4)],
+      ['Cookie: sin valor seguido de espacios', `Cookie:${' '.repeat(N)}x`],
+      ['Cookie: con muchos ;', `Cookie: ${'a;'.repeat(N / 2)}`],
+      ['Set-Cookie: repetido', 'Set-Cookie: '.repeat(N / 12)],
+      ['palabra sensible sin dígito', `password ${'a'.repeat(N)}`],
+      ['palabra sensible con dígito al final', `password ${'a'.repeat(N)}1`],
+      ['token seguido de espacios repetidos', `token${' '.repeat(N)}x`],
+      ['token repetido', 'token '.repeat(N / 6)],
+      ['credential= repetido', 'credential='.repeat(N / 11)],
+      ['sig= repetido', 'sig='.repeat(N / 4)],
+      ['webhook Slack con T repetida', `https://h.example/services/${'T'.repeat(N)}`],
+      ['segmento /token/ largo', `https://h.example/token/${'a'.repeat(N)}`],
+      ['segmentos /key/ repetidos', `https://h.example${'/key/'.repeat(N / 5)}`],
+      ['esquemas repetidos', 'https://'.repeat(N / 8)],
+    ])('%s sanea en menos de 250 ms y acota la salida', (_name, input) => {
+      const { output, elapsedMs } = timedSanitize(input);
+      expect(elapsedMs).toBeLessThan(250);
+      expect(output.length).toBeLessThanOrEqual(FAILURE_MESSAGE_MAX_LENGTH);
+    });
+  });
+});

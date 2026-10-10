@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
   ExecutionProfile,
@@ -220,8 +221,9 @@ export class SandboxExecutionService {
       // `ExperimentRepetition` (ese modelo no tiene columna de mensaje); sin
       // este log, el detalle real del Sandbox (p. ej. qué dependencia falta)
       // se pierde para siempre en los experimentos.
+      // WI-CORE-027 (IDEA-016): el mensaje se registra saneado; el canal de logs no debe recibir secretos.
       this.logger.warn(
-        `Ejecución ${executionId} falló en ${result.failure.stage} (${result.failure.category}/${result.failure.code}): ${result.failure.message}`,
+        `Ejecución ${executionId} falló en ${result.failure.stage} (${result.failure.category}/${result.failure.code}): ${sanitizeFailureMessage(String(result.failure.message))}`,
       );
     }
 

@@ -95,4 +95,116 @@ describe('mapSandboxResult', () => {
       errorSummary: 'expected true',
     });
   });
+
+  describe('WI-CORE-027 (IDEA-015): failure.category validada y errorSummary saneado', () => {
+    const failedSandbox = (
+      failure: Record<string, unknown> | null,
+    ): SandboxExecutionResult =>
+      ({
+        status: 'FAILED',
+        facts: null,
+        failure,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'NODE_TYPESCRIPT',
+      }) as unknown as SandboxExecutionResult;
+
+    it.each(['COMPILATION', 'TEST_ASSERTION', 'TEST_RUNTIME', 'DEPENDENCY', 'CONFIGURATION', 'INFRASTRUCTURE', 'UNKNOWN'])(
+      'conserva la categoría válida %s',
+      (category) => {
+        const outcome = mapSandboxResult(
+          failedSandbox({ stage: 'COMPILING', category, code: 'E1', message: 'x' }),
+        );
+        expect(outcome.failureType).toBe(category);
+      },
+    );
+
+    it.each([
+      ['un valor fuera del enum', 'SOMETHING_ELSE'],
+      ['NONE, que nunca es un fallo', 'NONE'],
+      ['una categoría en minúsculas', 'dependency'],
+      ['un valor no textual', 42],
+      ['un null', null],
+    ])('convierte %s en UNKNOWN', (_name, category) => {
+      const outcome = mapSandboxResult(
+        failedSandbox({ stage: 'COMPILING', category, code: 'E1', message: 'x' }),
+      );
+      expect(outcome.failureType).toBe('UNKNOWN');
+    });
+
+    it('convierte una categoría ausente en UNKNOWN cuando no hay hecho de fallo', () => {
+      const outcome = mapSandboxResult(failedSandbox(null));
+      expect(outcome).toMatchObject({
+        failureType: 'UNKNOWN',
+        errorSummary: 'El Sandbox no pudo completar la ejecución.',
+      });
+    });
+
+    it('sanea el mensaje de un fallo FAILED antes de errorSummary, sin cambiar el texto de la forma', () => {
+      const outcome = mapSandboxResult(
+        failedSandbox({
+          stage: 'INSTALLING_DEPENDENCIES',
+          category: 'DEPENDENCY',
+          code: 'NPM',
+          message: 'npm ERR! registry https://user:hunter@registry.example/pkg?token=abc123 password hunter2',
+        }),
+      );
+      expect(outcome.errorSummary).toBe(
+        'npm ERR! registry https://[REDACTED]@registry.example/pkg password [REDACTED]',
+      );
+      expect(Object.keys(outcome).sort()).toEqual(
+        ['compiled', 'errorSummary', 'executed', 'failureType', 'passed', 'status', 'valid'],
+      );
+    });
+
+    it('sanea errorMessage de la prueba fallida y limita errorSummary a 500 caracteres', () => {
+      const outcome = mapSandboxResult({
+        status: 'COMPLETED',
+        facts: makeFacts({
+          passed: false,
+          testCases: [
+            {
+              suitePath: null,
+              name: 'x',
+              status: 'FAILED',
+              durationMs: 1,
+              errorMessage: `Authorization: Bearer abc.def-123 ${'z'.repeat(900)}`,
+            },
+          ],
+        }),
+        failure: null,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'NODE_TYPESCRIPT',
+      });
+      expect(outcome.errorSummary?.startsWith('Authorization: [REDACTED] ')).toBe(true);
+      expect(outcome.errorSummary).not.toContain('abc.def-123');
+      expect(outcome.errorSummary).toHaveLength(500);
+    });
+
+    it('mantiene los textos constantes y null tal como estaban', () => {
+      const passing = mapSandboxResult({
+        status: 'COMPLETED',
+        facts: makeFacts(),
+        failure: null,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'NODE_TYPESCRIPT',
+      });
+      expect(passing.errorSummary).toBeNull();
+      const timedOut = mapSandboxResult({
+        status: 'TIMED_OUT',
+        facts: null,
+        failure: null,
+        stageDurations: [],
+        executionId: 'exec-1',
+        executionProfile: 'NODE_TYPESCRIPT',
+      });
+      expect(timedOut.errorSummary).toBe(SANDBOX_TIMED_OUT_ERROR_SUMMARY);
+      const failed = mapSandboxResult(
+        failedSandbox({ stage: 'COMPILING', category: 'COMPILATION', code: 'E1', message: 'Cannot find name' }),
+      );
+      expect(failed.errorSummary).toBe('Cannot find name');
+    });
+  });
 });

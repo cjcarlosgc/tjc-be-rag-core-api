@@ -509,6 +509,49 @@ describe('ExperimentsService', () => {
   });
 
   describe('getResults', () => {
+    it('sanitizes errorSummary idempotently when mapping, without changing the repetition keys (WI-CORE-027, IDEA-015)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1',
+        projectVersionId: 'version-1',
+        targetId: 'target-1',
+        status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+        modelConfig: { provider: 'openai', model: 'gpt-6-luna', modelVersion: 'v-2026', reasoningEffort: 'xhigh', temperature: 0.2, maxOutputTokens: null },
+      });
+      const base = {
+        attempt: 1, valid: false, failureType: 'DEPENDENCY', generationDurationMs: 10, executionDurationMs: null,
+        totalDurationMs: 10, inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+        compiled: null, executed: null, passed: null, retrievedChunks: null, selectedChunks: null,
+        contextTokens: null, toolCalls: null, filesInspected: null, pairId: null, pairPosition: null,
+        technicallyEvaluable: true,
+      };
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([
+        {
+          ...base, repetition: 1, strategy: 'RAG',
+          errorSummary: 'npm ERR https://u:p@r.example/x?sig=1 password hunter2',
+        },
+        { ...base, repetition: 1, strategy: 'GENERALIST_AGENT', errorSummary: null },
+      ]);
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+
+      expect(results.repetitions[0].errorSummary).toBe(
+        'npm ERR https://[REDACTED]@r.example/x password [REDACTED]',
+      );
+      expect(results.repetitions[1].errorSummary).toBeNull();
+      expect(Object.keys(results.repetitions[0]).sort()).toEqual(
+        Object.keys(results.repetitions[1]).sort(),
+      );
+      // Idempotente: una fila ya saneada por una escritura anterior no cambia al mapear otra vez.
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([
+        { ...base, repetition: 1, strategy: 'RAG', errorSummary: results.repetitions[0].errorSummary },
+      ]);
+      const again = await makeService(deps).getResults('exp-1', OWNER_USER_ID);
+      expect(again.repetitions[0].errorSummary).toBe(results.repetitions[0].errorSummary);
+    });
+
     it('maps pairing fields, nullable execution duration and model fields per repetition and strategy', async () => {
       const deps = makeDeps();
       deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({

@@ -19,6 +19,16 @@ export type ExperimentRepetitionFailure = {
 
 export const EXPERIMENT_FAILURE_CODE_MAX_LENGTH = 64;
 
+/**
+ * WI-CORE-027 (DEC-EVID-004): forma válida de `code` tras recortar espacios. `code` lo produce el Sandbox y sale
+ * como `failureCode` en la evidencia, así que solo se admiten identificadores cortos (`TS2304`,
+ * `NPM_INSTALL_FAILED`, `E1.2:x`). Un valor fuera de esta forma no se trunca ni se redacta: el hecho completo
+ * queda `null`, igual que un `code` vacío.
+ */
+const EXPERIMENT_FAILURE_CODE_PATTERN = new RegExp(
+  `^[A-Za-z0-9_.:-]{1,${EXPERIMENT_FAILURE_CODE_MAX_LENGTH}}$`,
+);
+
 const SANDBOX_STAGES: readonly SandboxStage[] = [
   'PREPARING',
   'INSTALLING_DEPENDENCIES',
@@ -41,15 +51,14 @@ function isOneOf<T extends string>(values: readonly T[], value: unknown): value 
   return typeof value === 'string' && (values as readonly string[]).includes(value);
 }
 
-function truncateToCodePoints(text: string, maxLength: number): string {
-  return Array.from(text).slice(0, maxLength).join('');
-}
-
 /**
  * Traduce el hecho de fallo del Sandbox al que se persiste. No inventa valores: devuelve `null` si no hay
- * hecho, si `stage` o `category` están fuera de su conjunto, si `code` queda vacío tras recortar espacios o
- * si `message` no es texto. `code` se trunca a 64 caracteres; `message` se redacta y después se trunca a 500
- * (`sanitizeFailureMessage`). Ningún otro campo de la respuesta del Sandbox se conserva.
+ * hecho, si `stage` o `category` están fuera de su conjunto, si `message` no es texto, o si `code` no cumple
+ * `EXPERIMENT_FAILURE_CODE_PATTERN` tras recortar espacios (vacío, más de 64 caracteres o con otros símbolos).
+ * Decisión de WI-CORE-027: un `code` fuera de forma invalida el hecho completo en lugar de truncarse o
+ * redactarse, porque un código truncado sería un dato inventado. También se rechaza un `code` que el saneado
+ * de mensajes altere (p. ej. `sk-…` o un JWT escrito como código): tampoco se persiste. `message` se redacta y
+ * después se trunca a 500 (`sanitizeFailureMessage`). Ningún otro campo de la respuesta del Sandbox se conserva.
  */
 export function toExperimentRepetitionFailure(
   failure: SandboxFailureFact | null | undefined,
@@ -64,12 +73,14 @@ export function toExperimentRepetitionFailure(
   if (typeof code !== 'string' || typeof message !== 'string') return null;
 
   const trimmedCode = code.trim();
-  if (trimmedCode.length === 0) return null;
+  if (!EXPERIMENT_FAILURE_CODE_PATTERN.test(trimmedCode)) return null;
+  // Un código con forma de secreto (p. ej. `ghp_…` o `sk-…`, que cumplen el patrón) no se persiste.
+  if (sanitizeFailureMessage(trimmedCode) !== trimmedCode) return null;
 
   return {
     stage,
     category,
-    code: truncateToCodePoints(trimmedCode, EXPERIMENT_FAILURE_CODE_MAX_LENGTH),
+    code: trimmedCode,
     message: sanitizeFailureMessage(message),
   };
 }

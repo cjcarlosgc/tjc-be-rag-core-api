@@ -37,9 +37,34 @@ describe('toExperimentRepetitionFailure (WI-CORE-007)', () => {
     expect(toExperimentRepetitionFailure({ ...VALID, code: 7 } as never)).toBeNull();
   });
 
-  it('truncates code to 64 characters', () => {
-    const result = toExperimentRepetitionFailure({ ...VALID, code: 'C'.repeat(100) });
-    expect(result?.code).toBe('C'.repeat(64));
+  describe('code (WI-CORE-027, DEC-EVID-004): forma validada, sin truncar ni redactar', () => {
+    it('keeps a code of exactly 64 characters of the allowed alphabet', () => {
+      const code = `E_${'C'.repeat(62)}`;
+      expect(code).toHaveLength(64);
+      expect(toExperimentRepetitionFailure({ ...VALID, code })?.code).toBe(code);
+    });
+
+    it('answers null for a code longer than 64 characters, without truncating it', () => {
+      expect(toExperimentRepetitionFailure({ ...VALID, code: 'C'.repeat(100) })).toBeNull();
+      expect(toExperimentRepetitionFailure({ ...VALID, code: 'C'.repeat(65) })).toBeNull();
+    });
+
+    it('accepts identifiers with letters, digits, dot, colon, dash and underscore', () => {
+      for (const code of ['TS2304', 'NPM_INSTALL_FAILED', 'E1.2:x-y', ' TS2304 ']) {
+        expect(toExperimentRepetitionFailure({ ...VALID, code })?.code).toBe(code.trim());
+      }
+    });
+
+    it('answers null for a code with characters outside the alphabet, not redacted', () => {
+      for (const code of ['TS 2304', 'a/b', 'code=1', 'línea', 'x\ny', 'a"b']) {
+        expect(toExperimentRepetitionFailure({ ...VALID, code })).toBeNull();
+      }
+    });
+
+    it('answers null for a code that has the shape of a secret', () => {
+      expect(toExperimentRepetitionFailure({ ...VALID, code: 'ghp_0123456789abcdefABCDEF' })).toBeNull();
+      expect(toExperimentRepetitionFailure({ ...VALID, code: 'sk-abcdefgh1234' })).toBeNull();
+    });
   });
 
   it('redacts secrets in message and truncates it to 500 characters', () => {

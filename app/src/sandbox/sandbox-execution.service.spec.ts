@@ -265,6 +265,51 @@ describe('SandboxExecutionService', () => {
     ).rejects.toBeInstanceOf(SandboxUnavailableError);
   });
 
+  it('logs the failure message sanitized, without secrets (WI-CORE-027, IDEA-016)', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'FAILED' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: 'FAILED',
+          facts: null,
+          failure: {
+            stage: 'INSTALLING_DEPENDENCIES',
+            category: 'DEPENDENCY',
+            code: 'NPM_INSTALL_FAILED',
+            message: 'clone https://user:hunter@git.example/r.git password hunter2 Cookie: sid=9',
+          },
+          stageDurations: [],
+        }),
+      );
+
+    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+
+    await service.execute({
+      requestId: 'request-1',
+      testRunId: 'run-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'key',
+      snapshotBuffer: Buffer.from('zip'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'VITEST',
+    });
+
+    const logged = warnSpy.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain(
+      'clone https://[REDACTED]@git.example/r.git password [REDACTED] Cookie: [REDACTED]',
+    );
+    expect(logged).not.toMatch(/hunter|sid=9|user:/);
+
+    warnSpy.mockRestore();
+  });
+
   it('logs the detailed sandbox failure reason when the result includes one', async () => {
     const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const fetchMock = vi.fn();

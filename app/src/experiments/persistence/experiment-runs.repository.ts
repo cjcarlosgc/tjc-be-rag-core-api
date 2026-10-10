@@ -12,7 +12,23 @@ import {
 import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
 import { accessibleProject } from '../../common/persistence/accessible-project.filter.js';
 import type { LLMEffectiveConfig } from '../../providers/llm-provider.interface.js';
-import type { ExperimentRepetitionFailure } from '../experiment-failure-fact.js';
+import {
+  toExperimentRepetitionFailure,
+  type ExperimentRepetitionFailure,
+} from '../experiment-failure-fact.js';
+
+/**
+ * WI-CORE-027 (DEC-EVID-004): guarda del límite de escritura para el hecho de fallo. Lo vuelve a normalizar
+ * aunque el caller ya lo haya saneado (idempotente con `toExperimentRepetitionFailure`), así que un caller
+ * futuro no puede persistir un hecho sin normalizar. Un hecho inválido se descarta (`undefined`): la columna
+ * queda NULL y nunca se escribe un `null` explícito en la columna Json.
+ */
+function normalizeWriteFailure(
+  failure: ExperimentRepetitionFailure | undefined,
+): ExperimentRepetitionFailure | undefined {
+  if (failure === undefined) return undefined;
+  return toExperimentRepetitionFailure(failure) ?? undefined;
+}
 
 /** Presupuesto resuelto al crear el experimento (WI-CORE-025, INTEROP-2.7 §6.5.1). */
 export type ExperimentBudget = {
@@ -280,8 +296,14 @@ export class ExperimentRunsRepository {
     experimentId: string,
     repetition: ExperimentRepetitionInput,
   ): Promise<ExperimentRepetition> {
+    const { failure, ...columns } = repetition;
+    const normalizedFailure = normalizeWriteFailure(failure);
     return this.prisma.experimentRepetition.create({
-      data: { experimentId, ...repetition },
+      data: {
+        experimentId,
+        ...columns,
+        ...(normalizedFailure === undefined ? {} : { failure: normalizedFailure }),
+      },
     });
   }
 
@@ -301,6 +323,7 @@ export class ExperimentRunsRepository {
       failure,
       ...metrics
     } = repetition;
+    const normalizedFailure = normalizeWriteFailure(failure);
 
     const { count } = await this.prisma.experimentRepetition.updateMany({
       where: { id, state: ExperimentRepetitionState.RUNNING },
@@ -309,7 +332,7 @@ export class ExperimentRunsRepository {
         state,
         ...(trajectory === undefined ? {} : { trajectory }),
         // WI-CORE-007: sin hecho no se escribe la clave (nunca un null explícito en una columna Json).
-        ...(failure === undefined ? {} : { failure }),
+        ...(normalizedFailure === undefined ? {} : { failure: normalizedFailure }),
       },
     });
 

@@ -379,6 +379,21 @@ describe('AnalysisRunValidationJobHandler', () => {
     );
   });
 
+  it('persists the failure summary sanitized when the exception message carries a secret (WI-CORE-027, IDEA-015)', async () => {
+    const { handler, sandboxExecutionService, generatedTestProposalsRepository } = await setup();
+    sandboxExecutionService.execute.mockRejectedValue(
+      new SandboxUnavailableError('Descarga fallida https://u:hunter@storage.example/o.zip?X-Amz-Signature=abc password hunter2'),
+    );
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    const persisted = generatedTestProposalsRepository.upsertForSymbol.mock.calls
+      .map((call) => call[0].failureSummary)
+      .join('\n');
+    expect(persisted).toContain('Descarga fallida https://[REDACTED]@storage.example/o.zip password [REDACTED]');
+    expect(persisted).not.toMatch(/hunter|X-Amz-Signature|abc/);
+  });
+
   it('treats a Sandbox-unavailable symbol as a per-symbol failure without aborting the whole run', async () => {
     const { handler, sandboxExecutionService, analysisRunsService, generatedTestProposalsRepository } = await setup();
     sandboxExecutionService.execute.mockRejectedValue(new SandboxUnavailableError('Sandbox no disponible.'));

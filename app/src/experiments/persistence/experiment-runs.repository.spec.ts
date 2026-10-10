@@ -731,4 +731,69 @@ describe('ExperimentRunsRepository failure fact (WI-CORE-007)', () => {
 
     expect(tx.experimentRepetition.updateMany.mock.calls[0][0].data).not.toHaveProperty('failure');
   });
+
+  describe('guarda del límite de escritura (WI-CORE-027, DEC-EVID-004)', () => {
+    it('updateRepetitionById normalizes a fact the caller did not sanitize before writing it', async () => {
+      const update = vi.fn().mockResolvedValue({ count: 1 });
+      const repository = new ExperimentRunsRepository({
+        experimentRepetition: { updateMany: update },
+      } as never);
+
+      await repository.updateRepetitionById(
+        'repetition-1',
+        {
+          ...metrics,
+          failure: { ...FAILURE, message: 'password=hunter2 y https://u:p@h.example/a?sig=1' },
+        },
+        'FAILED',
+      );
+
+      const written = update.mock.calls[0][0].data.failure;
+      expect(written.message).toBe('password=[REDACTED] y https://[REDACTED]@h.example/a');
+      expect(written).toEqual({ ...FAILURE, message: written.message });
+    });
+
+    it('updateRepetitionById discards a fact whose code is outside the allowed shape (column stays NULL)', async () => {
+      const update = vi.fn().mockResolvedValue({ count: 1 });
+      const repository = new ExperimentRunsRepository({
+        experimentRepetition: { updateMany: update },
+      } as never);
+
+      await repository.updateRepetitionById(
+        'repetition-1',
+        { ...metrics, failure: { ...FAILURE, code: 'C'.repeat(100) } },
+        'FAILED',
+      );
+
+      expect(update.mock.calls[0][0].data).not.toHaveProperty('failure');
+    });
+
+    it('insertRepetition normalizes the fact and keeps the other columns unchanged', async () => {
+      const create = vi.fn().mockResolvedValue({ id: 'rep-1' });
+      const repository = new ExperimentRunsRepository({
+        experimentRepetition: { create },
+      } as never);
+
+      await repository.insertRepetition('exp-1', {
+        ...metrics,
+        failure: { ...FAILURE, message: 'Authorization: Bearer abc.def-123' },
+      } as never);
+
+      const data = create.mock.calls[0][0].data;
+      expect(data.experimentId).toBe('exp-1');
+      expect(data.failure).toEqual({ ...FAILURE, message: 'Authorization: [REDACTED]' });
+      expect(data.failureType).toBe('COMPILATION');
+    });
+
+    it('insertRepetition omits the failure key when there is no fact', async () => {
+      const create = vi.fn().mockResolvedValue({ id: 'rep-1' });
+      const repository = new ExperimentRunsRepository({
+        experimentRepetition: { create },
+      } as never);
+
+      await repository.insertRepetition('exp-1', metrics as never);
+
+      expect(create.mock.calls[0][0].data).not.toHaveProperty('failure');
+    });
+  });
 });

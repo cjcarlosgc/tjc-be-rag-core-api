@@ -24,6 +24,7 @@ import {
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
 import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-result.js';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import { GeneratedTestProposalsRepository } from './generated-test-proposals.repository.js';
@@ -305,7 +306,10 @@ export class AnalysisRunValidationJobHandler
         relativePath,
         content: mergedContent,
         status: 'HELD',
-        failureSummary: outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
+        // WI-CORE-027 (IDEA-015): el resumen de fallo se sanea antes de persistirse.
+        failureSummary: sanitizeFailureMessage(
+          outcome.errorSummary ?? 'La prueba generada no pasó en el Sandbox.',
+        ),
         contextId,
       });
       await this.recordExecutionBestEffort(run, proposalId, sandboxResult, kind);
@@ -324,7 +328,8 @@ export class AnalysisRunValidationJobHandler
         relativePath: coLocatedSpecPath(symbol.filePath),
         content: '',
         status: 'HELD',
-        failureSummary: summary,
+        // WI-CORE-027 (IDEA-015): el mensaje de excepción puede traer URLs firmadas o credenciales.
+        failureSummary: sanitizeFailureMessage(summary),
         contextId,
       });
       // Solo si el Sandbox aceptó la ejecución hay un executionId que conservar (WI-CORE-026). Best-effort:

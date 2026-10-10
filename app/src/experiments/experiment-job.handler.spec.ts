@@ -2487,7 +2487,7 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     expect(writesOf(deps).every((write) => !('failure' in write))).toBe(true);
   });
 
-  it('leaves failure absent when the code is empty and truncates a longer code to 64 characters', async () => {
+  it('leaves failure absent when the code is empty or outside the allowed shape (WI-CORE-027, DEC-EVID-004)', async () => {
     const empty = makeDeps({
       sandboxExecutionService: {
         execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: '' })),
@@ -2496,13 +2496,22 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     await makeHandler(empty.deps).handle(payload, 'job-wf-9');
     expect(writesOf(empty.deps).every((write) => !('failure' in write))).toBe(true);
 
+    // Antes se truncaba a 64; ahora un código de más de 64 caracteres invalida el hecho completo.
     const long = makeDeps({
       sandboxExecutionService: {
         execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: 'C'.repeat(100) })),
       },
     });
     await makeHandler(long.deps).handle(payload, 'job-wf-10');
-    expect((writesOf(long.deps)[0].failure as { code: string }).code).toBe('C'.repeat(64));
+    expect(writesOf(long.deps).every((write) => !('failure' in write))).toBe(true);
+
+    const withSpaces = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: 'TS 2304' })),
+      },
+    });
+    await makeHandler(withSpaces.deps).handle(payload, 'job-wf-11');
+    expect(writesOf(withSpaces.deps).every((write) => !('failure' in write))).toBe(true);
   });
 
   it('sends the fact to the RUNNING-guarded write only, so a closed attempt is not rewritten (H3)', async () => {

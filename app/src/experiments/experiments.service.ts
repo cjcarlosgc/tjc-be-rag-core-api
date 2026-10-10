@@ -7,6 +7,7 @@ import { JobsService } from '../jobs/jobs.service.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { ProjectVersionStatus, ExperimentStatus as PrismaExperimentStatus } from '../generated/prisma/enums.js';
 import { ExperimentRunsRepository, type ExperimentBudget } from './persistence/experiment-runs.repository.js';
 import { EXPERIMENT_JOB_TYPE, type ExperimentJobPayload } from './experiment-job.handler.js';
@@ -289,7 +290,12 @@ export class ExperimentsService {
         strategy: repetition.strategy,
         valid: repetition.valid ?? false,
         failureType: (repetition.failureType ?? 'UNKNOWN') as FailureType,
-        errorSummary: repetition.errorSummary,
+        // WI-CORE-027 (IDEA-015): saneado idempotente al mapear; cubre filas escritas antes del saneado. El
+        // contenido cambia, la forma del DTO no.
+        errorSummary:
+          typeof repetition.errorSummary === 'string'
+            ? sanitizeFailureMessage(repetition.errorSummary)
+            : repetition.errorSummary,
         generationDurationMs: repetition.generationDurationMs ?? 0,
         executionDurationMs: repetition.executionDurationMs,
         totalDurationMs: repetition.totalDurationMs ?? 0,
