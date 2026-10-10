@@ -6873,6 +6873,30 @@
             "effort": "high"
           },
           "reason": "Escalado a implementer-high: concurrencia."
+        },
+        {
+          "agent": "implementer-high",
+          "status": "APPROVED",
+          "findings": [
+            "Corte F (275f687): sandbox[].durationMs de EXPERIMENT desde executionDurationMs (toCount), durationMs negativo persistido como null, etiqueta del namespace URL, nota de toRunnerHint (PHPUNIT) para WI-CORE-028.",
+            "Verificación del leader: cada commit compila (a5513a8 y 275f687: build 0, tsc 43), lint 0, test 1979 (x3), e2e 246.",
+            "Deudas: executionDurationMs negativo de la repetición de EXPERIMENT se guarda tal cual (sin CHECK) y la evidencia lo emite null vía toCount; aceptado como deuda explícita, sin 0 inventado en agregados. runnerHint es string|null en §6.16 y el DTO sigue en JEST|VITEST|null hasta WI-CORE-028."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/evidence",
+            "app/src/analysis-runs/persistence"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-027-contract-review-c.md"
+          ],
+          "recommendedNextStep": "Corte D.",
+          "executedBy": {
+            "agent": "implementer-high",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "high"
+          }
         }
       ],
       "reviewCycles": 0,
@@ -6913,7 +6937,9 @@
           "checkedAt": "2026-10-10T02:05:35.389Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261009-014"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
