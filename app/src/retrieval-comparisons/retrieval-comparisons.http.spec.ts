@@ -12,7 +12,6 @@ import { IdempotencyService } from '../common/idempotency/idempotency.service.js
 import { JobsService } from '../jobs/jobs.service.js';
 import { ProjectRoleGuard } from '../project-access/project-role.guard.js';
 import { ProjectAccessService } from '../project-access/project-access.service.js';
-import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { RetrievalComparisonsRepository } from './persistence/retrieval-comparisons.repository.js';
 import { RetrievalComparisonsController } from './retrieval-comparisons.controller.js';
 import { RetrievalComparisonsService } from './retrieval-comparisons.service.js';
@@ -79,7 +78,6 @@ describe('Retrieval comparisons HTTP contract (INTEROP-2.7 §6.15)', () => {
   let symbols: { findByAnalysisRun: ReturnType<typeof vi.fn> };
   let repository: Record<string, ReturnType<typeof vi.fn>>;
   let jobs: { enqueue: ReturnType<typeof vi.fn> };
-  let projectVersions: { findById: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     projectAccess = { requireForResource: vi.fn().mockResolvedValue({ project: {}, role: 'WRITER' }) };
@@ -94,7 +92,6 @@ describe('Retrieval comparisons HTTP contract (INTEROP-2.7 §6.15)', () => {
       listByAnalysisRun: vi.fn().mockResolvedValue([]),
     };
     jobs = { enqueue: vi.fn().mockResolvedValue('job-1') };
-    projectVersions = { findById: vi.fn().mockResolvedValue({ id: 'version-1', language: 'TYPESCRIPT' }) };
 
     @Module({
       controllers: [RetrievalComparisonsController],
@@ -107,7 +104,6 @@ describe('Retrieval comparisons HTTP contract (INTEROP-2.7 §6.15)', () => {
         { provide: JobsService, useValue: jobs },
         { provide: IdempotencyService, useValue: new IdempotencyService(makeIdempotencyPrisma() as never) },
         { provide: ConfigService, useValue: { get: (_key: string, fallback: unknown) => fallback } },
-        { provide: ProjectVersionsRepository, useValue: projectVersions },
         { provide: APP_GUARD, useClass: ProjectRoleGuard },
       ],
     })
@@ -239,12 +235,11 @@ describe('Retrieval comparisons HTTP contract (INTEROP-2.7 §6.15)', () => {
       expect(jobs.enqueue).not.toHaveBeenCalled();
     });
 
-    it('answers 422 UNSUPPORTED_PROJECT for a PHP version and creates nothing', async () => {
-      projectVersions.findById.mockResolvedValueOnce({ id: 'version-1', language: 'PHP' });
-      const response = await request(server()).post('/retrieval-comparisons').set('Idempotency-Key', KEY).send(body).expect(422);
-      expect(response.body.code).toBe(ErrorCode.UNSUPPORTED_PROJECT);
-      expect(repository.create).not.toHaveBeenCalled();
-      expect(jobs.enqueue).not.toHaveBeenCalled();
+    it('answers 202 for a PHP version (WI-CORE-028) and enqueues the comparison', async () => {
+      symbols.findByAnalysisRun.mockResolvedValueOnce([{ ...symbolRow, language: 'PHP' }]);
+      await request(server()).post('/retrieval-comparisons').set('Idempotency-Key', KEY).send(body).expect(202);
+      expect(repository.create).toHaveBeenCalledTimes(1);
+      expect(jobs.enqueue).toHaveBeenCalledTimes(1);
     });
   });
 

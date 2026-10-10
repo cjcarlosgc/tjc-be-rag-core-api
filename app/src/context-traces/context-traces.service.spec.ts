@@ -554,6 +554,99 @@ describe('ContextTracesService', () => {
     });
   });
 
+  it('preserves the PHP structural relations (WI-CORE-028) in candidates and matchedVia', async () => {
+    const candidates = [
+      makeRagCandidate({
+        chunkId: 'same-namespace',
+        rank: 1,
+        structuralMatch: 'SAME_NAMESPACE',
+        matchedVia: ['SEMANTIC', 'SAME_NAMESPACE'],
+      }),
+      makeRagCandidate({
+        chunkId: 'fully-qualified',
+        rank: 2,
+        structuralMatch: 'FULLY_QUALIFIED_REFERENCE',
+        matchedVia: ['FULLY_QUALIFIED_REFERENCE'],
+      }),
+      makeRagCandidate({
+        chunkId: 'declaring-class',
+        rank: 3,
+        structuralMatch: 'DECLARING_CLASS',
+        matchedVia: ['SEMANTIC', 'DECLARING_CLASS'],
+      }),
+    ];
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace(candidates)),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    if (detail.kind !== 'RAG') throw new Error('expected RAG detail');
+    expect(
+      detail.candidates.map(({ chunkId, structuralMatch, matchedVia }) => [
+        chunkId,
+        structuralMatch,
+        matchedVia,
+      ]),
+    ).toEqual([
+      ['same-namespace', 'SAME_NAMESPACE', ['SEMANTIC', 'SAME_NAMESPACE']],
+      ['fully-qualified', 'FULLY_QUALIFIED_REFERENCE', ['FULLY_QUALIFIED_REFERENCE']],
+      ['declaring-class', 'DECLARING_CLASS', ['SEMANTIC', 'DECLARING_CLASS']],
+    ]);
+  });
+
+  it('keeps the TypeScript relations IMPORTS and IMPORTED_BY and SEMANTIC unchanged', async () => {
+    const candidates = [
+      makeRagCandidate({
+        chunkId: 'imports',
+        rank: 1,
+        structuralMatch: 'IMPORTS',
+        matchedVia: ['SEMANTIC', 'IMPORTS'],
+      }),
+      makeRagCandidate({
+        chunkId: 'imported-by',
+        rank: 2,
+        structuralMatch: 'IMPORTED_BY',
+        matchedVia: ['IMPORTED_BY'],
+      }),
+      makeRagCandidate({ chunkId: 'semantic', rank: 3 }),
+    ];
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(makeRagTrace(candidates)),
+      },
+    });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    if (detail.kind !== 'RAG') throw new Error('expected RAG detail');
+    expect(
+      detail.candidates.map(({ chunkId, structuralMatch, matchedVia }) => [
+        chunkId,
+        structuralMatch,
+        matchedVia,
+      ]),
+    ).toEqual([
+      ['imports', 'IMPORTS', ['SEMANTIC', 'IMPORTS']],
+      ['imported-by', 'IMPORTED_BY', ['IMPORTED_BY']],
+      ['semantic', null, ['SEMANTIC']],
+    ]);
+  });
+
+  it('rejects a structural relation outside the contract as an invalid stored detail', async () => {
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(
+          makeRagTrace([makeRagCandidate({ structuralMatch: 'SOMETHING_ELSE', matchedVia: ['SOMETHING_ELSE'] })]),
+        ),
+      },
+    });
+
+    await expect(service.getContextTraceDetail('trace-1', USER_ID)).rejects.toThrow();
+  });
+
   it('does not expose the WI-CORE-026 functional rule evidence in the INTEROP §6.7 RAG detail', async () => {
     const base = makeRagTrace([]);
     const trace = {

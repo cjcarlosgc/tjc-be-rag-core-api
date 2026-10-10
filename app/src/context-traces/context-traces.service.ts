@@ -17,6 +17,8 @@ import type {
   RagCandidateNodeResponse,
   RagContextTraceDetailResponse,
   RagDiscardReason,
+  RagMatchedVia,
+  RagStructuralMatch,
   RagTargetNodeResponse,
   SourceExcerptResponse,
   SourceLineResponse,
@@ -61,6 +63,16 @@ function invalidStoredDetail(): AppException {
     ErrorCode.INTERNAL_ERROR,
     'La evidencia de contexto no tiene un formato válido.',
     HttpStatus.INTERNAL_SERVER_ERROR,
+  );
+}
+
+function isRagStructuralMatch(value: unknown): value is RagStructuralMatch {
+  return (
+    value === 'IMPORTS' ||
+    value === 'IMPORTED_BY' ||
+    value === 'SAME_NAMESPACE' ||
+    value === 'FULLY_QUALIFIED_REFERENCE' ||
+    value === 'DECLARING_CLASS'
   );
 }
 
@@ -522,12 +534,10 @@ export class ContextTracesService {
         (typeof value.semanticScore !== 'number' ||
           !Number.isFinite(value.semanticScore))) ||
       (value.structuralMatch !== null &&
-        value.structuralMatch !== 'IMPORTS' &&
-        value.structuralMatch !== 'IMPORTED_BY') ||
+        !isRagStructuralMatch(value.structuralMatch)) ||
       !Array.isArray(value.matchedVia) ||
       value.matchedVia.some(
-        (item) =>
-          item !== 'SEMANTIC' && item !== 'IMPORTS' && item !== 'IMPORTED_BY',
+        (item) => item !== 'SEMANTIC' && !isRagStructuralMatch(item),
       )
     ) {
       throw invalidStoredDetail();
@@ -538,12 +548,9 @@ export class ContextTracesService {
       excerpt: this.mapExcerpt(value.excerpt, lineContext),
       tokenCount: value.tokenCount as number,
       semanticScore: value.semanticScore as number | null,
-      structuralMatch: value.structuralMatch as
-        'IMPORTS' | 'IMPORTED_BY' | null,
+      structuralMatch: value.structuralMatch as RagStructuralMatch | null,
       combinedScore: value.combinedScore,
-      matchedVia: value.matchedVia as (
-        'SEMANTIC' | 'IMPORTS' | 'IMPORTED_BY'
-      )[],
+      matchedVia: value.matchedVia as RagMatchedVia[],
       decision,
       discardReason,
     };
