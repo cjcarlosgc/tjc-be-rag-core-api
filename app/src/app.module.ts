@@ -22,6 +22,7 @@ import { SnapshotIntelligenceModule } from './snapshot-intelligence/snapshot-int
 import { FunctionalKnowledgeModule } from './functional-knowledge/functional-knowledge.module.js';
 import { ValidationModule } from './validation/validation.module.js';
 import { PublicationsModule } from './publications/publications.module.js';
+import { EvidenceModule } from './evidence/evidence.module.js';
 import { HealthController } from './common/health/health.controller.js';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware.js';
 import { validateEnv } from './config/env.validation.js';
@@ -55,6 +56,7 @@ import { validateEnv } from './config/env.validation.js';
     FunctionalKnowledgeModule,
     ValidationModule,
     PublicationsModule,
+    EvidenceModule,
   ],
   controllers: [HealthController],
 })

@@ -66,15 +66,16 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   entry('READER', 'GET', '/experiments/{id}/context-traces', 'GET /experiments/{id}/context-traces', 'READER'),
   entry('READER', 'GET', '/context-traces/{id}', 'GET /context-traces/{id}', 'READER'),
   entry('READER', 'GET', '/context-traces/{id}/discovered-files', '.../discovered-files', 'READER'),
-  // INTEROP-2.7 §6.15 (WI-CORE-022): implementada en Core. §6.16 (trace y evidencia) sigue sin ruta.
+  // INTEROP-2.7 §6.15 (WI-CORE-022): implementada en Core.
   entry('READER', 'GET', '/retrieval-comparisons/{id}', 'GET /retrieval-comparisons/{id}', 'READER'),
   entry('READER', 'GET', '/retrieval-comparisons/{id}/results', '.../results', 'READER'),
-  entry('READER', 'GET', '/retrieval-comparisons/{id}/evidence', '.../evidence', 'READER', false),
+  // WI-CORE-027 (INTEROP-2.7 §6.16): exportación de evidencia implementada en Core.
+  entry('READER', 'GET', '/retrieval-comparisons/{id}/evidence', '.../evidence', 'READER'),
   entry('READER', 'GET', '/analysis-runs/{id}/retrieval-comparisons', 'GET /analysis-runs/{id}/retrieval-comparisons', 'READER'),
   // WI-CORE-026: trace operativo implementado en Core (INTEROP-2.7 §6.16).
   entry('READER', 'GET', '/analysis-runs/{id}/trace', 'GET /analysis-runs/{id}/trace', 'READER'),
-  entry('READER', 'GET', '/analysis-runs/{id}/evidence', 'GET /analysis-runs/{id}/evidence', 'READER', false),
-  entry('READER', 'GET', '/experiments/{id}/evidence', 'GET /experiments/{id}/evidence', 'READER', false),
+  entry('READER', 'GET', '/analysis-runs/{id}/evidence', 'GET /analysis-runs/{id}/evidence', 'READER'),
+  entry('READER', 'GET', '/experiments/{id}/evidence', 'GET /experiments/{id}/evidence', 'READER'),
   entry('READER', 'WS', 'subscribe:project-version', 'subscribe:project-version', 'READER'),
   // Writer (INTEROP-2.7 §6.13, WI-CORE-019): vincular, pausar y reactivar; publicar; crear experimentos.
   entry('WRITER', 'POST', '/projects/{projectId}/integrations/github', 'POST /projects/{projectId}/integrations/github', 'WRITER'),

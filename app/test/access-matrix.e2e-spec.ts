@@ -7,6 +7,7 @@ import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter
 import { ExperimentsService } from '../src/experiments/experiments.service.js';
 import { ContextTracesService } from '../src/context-traces/context-traces.service.js';
 import { RetrievalComparisonsService } from '../src/retrieval-comparisons/retrieval-comparisons.service.js';
+import { EvidenceService } from '../src/evidence/evidence.service.js';
 import { GITHUB_ACCESS_PORT } from '../src/github-app/github-access.port.js';
 import { GithubAppAuthService } from '../src/github-app/github-app-auth.service.js';
 import { GithubRepositoryContentService } from '../src/github-app/github-repository-content.service.js';
@@ -88,6 +89,12 @@ const ROUTE_CASES: Record<string, RouteCase> = {
   'GET /projects/{}/functional-knowledge': { url: (i) => `/projects/${i.projectId}/functional-knowledge`, notFound: PROJECT_404 },
   'GET /analysis-runs/{}/test-proposals': { url: (i) => `/analysis-runs/${i.runId}/test-proposals`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
   'GET /analysis-runs/{}/trace': { url: (i) => `/analysis-runs/${i.runId}/trace`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
+  'GET /analysis-runs/{}/evidence': { url: (i) => `/analysis-runs/${i.runId}/evidence`, notFound: 'ANALYSIS_RUN_NOT_FOUND' },
+  'GET /experiments/{}/evidence': { url: (i) => `/experiments/${i.experimentId}/evidence`, notFound: 'EXPERIMENT_NOT_FOUND' },
+  'GET /retrieval-comparisons/{}/evidence': {
+    url: (i) => `/retrieval-comparisons/${i.retrievalComparisonId}/evidence`,
+    notFound: 'RETRIEVAL_COMPARISON_NOT_FOUND',
+  },
   'GET /test-publications/{}': { url: (i) => `/test-publications/${i.publicationId}`, notFound: 'TEST_PUBLICATION_NOT_FOUND' },
   'GET /experiments/{}': { url: (i) => `/experiments/${i.experimentId}`, notFound: 'EXPERIMENT_NOT_FOUND' },
   'GET /experiments/{}/results': { url: (i) => `/experiments/${i.experimentId}/results`, notFound: 'EXPERIMENT_NOT_FOUND' },
@@ -181,6 +188,14 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
           getStatus: () => Promise.resolve({ id: 'c' }),
           getResults: () => Promise.resolve({ retrievalComparisonId: 'c', modes: [] }),
           listByAnalysisRun: () => Promise.resolve({ items: [], nextCursor: null }),
+        })
+        // WI-CORE-027: la exportación de evidencia necesita tablas que el Prisma en memoria no modela; aquí solo
+        // importa que el guard (rol y 404 del recurso) deje pasar o no la petición.
+        .overrideProvider(EvidenceService)
+        .useValue({
+          getAnalysisRunEvidence: () => Promise.resolve({ schemaVersion: '1' }),
+          getExperimentEvidence: () => Promise.resolve({ schemaVersion: '1' }),
+          getRetrievalComparisonEvidence: () => Promise.resolve({ schemaVersion: '1' }),
         })
         .overrideProvider(ContextTracesService)
         .useValue({
