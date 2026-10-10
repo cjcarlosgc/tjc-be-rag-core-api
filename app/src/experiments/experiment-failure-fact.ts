@@ -51,6 +51,31 @@ function isOneOf<T extends string>(values: readonly T[], value: unknown): value 
   return typeof value === 'string' && (values as readonly string[]).includes(value);
 }
 
+/** Valida una etapa del Sandbox leída de una fila o de un resultado; cualquier otro valor es `null`. */
+export function toSandboxStage(value: unknown): SandboxStage | null {
+  return isOneOf(SANDBOX_STAGES, value) ? value : null;
+}
+
+/** Valida una categoría de fallo del Sandbox (sin `NONE`); cualquier otro valor es `null`. */
+export function toSandboxFailureCategory(value: unknown): SandboxFailureCategory | null {
+  return isOneOf(SANDBOX_FAILURE_CATEGORIES, value) ? value : null;
+}
+
+/**
+ * WI-CORE-027 (corte C): valida y recorta `code` con la misma regla que la escritura (`toExperimentRepetitionFailure`):
+ * forma de identificador corto y sin forma de secreto. Devuelve `null` si no cumple; nunca trunca ni redacta.
+ */
+export function toValidFailureCode(code: unknown): string | null {
+  if (typeof code !== 'string') return null;
+
+  const trimmedCode = code.trim();
+  if (!EXPERIMENT_FAILURE_CODE_PATTERN.test(trimmedCode)) return null;
+  // Un código con forma de secreto (p. ej. `ghp_…` o `sk-…`, que cumplen el patrón) no se persiste ni se expone.
+  if (sanitizeFailureMessage(trimmedCode) !== trimmedCode) return null;
+
+  return trimmedCode;
+}
+
 /**
  * Traduce el hecho de fallo del Sandbox al que se persiste. No inventa valores: devuelve `null` si no hay
  * hecho, si `stage` o `category` están fuera de su conjunto, si `message` no es texto, o si `code` no cumple
@@ -72,15 +97,13 @@ export function toExperimentRepetitionFailure(
   }
   if (typeof code !== 'string' || typeof message !== 'string') return null;
 
-  const trimmedCode = code.trim();
-  if (!EXPERIMENT_FAILURE_CODE_PATTERN.test(trimmedCode)) return null;
-  // Un código con forma de secreto (p. ej. `ghp_…` o `sk-…`, que cumplen el patrón) no se persiste.
-  if (sanitizeFailureMessage(trimmedCode) !== trimmedCode) return null;
+  const validCode = toValidFailureCode(code);
+  if (validCode === null) return null;
 
   return {
     stage,
     category,
-    code: trimmedCode,
+    code: validCode,
     message: sanitizeFailureMessage(message),
   };
 }

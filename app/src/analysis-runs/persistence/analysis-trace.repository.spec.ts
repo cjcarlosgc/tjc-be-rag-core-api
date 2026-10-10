@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../../generated/prisma/client.js';
-import { AnalysisTraceRepository } from './analysis-trace.repository.js';
+import { AnalysisTraceRepository, clampDuration } from './analysis-trace.repository.js';
 
 describe('AnalysisTraceRepository.upsertExecution (WI-CORE-027, DEC-EVID-003)', () => {
   const base = {
@@ -57,5 +57,24 @@ describe('AnalysisTraceRepository.upsertExecution (WI-CORE-027, DEC-EVID-003)', 
       facts: Prisma.DbNull,
       failure: Prisma.DbNull,
     });
+  });
+
+  it('persists a negative duration (clock jump) as 0 so the non-negative CHECK holds', async () => {
+    const { repository, upsert } = repositoryWith();
+
+    await repository.upsertExecution({ ...base, durationMs: -250 });
+
+    expect(upsert.mock.calls[0][0].create).toMatchObject({ durationMs: 0 });
+    expect(upsert.mock.calls[0][0].update).toMatchObject({ durationMs: 0 });
+  });
+
+  it('clamps only the value written and keeps unobserved or non-finite durations as null', () => {
+    expect(clampDuration(-1)).toBe(0);
+    expect(clampDuration(0)).toBe(0);
+    expect(clampDuration(12.4)).toBe(12);
+    expect(clampDuration(null)).toBeNull();
+    expect(clampDuration(undefined)).toBeNull();
+    expect(clampDuration(Number.NaN)).toBeNull();
+    expect(clampDuration(Number.POSITIVE_INFINITY)).toBeNull();
   });
 });

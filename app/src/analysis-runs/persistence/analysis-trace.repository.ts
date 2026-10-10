@@ -36,6 +36,16 @@ export interface UpsertAnalysisRunExecutionInput {
   failure?: ExperimentRepetitionFailure | null;
 }
 
+/**
+ * WI-CORE-027 (corte C, corrección de B): `Date.now() - startedAt` puede ser negativo si el reloj salta hacia
+ * atrás, y el CHECK `durationMs >= 0` de la columna lo rechazaría. Una duración negativa se persiste como 0
+ * (cota inferior de la medición); un valor no observado (`null`, `undefined` o no finito) queda `null`.
+ */
+export function clampDuration(durationMs: number | null | undefined): number | null {
+  if (durationMs === null || durationMs === undefined || !Number.isFinite(durationMs)) return null;
+  return Math.max(0, Math.round(durationMs));
+}
+
 export interface UpsertAnalysisContextInput {
   analysisRunId: string;
   analysisSymbolId: string;
@@ -81,7 +91,7 @@ export class AnalysisTraceRepository {
       ...identity,
       requestId: requestId ?? null,
       correlationId: correlationId ?? null,
-      durationMs: durationMs ?? null,
+      durationMs: clampDuration(durationMs),
       facts: facts ?? Prisma.DbNull,
       failure: failure ?? Prisma.DbNull,
     };

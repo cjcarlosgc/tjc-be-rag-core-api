@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { toExperimentRepetitionFailure } from './experiment-failure-fact.js';
+import {
+  toExperimentRepetitionFailure,
+  toSandboxFailureCategory,
+  toSandboxStage,
+  toValidFailureCode,
+} from './experiment-failure-fact.js';
 import type { SandboxFailureFact } from '../sandbox/sandbox.types.js';
 
 const VALID: SandboxFailureFact = {
@@ -75,5 +80,32 @@ describe('toExperimentRepetitionFailure (WI-CORE-007)', () => {
     expect(result?.message.startsWith('Authorization: [REDACTED] ')).toBe(true);
     expect(result?.message).not.toContain('abc.def-123');
     expect(result?.message).toHaveLength(500);
+  });
+});
+
+/** WI-CORE-027 (corte C): validadores de lectura; misma regla que la escritura, sin truncar ni redactar. */
+describe('lectura validada de code, stage y category (WI-CORE-027)', () => {
+  it('admits a short identifier code and trims it, and rejects anything else as null', () => {
+    expect(toValidFailureCode('  TS2304 ')).toBe('TS2304');
+    expect(toValidFailureCode('')).toBeNull();
+    expect(toValidFailureCode('   ')).toBeNull();
+    expect(toValidFailureCode('x'.repeat(65))).toBeNull();
+    expect(toValidFailureCode('has spaces')).toBeNull();
+    expect(toValidFailureCode(42)).toBeNull();
+    expect(toValidFailureCode(undefined)).toBeNull();
+  });
+
+  it('rejects a code shaped like a secret instead of exposing it', () => {
+    expect(toValidFailureCode('sk-abcdefghijk')).toBeNull();
+    expect(toValidFailureCode('npm_abcdefghijklmnopqrstuvwx')).toBeNull();
+  });
+
+  it('accepts only the closed stage and category sets', () => {
+    expect(toSandboxStage('COMPILING')).toBe('COMPILING');
+    expect(toSandboxStage('UNKNOWN_STAGE')).toBeNull();
+    expect(toSandboxStage(null)).toBeNull();
+    expect(toSandboxFailureCategory('TEST_ASSERTION')).toBe('TEST_ASSERTION');
+    expect(toSandboxFailureCategory('NONE')).toBeNull();
+    expect(toSandboxFailureCategory(1)).toBeNull();
   });
 });
