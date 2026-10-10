@@ -564,6 +564,35 @@ describe('ExperimentsService', () => {
       });
     });
 
+    it('never exposes the internal failure fact of a repetition in the API response (WI-CORE-007)', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1',
+        projectVersionId: 'version-1',
+        targetId: 'target-1',
+        status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+        modelConfig: { provider: 'openai', model: 'gpt-6-luna', modelVersion: 'v-2026', reasoningEffort: 'xhigh', temperature: null, maxOutputTokens: null },
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([
+        {
+          repetition: 1, strategy: 'RAG', attempt: 1, valid: false, failureType: 'COMPILATION', errorSummary: 'Cannot find name',
+          generationDurationMs: 10, executionDurationMs: 5, totalDurationMs: 15,
+          inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+          compiled: false, executed: null, passed: null, retrievedChunks: null, selectedChunks: null,
+          contextTokens: null, toolCalls: null, filesInspected: null,
+          pairId: null, pairPosition: null, technicallyEvaluable: true,
+          failure: { stage: 'COMPILING', category: 'COMPILATION', code: 'TS2304', message: 'Cannot find name' },
+        },
+      ]);
+      const service = makeService(deps);
+
+      const results = await service.getResults('exp-1', OWNER_USER_ID);
+
+      expect(results.repetitions[0]).not.toHaveProperty('failure');
+      expect(JSON.stringify(results)).not.toContain('"failure"');
+    });
+
     it('throws EXPERIMENT_NOT_FINISHED when the run is still RUNNING', async () => {
       const deps = makeDeps();
       deps.experimentRunsRepository.findByIdForOwner = vi

@@ -638,3 +638,97 @@ describe('ExperimentRunsRepository recovery (WI-CORE-025 (3c))', () => {
     expect(tx.contextTrace.updateMany).not.toHaveBeenCalled();
   });
 });
+
+describe('ExperimentRunsRepository failure fact (WI-CORE-007)', () => {
+  const FAILURE = {
+    stage: 'COMPILING' as const,
+    category: 'COMPILATION' as const,
+    code: 'TS2304',
+    message: "Cannot find name 'foo'",
+  };
+
+  const metrics = {
+    repetition: 1,
+    strategy: 'RAG' as const,
+    compiled: false,
+    executed: null,
+    passed: null,
+    valid: false,
+    failureType: 'COMPILATION' as const,
+    errorSummary: "Cannot find name 'foo'",
+    generationDurationMs: 100,
+    executionDurationMs: 200,
+    totalDurationMs: 300,
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+    estimatedCost: null,
+    retrievedChunks: null,
+    selectedChunks: null,
+    contextTokens: null,
+    toolCalls: null,
+    filesInspected: null,
+    trajectory: undefined,
+  };
+
+  it('updateRepetitionById writes the fact inside the RUNNING-guarded update', async () => {
+    const update = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { updateMany: update },
+    } as never);
+
+    const written = await repository.updateRepetitionById(
+      'repetition-1',
+      { ...metrics, failure: FAILURE },
+      'FAILED',
+    );
+
+    expect(written).toBe(true);
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'repetition-1', state: 'RUNNING' },
+      data: expect.objectContaining({ failure: FAILURE, state: 'FAILED' }),
+    });
+  });
+
+  it('updateRepetitionById omits the failure key when there is no fact, and never writes null into the Json column', async () => {
+    const update = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { updateMany: update },
+    } as never);
+
+    await repository.updateRepetitionById('repetition-1', metrics, 'FAILED');
+
+    expect(update.mock.calls[0][0].data).not.toHaveProperty('failure');
+  });
+
+  it('updateRepetitionById reports nothing written when the guard finds the attempt already closed, even with a fact', async () => {
+    const update = vi.fn().mockResolvedValue({ count: 0 });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetition: { updateMany: update },
+    } as never);
+
+    const written = await repository.updateRepetitionById(
+      'repetition-1',
+      { ...metrics, failure: FAILURE },
+      'FAILED',
+    );
+
+    expect(written).toBe(false);
+    expect(update.mock.calls[0][0].where).toEqual({ id: 'repetition-1', state: 'RUNNING' });
+  });
+
+  it('closeInterruptedRepetition never touches the failure column', async () => {
+    const tx = {
+      experimentRepetition: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      contextTrace: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+    };
+    const repository = new ExperimentRunsRepository(prisma as never);
+
+    await repository.closeInterruptedRepetition('rep-1', { errorSummary: 'interrumpido' });
+
+    expect(tx.experimentRepetition.updateMany.mock.calls[0][0].data).not.toHaveProperty('failure');
+  });
+});

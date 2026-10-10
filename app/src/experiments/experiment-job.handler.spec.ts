@@ -2328,3 +2328,193 @@ describe('ExperimentJobHandler onExhausted (WI-CORE-030, DEC-JOBS-001)', () => {
     expect(repoOf(missing.deps).markFailed).not.toHaveBeenCalled();
   });
 });
+
+describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
+  const COMPILE_FACT = {
+    stage: 'COMPILING',
+    category: 'COMPILATION',
+    code: 'TS2304',
+    message: "Cannot find name 'foo'",
+  };
+
+  function failedWith(failure: unknown, status: 'FAILED' | 'TIMED_OUT' = 'FAILED') {
+    return { status, facts: null, failure, stageDurations: [] };
+  }
+
+  function updateCallsOf(deps: ReturnType<typeof makeDeps>['deps']) {
+    return (
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>
+    ).mock.calls as unknown[][];
+  }
+
+  it('persists the Sandbox fact in the terminal write of every repetition that reports it', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-1');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    expect(writes.every((write) => write.failure !== undefined)).toBe(true);
+    expect(writes[0].failure).toEqual(COMPILE_FACT);
+    expect(updateCallsOf(deps).every((call) => call[2] === 'FAILED')).toBe(true);
+  });
+
+  it('keeps the fact of attempt 1 and of attempt 2 on their own rows, without merging them', async () => {
+    const FIRST = {
+      stage: 'RUNNING_TESTS',
+      category: 'INFRASTRUCTURE',
+      code: 'SANDBOX_CONTAINER_LOST',
+      message: 'El contenedor se detuvo.',
+    };
+    const SECOND = {
+      stage: 'PREPARING',
+      category: 'INFRASTRUCTURE',
+      code: 'SANDBOX_DOWN',
+      message: 'Sandbox no responde.',
+    };
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(failedWith(FIRST))
+      .mockResolvedValueOnce(failedWith(SECOND))
+      .mockResolvedValue(successfulSandboxResult());
+    const { deps } = makeDeps({ configService: sequentialConfig(), sandboxExecutionService: { execute } });
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+
+    await makeHandler(deps).handle(payload, 'job-wf-2');
+
+    const [first] = pairOrder(SEED, 1);
+    const [firstWrite, secondWrite] = writesOf(deps);
+    expect(firstWrite).toMatchObject({ repetition: 1, strategy: first, failure: FIRST });
+    expect(firstWrite).not.toHaveProperty('technicallyEvaluable');
+    expect(secondWrite).toMatchObject({
+      repetition: 1,
+      strategy: first,
+      failure: SECOND,
+      technicallyEvaluable: false,
+    });
+  });
+
+  it('persists the fact of a TIMED_OUT result that carries one, together with sandboxTimedOut', async () => {
+    const TIMEOUT_FACT = {
+      stage: 'RUNNING_TESTS',
+      category: 'TEST_RUNTIME',
+      code: 'TEST_TIMEOUT',
+      message: 'La prueba excedió el tiempo.',
+    };
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith(TIMEOUT_FACT, 'TIMED_OUT')),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-3');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(true);
+    expect(writes.every((write) => JSON.stringify(write.failure) === JSON.stringify(TIMEOUT_FACT))).toBe(true);
+  });
+
+  it('leaves failure absent for a TIMED_OUT result without a fact', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(timedOutResult()) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-4');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(true);
+    expect(writes.every((write) => !('failure' in write))).toBe(true);
+  });
+
+  it('leaves failure absent when the Sandbox client throws', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockRejectedValue(new SandboxUnavailableError('no sandbox configured')),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-5');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    expect(writes.every((write) => !('failure' in write))).toBe(true);
+  });
+
+  it('leaves failure absent for a COMPLETED result even if it carried a fact', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue({ ...successfulSandboxResult(), failure: COMPILE_FACT }),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-6');
+
+    const writes = writesOf(deps);
+    expect(writes).toHaveLength(6);
+    expect(writes.every((write) => !('failure' in write))).toBe(true);
+  });
+
+  it('persists the message redacted before truncation, never the raw secret', async () => {
+    const raw = `Falló: ghp_0123456789abcdefABCDEF y password=hunter2 ${'q'.repeat(700)}`;
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, message: raw })),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-7');
+
+    const persisted = (writesOf(deps)[0].failure as { message: string }).message;
+    expect(persisted.startsWith('Falló: [REDACTED] y password=[REDACTED] ')).toBe(true);
+    expect(persisted).toHaveLength(500);
+    expect(persisted).not.toContain('ghp_');
+    expect(persisted).not.toContain('hunter2');
+  });
+
+  it('leaves failure absent when the stage is outside the closed set', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, stage: 'BOGUS' })),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-wf-8');
+
+    expect(writesOf(deps).every((write) => !('failure' in write))).toBe(true);
+  });
+
+  it('leaves failure absent when the code is empty and truncates a longer code to 64 characters', async () => {
+    const empty = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: '' })),
+      },
+    });
+    await makeHandler(empty.deps).handle(payload, 'job-wf-9');
+    expect(writesOf(empty.deps).every((write) => !('failure' in write))).toBe(true);
+
+    const long = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: 'C'.repeat(100) })),
+      },
+    });
+    await makeHandler(long.deps).handle(payload, 'job-wf-10');
+    expect((writesOf(long.deps)[0].failure as { code: string }).code).toBe('C'.repeat(64));
+  });
+
+  it('sends the fact to the RUNNING-guarded write only, so a closed attempt is not rewritten (H3)', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)) },
+    });
+    (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+    await makeHandler(deps).handle(payload, 'job-wf-11');
+
+    expect(writesOf(deps)[0].failure).toEqual(COMPILE_FACT);
+    expect(deps.contextTracesRepository.finishTrace).not.toHaveBeenCalled();
+    expect(deps.contextTracesRepository.failTrace).not.toHaveBeenCalled();
+  });
+});

@@ -53,6 +53,10 @@ import {
 } from './attempt-recovery.js';
 import { estimateCost } from './cost-calculator.js';
 import {
+  toExperimentRepetitionFailure,
+  type ExperimentRepetitionFailure,
+} from './experiment-failure-fact.js';
+import {
   ExperimentRunsRepository,
   type ExperimentBudget,
   type ExperimentRepetitionInput,
@@ -752,6 +756,8 @@ export class ExperimentJobHandler
       };
       let executionDurationMs: number;
       let sandboxTimedOut = false;
+      // WI-CORE-007: hecho de fallo saneado solo cuando el Sandbox lo devuelve en un resultado no COMPLETED.
+      let sandboxFailure: ExperimentRepetitionFailure | null = null;
 
       try {
         const sandboxResult = await this.sandboxExecutionService.execute({
@@ -782,6 +788,10 @@ export class ExperimentJobHandler
         const outcome = mapSandboxResult(sandboxResult);
         // TIMED_OUT es fallo de la prueba generada, no externo: se persiste con la columna interna.
         sandboxTimedOut = sandboxResult.status === 'TIMED_OUT';
+        sandboxFailure =
+          sandboxResult.status === 'COMPLETED'
+            ? null
+            : toExperimentRepetitionFailure(sandboxResult.failure);
         // Fallo externo del Sandbox: INFRASTRUCTURE salvo timeout (no es externo, WI-CORE-025).
         externalFailure =
           outcome.status === 'FAILED'
@@ -836,6 +846,7 @@ export class ExperimentJobHandler
         repetitionOutcome,
         externalFailure,
         sandboxTimedOut,
+        sandboxFailure,
       );
       finalized = true;
       return externalFailure;
@@ -1333,6 +1344,7 @@ export class ExperimentJobHandler
     },
     externalFailure: boolean,
     sandboxTimedOut = false,
+    failure: ExperimentRepetitionFailure | null = null,
   ): Promise<void> {
     const totalTokens =
       generation.inputTokens !== null && generation.outputTokens !== null
@@ -1379,6 +1391,8 @@ export class ExperimentJobHandler
       ...(context.attempt === 2 && externalFailure ? { technicallyEvaluable: false } : {}),
       // Interno (WI-CORE-025): solo se escribe true en TIMED_OUT; el resto queda NULL.
       ...(sandboxTimedOut ? { sandboxTimedOut: true } : {}),
+      // WI-CORE-007: interno. Sin hecho de fallo la clave se omite (la columna queda NULL).
+      ...(failure ? { failure } : {}),
     };
 
     const terminalState = outcome.status === 'FAILED' ? 'FAILED' : 'COMPLETED';

@@ -12,6 +12,7 @@ import {
 import type { FailureTypeValue } from '../../sandbox/map-sandbox-result.js';
 import { accessibleProject } from '../../common/persistence/accessible-project.filter.js';
 import type { LLMEffectiveConfig } from '../../providers/llm-provider.interface.js';
+import type { ExperimentRepetitionFailure } from '../experiment-failure-fact.js';
 
 /** Presupuesto resuelto al crear el experimento (WI-CORE-025, INTEROP-2.7 §6.5.1). */
 export type ExperimentBudget = {
@@ -71,6 +72,11 @@ export interface ExperimentRepetitionInput {
    * TIMED_OUT; omitido en otros casos (queda NULL). Discriminador de la redelivery.
    */
   sandboxTimedOut?: boolean;
+  /**
+   * WI-CORE-007: interno (no se expone en DTO ni INTEROP). Hecho de fallo saneado del Sandbox; se omite
+   * cuando no lo hay (queda NULL). Solo se escribe en la escritura terminal de `updateRepetitionById`.
+   */
+  failure?: ExperimentRepetitionFailure;
 }
 
 @Injectable()
@@ -292,6 +298,7 @@ export class ExperimentRunsRepository {
       repetition: _logicalRepetition,
       strategy: _strategy,
       trajectory,
+      failure,
       ...metrics
     } = repetition;
 
@@ -301,6 +308,8 @@ export class ExperimentRunsRepository {
         ...metrics,
         state,
         ...(trajectory === undefined ? {} : { trajectory }),
+        // WI-CORE-007: sin hecho no se escribe la clave (nunca un null explícito en una columna Json).
+        ...(failure === undefined ? {} : { failure }),
       },
     });
 
