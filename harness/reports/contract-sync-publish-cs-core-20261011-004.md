@@ -1,6 +1,6 @@
 [leader] · WI-CORE-038 · Publicación Contract Sync
 
-Modelo: leader · configurado gpt-6-luna · atendido gpt-6-luna · esfuerzo xhigh
+Modelo: leader · configurado gpt-6-luna · atendido unknown · esfuerzo xhigh
 
 **Resultado:** publicado `CS-CORE-20261011-004` para `console` y `github-integration`, estado de productor `C-PENDING`.
 

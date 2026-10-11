@@ -1,6 +1,6 @@
 [leader] · WI-CORE-038 · Evidencia de implementación documental
 
-Modelo: leader · configurado gpt-6-luna · atendido gpt-6-luna · esfuerzo xhigh
+Modelo: leader · configurado gpt-6-luna · atendido unknown · esfuerzo xhigh
 
 **Estado:** cambio documental canónico implementado; no se modificó `app/`, no se implementó el almacenamiento ni se provisionó infraestructura.
 

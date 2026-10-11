@@ -1979,7 +1979,7 @@
       "id": "WI-CORE-038",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_PROGRESS",
+      "status": "W-DONE",
       "priority": "P0",
       "sprint": "GitHub Integration",
       "title": "Decidir coordinación durable de Checks entre réplicas",

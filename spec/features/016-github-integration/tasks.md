@@ -1,6 +1,6 @@
 # Subtareas — Frontera GitHub Integration (Core)
 
-- [ ] **ST-CORE-045 [T-IN_PROGRESS] · WI-CORE-038 · HU14, HU15:** decidir y publicar el mecanismo compartido de reserva durable de Checks entre réplicas de GitHub Integration, corregir los límites de la garantía ante resultados remotos inciertos y enviar el Contract Sync a los espejos. No implementa persistencia en Core ni autoriza infraestructura o despliegue.
+- [x] **ST-CORE-045 [T-DONE] · WI-CORE-038 · HU14, HU15:** decidir y publicar el mecanismo compartido de reserva durable de Checks entre réplicas de GitHub Integration, corregir los límites de la garantía ante resultados remotos inciertos y enviar el Contract Sync a los espejos. No implementa persistencia en Core ni autoriza infraestructura o despliegue.
 
 - [x] **ST-CORE-041 [T-DONE] · WI-CORE-034 · HU14, HU15:** publicar `GH-INTEROP-1.4` para definir la identidad durable de Check, convergencia concurrente y el tratamiento de duplicados; mantener alineadas las referencias SYSTEM-2.6/INTEROP-2.7 y emitir Contract Sync para los espejos de GitHub Integration y Console. No modifica `app/` ni autoriza despliegue/cutover.
 
