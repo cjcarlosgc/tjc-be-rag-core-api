@@ -17,7 +17,7 @@ Indexar un snapshot inmutable del commit asociado a un `AnalysisRun` para recupe
 - Estados: PENDING -> EXTRACTING -> ANALYZING -> CHUNKING -> EMBEDDING -> PERSISTING -> COMPLETED; cualquier activo -> FAILED.
 - `GET /project-versions/:id`; `GET /project-versions/:id/results`; antes de completar: 409 `ANALYSIS_NOT_FINISHED`.
 - Pool V1: `.ts/.tsx`, `package.json`, `tsconfig.json`, `jest.config.*`, `vitest.config.*`, `*.spec.ts(x)`, `*.test.ts(x)`. Ignorar `node_modules`, `.git`, `dist`, `build`, `coverage`, `.next`.
-- Pool PHP V1, definido en `018-php-laravel-support`: `.php`, `composer.json` y configuración PHPUnit; ignorar dependencias (`vendor`) y directorios generados/de runtime. Si existen `composer.json` y `package.json` en raíz, prevalece PHP para ese snapshot; no se mezclan parsers en una ProjectVersion.
+- Pool PHP V1, definido en `018-php-laravel-support` y `019-project-root-detection`: `.php`, el `composer.json` primario bajo el `projectRoot` detectado y configuración PHPUnit; ignorar dependencias (`vendor`) y directorios generados/de runtime. Un único candidato PHP se detecta aunque esté en un subdirectorio y prevalece para ese Project; un `package.json` hermano no mezcla parsers. La indexación PHP queda confinada al `projectRoot` y conserva paths canónicos relativos a la raíz del repositorio.
 - JavaScript puro (.js/.jsx/.mjs/.cjs) no pertenece al pool V1 aunque la tesis describa el dominio como ecosistema JavaScript/TypeScript.
 - Proyecto incompatible: 422 `UNSUPPORTED_PROJECT`.
 

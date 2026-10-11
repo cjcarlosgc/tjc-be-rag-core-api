@@ -20,13 +20,21 @@ Extender el flujo por snapshot de Core a repositorios PHP/Laravel, de modo que l
 
 ## Alcance V1
 
-- Un snapshot se clasifica como PHP si contiene `composer.json` de raíz; esta clasificación prevalece sobre un `package.json` de raíz. En ausencia de `composer.json`, Core conserva la selección TypeScript existente.
-- PHP procesa `.php`, `composer.json`, configuración PHPUnit y sus tests. Se ignoran `vendor`, `storage`, `bootstrap/cache`, `public/build`, `node_modules`, `.git`, `dist`, `build` y cobertura. Se excluye `.blade.php`, Blade embebido y JavaScript frontend.
+- La selección PHP por `composer.json` ahora se determina dentro del `projectRoot` detectado por la feature `019-project-root-detection`; no se presupone que el manifiesto esté en la raíz del repositorio. `composer.lock`, `artisan`, la configuración PHPUnit y la dependencia `phpunit/phpunit` caracterizan el proyecto, pero no sustituyen al `composer.json` como marcador primario.
+- PHP procesa `.php`, el `composer.json` del `projectRoot`, configuración PHPUnit y sus tests. Se ignoran `vendor`, `storage`, `bootstrap/cache`, `public/build`, `node_modules`, `.git`, `dist`, `build` y cobertura. Se excluye `.blade.php`, Blade embebido y JavaScript frontend; los directorios hermanos al `projectRoot` no entran en el inventario PHP.
 - El índice conserva nombres cualificados por namespace, clases, traits, interfaces, enums, funciones, métodos/constructores y relaciones estructurales disponibles. Código con error sintáctico puede aportar los nodos válidos recuperados por el parser; no se inventan declaraciones.
 - HU04 incorpora clases, traits, interfaces y enums al índice; los targets de test son clases, métodos públicos y funciones junto con los tests existentes reconocidos por import/uso de símbolos. `hasTest` es una asociación heurística, no una afirmación de que el test pase.
 - Para los snapshots TypeScript continúa usándose el parser y detector Jest/Vitest actuales; un `ProjectVersion` guarda su `language` y nunca mezcla los dos pools.
 - La respuesta pública expone `language: TYPESCRIPT | PHP` en estado, resumen, resultados e inventario; las versiones históricas se migran a `TYPESCRIPT`. `detectedFramework` admite `PHPUNIT` además de Jest/Vitest.
 - Decisión aprobada de alcance de HU42 histórica: PHPUnit es el único runner PHP V1. Pest no se etiqueta como PHPUnit por depender transitivamente de éste. El profile `PHP_LARAVEL_PHPUNIT` se consume en el WI de generación/validación, sin reparación automática.
+
+## Raíz de proyecto PHP en repositorios con subdirectorio
+
+La raíz lógica del repositorio y la raíz de la aplicación PHP son conceptos distintos. Para el alcance actual, Core conserva el invariante existente de un repositorio vinculado a un solo Project; no crea varios Projects para separar aplicaciones hermanas. Si el snapshot contiene un único `composer.json` candidato fuera de directorios ignorados, Core deriva el `projectRoot` de su directorio padre, relativo y POSIX a la raíz lógica del repositorio. `composer.json` en la raíz equivale a `projectRoot = .`. La presencia de un `package.json` hermano o en la raíz no hace que se mezclen parsers ni permite indexar el frontend dentro del Project PHP.
+
+Si no hay candidato PHP, se conserva la detección legacy del stack desde la raíz del repositorio. La detección de más de un candidato se reconoce como ambigua y no usa una heurística de score ni abre un selector en Console; el comportamiento ejecutable para ese caso queda pendiente de `DEC-PHP-ROOT-001`. El corte de candidato único, incluido un backend PHP junto a un frontend TypeScript, no depende de esa decisión.
+
+Core conserva el `projectRoot` vigente del Project y congela el `effectiveProjectRoot` en cada versión inmutable que se analice. Los nombres de entidad/columna son decisión de implementación; la semántica de conservar la raíz efectiva histórica es contractual. Ver `019-project-root-detection`.
 
 ## Fuera de alcance
 

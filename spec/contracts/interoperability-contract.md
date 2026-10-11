@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.7
-**Compatible con:** SYSTEM-2.6
-**Fecha de corte:** 2026-10-09
+**Versión:** INTEROP-2.8
+**Compatible con:** SYSTEM-2.7
+**Fecha de corte:** 2026-10-11
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.7` es la versión documental vigente (preparada en `WI-CORE-017`). Sobre la base de `INTEROP-2.6` agrega el rol Writer (§6.13), la abstención auditada de `UNKNOWN` y la procedencia y escenarios de Functional Knowledge (§6.11), las extensiones de OE5 (§6.5.1), la comparación de retrieval OE2 (§6.15) y el trace operativo con exportación de evidencia (§6.16). Cada sección indica su estado: la abstención `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge (§6.11, aplicabilidad y conflicto por `scenarioKey`) y el rol Writer están implementados en Core (`WI-CORE-018`, `WI-CORE-019`, `WI-CORE-020`), así como las extensiones de OE5 (§6.5.1; `WI-CORE-023`, `WI-CORE-024`, `WI-CORE-025`) y la comparación de retrieval OE2 (§6.15; `WI-CORE-022`) y el trace operativo y la exportación de evidencia (`/trace` y `/evidence` de §6.16; `WI-CORE-026` y `WI-CORE-027`), la ejecución PHP/PHPUnit en Core (`WI-CORE-013`, §7), las relaciones estructurales PHP y la comparación de retrieval sobre PHP (`WI-CORE-028`, §6.15) y los experimentos PHP/PHPUnit (`WI-CORE-029`, §6.5); lo demás sigue definido y pendiente de implementar y verificar según el WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantiene las rutas Core→Console y Core↔Sandbox, agrega el límite directo de UI GitHub (§6.14) y declara el lenguaje de `ProjectVersion` y el framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.8` es la versión documental vigente. Sobre la base de `INTEROP-2.7` agrega `projectRoot`/`effectiveProjectRoot`, el aislamiento de paths al subproyecto y el transporte de la raíz efectiva en Core→Sandbox (§6.1, §6.2 y §7.2); la selección automática se limita a un único candidato PHP y conserva un repositorio por Project. El consumidor Sandbox debe importar y aceptar el campo antes de que Core lo envíe en ejecuciones PHP; omitirlo conserva el comportamiento legacy de raíz `.` durante la transición. `INTEROP-2.7` (preparado en `WI-CORE-017`) agregó el rol Writer (§6.13), `UNKNOWN` auditado y procedencia/escenarios de Functional Knowledge (§6.11), OE5 (§6.5.1), comparación de retrieval OE2 (§6.15) y trace/evidencia (§6.16). Cada sección indica su estado: las capacidades implementadas en Core incluyen `UNKNOWN`/Functional Knowledge (`WI-CORE-018`–`020`), OE5 (`WI-CORE-023`–`025`), retrieval (`WI-CORE-022`, `028`), trace/evidencia (`WI-CORE-026`, `027`), PHP/PHPUnit (`WI-CORE-013`, `029`) y el rol Writer (`WI-CORE-019`); el resto sigue pendiente del WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantuvo rutas Core→Console y Core↔Sandbox, agregó el límite directo de UI GitHub (§6.14) y declaró el lenguaje de `ProjectVersion` y framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -44,7 +44,7 @@ interface Page<T> {
 - `x-correlation-id`: opcional desde el navegador; RAG Core lo genera cuando falta y siempre lo devuelve. Core lo propaga al Sandbox y el Sandbox lo devuelve.
 - `Idempotency-Key`: UUID obligatorio en respuestas funcionales, solicitudes de publicación y `POST /executions`. Los webhooks usan `x-github-delivery` como identidad externa y no aceptan una key inventada por la Console. La ausencia o formato inválido devuelve `400 IDEMPOTENCY_KEY_REQUIRED` o `400 INVALID_IDEMPOTENCY_KEY`.
 - En navegador→Core, Developer Console genera una key por acción lógica y conserva el mismo valor en todo reintento de transporte. Core persiste key + huella canónica del request bajo una restricción única: mismo par devuelve la respuesta aceptada original sin crear recurso/job adicional; misma key con huella distinta devuelve `409 IDEMPOTENCY_CONFLICT`.
-- En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace URL estándar y un nombre canónico de la unidad lógica, por ejemplo `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}` o `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}`. En experimentos (INTEROP-2.7, `DEC-IDEMP-001`) el intento 1 conserva ese nombre; el único reintento por fallo externo (§6.5.1) usa `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}:2` (sufijo `:{attempt}` solo si `attempt > 1`; nunca hay intento 3), de modo que un reintento de transporte del intento 2 reutiliza su propia key sin colisionar con el intento 1. La key hija es también `requestId` y se reutiliza en cualquier retry de transporte.
+- En Core→Sandbox no se reutiliza directamente la key raíz cuando una operación produce varias ejecuciones. Core deriva un UUID v5 estable con el namespace URL estándar y un nombre canónico de la unidad lógica, por ejemplo `urn:tjc:sandbox-execution:v1:generation:{jobId}:{targetId}` o `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}`. En experimentos (`DEC-IDEMP-001`) el intento 1 conserva ese nombre; el único reintento por fallo externo (§6.5.1) usa `urn:tjc:sandbox-execution:v1:experiment:{jobId}:{strategy}:{repetition}:2` (sufijo `:{attempt}` solo si `attempt > 1`; nunca hay intento 3), de modo que un reintento de transporte del intento 2 reutiliza su propia key sin colisionar con el intento 1. La key hija es también `requestId` y se reutiliza en cualquier retry de transporte. La huella del request incluye `projectRoot` normalizado (omisión legacy equivale a `.`), de modo que una misma key no puede cambiar el subproyecto ejecutado.
 - `Authorization: Bearer <service-token>` es obligatorio en todos los endpoints `/executions`. El valor es un secreto opaco precompartido de alta entropía, configurado como `SANDBOX_SERVICE_TOKEN` en Core y Sandbox; no es JWT, no usa proveedor de identidad y nunca ingresa al frontend, logs, PostgreSQL, Storage o container. Core lo exige cuando configura `SANDBOX_URL`; Sandbox lo exige al arrancar. Los endpoints `/health/live` y `/health/ready` no requieren este header.
 - `Authorization: Bearer <user-access-token>` es obligatorio en todos los endpoints navegador→Core salvo `GET /health`. Es un JWT de sesión emitido por Supabase Auth para HU01/HU02; RAG Core valida firma, issuer, audience y expiración mediante el mecanismo compatible con las signing keys del proyecto. El token identifica a la persona (`sub`) y nunca se reenvía al Sandbox. Toda sesión debe tener identidad GitHub (HU01/HU02, `DEC-ORG-001`): Core resuelve el `githubUserId` numérico con la Admin API de Supabase (§6.13, "Identidad"); un token válido sin identidad GitHub devuelve `401 GITHUB_IDENTITY_REQUIRED`.
 - `X-GitHub-Provider-Token` se exige para discovery: tanto en la ruta Core heredada `GET /integrations/github/repositories` como en la ruta directa Console→Integration. Para verificar un repositorio nuevo también se exige en la ruta directa de Integration. En la ruta Core heredada de discovery, Console lo envía a Core y Core lo reenvía temporalmente a GitHub Integration; en las rutas directas, Console lo envía solo a Integration. No se usa para bindings existentes ni para listar ramas. Nunca se persiste, registra, devuelve ni reenvía a Sandbox, y no se usa para automatización GitHub App.
@@ -126,6 +126,7 @@ interface ProjectResponse {
   id: Id
   name: string
   currentVersionId: Id | null
+  projectRoot: RelativePath | null // raíz activa detectada; null antes de resolverla
   workspace: WorkspaceRefResponse // §6.13
   role: ProjectRole // rol del usuario autenticado en este Project, §6.13
   createdAt: IsoDateTime
@@ -134,6 +135,8 @@ interface ProjectResponse {
 ```
 
 `POST /projects` sin `workspaceId` (o con el id del workspace personal) crea un Project personal; el creador es su único usuario y su Admin. Con el id de una organización exige que Core verifique en vivo que el usuario es owner activo de esa organización (§6.13): un `workspaceId` que no es un workspace del usuario responde `404 WORKSPACE_NOT_FOUND`, uno de organización donde el usuario es miembro pero no owner `403 WORKSPACE_ADMIN_REQUIRED`, y si GitHub no responde `503 GITHUB_VERIFICATION_UNAVAILABLE` (no se concede lo nuevo). El workspace del Project se fija al crearlo (`githubOrgId`/`login` de la organización, o personal) y no cambia. Un Project nace sin repositorio y solo lo ven sus Admin hasta que se vincula uno (§6.13).
+
+Un `repositoryId` solo puede pertenecer a un Project (`REPOSITORY_ALREADY_BOUND`); detectar más de una aplicación no crea Projects adicionales. Core asigna el `projectRoot` al Project al resolver el snapshot: `.`, si la aplicación está en la raíz, o una ruta POSIX relativa al repositorio para un único `composer.json` PHP candidato. La Console no pregunta qué aplicación o Project elegir ni permite seleccionar la raíz en este corte; puede mostrar la raíz devuelta como dato informativo. Cero candidatos conserva la detección legacy desde la raíz. Con dos o más candidatos, Core no aplica score/heurística y deja ese subcaso sin ejecución hasta resolver `DEC-PHP-ROOT-001`; el resto de candidatos únicos no queda bloqueado.
 
 `GET /projects` sin `workspaceId` devuelve todos los Projects visibles para el usuario (los personales que creó y los de sus organizaciones), cada uno con su `workspace`; con `workspaceId` devuelve solo los de ese workspace (`404 WORKSPACE_NOT_FOUND` si no es un workspace del usuario). Nunca devuelve Projects personales de otra persona: los Projects personales no se comparten (`DEC-ORG-002`).
 
@@ -163,6 +166,7 @@ interface ProjectVersionResponse {
   projectId: Id
   status: ProjectVersionStatus
   language: ProjectLanguage
+  effectiveProjectRoot: RelativePath // congelado por versión; '.' para raíz del repositorio
   originalFileName: string | null
   sizeBytes: number | null
   filesProcessed: number | null
@@ -179,6 +183,7 @@ interface ProjectVersionResultsResponse {
   projectId: Id
   status: 'COMPLETED'
   language: ProjectLanguage
+  effectiveProjectRoot: RelativePath
   filesProcessed: number
   chunksCount: number
   detectedFramework: TestFramework | null
@@ -218,6 +223,8 @@ interface TestInventoryResponse {
   targets: TestTargetResponse[]
 }
 ```
+
+`ProjectVersionSummaryResponse` hereda `effectiveProjectRoot`. La raíz efectiva se determina para el snapshot inmutable de esa versión y no cambia si el manifiesto se mueve o el `projectRoot` activo del Project cambia en un commit posterior. Versiones históricas anteriores a este campo se representan con `effectiveProjectRoot: '.'`, que refleja la semántica de indexación vigente al crearse. Los paths públicos como `TestTargetResponse.filePath`, las trazas y las rutas de artefactos siguen siendo repo-relative e incluyen el prefijo del subproyecto; el aislamiento del parser no los convierte en rutas relativas a `projectRoot`.
 
 ### 6.3 Generación y validación del AnalysisRun
 
@@ -1323,6 +1330,7 @@ interface CreateSandboxExecutionRequest {
   testRunId: Id
   projectVersionId: Id
   snapshot: EphemeralDownloadRef // role PROJECT_SNAPSHOT
+  projectRoot?: RelativePath // INTEROP-2.8; omisión transitoria equivale a '.'
   artifacts: ExecutionArtifactInput[]
   scope: 'TARGET' | 'BATCH'
   targetIds: Id[]
@@ -1342,7 +1350,10 @@ Reglas:
 
 - No se aceptan comandos arbitrarios, scripts de shell, variables secretas, credenciales, prompts, campos de estrategia ni URLs fuera de `EphemeralDownloadRef`.
 - `snapshot.role` debe ser `PROJECT_SNAPSHOT`; los artefactos deben usar `GENERATED_ARTIFACT`.
-- Para idempotencia se comparan IDs, roles, rutas, hashes y tamaños; la firma o nueva expiración de una URL no cambia por sí sola la identidad lógica del request.
+- `projectRoot` se normaliza y valida bajo la raíz lógica extraída del snapshot: POSIX relativo, existente, no absoluto, sin `..` ni escape por symlink. El wrapper incidental de extracción no integra el valor. `PHP_LARAVEL_PHPUNIT` ejecuta Composer y PHPUnit con cwd en `repositoryRoot/projectRoot` y exige el `composer.json` allí; `NODE_TYPESCRIPT` conserva `projectRoot = .` y sus reglas vigentes. En requests legacy que omiten el campo, el Sandbox usa `.`.
+- Core copia exactamente `ProjectVersion.effectiveProjectRoot` a `CreateSandboxExecutionRequest.projectRoot`; no vuelve a detectar ni resolver una raíz distinta durante la ejecución.
+- `ExecutionArtifactInput.relativePath` sigue siendo relativo a `repositoryRoot`, incluso cuando el runner usa `projectRoot` como cwd. El Sandbox valida y materializa el archivo bajo su ruta repo-relative antes de ejecutar desde el subproyecto.
+- Para idempotencia se comparan IDs, roles, rutas, hashes, tamaños y el `projectRoot` normalizado; la firma o nueva expiración de una URL no cambia por sí sola la identidad lógica del request.
 - `TARGET` requiere uno o más `targetIds`; `BATCH` aplica el conjunto final de artefactos del run actual.
 - `executionProfile` y `runnerHint` se verifican contra el snapshot. Una incompatibilidad termina como `CONFIGURATION`, no habilita ejecutar comandos suministrados por Core.
 - `NODE_TYPESCRIPT` exige `pnpm-lock.yaml`, instala con pnpm y lockfile congelado, y admite Jest/Vitest. npm, Yarn o ausencia de lockfile producen `UNSUPPORTED_PACKAGE_MANAGER`.

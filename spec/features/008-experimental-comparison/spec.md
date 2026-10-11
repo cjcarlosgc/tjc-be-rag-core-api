@@ -5,7 +5,7 @@
 
 La adaptación live de `POST /experiments` queda registrada en `WI-CORE-035`: recibe `analysisRunId`, `symbolFilePath` y `symbolQualifiedName`; Core autoriza sobre el AnalysisRun y resuelve el `TestTarget` interno desde la versión congelada del Run. El contrato canónico ya define esa forma en INTEROP-2.7 §6.5; esta tarea implementa conformidad sin cambiar el contrato ni el DTO público.
 
-El experimento productivo parte de un `AnalysisRun` real y un símbolo elegible del changeset, según INTEROP-2.6 §6.5. El código que aún dependa de selección manual de `TestTarget` es deuda de adaptación, no otra ruta de producto.
+El experimento productivo parte de un `AnalysisRun` real y un símbolo elegible del changeset, según INTEROP-2.8 §6.5. El código que aún dependa de selección manual de `TestTarget` es deuda de adaptación, no otra ruta de producto.
 
 ## Objetivo
 
@@ -26,7 +26,7 @@ Ejecutar una comparación pareada entre la arquitectura RAG especializada y un a
 - Métricas explicativas del agente generalista: toolCalls,filesInspected y contexto/tokens atribuibles a la exploración cuando el proveedor permita observarlos.
 - Agregados: tasas, diferencia en puntos porcentuales, media/mediana de tiempos/tokens/costo y distribución de failureType.
 - Coverage se evalúa como métrica secundaria en Sprint 4 si resulta homogénea/viable; no bloquea PI1.
-- `INTEROP-2.1` conserva el transporte y DTO experimental con `RAG|GENERALIST_AGENT`; la operación interna del agente generalista queda resuelta en `DEC-EXP-002` (APROBADO, ver más abajo).
+- `INTEROP-2.8` conserva el transporte experimental y agrega la raíz efectiva congelada por versión y ejecución; la operación interna del agente generalista queda resuelta en `DEC-EXP-002` (APROBADO, ver más abajo).
 - `POST /experiments` exige `Idempotency-Key`; un replay equivalente devuelve el mismo experimento. Cada repetición/estrategia deriva su propia identidad Sandbox estable de `experiment:{jobId}:{strategy}:{repetition}`.
 
 ### DEC-EXP-001 — Baseline experimental realista
@@ -55,14 +55,32 @@ Para HU15/HU17, la trayectoria observable se expone en la forma normalizada y co
 
 ## Alineación SMART V3 — OE5 (SDD 2026-10-08; implementación pendiente)
 
-Decisiones: `DEC-EXP-FK-001` y `DEC-EXP-003`, ambas `APROBADO`. Contrato: `INTEROP-2.7` §6.5.1.
+Decisiones: `DEC-EXP-FK-001` y `DEC-EXP-003`, ambas `APROBADO`. Contrato: `INTEROP-2.8` §6.5.1.
 
 - OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura, bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información. RAG usa `SE`, `ContextBuilder` y el conocimiento funcional `ACTIVE` aplicable; el agente explora sin retriever RAG, sin `ContextBuilder` y sin conocimiento funcional persistente. Ninguno recibe el oráculo.
 - Condiciones comunes: repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable (tope de tool calls, presupuesto de contexto, tokens, archivos y duración). El razonamiento no se degrada en silencio. **Hallazgo:** el agente lee hoy `reasoning_effort` por su cuenta y usa el SDK de OpenAI directamente, así que puede divergir del brazo RAG; `WI-CORE-023` lo unifica detrás de `LLMProvider`.
 - Herramientas del agente: `list_files`, `read_file`, `search_text` e `inspect_symbol`/referencias. Prohibidos: shell, Composer/PHPUnit/Jest/Vitest, escritura, Internet y GitHub API (`WI-CORE-024`).
 - Diseño pareado: 3 repeticiones por estrategia forman 3 pares, cada repetición en sesión fresca; el orden dentro del par es aleatorio y reproducible desde `randomizationSeed`; se persisten `pairId`, `pairPosition`, `attempt` y configuración. Un fallo de la estrategia no admite reintento de calidad; un fallo externo demostrado admite como máximo uno; un segundo fallo de infraestructura deja la repetición `technicallyEvaluable: false`. **Hallazgo:** no existe pairing, orden ni seed formales (`WI-CORE-025`).
 - Jerarquía: CF primaria, CO secundaria y VT guardrail; CF/CO son externas y no se derivan de `valid`/`passed`; no hay ganador automático ni significancia estadística en el backend (`spec/transversal/experimental-metrics`).
-- PHP/PHPUnit sigue bloqueado para experimentos hasta cerrar `WI-CORE-013` y la coordinación con Sandbox (`WI-CORE-029`).
+- Core soporta experimentos PHP/PHPUnit por `WI-CORE-013` y `WI-CORE-029`; el piloto cross-repo sigue condicionado a que Core y Sandbox sincronicen e implementen `projectRoot` (WIs locales pendientes; Core `WI-CORE-036`/`037`) y a congelar/verificar los snapshots externos.
+
+## Piloto controlado de compatibilidad PHP
+
+Este piloto complementa, pero no sustituye ni renumera, los casos operativos `OC01`–`OC15`. El handoff propone tres repositorios externos reportados como **Validación Ventas**, **Reservas** y **Suscripciones**, con tres targets cada uno. Sus permisos, HEADs, `projectRoot`, dependencias y existencia de símbolos deben confirmarse antes de ejecutar; esta tabla es un protocolo de selección, no evidencia verificada ni fuente de verdad funcional. No copiar ni almacenar oráculos en repositorios de producto.
+
+| Repo piloto | Target | Categoría reportada | Símbolo reportado |
+| --- | --- | --- | --- |
+| Validación Ventas | SAL-1 | Local | `DiscountCalculator::applyPercentage()` |
+| Validación Ventas | SAL-2 | Functional | `DiscountPolicy::discountFor()` |
+| Validación Ventas | SAL-3 | Structural | `OrderPricingService::calculateTotal()` |
+| Reservas | RES-1 | Local | `ReservationPeriod::durationMinutes()` |
+| Reservas | RES-2 | Structural | `AvailabilityService::canReserve()` |
+| Reservas | RES-3 | Functional | `CancellationPolicy::refundAmount()` |
+| Suscripciones | SUB-1 | Local | `PlanPriceCalculator::monthlyAmount()` |
+| Suscripciones | SUB-2 | Structural | `RenewalService::renew()` |
+| Suscripciones | SUB-3 | Functional | `Subscription::handleFailedPayment()` |
+
+Plan de medición: 3 repeticiones por target y estrategia (`RAG` y `GENERALIST_AGENT`), en sesiones frescas y con las condiciones pareadas de esta especificación: **9 targets, 27 pares y 54 ejecuciones**. Antes de la primera corrida se congela y registra el `repositoryId`, commit SHA y `effectiveProjectRoot` de cada repo; cada ejecución posterior usa el mismo snapshot del par. Se registran CF primaria, CO secundaria y VT guardrail, más métricas técnicas/costo ya definidas; ninguna se interpreta como oráculo ni produce un ganador automático. No se modifica ningún repo piloto ni se hace E2E hasta verificar acceso y congelar sus revisiones.
 
 ## Fuera de alcance
 

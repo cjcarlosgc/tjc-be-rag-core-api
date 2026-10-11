@@ -1907,6 +1907,73 @@
           "report": "harness/reports/wi-core-035-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-036",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "PHP compatibility cross",
+      "title": "Detectar projectRoot PHP único y aislar ProjectVersion",
+      "storyIds": ["HU01", "HU03", "HU04"],
+      "taskIds": ["ST-CORE-043"],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "Se mantiene un repositoryId por Project y un Project por repositoryId; detectar aplicaciones hermanas no crea Projects ni cambia RepositoryBinding.repositoryId @unique.",
+        "Un único composer.json candidato selecciona automáticamente su directorio como projectRoot POSIX repo-relative ('.' en la raíz); cero candidatos conserva la detección legacy y dos o más no se resuelven con score/heurística ni selección en Console, quedando solo ese subcaso pendiente de DEC-PHP-ROOT-001.",
+        "La raíz se valida bajo el snapshot lógico: existe, no es absoluta, no contiene traversal y no escapa por symlink; el wrapper incidental ZIP no forma parte del valor.",
+        "Core aísla parsing, inventario, PHPUnit detection y retrieval al subtree, pero conserva todos los paths de API/trazas relativos a la raíz del repositorio e incluye el prefijo projectRoot.",
+        "La raíz vigente se persiste en Project y cada ProjectVersion/resultados congela y expone effectiveProjectRoot; las versiones históricas previas se representan con '.'. ProjectResponse expone projectRoot. TypeScript sigue usando '.' sin cambio y PHP sin PHPUnit continúa reconocido, pero no ejecutable por PHP_LARAVEL_PHPUNIT.",
+        "Pruebas cubren raíz '.', único root anidado con frontend hermano, wrapper ZIP, path/symlink inválidos, candidato múltiple sin selección, root congelado por snapshot y regresión TypeScript. No se modifican Console, Sandbox, GitHub Integration ni repositorios piloto desde Core."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/019-project-root-detection/spec.md",
+        "spec/features/019-project-root-detection/plan.md",
+        "spec/features/019-project-root-detection/tasks.md",
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/002-project-version-indexing/spec.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-037",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "PHP compatibility cross",
+      "title": "Transportar projectRoot y preservar paths repo-relative en Sandbox",
+      "storyIds": ["HU10", "HU11", "HU12"],
+      "taskIds": ["ST-CORE-044"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-036"],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": ["spec/contracts/interoperability-contract.md"],
+      "acceptanceCriteria": [
+        "Core envía projectRoot en ejecuciones PHP y conserva la raíz congelada del snapshot; la omisión transitoria en requests legacy equivale a '.', sin cambiar el requestId/idempotencia para una misma raíz normalizada.",
+        "El Sandbox valida projectRoot bajo repositoryRoot y ejecuta Composer/PHPUnit con cwd en el subproyecto; el wrapper de extracción no se trata como raíz del proyecto.",
+        "Los artefactos se identifican y materializan con rutas canónicas relativas al repositorio, incluso si PHPUnit se ejecuta con cwd en projectRoot; un target del frontend hermano no entra al pool PHP.",
+        "No se activa el envío del nuevo campo hasta que el WI local del Sandbox implemente el contrato y exista Contract Sync importado/acknowledged; el baseline SDD 2.1 de Sandbox no se cambia desde Core.",
+        "Pruebas unitarias/integración cubren request nuevo y legacy, idempotencia por raíz, cwd PHP, artefactos con prefijo, validación de escape y regresión NODE_TYPESCRIPT. E2E empresarial requiere permisos y commits congelados, y no modifica repositorios piloto ni incorpora oráculos."
+      ],
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/019-project-root-detection/spec.md",
+        "spec/features/019-project-root-detection/plan.md",
+        "spec/features/019-project-root-detection/tasks.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/transversal/async-jobs/spec.md"
+      ]
     }
   ]
 }
