@@ -9137,9 +9137,9 @@
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-PASSED",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -9192,15 +9192,41 @@
             "CS-20260921-003"
           ],
           "checkedAt": "2026-10-11T09:42:28.602Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-038",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-11T09:44:30.943Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261011-004"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
       "harness/reports/wi-core-038-sdd-verification.md",
       "harness/reports/wi-core-038-contract-review.md",
-      "harness/reports/wi-core-038-implementation.md"
+      "harness/reports/wi-core-038-implementation.md",
+      "harness/reports/contract-sync-publish-cs-core-20261011-004.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -9218,6 +9244,15 @@
       ],
       "technicalChecksPassed": [
         "harness/reports/wi-core-038-implementation.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-038-implementation.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20261011-004.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/contract-sync-publish-cs-core-20261011-004.md"
       ]
     }
   },
