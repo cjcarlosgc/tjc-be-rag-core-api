@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261010-002
+source: core
+sourceWorkItem: WI-CORE-034
+targets: [github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.6 e INTEROP-2.7 se alinean con GH-INTEROP-1.4: la referencia canónica de Check conserva checkId y documenta su identidad durable, concurrencia y error de duplicados.
+requiredAction:
+  - Importar los dos contratos canónicos y actualizar sus espejos byte por byte junto con GH-INTEROP-1.4; no cambia rutas públicas ni despliegue.
+sourceRevision: 46c7046d015d18e49b0e737f6b61cceef1d6889c
+status: C-PENDING
