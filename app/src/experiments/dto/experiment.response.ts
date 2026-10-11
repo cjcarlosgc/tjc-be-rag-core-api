@@ -12,6 +12,7 @@ export type FailureType =
   | 'UNKNOWN';
 
 export interface ExperimentAcceptedResponse {
+  analysisRunId: string;
   experimentId: string;
   projectVersionId: string;
   status: 'PENDING';

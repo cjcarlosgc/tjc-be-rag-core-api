@@ -120,8 +120,8 @@ const ROUTE_CASES: Record<string, RouteCase> = {
   },
   'POST /experiments': {
     url: () => '/experiments',
-    body: (i) => ({ projectId: i.projectId, targetId: '00000000-0000-4000-8000-000000000002' }),
-    notFound: PROJECT_404,
+    body: (i) => ({ analysisRunId: i.runId, symbolFilePath: 'a.ts', symbolQualifiedName: 'A.b' }),
+    notFound: 'ANALYSIS_RUN_NOT_FOUND',
   },
   'GET /retrieval-comparisons/{}': { url: (i) => `/retrieval-comparisons/${i.retrievalComparisonId}`, notFound: 'RETRIEVAL_COMPARISON_NOT_FOUND' },
   'GET /retrieval-comparisons/{}/results': {
@@ -176,7 +176,7 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
         // importa que el guard deje pasar (o no) la petición.
         .overrideProvider(ExperimentsService)
         .useValue({
-          createRun: () => Promise.resolve({ experimentId: 'e' }),
+          createRun: (dto: { analysisRunId: string }) => Promise.resolve({ analysisRunId: dto.analysisRunId, experimentId: 'e' }),
           getStatus: () => Promise.resolve({ id: 'e' }),
           getResults: () => Promise.resolve({ id: 'e' }),
         })

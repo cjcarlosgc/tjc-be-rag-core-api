@@ -18,7 +18,11 @@ vi.mock('openai', () => ({
 
 const IDEMPOTENCY_KEY = '11111111-1111-4111-8111-111111111111';
 const OWNER_USER_ID = 'user-1';
-const DTO = { projectId: 'project-1', targetId: 'target-1' };
+const DTO = {
+  analysisRunId: '11111111-1111-4111-8111-111111111111',
+  symbolFilePath: 'src/example.ts',
+  symbolQualifiedName: 'Example.run',
+};
 
 const GPT_6_LUNA_COMBINATIONS = JSON.stringify([
   { model: 'gpt-6-luna', efforts: ['low', 'xhigh'], toolEfforts: ['low', 'xhigh'] },
@@ -66,13 +70,19 @@ function makeService(env: ReturnType<typeof makeEnv>) {
   const jobsService = { enqueue: vi.fn().mockResolvedValue('job-1') };
   const service = new ExperimentsService(
     {
-      require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: 'version-1' }, role: 'WRITER' }),
+      require: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'WRITER' }),
     } as never,
+    { getById: vi.fn().mockResolvedValue({ id: DTO.analysisRunId, projectId: 'project-1', projectVersionId: 'version-1' }) } as never,
+    { findByAnalysisRun: vi.fn().mockResolvedValue([
+      { kind: 'METHOD', qualifiedName: 'Example.run', filePath: 'src/example.ts', changeKind: 'DIRECTLY_CHANGED' },
+    ]) } as never,
     {
       hasActiveVersion: vi.fn().mockResolvedValue(false),
       findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED', detectedFramework: 'VITEST' }),
     } as never,
-    { findByIdForOwner: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'FUNCTION' }) } as never,
+    { findTestableTargets: vi.fn().mockResolvedValue([
+      { id: 'target-1', targetType: 'METHOD', filePath: 'src/example.ts', symbolName: 'Example', methodName: 'run' },
+    ]) } as never,
     experimentRunsRepository as never,
     jobsService as never,
     env.configService as never,

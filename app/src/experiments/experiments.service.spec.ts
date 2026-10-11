@@ -7,6 +7,11 @@ import type { LLMEffectiveConfig } from '../providers/llm-provider.interface.js'
 import { EXECUTION_PROFILE_BY_RUNNER } from '../sandbox/sandbox-execution.service.js';
 
 const OWNER_USER_ID = 'user-1';
+const DTO = {
+  analysisRunId: 'run-1',
+  symbolFilePath: 'src/example.ts',
+  symbolQualifiedName: 'Example.run',
+};
 
 const EFFECTIVE_CONFIG: LLMEffectiveConfig = {
   provider: 'openai',
@@ -19,6 +24,14 @@ const EFFECTIVE_CONFIG: LLMEffectiveConfig = {
 
 function makeDeps(overrides: Record<string, unknown> = {}) {
   return {
+    analysisRunsService: {
+      getById: vi.fn().mockResolvedValue({ id: 'run-1', projectId: 'project-1', projectVersionId: 'version-1' }),
+    },
+    analysisSymbolsRepository: {
+      findByAnalysisRun: vi.fn().mockResolvedValue([
+        { kind: 'METHOD', qualifiedName: 'Example.run', filePath: 'src/example.ts', changeKind: 'DIRECTLY_CHANGED' },
+      ]),
+    },
     projectAccess: {
       require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: 'version-1' }, role: 'WRITER' }),
     },
@@ -27,7 +40,15 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED', detectedFramework: 'VITEST' }),
     },
     testTargetsRepository: {
-      findByIdForOwner: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'FUNCTION' }),
+      findTestableTargets: vi.fn().mockResolvedValue([
+        {
+          id: 'target-1',
+          targetType: 'METHOD',
+          filePath: 'src/example.ts',
+          symbolName: 'Example',
+          methodName: 'run',
+        },
+      ]),
     },
     experimentRunsRepository: {
       create: vi.fn().mockResolvedValue({ id: 'exp-1' }),
@@ -40,6 +61,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       resolveEffectiveConfig: vi.fn().mockResolvedValue(EFFECTIVE_CONFIG),
     },
     idempotencyService: {
+      validateKey: vi.fn(),
       run: vi.fn(
         async ({
           prepare,
@@ -60,6 +82,8 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
 function makeService(deps: ReturnType<typeof makeDeps>): ExperimentsService {
   return new ExperimentsService(
     deps.projectAccess as never,
+    deps.analysisRunsService as never,
+    deps.analysisSymbolsRepository as never,
     deps.projectVersionsRepository as never,
     deps.testTargetsRepository as never,
     deps.experimentRunsRepository as never,
@@ -80,10 +104,8 @@ describe('ExperimentsService', () => {
       });
       const service = makeService(deps);
 
-      await expect(
-        service.createRun({ projectId: 'missing', targetId: 'target-1' }, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
-      expect(deps.projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'missing', 'WRITER');
+      await expect(service.createRun(DTO, undefined, OWNER_USER_ID)).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
+      expect(deps.projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'WRITER');
     });
 
     it('propagates 403 PROJECT_ROLE_INSUFFICIENT for a Reader before any other validation', async () => {
@@ -97,39 +119,23 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
+        service.createRun(DTO, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.PROJECT_ROLE_INSUFFICIENT });
-      expect(deps.projectVersionsRepository.hasActiveVersion).not.toHaveBeenCalled();
+      expect(deps.projectVersionsRepository.findById).not.toHaveBeenCalled();
     });
 
-    it('throws PROJECT_INDEXING_IN_PROGRESS when the project has an active version', async () => {
+    it('throws ANALYSIS_NOT_FINISHED when the AnalysisRun has no frozen version', async () => {
       const deps = makeDeps({
-        projectVersionsRepository: {
-          hasActiveVersion: vi.fn().mockResolvedValue(true),
-          findById: vi.fn(),
-        },
+        analysisRunsService: { getById: vi.fn().mockResolvedValue({ id: 'run-1', projectId: 'project-1', projectVersionId: null }) },
       });
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_INDEXING_IN_PROGRESS });
+        service.createRun(DTO, undefined, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.ANALYSIS_NOT_FINISHED });
     });
 
-    it('throws PROJECT_NOT_READY when there is no current version', async () => {
-      const deps = makeDeps({
-        projectAccess: {
-          require: vi.fn().mockResolvedValue({ project: { id: 'project-1', currentVersionId: null }, role: 'WRITER' }),
-        },
-      });
-      const service = makeService(deps);
-
-      await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_READY });
-    });
-
-    it('throws ANALYSIS_NOT_FINISHED when the current version is not COMPLETED', async () => {
+    it('throws ANALYSIS_NOT_FINISHED when the frozen version is not COMPLETED', async () => {
       const deps = makeDeps({
         projectVersionsRepository: {
           hasActiveVersion: vi.fn().mockResolvedValue(false),
@@ -139,46 +145,48 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
+        service.createRun(DTO, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.ANALYSIS_NOT_FINISHED });
     });
 
-    it('throws UNRESOLVABLE_TARGET when the target does not exist or belongs to another owner', async () => {
+    it('throws ANALYSIS_SYMBOL_NOT_FOUND when the exact symbol is absent from the AnalysisRun', async () => {
       const deps = makeDeps({
-        testTargetsRepository: { findByIdForOwner: vi.fn().mockResolvedValue(null) },
+        analysisSymbolsRepository: { findByAnalysisRun: vi.fn().mockResolvedValue([]) },
       });
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'missing' }, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
+        service.createRun(DTO, undefined, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.ANALYSIS_SYMBOL_NOT_FOUND });
     });
 
-    it('looks the target up scoped to the requested project, so a target of another project is UNRESOLVABLE_TARGET', async () => {
+    it('throws UNRESOLVABLE_TARGET when the frozen version has no matching TestTarget', async () => {
       const deps = makeDeps({
-        testTargetsRepository: { findByIdForOwner: vi.fn().mockResolvedValue(null) },
+        testTargetsRepository: { findTestableTargets: vi.fn().mockResolvedValue([]) },
       });
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-of-project-2' }, undefined, OWNER_USER_ID),
+        service.createRun(DTO, undefined, OWNER_USER_ID),
       ).rejects.toMatchObject({ code: ErrorCode.UNRESOLVABLE_TARGET });
-      expect(deps.testTargetsRepository.findByIdForOwner).toHaveBeenCalledWith('target-of-project-2', OWNER_USER_ID, 'project-1');
       expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
       expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
     });
 
-    it('throws INVALID_GENERATION_TARGET when the target is a CLASS', async () => {
+    it.each([
+      ['non-METHOD/FUNCTION', { kind: 'CLASS', changeKind: 'DIRECTLY_CHANGED' }],
+      ['not DIRECTLY_CHANGED', { kind: 'METHOD', changeKind: 'POTENTIALLY_IMPACTED' }],
+    ])('throws UNSUPPORTED_SYMBOL_KIND for a symbol that is %s', async (_label, symbolKind) => {
       const deps = makeDeps({
-        testTargetsRepository: {
-          findByIdForOwner: vi.fn().mockResolvedValue({ id: 'target-1', targetType: 'CLASS' }),
-        },
+        analysisSymbolsRepository: { findByAnalysisRun: vi.fn().mockResolvedValue([
+          { ...symbolKind, qualifiedName: 'Example.run', filePath: 'src/example.ts' },
+        ]) },
       });
       const service = makeService(deps);
 
       await expect(
-        service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject({ code: ErrorCode.INVALID_GENERATION_TARGET });
+        service.createRun(DTO, undefined, OWNER_USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.UNSUPPORTED_SYMBOL_KIND });
     });
 
     it('creates the run and enqueues the job on the happy path', async () => {
@@ -186,7 +194,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       const result = await service.createRun(
-        { projectId: 'project-1', targetId: 'target-1' },
+        DTO,
         undefined,
         OWNER_USER_ID,
       );
@@ -210,14 +218,17 @@ describe('ExperimentsService', () => {
         expect.objectContaining({ experimentId: 'exp-1', targetId: 'target-1' }),
         undefined,
       );
-      expect(result).toMatchObject({ experimentId: 'exp-1', projectVersionId: 'version-1', status: 'PENDING' });
+      expect(result).toMatchObject({ analysisRunId: 'run-1', experimentId: 'exp-1', projectVersionId: 'version-1', status: 'PENDING' });
+      expect(deps.analysisRunsService.getById).toHaveBeenCalledWith('run-1', OWNER_USER_ID);
+      expect(deps.analysisSymbolsRepository.findByAnalysisRun).toHaveBeenCalledWith('run-1');
+      expect(deps.testTargetsRepository.findTestableTargets).toHaveBeenCalledWith('version-1');
     });
 
     it('resolves the effective LLM config exactly once through prepare and persists that same config in create', async () => {
       const deps = makeDeps();
       const service = makeService(deps);
 
-      await service.createRun({ projectId: 'project-1', targetId: 'target-1' }, 'key-1', OWNER_USER_ID);
+      await service.createRun(DTO, 'key-1', OWNER_USER_ID);
 
       expect(deps.llmProvider.resolveEffectiveConfig).toHaveBeenCalledTimes(1);
       expect(deps.idempotencyService.run).toHaveBeenCalledWith(
@@ -245,7 +256,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       const error = await service
-        .createRun({ projectId: 'project-1', targetId: 'target-1' }, 'key-1', OWNER_USER_ID)
+        .createRun(DTO, 'key-1', OWNER_USER_ID)
         .catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(AppException);
@@ -275,7 +286,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       const error = await service
-        .createRun({ projectId: 'project-1', targetId: 'target-1' }, 'key-1', OWNER_USER_ID)
+        .createRun(DTO, 'key-1', OWNER_USER_ID)
         .catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(AppException);
@@ -306,7 +317,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       const error = await service
-        .createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID)
+        .createRun(DTO, undefined, OWNER_USER_ID)
         .catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(AppException);
@@ -335,7 +346,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       const accepted = await service.createRun(
-        { projectId: 'project-1', targetId: 'target-1' },
+        DTO,
         undefined,
         OWNER_USER_ID,
       );
@@ -362,7 +373,7 @@ describe('ExperimentsService', () => {
       const service = makeService(deps);
 
       const error = await service
-        .createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID)
+        .createRun(DTO, undefined, OWNER_USER_ID)
         .catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(AppException);
@@ -385,7 +396,7 @@ describe('ExperimentsService', () => {
       });
       const service = makeService(deps);
 
-      await service.createRun({ projectId: 'project-1', targetId: 'target-1' }, undefined, OWNER_USER_ID);
+      await service.createRun(DTO, undefined, OWNER_USER_ID);
 
       expect(deps.experimentRunsRepository.create).toHaveBeenCalledTimes(1);
       expect(deps.experimentRunsRepository.create.mock.calls[0][0]).toMatchObject({
@@ -409,7 +420,7 @@ describe('ExperimentsService', () => {
       );
       const service = makeService(deps);
 
-      await service.createRun({ projectId: 'project-1', targetId: 'target-1' }, 'key-1', OWNER_USER_ID);
+      await service.createRun(DTO, 'key-1', OWNER_USER_ID);
 
       expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
       expect(deps.llmProvider.resolveEffectiveConfig).not.toHaveBeenCalled();
@@ -420,7 +431,7 @@ describe('ExperimentsService', () => {
     it('delegates to IdempotencyService with the idempotency key, the EXPERIMENT_CREATE scope and the dto as fingerprint (DEC-IDEMP-001)', async () => {
       const deps = makeDeps();
       const service = makeService(deps);
-      const dto = { projectId: 'project-1', targetId: 'target-1' };
+      const dto = DTO;
 
       await service.createRun(dto, 'client-key-1', OWNER_USER_ID);
 

@@ -1838,6 +1838,52 @@
         "spec/features/016-github-integration/spec.md",
         "spec/features/016-github-integration/tasks.md"
       ]
+    },
+    {
+      "id": "WI-CORE-035",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P0",
+      "sprint": "PHP V1",
+      "title": "Adaptar POST experiments al request OE5 V3 de AnalysisRun",
+      "storyIds": ["HU17"],
+      "taskIds": ["ST-CORE-042"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-029"],
+      "contractImpact": false,
+      "publishesContract": false,
+      "syncScopePaths": ["spec/contracts/interoperability-contract.md"],
+      "acceptanceCriteria": [
+        "POST /experiments valida el request OE5 V3: analysisRunId, symbolFilePath, symbolQualifiedName y repetitions opcional; projectId y targetId legados no son aceptados por el DTO público.",
+        "La autorización Writer se resuelve desde analysisRunId; Core consulta el AnalysisRun visible y elegible, exige su ProjectVersion congelada completada y valida el símbolo por la pareja exacta (filePath, qualifiedName), METHOD/FUNCTION y DIRECTLY_CHANGED.",
+        "Core resuelve internamente el TestTarget correspondiente exclusivamente en la ProjectVersion del Run; no confía en IDs de ProjectVersion/target enviados por el cliente ni recurre a la versión actual del Project.",
+        "Se conserva Idempotency-Key, la semántica de creación asíncrona y se devuelve 202 con analysisRunId, experimentId y projectVersionId; la persistencia/cola recibe los IDs internos resueltos.",
+        "Pruebas cubren DTO estricto, autorización por AnalysisRun, símbolos ausentes/no elegibles, mapeo al TestTarget de la versión congelada y respuesta/encolado exitosos. No cambia Console ni el contrato canónico."
+      ],
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/transversal/async-jobs/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata binding, lifecycle de Projects y autorización; WI-CORE-035 solo adapta la entrada POST /experiments por AnalysisRun y no cambia esas superficies.",
+          "report": "harness/reports/wi-core-035-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación de Console y orden de despliegue; WI-CORE-035 no cambia login, despliegue, binding ni configuración externa.",
+          "report": "harness/reports/wi-core-035-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

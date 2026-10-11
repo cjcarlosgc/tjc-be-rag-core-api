@@ -24,6 +24,8 @@ Auditar HU15/HU17 frente a `011-context-traces` al seleccionar la adaptación li
 
 Secuencia: `WI-CORE-023` (paridad `LLMProvider`) → `WI-CORE-024` (exploración del agente) → `WI-CORE-025` (pareado, orden, seed, presupuesto y reintentos). `WI-CORE-007` (diagnóstico de fallos) alimenta la evidencia de `WI-CORE-027`. `WI-CORE-029` (OE5 con PHP) queda diferido.
 
+`WI-CORE-035` adapta la entrada live de OE5 a la identidad V3 de INTEROP-2.7 §6.5: recibe un AnalysisRun y un símbolo del changeset, comprueba el rol sobre el Run, y resuelve internamente el Project, ProjectVersion congelado y TestTarget heredados. No cambia la persistencia de resultados ni publica otro contrato.
+
 ## Diseño técnico SMART V3 (WI-CORE-007, WI-CORE-024 y WI-CORE-025)
 
 - **Agente generalista (`WI-CORE-024`).** Se retiran los filtros de `WorkspaceAgentTools` que ocultan las pruebas que cubren el target (`DEC-EXP-003`), manteniendo la exclusión de rutas fuera del snapshot (`node_modules`, `.git`). El agente expone exactamente cuatro herramientas; `inspect_symbol` cubre definición y referencias. Tope `toolCallCap` = 20, configurable por entorno; al alcanzarlo se hace una última llamada sin herramientas para generar la prueba. Cada resultado de herramienta se trunca para no superar `contextTokenBudget` (= `maxContextTokens` de RAG) y lo truncado se marca en la trayectoria.

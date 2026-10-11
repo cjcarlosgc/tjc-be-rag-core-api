@@ -8408,6 +8408,348 @@
         ]
       },
       "closedAt": "2026-10-10T22:04:17.000Z"
+    },
+    {
+      "id": "WI-CORE-035",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-042"
+      ],
+      "caseIds": [],
+      "sprint": "PHP V1",
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/transversal/async-jobs/spec.md"
+      ],
+      "syncScopePaths": [
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata binding, lifecycle de Projects y autorización; WI-CORE-035 solo adapta la entrada POST /experiments por AnalysisRun y no cambia esas superficies.",
+          "report": "harness/reports/wi-core-035-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación de Console y orden de despliegue; WI-CORE-035 no cambia login, despliegue, binding ni configuración externa.",
+          "report": "harness/reports/wi-core-035-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [
+        "spec/transversal/async-jobs/spec.md"
+      ],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-EXP-001",
+          "DEC-EXP-002",
+          "DEC-EXP-003",
+          "DEC-EXP-FK-001",
+          "DEC-EXP-004",
+          "DEC-RC-001",
+          "DEC-RC-002"
+        ],
+        "checkedAt": "2026-10-11T05:42:05.000Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "INTEROP-2.7 §6.5 define el request OE5 V3 y sus respuestas de error; la spec existente fija el flujo de ejecución y no requiere cambio contractual.",
+              "El corte debe autorizar por AnalysisRun, validar símbolo exacto METHOD/FUNCTION DIRECTLY_CHANGED y resolver el target exclusivamente desde la ProjectVersion congelada del Run.",
+              "No se encontró decisión pendiente aplicable ni ambigüedad que bloquee SPEC_VERIFIED."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-035-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Implementar el WI aprobado con implementer-high; conservar autorización, selección de target congelada, idempotencia y encolado asíncrono.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "POST /experiments ahora acepta el request V3, autoriza mediante AnalysisRun/WRITER y deriva el TestTarget de la ProjectVersion congelada.",
+              "Se conservan Idempotency-Key, creación transaccional, cola asíncrona y 202 con analysisRunId.",
+              "npm test: 2069 passed, 104 skipped; access-matrix E2E: 123 passed; lint, build y git diff --check pasaron."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/experiments/dto/create-experiment.dto.ts",
+              "app/src/experiments/dto/create-experiment.dto.spec.ts",
+              "app/src/experiments/dto/experiment.response.ts",
+              "app/src/experiments/experiments.controller.ts",
+              "app/src/experiments/experiments.module.ts",
+              "app/src/experiments/experiments.service.ts",
+              "app/src/experiments/experiments.service.spec.ts",
+              "app/src/experiments/experiments.model-config.spec.ts",
+              "app/test/access-matrix.e2e-spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-035-implementation.md"
+            ],
+            "recommendedNextStep": "Resolver CS-CONSOLE-20261010-001, ejecutar implementation-delivery y before-review, y solicitar revisión independiente y contractual.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Revisión técnica independiente aprobada: autorización, target congelado, idempotencia, respuesta 202 y cobertura alineados con el WI.",
+              "La revisión reejecutó 37 pruebas unitarias DTO/servicio y 123 pruebas de matriz HTTP; no se considera verificado el E2E real PHP/Core/GitHub Integration."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-035-independent-review.md"
+            ],
+            "recommendedNextStep": "Aplicar el hallazgo contractual de RelativePath y volver a revisar el DTO modificado antes de pasar el gate independiente.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "xhigh"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "CHANGES_REQUESTED",
+            "findings": [
+              "symbolFilePath actualmente valida tipo, no vacío y longitud, pero falta aplicar RelativePath: POSIX relativo, normalizado, sin segmentos vacíos, punto, traversal, separador backslash o forma absoluta.",
+              "Sin validación temprana, una ruta inválida puede responder 404 ANALYSIS_SYMBOL_NOT_FOUND en vez de 400. No hay ambigüedad ni cambio contractual solicitado."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/experiments/dto/create-experiment.dto.ts",
+              "app/src/experiments/dto/create-experiment.dto.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-035-contract-review.md"
+            ],
+            "recommendedNextStep": "Aplicar la validación RelativePath existente en INTEROP-2.7 §2 y agregar casos para absoluto, traversal y paths no normalizados; solicitar nueva revisión contractual.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 implementado: symbolFilePath ahora valida RelativePath POSIX relativo y normalizado antes del lookup; rutas absolutas, traversal, segmentos vacíos, punto y backslash reciben 400.",
+              "Casos de DTO/servicio: 43 pasaron; suite DTO final: 9 pasaron; lint, build y diff-check pasaron."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/experiments/dto/create-experiment.dto.ts",
+              "app/src/experiments/dto/create-experiment.dto.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-035-implementation.md"
+            ],
+            "recommendedNextStep": "Volver a ejecutar las revisiones técnica y contractual sobre el ciclo de corrección 1.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo de corrección 1 aprobado: RelativePath inválido devuelve HTTP 400 antes del lookup; ruta POSIX relativa y normalizada; sin cambio a contrato canónico.",
+              "Las 9 pruebas DTO pasaron y CS-CONSOLE-20261010-001 permanece C-RESOLVED."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/experiments/dto/create-experiment.dto.ts",
+              "app/src/experiments/dto/create-experiment.dto.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-035-contract-review.md"
+            ],
+            "recommendedNextStep": "Completar la revisión técnica independiente del ciclo 1 y pasar el gate before-done.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo de corrección 1 aprobado: la validación de RelativePath satisface el hallazgo contractual; no se identificaron regresiones en el alcance original.",
+              "Se reejecutaron 43 pruebas DTO/servicio y 123 pruebas de matriz de acceso; el flujo integrado PHP/Core/GitHub Integration permanece fuera de esta verificación."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-035-independent-review.md"
+            ],
+            "recommendedNextStep": "Registrar before-done y cerrar WI-CORE-035 localmente, manteniendo explícito que el piloto integrado no se ha ejecutado.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "xhigh"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-035",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-CONSOLE-20261010-001"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-11T05:36:06.821Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-035",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-11T05:50:06.816Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-035",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-11T05:50:14.955Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-035",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-11T06:04:51.376Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-035-contract-sync-acknowledgement.md",
+        "harness/reports/wi-core-035-contract-sync-scope-review.md",
+        "harness/reports/wi-core-035-sdd-verification.md",
+        "harness/reports/wi-core-035-implementation.md",
+        "harness/reports/wi-core-035-contract-review.md",
+        "harness/reports/wi-core-035-independent-review.md",
+        "harness/reports/wi-core-035-final-review-cycle-1.md",
+        "harness/reports/wi-core-035-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-035-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-035-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-035-final-review-cycle-1.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-035-independent-review.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-035-final-review-cycle-1.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-035-final-review-cycle-1.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-035-sdd-verification.md"
+        ]
+      },
+      "closedAt": "2026-10-11T06:06:07.000Z"
     }
   ],
   "activeWorkItem": null,

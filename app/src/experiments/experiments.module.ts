@@ -11,6 +11,7 @@ import { ExperimentRunsRepository } from './persistence/experiment-runs.reposito
 import { ExperimentJobHandler } from './experiment-job.handler.js';
 import { GeneralistAgentService } from '../generation/agent/generalist-agent.service.js';
 import { ContextTracesModule } from '../context-traces/context-traces.module.js';
+import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ContextTracesModule } from '../context-traces/context-traces.module.js'
     SandboxModule,
     GenerationModule,
     ContextTracesModule,
+    AnalysisRunsModule,
   ],
   controllers: [ExperimentsController, ContextTracesController],
   providers: [

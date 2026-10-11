@@ -32,6 +32,9 @@ import type {
 import type { ExperimentRepetition } from '../generated/prisma/client.js';
 import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.interface.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
+import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
+import { AnalysisSymbolsRepository } from '../analysis-runs/persistence/analysis-symbols.repository.js';
+import { findMatchingTestTarget } from '../validation/symbol-target.util.js';
 
 const DEFAULT_POLL_AFTER_MS = 1500;
 const TOTAL_REPETITIONS = 6;
@@ -93,6 +96,8 @@ function rate(repetitions: ExperimentRepetition[], predicate: (r: ExperimentRepe
 export class ExperimentsService {
   constructor(
     private readonly projectAccess: ProjectAccessService,
+    private readonly analysisRunsService: AnalysisRunsService,
+    private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
     private readonly projectVersionsRepository: ProjectVersionsRepository,
     private readonly testTargetsRepository: TestTargetsRepository,
     private readonly experimentRunsRepository: ExperimentRunsRepository,
@@ -107,51 +112,63 @@ export class ExperimentsService {
     idempotencyKey: string | undefined,
     ownerUserId: string,
   ): Promise<ExperimentAcceptedResponse> {
-    // HU60 / INTEROP-2.7 §6.13: crear un experimento exige Writer (Reader `403`, no visible `404`).
-    const { project } = await this.projectAccess.require(ownerUserId, dto.projectId, 'WRITER');
+    // El AnalysisRun es el recurso de autorización y la única fuente del Project/version.
+    const analysisRun = await this.analysisRunsService.getById(dto.analysisRunId, ownerUserId);
+    await this.projectAccess.require(ownerUserId, analysisRun.projectId, 'WRITER');
+    this.idempotencyService.validateKey(idempotencyKey);
 
-    if (await this.projectVersionsRepository.hasActiveVersion(dto.projectId)) {
+    if (!analysisRun.projectVersionId) {
       throw new AppException(
-        ErrorCode.PROJECT_INDEXING_IN_PROGRESS,
-        'El proyecto tiene una indexación en curso; espera a que termine antes de experimentar.',
+        ErrorCode.ANALYSIS_NOT_FINISHED,
+        'El AnalysisRun todavía no tiene una versión de análisis; reintenta cuando termine el snapshot.',
         HttpStatus.CONFLICT,
       );
     }
 
-    if (!project.currentVersionId) {
-      throw new AppException(
-        ErrorCode.PROJECT_NOT_READY,
-        'El proyecto todavía no tiene una versión indexada exitosamente.',
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    const version = await this.projectVersionsRepository.findById(project.currentVersionId);
+    const projectVersionId = analysisRun.projectVersionId;
+    const version = await this.projectVersionsRepository.findById(projectVersionId);
 
     if (!version || version.status !== ProjectVersionStatus.COMPLETED) {
       throw new AppException(
         ErrorCode.ANALYSIS_NOT_FINISHED,
-        'La versión actual del proyecto no terminó de analizarse.',
+        'La versión congelada del AnalysisRun no terminó de analizarse.',
         HttpStatus.CONFLICT,
       );
     }
 
-    // El target debe pertenecer al Project indicado (no basta con verlo en otro): mismo 404 que uno inexistente.
-    const target = await this.testTargetsRepository.findByIdForOwner(dto.targetId, ownerUserId, dto.projectId);
+    const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(analysisRun.id);
+    const symbol = symbols.find(
+      (candidate) => candidate.filePath === dto.symbolFilePath && candidate.qualifiedName === dto.symbolQualifiedName,
+    );
 
-    if (!target) {
+    if (!symbol) {
       throw new AppException(
-        ErrorCode.UNRESOLVABLE_TARGET,
-        `No existe el target ${dto.targetId}.`,
+        ErrorCode.ANALYSIS_SYMBOL_NOT_FOUND,
+        `No existe el símbolo "${dto.symbolQualifiedName}" en "${dto.symbolFilePath}" dentro del AnalysisRun.`,
         HttpStatus.NOT_FOUND,
       );
     }
 
-    if (target.targetType === 'CLASS') {
+    if (
+      (symbol.kind !== 'METHOD' && symbol.kind !== 'FUNCTION') ||
+      symbol.changeKind !== 'DIRECTLY_CHANGED'
+    ) {
       throw new AppException(
-        ErrorCode.INVALID_GENERATION_TARGET,
-        'El experimento requiere un target METHOD o FUNCTION.',
-        HttpStatus.BAD_REQUEST,
+        ErrorCode.UNSUPPORTED_SYMBOL_KIND,
+        'El experimento solo acepta un símbolo METHOD o FUNCTION DIRECTLY_CHANGED.',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    const target = findMatchingTestTarget(
+      await this.testTargetsRepository.findTestableTargets(projectVersionId),
+      symbol,
+    );
+    if (!target) {
+      throw new AppException(
+        ErrorCode.UNRESOLVABLE_TARGET,
+        `No existe un TestTarget para el símbolo "${dto.symbolQualifiedName}" en la versión congelada.`,
+        HttpStatus.NOT_FOUND,
       );
     }
 
@@ -166,8 +183,6 @@ export class ExperimentsService {
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
     }
-
-    const projectVersionId = project.currentVersionId;
 
     // WI-CORE-023 (Desviación 1): la LLMEffectiveConfig se resuelve y valida una única vez al crear el
     // experimento y se persiste en ExperimentRun.modelConfig; las repeticiones la reutilizan y nunca la
@@ -184,9 +199,9 @@ export class ExperimentsService {
         // el presupuesto, el perfil de ejecución y el runner.
         const run = await this.experimentRunsRepository.create(
           {
-            projectId: dto.projectId,
+            projectId: analysisRun.projectId,
             projectVersionId,
-            targetId: dto.targetId,
+            targetId: target.id,
             totalRepetitions: TOTAL_REPETITIONS,
             modelConfig,
             randomizationSeed: generateRandomizationSeed(),
@@ -199,9 +214,9 @@ export class ExperimentsService {
 
         const payload: ExperimentJobPayload = {
           experimentId: run.id,
-          projectId: dto.projectId,
+          projectId: analysisRun.projectId,
           projectVersionId,
-          targetId: dto.targetId,
+          targetId: target.id,
         };
 
         await this.jobsService.enqueue(EXPERIMENT_JOB_TYPE, { ...payload }, tx);
@@ -209,6 +224,7 @@ export class ExperimentsService {
         return {
           operationId: run.id,
           response: {
+            analysisRunId: analysisRun.id,
             experimentId: run.id,
             projectVersionId,
             status: 'PENDING' as const,
@@ -228,6 +244,7 @@ export class ExperimentsService {
         }
 
         return {
+          analysisRunId: analysisRun.id,
           experimentId: run.id,
           projectVersionId: run.projectVersionId,
           status: 'PENDING' as const,
