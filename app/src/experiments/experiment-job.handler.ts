@@ -18,14 +18,23 @@ import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import type { RetrievalTarget } from '../retrieval/generation-context.js';
-import { PromptBuilder, sanitizeGeneratedPhp } from '../generation/prompt-builder.service.js';
-import { phpTestLocation, type PhpTestLocation } from '../generation/php-test-path.js';
+import {
+  PromptBuilder,
+  sanitizeGeneratedPhp,
+} from '../generation/prompt-builder.service.js';
+import {
+  phpTestLocation,
+  type PhpTestLocation,
+} from '../generation/php-test-path.js';
 import {
   TestFileMergeService,
   coLocatedSpecPath,
 } from '../generation/test-file-merge.service.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
-import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.interface.js';
+import type {
+  LLMEffectiveConfig,
+  LLMProvider,
+} from '../providers/llm-provider.interface.js';
 import { WorkspaceAgentTools } from '../generation/agent/workspace-agent-tools.js';
 import { GeneralistAgentService } from '../generation/agent/generalist-agent.service.js';
 import type {
@@ -69,9 +78,15 @@ import {
   type ExperimentBudget,
   type ExperimentRepetitionInput,
 } from './persistence/experiment-runs.repository.js';
-import { ExperimentRepetitionState, ExperimentStatus } from '../generated/prisma/enums.js';
+import {
+  ExperimentRepetitionState,
+  ExperimentStatus,
+} from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import type { ExperimentRepetition, TestTarget } from '../generated/prisma/client.js';
+import type {
+  ExperimentRepetition,
+  TestTarget,
+} from '../generated/prisma/client.js';
 import { ContextTracesRepository } from '../context-traces/context-traces.repository.js';
 import type { BegunContextTraceAttempt } from '../context-traces/context-traces.repository.js';
 import type { GenerationContext } from '../retrieval/generation-context.js';
@@ -120,6 +135,8 @@ interface RunContext {
   framework: 'JEST' | 'VITEST' | 'PHPUNIT' | null;
   /** WI-CORE-029: lenguaje del proyecto (`version.language`); PHP usa la ruta DEC-PHP-GEN-001. */
   language: 'php' | 'typescript';
+  /** Raíz efectiva congelada por ProjectVersion; solo se transporta para PHP. */
+  projectRoot: string;
   target: TestTarget;
   config: LLMEffectiveConfig;
   budget: ExperimentBudget;
@@ -158,7 +175,9 @@ function withTimeout<T>(
  * concurrentes en vez de la suma de las 6.
  */
 function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
-  const candidate = value as Partial<Record<keyof LLMEffectiveConfig, unknown>> | null;
+  const candidate = value as Partial<
+    Record<keyof LLMEffectiveConfig, unknown>
+  > | null;
   if (
     typeof candidate !== 'object' ||
     candidate === null ||
@@ -172,11 +191,20 @@ function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
     provider: 'openai',
     model: candidate.model,
     modelVersion: candidate.modelVersion,
-    reasoningEffort: typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort : null,
-    temperature: typeof candidate.temperature === 'number' ? candidate.temperature : null,
-    maxOutputTokens: typeof candidate.maxOutputTokens === 'number' ? candidate.maxOutputTokens : null,
+    reasoningEffort:
+      typeof candidate.reasoningEffort === 'string'
+        ? candidate.reasoningEffort
+        : null,
+    temperature:
+      typeof candidate.temperature === 'number' ? candidate.temperature : null,
+    maxOutputTokens:
+      typeof candidate.maxOutputTokens === 'number'
+        ? candidate.maxOutputTokens
+        : null,
     // WI-CORE-031: corridas anteriores no tienen endpoint; solo se conserva el valor conocido.
-    ...(candidate.endpoint === 'responses' ? { endpoint: 'responses' as const } : {}),
+    ...(candidate.endpoint === 'responses'
+      ? { endpoint: 'responses' as const }
+      : {}),
   };
 }
 
@@ -192,7 +220,10 @@ export async function runWithConcurrencyLimit<T>(
   worker: (item: T) => Promise<void>,
 ): Promise<void> {
   let cursor = 0;
-  const failure: { failed: boolean; error: unknown } = { failed: false, error: undefined };
+  const failure: { failed: boolean; error: unknown } = {
+    failed: false,
+    error: undefined,
+  };
 
   async function runNext(): Promise<void> {
     while (!failure.failed && cursor < items.length) {
@@ -210,7 +241,10 @@ export async function runWithConcurrencyLimit<T>(
     }
   }
 
-  const lanes = Array.from({ length: Math.min(concurrency, items.length) }, () => runNext());
+  const lanes = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => runNext(),
+  );
   await Promise.allSettled(lanes);
 
   if (failure.failed) {
@@ -223,7 +257,10 @@ function slotKey(strategy: string, repetition: number): string {
 }
 
 /** Pares 1..3 en orden (plan punto 5): dentro de cada par, la posición 1 corre primero. */
-function buildPairSchedule(experimentId: string, seed: string): SlotIdentity[][] {
+function buildPairSchedule(
+  experimentId: string,
+  seed: string,
+): SlotIdentity[][] {
   return Array.from({ length: REPETITIONS_PER_STRATEGY }, (_, index) => {
     const repetition = index + 1;
     const pairId = experimentPairId(experimentId, repetition);
@@ -253,15 +290,21 @@ const INTERRUPTED_ATTEMPT_SUMMARY =
   'El intento quedó interrumpido: su latido venció antes de terminar.';
 
 /** Valores ausentes (`null` o no presentes en corridas previas) no son error: usan la versión actual. */
-function parseRunnerHint(value: string | null | undefined): 'JEST' | 'VITEST' | 'PHPUNIT' | null {
+function parseRunnerHint(
+  value: string | null | undefined,
+): 'JEST' | 'VITEST' | 'PHPUNIT' | null {
   if (value === null || value === undefined) return null;
-  if (value === 'JEST' || value === 'VITEST' || value === 'PHPUNIT') return value;
+  if (value === 'JEST' || value === 'VITEST' || value === 'PHPUNIT')
+    return value;
   throw new Error('runnerHint del experimento no es válido.');
 }
 
-function parseExecutionProfile(value: string | null | undefined): ExecutionProfile | undefined {
+function parseExecutionProfile(
+  value: string | null | undefined,
+): ExecutionProfile | undefined {
   if (value === null || value === undefined) return undefined;
-  if (value === 'NODE_TYPESCRIPT' || value === 'PHP_LARAVEL_PHPUNIT') return value;
+  if (value === 'NODE_TYPESCRIPT' || value === 'PHP_LARAVEL_PHPUNIT')
+    return value;
   throw new Error('executionProfile del experimento no es válido.');
 }
 
@@ -339,9 +382,11 @@ export class ExperimentJobHandler
       const staleMs = this.heartbeatStaleMs(budget);
       // Último intento por slot: decide qué se omite, reanuda o reprograma al reentrar el job.
       const latestBySlot = new Map(
-        (await this.experimentRunsRepository.findRepetitions(payload.experimentId)).map(
-          (row) => [slotKey(row.strategy, row.repetition), row] as const,
-        ),
+        (
+          await this.experimentRunsRepository.findRepetitions(
+            payload.experimentId,
+          )
+        ).map((row) => [slotKey(row.strategy, row.repetition), row] as const),
       );
       const latestOf = (slot: SlotIdentity) =>
         latestBySlot.get(slotKey(slot.strategy, slot.repetition));
@@ -382,7 +427,8 @@ export class ExperimentJobHandler
 
       const detectedFramework = version.detectedFramework;
       // WI-CORE-029: el lenguaje viaja en el contexto del run; el runner persistido decide el framework.
-      const language: 'php' | 'typescript' = version.language === 'PHP' ? 'php' : 'typescript';
+      const language: 'php' | 'typescript' =
+        version.language === 'PHP' ? 'php' : 'typescript';
 
       // Runner, perfil y presupuesto persistidos al crear el experimento (WI-CORE-025).
       // Corridas previas sin esos valores usan la versión actual y el entorno.
@@ -397,6 +443,7 @@ export class ExperimentJobHandler
         snapshotBuffer,
         framework: parseRunnerHint(run.runnerHint) ?? detectedFramework,
         language,
+        projectRoot: version.effectiveProjectRoot,
         target,
         config,
         budget,
@@ -410,11 +457,15 @@ export class ExperimentJobHandler
       if (pairSchedule) {
         // OE5 pareado: los pares 1..3 corren con concurrencia limitada; dentro de cada par
         // las dos posiciones son estrictamente secuenciales y el reintento va antes de la siguiente.
-        await runWithConcurrencyLimit(pairSchedule, concurrency, async (pair) => {
-          for (const slot of pair) {
-            await this.runSlot(runContext, slot, latestOf(slot), staleMs);
-          }
-        });
+        await runWithConcurrencyLimit(
+          pairSchedule,
+          concurrency,
+          async (pair) => {
+            for (const slot of pair) {
+              await this.runSlot(runContext, slot, latestOf(slot), staleMs);
+            }
+          },
+        );
       } else {
         // Experimentos creados antes de WI-CORE-025 (sin semilla): sin orden pareado y sin
         // reintento externo; cada slot tiene un único intento (ver runLegacySlot).
@@ -450,10 +501,13 @@ export class ExperimentJobHandler
    * huérfanas (sin reintento posterior, así que no son evaluables) y, si el run no es ya terminal,
    * lo marca FAILED con `EXPERIMENT_WORKER_LOST`. Nunca reprograma ni reejecuta un intento.
    */
-  async onExhausted(payload: ExperimentJobPayload, reason: string): Promise<void> {
-    const orphans = (await this.experimentRunsRepository.findRepetitions(payload.experimentId)).filter(
-      (row) => row.state === ExperimentRepetitionState.RUNNING,
-    );
+  async onExhausted(
+    payload: ExperimentJobPayload,
+    reason: string,
+  ): Promise<void> {
+    const orphans = (
+      await this.experimentRunsRepository.findRepetitions(payload.experimentId)
+    ).filter((row) => row.state === ExperimentRepetitionState.RUNNING);
 
     for (const row of orphans) {
       await this.experimentRunsRepository.closeInterruptedRepetition(row.id, {
@@ -462,12 +516,20 @@ export class ExperimentJobHandler
       });
     }
     if (orphans.length > 0) {
-      await this.experimentRunsRepository.refreshCompletedRepetitions(payload.experimentId);
+      await this.experimentRunsRepository.refreshCompletedRepetitions(
+        payload.experimentId,
+      );
     }
 
     // Un run ya FAILED conserva su código real (p. ej. EXPERIMENT_FAILED de un error de handle()).
-    const run = await this.experimentRunsRepository.findById(payload.experimentId);
-    if (!run || run.status === ExperimentStatus.COMPLETED || run.status === ExperimentStatus.FAILED) {
+    const run = await this.experimentRunsRepository.findById(
+      payload.experimentId,
+    );
+    if (
+      !run ||
+      run.status === ExperimentStatus.COMPLETED ||
+      run.status === ExperimentStatus.FAILED
+    ) {
       return;
     }
 
@@ -485,21 +547,27 @@ export class ExperimentJobHandler
   private resolveBudget(raw: unknown): ExperimentBudget {
     if (raw === null || raw === undefined) {
       return {
-        toolCallCap: this.configService.get<number>('AGENT_MAX_TOOL_CALLS', DEFAULT_AGENT_MAX_TOOL_CALLS),
+        toolCallCap: this.configService.get<number>(
+          'AGENT_MAX_TOOL_CALLS',
+          DEFAULT_AGENT_MAX_TOOL_CALLS,
+        ),
         contextTokenBudget: this.configService.get<number>(
           'RETRIEVAL_MAX_CONTEXT_TOKENS',
           DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
         ),
-        maxDurationMs: this.configService.get<number>('GENERATION_TIMEOUT_MS', DEFAULT_GENERATION_TIMEOUT_MS),
+        maxDurationMs: this.configService.get<number>(
+          'GENERATION_TIMEOUT_MS',
+          DEFAULT_GENERATION_TIMEOUT_MS,
+        ),
       };
     }
 
     const candidate = raw as Partial<Record<keyof ExperimentBudget, unknown>>;
     if (
-      typeof raw !== 'object'
-      || typeof candidate.toolCallCap !== 'number'
-      || typeof candidate.contextTokenBudget !== 'number'
-      || typeof candidate.maxDurationMs !== 'number'
+      typeof raw !== 'object' ||
+      typeof candidate.toolCallCap !== 'number' ||
+      typeof candidate.contextTokenBudget !== 'number' ||
+      typeof candidate.maxDurationMs !== 'number'
     ) {
       throw new Error('budget del experimento no es válido.');
     }
@@ -545,9 +613,17 @@ export class ExperimentJobHandler
         return;
       case 'RUN': {
         if (action.expiredAttempt) {
-          await this.closeInterruptedAttempt(context.experimentId, action.expiredAttempt, 1);
+          await this.closeInterruptedAttempt(
+            context.experimentId,
+            action.expiredAttempt,
+            1,
+          );
         }
-        const externalFailure = await this.runAttempt({ ...context, ...slot, attempt: action.attempt });
+        const externalFailure = await this.runAttempt({
+          ...context,
+          ...slot,
+          attempt: action.attempt,
+        });
         if (action.attempt === 1 && externalFailure) {
           await this.runAttempt({ ...context, ...slot, attempt: 2 });
         }
@@ -567,8 +643,12 @@ export class ExperimentJobHandler
       // Solo el intento 2 queda sin evaluación técnica: el 1 todavía deja paso al reintento.
       ...(attempt === 2 ? { technicallyEvaluable: false as const } : {}),
     });
-    await this.experimentRunsRepository.refreshCompletedRepetitions(experimentId);
-    this.logger.warn(`Intento ${attempt} interrumpido (latido vencido) de un slot pareado.`);
+    await this.experimentRunsRepository.refreshCompletedRepetitions(
+      experimentId,
+    );
+    this.logger.warn(
+      `Intento ${attempt} interrumpido (latido vencido) de un slot pareado.`,
+    );
   }
 
   /**
@@ -618,12 +698,20 @@ export class ExperimentJobHandler
   /** Umbral de vencimiento del latido para este run (WI-CORE-025 (3c), punto iv). */
   private heartbeatStaleMs(budget: ExperimentBudget): number {
     return resolveHeartbeatStaleMs({
-      configuredMs: this.configService.get<number | undefined>('EXPERIMENT_HEARTBEAT_STALE_MS'),
+      configuredMs: this.configService.get<number | undefined>(
+        'EXPERIMENT_HEARTBEAT_STALE_MS',
+      ),
       intervalMs: this.heartbeatIntervalMs(),
       generationTimeoutMs: budget.maxDurationMs,
       sandboxHttpBoundMs: sandboxHttpBoundMs(
-        this.configService.get<number>('SANDBOX_REQUEST_TIMEOUT_MS', DEFAULT_REQUEST_TIMEOUT_MS),
-        this.configService.get<number>('SANDBOX_MAX_POLL_ATTEMPTS', DEFAULT_MAX_POLL_ATTEMPTS),
+        this.configService.get<number>(
+          'SANDBOX_REQUEST_TIMEOUT_MS',
+          DEFAULT_REQUEST_TIMEOUT_MS,
+        ),
+        this.configService.get<number>(
+          'SANDBOX_MAX_POLL_ATTEMPTS',
+          DEFAULT_MAX_POLL_ATTEMPTS,
+        ),
       ),
     });
   }
@@ -636,9 +724,16 @@ export class ExperimentJobHandler
   private startHeartbeat(repetitionId: string): () => void {
     const timer = setInterval(() => {
       void Promise.resolve()
-        .then(() => this.experimentRunsRepository.touchRepetitionHeartbeat(repetitionId, new Date()))
+        .then(() =>
+          this.experimentRunsRepository.touchRepetitionHeartbeat(
+            repetitionId,
+            new Date(),
+          ),
+        )
         .catch(() => {
-          this.logger.warn('No se pudo renovar el latido de una repetición en curso.');
+          this.logger.warn(
+            'No se pudo renovar el latido de una repetición en curso.',
+          );
         });
     }, this.heartbeatIntervalMs());
     timer.unref?.();
@@ -706,8 +801,10 @@ export class ExperimentJobHandler
       // WI-CORE-029: PHP usa la ubicación DEC-PHP-GEN-001 (archivo nuevo); TypeScript conserva la suya.
       const phpPlacement =
         context.language === 'php'
-          ? phpTestLocation(toRetrievalTarget(context.target), (candidate) =>
-              existsSync(join(workspaceDir, candidate)),
+          ? phpTestLocation(
+              toRetrievalTarget(context.target),
+              (candidate) => existsSync(join(workspaceDir, candidate)),
+              context.projectRoot,
             )
           : null;
 
@@ -751,10 +848,9 @@ export class ExperimentJobHandler
           : coLocatedSpecPath(context.target.filePath);
       const existingContent = phpPlacement
         ? null
-        : await readFile(
-            join(workspace.dir, relativePath),
-            'utf8',
-          ).catch(() => null);
+        : await readFile(join(workspace.dir, relativePath), 'utf8').catch(
+            () => null,
+          );
 
       if (!context.framework) {
         await this.recordRepetition(
@@ -799,7 +895,8 @@ export class ExperimentJobHandler
               passed: false,
               valid: false,
               failureType: 'COMPILATION',
-              errorSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+              errorSummary:
+                'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
             },
             false,
           );
@@ -861,10 +958,16 @@ export class ExperimentJobHandler
           targetIds: [context.target.id],
           runnerHint: context.framework,
           executionProfile: context.executionProfile,
+          ...(context.language === 'php'
+            ? { projectRoot: context.projectRoot }
+            : {}),
         });
         executionDurationMs = Date.now() - executionStart;
         const outcome = mapSandboxResult(sandboxResult);
-        sandboxEvidence = toSandboxExecutionEvidence(sandboxResult, outcome.failureType);
+        sandboxEvidence = toSandboxExecutionEvidence(
+          sandboxResult,
+          outcome.failureType,
+        );
         // TIMED_OUT es fallo de la prueba generada, no externo: se persiste con la columna interna.
         sandboxTimedOut = sandboxResult.status === 'TIMED_OUT';
         sandboxFailure =
@@ -873,9 +976,9 @@ export class ExperimentJobHandler
             : toExperimentRepetitionFailure(sandboxResult.failure);
         // Fallo externo del Sandbox: INFRASTRUCTURE salvo timeout (no es externo, WI-CORE-025).
         externalFailure =
-          outcome.status === 'FAILED'
-          && outcome.failureType === 'INFRASTRUCTURE'
-          && !sandboxTimedOut;
+          outcome.status === 'FAILED' &&
+          outcome.failureType === 'INFRASTRUCTURE' &&
+          !sandboxTimedOut;
 
         if (outcome.compiled === false) {
           this.logger.debug(
@@ -1044,7 +1147,10 @@ export class ExperimentJobHandler
    */
   private async initializeTraceDetail(
     traceId: string,
-    context: Pick<AttemptContext, 'target' | 'framework' | 'language' | 'strategy' | 'budget'>,
+    context: Pick<
+      AttemptContext,
+      'target' | 'framework' | 'language' | 'strategy' | 'budget'
+    >,
   ): Promise<void> {
     if (context.strategy === 'RAG') {
       const target = toRetrievalTarget(context.target);
@@ -1183,7 +1289,12 @@ export class ExperimentJobHandler
     maxToolCalls: number,
   ): string {
     if (placement) {
-      return this.buildPhpAgentInstructions(target, placement, maxContextTokens, maxToolCalls);
+      return this.buildPhpAgentInstructions(
+        target,
+        placement,
+        maxContextTokens,
+        maxToolCalls,
+      );
     }
 
     const label = target.methodName
@@ -1469,7 +1580,11 @@ export class ExperimentJobHandler
       this.logger.warn(
         `No se pudo registrar la evidencia de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se escribe sin ella.`,
       );
-      return this.experimentRunsRepository.updateRepetitionById(repetitionId, input, state);
+      return this.experimentRunsRepository.updateRepetitionById(
+        repetitionId,
+        input,
+        state,
+      );
     }
   }
 
@@ -1540,7 +1655,9 @@ export class ExperimentJobHandler
       filesInspected: generation.filesInspected,
       trajectory: undefined,
       // Segundo fallo externo: la repetición no es evaluable técnicamente (plan punto 7).
-      ...(context.attempt === 2 && externalFailure ? { technicallyEvaluable: false } : {}),
+      ...(context.attempt === 2 && externalFailure
+        ? { technicallyEvaluable: false }
+        : {}),
       // Interno (WI-CORE-025): solo se escribe true en TIMED_OUT; el resto queda NULL.
       ...(sandboxTimedOut ? { sandboxTimedOut: true } : {}),
       // WI-CORE-007: interno. Sin hecho de fallo la clave se omite (la columna queda NULL).

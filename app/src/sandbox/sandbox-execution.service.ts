@@ -15,7 +15,10 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 
 // Keep the mapping exhaustive: adding a runner requires selecting its profile.
-export const EXECUTION_PROFILE_BY_RUNNER: Record<SandboxExecutionRequest['runnerHint'], ExecutionProfile> = {
+export const EXECUTION_PROFILE_BY_RUNNER: Record<
+  SandboxExecutionRequest['runnerHint'],
+  ExecutionProfile
+> = {
   JEST: 'NODE_TYPESCRIPT',
   VITEST: 'NODE_TYPESCRIPT',
   PHPUNIT: 'PHP_LARAVEL_PHPUNIT',
@@ -55,7 +58,11 @@ export class SandboxAcceptedExecutionError extends SandboxUnavailableError {
 
 type SandboxExecutionOutcome = Omit<
   SandboxExecutionResult,
-  'executionId' | 'executionProfile' | 'requestId' | 'correlationId' | 'durationMs'
+  | 'executionId'
+  | 'executionProfile'
+  | 'requestId'
+  | 'correlationId'
+  | 'durationMs'
 >;
 
 @Injectable()
@@ -67,17 +74,23 @@ export class SandboxExecutionService {
     private readonly objectStorageService: ObjectStorageService,
   ) {}
 
-  async execute(request: SandboxExecutionRequest): Promise<SandboxExecutionResult> {
+  async execute(
+    request: SandboxExecutionRequest,
+  ): Promise<SandboxExecutionResult> {
     const baseUrl = this.configService.get<string>('SANDBOX_URL');
 
     if (!baseUrl) {
       throw new SandboxUnavailableError('SANDBOX_URL no está configurado.');
     }
 
-    const serviceToken = this.configService.get<string>('SANDBOX_SERVICE_TOKEN');
+    const serviceToken = this.configService.get<string>(
+      'SANDBOX_SERVICE_TOKEN',
+    );
 
     if (!serviceToken) {
-      throw new SandboxUnavailableError('SANDBOX_SERVICE_TOKEN no está configurado (DEC-AUTH-001).');
+      throw new SandboxUnavailableError(
+        'SANDBOX_SERVICE_TOKEN no está configurado (DEC-AUTH-001).',
+      );
     }
 
     const { requestId } = request;
@@ -87,17 +100,27 @@ export class SandboxExecutionService {
       DEFAULT_DOWNLOAD_TTL_SECONDS,
     );
 
-    const snapshot = await this.buildSnapshotRef(request.snapshotKey, request.snapshotBuffer, ttl);
+    const snapshot = await this.buildSnapshotRef(
+      request.snapshotKey,
+      request.snapshotBuffer,
+      ttl,
+    );
     const artifacts = await Promise.all(
       request.artifacts.map(async (artifact) => ({
         artifactId: artifact.artifactId,
         relativePath: artifact.relativePath,
         artifactType: artifact.artifactType,
-        download: await this.buildArtifactRef(request.testRunId, artifact.content, ttl),
+        download: await this.buildArtifactRef(
+          request.testRunId,
+          artifact.content,
+          ttl,
+        ),
       })),
     );
 
-    const executionProfile = request.executionProfile ?? EXECUTION_PROFILE_BY_RUNNER[request.runnerHint];
+    const executionProfile =
+      request.executionProfile ??
+      EXECUTION_PROFILE_BY_RUNNER[request.runnerHint];
     const body = {
       requestId,
       testRunId: request.testRunId,
@@ -108,17 +131,17 @@ export class SandboxExecutionService {
       targetIds: request.targetIds,
       executionProfile,
       runnerHint: request.runnerHint,
+      ...(request.projectRoot === undefined
+        ? {}
+        : { projectRoot: request.projectRoot }),
     };
 
     // WI-CORE-027: el cronómetro cubre la llamada real, desde el envío de `POST /executions`.
     const startedAt = Date.now();
-    const accepted = await this.postJson<{ executionId: string; pollAfterMs: number }>(
-      `${baseUrl}/executions`,
-      body,
-      requestId,
-      correlationId,
-      serviceToken,
-    );
+    const accepted = await this.postJson<{
+      executionId: string;
+      pollAfterMs: number;
+    }>(`${baseUrl}/executions`, body, requestId, correlationId, serviceToken);
 
     try {
       await this.pollUntilTerminal(
@@ -129,7 +152,12 @@ export class SandboxExecutionService {
         serviceToken,
       );
 
-      const outcome = await this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
+      const outcome = await this.fetchResult(
+        baseUrl,
+        accepted.executionId,
+        correlationId,
+        serviceToken,
+      );
       return {
         ...outcome,
         executionId: accepted.executionId,
@@ -139,7 +167,10 @@ export class SandboxExecutionService {
         durationMs: Date.now() - startedAt,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Fallo desconocido tras aceptar la ejecución.';
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Fallo desconocido tras aceptar la ejecución.';
       throw new SandboxAcceptedExecutionError(
         message,
         accepted.executionId,
@@ -156,8 +187,16 @@ export class SandboxExecutionService {
     snapshotBuffer: Buffer,
     ttlSeconds: number,
   ): Promise<EphemeralDownloadRef> {
-    const url = await this.objectStorageService.presignGet(snapshotKey, ttlSeconds);
-    return this.toDownloadRef('PROJECT_SNAPSHOT', url, snapshotBuffer, ttlSeconds);
+    const url = await this.objectStorageService.presignGet(
+      snapshotKey,
+      ttlSeconds,
+    );
+    return this.toDownloadRef(
+      'PROJECT_SNAPSHOT',
+      url,
+      snapshotBuffer,
+      ttlSeconds,
+    );
   }
 
   private async buildArtifactRef(
@@ -202,11 +241,10 @@ export class SandboxExecutionService {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, pollAfterMs));
 
-      const status = await this.getJson<{ status: string; pollAfterMs?: number }>(
-        `${baseUrl}/executions/${executionId}`,
-        correlationId,
-        serviceToken,
-      );
+      const status = await this.getJson<{
+        status: string;
+        pollAfterMs?: number;
+      }>(`${baseUrl}/executions/${executionId}`, correlationId, serviceToken);
 
       if (['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(status.status)) {
         return;
@@ -231,7 +269,11 @@ export class SandboxExecutionService {
       facts: SandboxExecutionResult['facts'];
       failure: SandboxFailureFact | null;
       stageDurations?: SandboxExecutionResult['stageDurations'];
-    }>(`${baseUrl}/executions/${executionId}/result`, correlationId, serviceToken);
+    }>(
+      `${baseUrl}/executions/${executionId}/result`,
+      correlationId,
+      serviceToken,
+    );
 
     const stageDurations = result.stageDurations ?? [];
 
@@ -254,7 +296,12 @@ export class SandboxExecutionService {
       );
     }
 
-    return { status: result.status, facts: result.facts, failure: result.failure, stageDurations };
+    return {
+      status: result.status,
+      facts: result.facts,
+      failure: result.failure,
+      stageDurations,
+    };
   }
 
   private async postJson<T>(
@@ -276,10 +323,17 @@ export class SandboxExecutionService {
     });
   }
 
-  private async getJson<T>(url: string, correlationId: string, serviceToken: string): Promise<T> {
+  private async getJson<T>(
+    url: string,
+    correlationId: string,
+    serviceToken: string,
+  ): Promise<T> {
     return this.request<T>(url, {
       method: 'GET',
-      headers: { 'x-correlation-id': correlationId, authorization: `Bearer ${serviceToken}` },
+      headers: {
+        'x-correlation-id': correlationId,
+        authorization: `Bearer ${serviceToken}`,
+      },
     });
   }
 
@@ -295,7 +349,9 @@ export class SandboxExecutionService {
       const response = await fetch(url, { ...init, signal: controller.signal });
 
       if (!response.ok) {
-        throw new SandboxUnavailableError(`Sandbox respondió ${response.status} para ${url}.`);
+        throw new SandboxUnavailableError(
+          `Sandbox respondió ${response.status} para ${url}.`,
+        );
       }
 
       return (await response.json()) as T;
@@ -304,7 +360,9 @@ export class SandboxExecutionService {
         throw error;
       }
 
-      this.logger.warn(`Fallo al comunicarse con el Sandbox (${url}): ${(error as Error).message}`);
+      this.logger.warn(
+        `Fallo al comunicarse con el Sandbox (${url}): ${(error as Error).message}`,
+      );
       throw new SandboxUnavailableError((error as Error).message);
     } finally {
       clearTimeout(timeout);

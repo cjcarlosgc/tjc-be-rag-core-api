@@ -4,7 +4,10 @@ import { createHash } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentJobHandler } from './experiment-job.handler.js';
-import { SandboxAcceptedExecutionError, SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import {
+  SandboxAcceptedExecutionError,
+  SandboxUnavailableError,
+} from '../sandbox/sandbox-execution.service.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { SANDBOX_TIMED_OUT_ERROR_SUMMARY } from '../sandbox/map-sandbox-result.js';
 import { LLMProviderUnavailableError } from '../providers/llm-provider-unavailable.error.js';
@@ -202,7 +205,12 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
                 selectedChunks: 0,
                 contextTokens: 0,
                 audit: {
-                  functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
+                  functionalRules: {
+                    retrieved: 0,
+                    selected: 0,
+                    tokenCount: 0,
+                    omitted: [],
+                  },
                   target: { chunkIds: [], chunks: [], tokenCount: 0 },
                   candidates: [],
                   configuration: {
@@ -241,7 +249,12 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
               selectedChunks: 2,
               contextTokens: 123,
               audit: {
-                functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
+                functionalRules: {
+                  retrieved: 0,
+                  selected: 0,
+                  tokenCount: 0,
+                  omitted: [],
+                },
                 target: {
                   chunkIds: ['target-chunk-1'],
                   chunks: [
@@ -397,36 +410,57 @@ function attemptRow(
   errorSummary: string | null = null,
   sandboxTimedOut: boolean | null = null,
 ) {
-  return { strategy, repetition, attempt, state, failureType, errorSummary, sandboxTimedOut };
+  return {
+    strategy,
+    repetition,
+    attempt,
+    state,
+    failureType,
+    errorSummary,
+    sandboxTimedOut,
+  };
 }
 
 function failedCompilationResult() {
   const success = successfulSandboxResult();
   return {
     ...success,
-    facts: { ...success.facts, compiled: false, executed: false, passed: false, testCases: [] },
+    facts: {
+      ...success.facts,
+      compiled: false,
+      executed: false,
+      passed: false,
+      testCases: [],
+    },
   };
 }
 
 function timedOutResult() {
-  return { status: 'TIMED_OUT', facts: null, failure: null, stageDurations: [] };
+  return {
+    status: 'TIMED_OUT',
+    facts: null,
+    failure: null,
+    stageDurations: [],
+  };
 }
 
 function beginsOf(deps: ReturnType<typeof makeDeps>['deps']) {
-  return (deps.contextTracesRepository.beginAttempt as ReturnType<typeof vi.fn>).mock.calls.map(
-    (call: unknown[]) => call[0] as Record<string, unknown>,
-  );
+  return (
+    deps.contextTracesRepository.beginAttempt as ReturnType<typeof vi.fn>
+  ).mock.calls.map((call: unknown[]) => call[0] as Record<string, unknown>);
 }
 
 function executionsOf(deps: ReturnType<typeof makeDeps>['deps']) {
-  return (deps.sandboxExecutionService.execute as ReturnType<typeof vi.fn>).mock.calls.map(
-    (call: unknown[]) => call[0] as Record<string, unknown>,
-  );
+  return (
+    deps.sandboxExecutionService.execute as ReturnType<typeof vi.fn>
+  ).mock.calls.map((call: unknown[]) => call[0] as Record<string, unknown>);
 }
 
 function writesOf(deps: ReturnType<typeof makeDeps>['deps']) {
   return (
-    deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>
+    deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+      typeof vi.fn
+    >
   ).mock.calls.map((call: unknown[]) => call[1] as Record<string, unknown>);
 }
 
@@ -456,8 +490,14 @@ describe('ExperimentJobHandler', () => {
 
   it('passes the same config persisted on the run to both arms (WI-CORE-023)', async () => {
     const { deps } = makeDeps();
-    const persisted = { ...effectiveConfig, reasoningEffort: 'high', modelVersion: 'gpt-6-luna-2026' };
-    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    const persisted = {
+      ...effectiveConfig,
+      reasoningEffort: 'high',
+      modelVersion: 'gpt-6-luna-2026',
+    };
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       id: 'exp-1',
       status: 'PENDING',
       modelConfig: persisted,
@@ -466,10 +506,12 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    const ragConfigs = (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]);
-    const agentConfigs = (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls.map(
-      (call: unknown[]) => call[3],
-    );
+    const ragConfigs = (
+      deps.llmProvider.generate as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call: unknown[]) => call[1]);
+    const agentConfigs = (
+      deps.generalistAgentService.generate as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call: unknown[]) => call[3]);
     expect(ragConfigs).toHaveLength(3);
     expect(agentConfigs).toHaveLength(3);
     for (const config of [...ragConfigs, ...agentConfigs]) {
@@ -480,7 +522,9 @@ describe('ExperimentJobHandler', () => {
 
   it('passes the persisted internal endpoint to both arms, and runs created before WI-CORE-031 get none (WI-CORE-031)', async () => {
     const { deps } = makeDeps();
-    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       id: 'exp-1',
       status: 'PENDING',
       modelConfig: { ...effectiveConfig, endpoint: 'responses' },
@@ -490,8 +534,12 @@ describe('ExperimentJobHandler', () => {
     await handler.handle(payload, 'job-1');
 
     const configs = [
-      ...(deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]),
-      ...(deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[3]),
+      ...(deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map(
+        (call: unknown[]) => call[1],
+      ),
+      ...(
+        deps.generalistAgentService.generate as ReturnType<typeof vi.fn>
+      ).mock.calls.map((call: unknown[]) => call[3]),
     ];
     expect(configs).toHaveLength(6);
     for (const config of configs) {
@@ -501,7 +549,9 @@ describe('ExperimentJobHandler', () => {
 
   it('does not invent an endpoint for a legacy persisted config without it (WI-CORE-031)', async () => {
     const { deps } = makeDeps();
-    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       id: 'exp-1',
       status: 'PENDING',
       modelConfig: { ...effectiveConfig },
@@ -510,7 +560,9 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    const configs = (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]);
+    const configs = (
+      deps.llmProvider.generate as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call: unknown[]) => call[1]);
     expect(configs).toHaveLength(3);
     for (const config of configs) {
       expect(config).not.toHaveProperty('endpoint');
@@ -521,16 +573,23 @@ describe('ExperimentJobHandler', () => {
     const { deps } = makeDeps({
       configService: {
         get: (key: string, fallback?: unknown) =>
-          key === 'EXPERIMENT_LLM_MODEL' || key === 'EXPERIMENT_LLM_REASONING_EFFORT' ? 'other-model' : fallback,
+          key === 'EXPERIMENT_LLM_MODEL' ||
+          key === 'EXPERIMENT_LLM_REASONING_EFFORT'
+            ? 'other-model'
+            : fallback,
       },
     });
-    (deps.llmProvider.resolveEffectiveConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (
+      deps.llmProvider.resolveEffectiveConfig as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       ...effectiveConfig,
       model: 'other-model',
       modelVersion: 'other-model',
       reasoningEffort: 'low',
     });
-    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       id: 'exp-1',
       status: 'PENDING',
       modelConfig: effectiveConfig,
@@ -539,22 +598,28 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    const ragConfigs = (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => call[1]);
-    const agentConfigs = (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls.map(
-      (call: unknown[]) => call[3],
-    );
+    const ragConfigs = (
+      deps.llmProvider.generate as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call: unknown[]) => call[1]);
+    const agentConfigs = (
+      deps.generalistAgentService.generate as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call: unknown[]) => call[3]);
     expect(ragConfigs).toHaveLength(3);
     expect(agentConfigs).toHaveLength(3);
     for (const config of [...ragConfigs, ...agentConfigs]) {
       expect(config).toEqual(effectiveConfig);
     }
     expect(deps.llmProvider.resolveEffectiveConfig).not.toHaveBeenCalled();
-    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+      'exp-1',
+    );
   });
 
   it('resolves the default config for a legacy run whose modelConfig is NULL', async () => {
     const { deps } = makeDeps();
-    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       id: 'exp-1',
       status: 'PENDING',
       modelConfig: null,
@@ -564,10 +629,13 @@ describe('ExperimentJobHandler', () => {
     await handler.handle(payload, 'job-1');
 
     expect(deps.llmProvider.resolveEffectiveConfig).toHaveBeenCalledTimes(1);
-    expect((deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls[0][1]).toEqual(effectiveConfig);
-    expect((deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls[0][3]).toEqual(
-      effectiveConfig,
-    );
+    expect(
+      (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mock.calls[0][1],
+    ).toEqual(effectiveConfig);
+    expect(
+      (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock
+        .calls[0][3],
+    ).toEqual(effectiveConfig);
   });
 
   it('runs 3 repetitions per strategy (6 total), using RAG and the agent for their respective arms', async () => {
@@ -892,7 +960,12 @@ describe('ExperimentJobHandler', () => {
       selectedChunks: 1,
       contextTokens: 30,
       audit: {
-        functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
+        functionalRules: {
+          retrieved: 0,
+          selected: 0,
+          tokenCount: 0,
+          omitted: [],
+        },
         target: {
           chunkIds: ['target-chunk-1'],
           chunks: [
@@ -1015,9 +1088,18 @@ describe('ExperimentJobHandler', () => {
     ]);
     expect(persisted.candidates.map((candidate) => candidate.excerpt)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ filePath: 'src/top-k.ts', snippet: 'top-k content' }),
-        expect.objectContaining({ filePath: 'src/budget.ts', snippet: 'budget content' }),
-        expect.objectContaining({ filePath: 'src/below.ts', snippet: 'below content' }),
+        expect.objectContaining({
+          filePath: 'src/top-k.ts',
+          snippet: 'top-k content',
+        }),
+        expect.objectContaining({
+          filePath: 'src/budget.ts',
+          snippet: 'budget content',
+        }),
+        expect.objectContaining({
+          filePath: 'src/below.ts',
+          snippet: 'below content',
+        }),
       ]),
     );
     expect(persisted.retrievedChunks).toBe(4);
@@ -1110,9 +1192,15 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    const generateCalls = (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls;
+    const generateCalls = (
+      deps.generalistAgentService.generate as ReturnType<typeof vi.fn>
+    ).mock.calls;
     expect(generateCalls.length).toBeGreaterThan(0);
-    const [instructions, , limits] = generateCalls[0] as [string, unknown, unknown];
+    const [instructions, , limits] = generateCalls[0] as [
+      string,
+      unknown,
+      unknown,
+    ];
     expect(instructions).toContain('como máximo 20 llamadas a herramientas');
     expect(instructions).toContain('como máximo 8000 tokens');
     expect(instructions).not.toMatch(/orientativo/i);
@@ -1288,7 +1376,9 @@ describe('ExperimentJobHandler', () => {
       valid: false,
       failureType: 'INFRASTRUCTURE',
     });
-    expect(writesOf(deps).every((write) => !('technicallyEvaluable' in write))).toBe(true);
+    expect(
+      writesOf(deps).every((write) => !('technicallyEvaluable' in write)),
+    ).toBe(true);
     expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
       'exp-1',
     );
@@ -1345,7 +1435,12 @@ describe('ExperimentJobHandler', () => {
       scope: 'METHOD',
       targetRef: 'src/foo.ts::foo',
       source: 'HUMAN_ANSWER',
-      provenance: { confirmedByUserId: null, confirmedRole: null, originHeadSha: null, sourceRef: null },
+      provenance: {
+        confirmedByUserId: null,
+        confirmedRole: null,
+        originHeadSha: null,
+        sourceRef: null,
+      },
     };
     const { deps } = makeDeps({
       functionalRulesRetriever: { retrieve: vi.fn().mockResolvedValue([rule]) },
@@ -1377,7 +1472,12 @@ describe('ExperimentJobHandler', () => {
       scope: 'METHOD',
       targetRef: 'src/foo.ts::foo',
       source: 'HUMAN_ANSWER',
-      provenance: { confirmedByUserId: null, confirmedRole: 'ADMIN', originHeadSha: null, sourceRef: null },
+      provenance: {
+        confirmedByUserId: null,
+        confirmedRole: 'ADMIN',
+        originHeadSha: null,
+        sourceRef: null,
+      },
     };
     const chunk = {
       id: 'target-chunk-1',
@@ -1391,17 +1491,30 @@ describe('ExperimentJobHandler', () => {
       tokenCount: 5,
     };
     const { deps } = makeDeps({
-      retrievalService: { retrieve: vi.fn().mockResolvedValue({ targetChunks: [chunk], candidates: [] }) },
+      retrievalService: {
+        retrieve: vi
+          .fn()
+          .mockResolvedValue({ targetChunks: [chunk], candidates: [] }),
+      },
       functionalRulesRetriever: { retrieve: vi.fn().mockResolvedValue([rule]) },
-      contextBuilder: new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never),
+      contextBuilder: new ContextBuilder({
+        get: (_key: string, fallback: unknown) => fallback,
+      } as never),
       promptBuilder: new PromptBuilder(),
     });
     const handler = makeHandler(deps);
 
     await handler.handle(payload, 'job-1');
 
-    const ragPrompts = deps.llmProvider.generate.mock.calls.map((call: unknown[]) => call[0] as string);
-    expect(ragPrompts.some((prompt: string) => prompt.includes('Reglas funcionales') && prompt.includes(ruleText))).toBe(true);
+    const ragPrompts = deps.llmProvider.generate.mock.calls.map(
+      (call: unknown[]) => call[0] as string,
+    );
+    expect(
+      ragPrompts.some(
+        (prompt: string) =>
+          prompt.includes('Reglas funcionales') && prompt.includes(ruleText),
+      ),
+    ).toBe(true);
     // Solo los details RAG (forma con `candidates`); el detail del agente no lleva reglas.
     const details = deps.contextTracesRepository.updateDetail.mock.calls
       .map((call: unknown[]) => JSON.stringify(call[1]))
@@ -1415,22 +1528,29 @@ describe('ExperimentJobHandler', () => {
       expect(serialized).not.toContain('ADMIN');
       expect(serialized).not.toContain('originHeadSha');
     }
-    expect(details.some((serialized: string) => serialized.includes('"functionalRuleIds":["rule-1"]'))).toBe(true);
+    expect(
+      details.some((serialized: string) =>
+        serialized.includes('"functionalRuleIds":["rule-1"]'),
+      ),
+    ).toBe(true);
   });
 
   describe('OE5 pareado y repetición externa (WI-CORE-025)', () => {
     it('orders each pair by the persisted seed, runs its two positions one after the other and shares pairId', async () => {
       const { deps } = makeDeps({ configService: sequentialConfig() });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
       const handler = makeHandler(deps);
 
       await handler.handle(payload, 'job-1');
 
       const begins = beginsOf(deps);
       const expectedOrder = [1, 2, 3].flatMap((repetition) =>
-        pairOrder(SEED, repetition).map((strategy) => ({ strategy, repetition })),
+        pairOrder(SEED, repetition).map((strategy) => ({
+          strategy,
+          repetition,
+        })),
       );
       expect(
         begins.map(({ strategy, repetition }) => ({ strategy, repetition })),
@@ -1454,9 +1574,9 @@ describe('ExperimentJobHandler', () => {
         configService: sequentialConfig(),
         sandboxExecutionService: { execute },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
       const handler = makeHandler(deps);
 
       await handler.handle(payload, 'job-1');
@@ -1464,28 +1584,37 @@ describe('ExperimentJobHandler', () => {
       const [first, second] = pairOrder(SEED, 1);
       const begins = beginsOf(deps);
       expect(
-        begins.slice(0, 3).map((begin) => `${begin.strategy}:${begin.repetition}`),
+        begins
+          .slice(0, 3)
+          .map((begin) => `${begin.strategy}:${begin.repetition}`),
       ).toEqual([`${first}:1`, `${first}:1`, `${second}:1`]);
       expect(begins[1].pairId).toBe(begins[0].pairId);
       expect(begins[1].pairPosition).toBe(begins[0].pairPosition);
 
       const executions = executionsOf(deps);
       expect(executions).toHaveLength(7);
-      expect(executions.slice(0, 3).map((execution) => execution.requestId)).toEqual([
+      expect(
+        executions.slice(0, 3).map((execution) => execution.requestId),
+      ).toEqual([
         sandboxExperimentRequestId('job-1', first, 1),
         sandboxExperimentRequestId('job-1', first, 1, 2),
         sandboxExperimentRequestId('job-1', second, 1),
       ]);
-      expect(writesOf(deps)[0]).toMatchObject({ valid: false, failureType: 'INFRASTRUCTURE' });
+      expect(writesOf(deps)[0]).toMatchObject({
+        valid: false,
+        failureType: 'INFRASTRUCTURE',
+      });
       expect(writesOf(deps)[0]).not.toHaveProperty('technicallyEvaluable');
     });
 
     it('keeps a second external failure as technicallyEvaluable=false without any third attempt', async () => {
-      const execute = vi.fn().mockRejectedValue(new SandboxUnavailableError('down'));
+      const execute = vi
+        .fn()
+        .mockRejectedValue(new SandboxUnavailableError('down'));
       const { deps } = makeDeps({ sandboxExecutionService: { execute } });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
       const handler = makeHandler(deps);
 
       await handler.handle(payload, 'job-1');
@@ -1494,9 +1623,15 @@ describe('ExperimentJobHandler', () => {
       expect(beginsOf(deps)).toHaveLength(12);
       expect(new Set(beginsOf(deps).map((begin) => begin.pairId)).size).toBe(3);
       const writes = writesOf(deps);
-      expect(writes.filter((write) => write.technicallyEvaluable === false)).toHaveLength(6);
-      expect(writes.filter((write) => write.technicallyEvaluable === undefined)).toHaveLength(6);
-      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+      expect(
+        writes.filter((write) => write.technicallyEvaluable === false),
+      ).toHaveLength(6);
+      expect(
+        writes.filter((write) => write.technicallyEvaluable === undefined),
+      ).toHaveLength(6);
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
+      );
     });
 
     it('does not retry a strategy failure and leaves the repetition technically evaluable', async () => {
@@ -1505,9 +1640,9 @@ describe('ExperimentJobHandler', () => {
         configService: sequentialConfig(),
         sandboxExecutionService: { execute },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
       const handler = makeHandler(deps);
 
       await handler.handle(payload, 'job-1');
@@ -1515,8 +1650,12 @@ describe('ExperimentJobHandler', () => {
       expect(execute).toHaveBeenCalledTimes(6);
       expect(beginsOf(deps)).toHaveLength(6);
       const writes = writesOf(deps);
-      expect(writes.every((write) => write.failureType === 'COMPILATION')).toBe(true);
-      expect(writes.every((write) => !('technicallyEvaluable' in write))).toBe(true);
+      expect(writes.every((write) => write.failureType === 'COMPILATION')).toBe(
+        true,
+      );
+      expect(writes.every((write) => !('technicallyEvaluable' in write))).toBe(
+        true,
+      );
     });
 
     it('does not retry a Sandbox timeout: TIMED_OUT is not an external failure', async () => {
@@ -1525,9 +1664,9 @@ describe('ExperimentJobHandler', () => {
         configService: sequentialConfig(),
         sandboxExecutionService: { execute },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
       const handler = makeHandler(deps);
 
       await handler.handle(payload, 'job-1');
@@ -1535,11 +1674,21 @@ describe('ExperimentJobHandler', () => {
       expect(execute).toHaveBeenCalledTimes(6);
       expect(beginsOf(deps)).toHaveLength(6);
       const writes = writesOf(deps);
-      expect(writes.every((write) => write.failureType === 'INFRASTRUCTURE')).toBe(true);
-      expect(writes.every((write) => write.errorSummary === SANDBOX_TIMED_OUT_ERROR_SUMMARY)).toBe(true);
-      expect(writes.every((write) => !('technicallyEvaluable' in write))).toBe(true);
+      expect(
+        writes.every((write) => write.failureType === 'INFRASTRUCTURE'),
+      ).toBe(true);
+      expect(
+        writes.every(
+          (write) => write.errorSummary === SANDBOX_TIMED_OUT_ERROR_SUMMARY,
+        ),
+      ).toBe(true);
+      expect(writes.every((write) => !('technicallyEvaluable' in write))).toBe(
+        true,
+      );
       // WI-CORE-025 (1): el discriminador interno es la columna, no el texto.
-      expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(true);
+      expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(
+        true,
+      );
     });
 
     it('persists sandboxTimedOut only for TIMED_OUT, leaving it unset for other Sandbox outcomes', async () => {
@@ -1551,15 +1700,20 @@ describe('ExperimentJobHandler', () => {
         configService: sequentialConfig(),
         sandboxExecutionService: { execute },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
 
       await makeHandler(deps).handle(payload, 'job-1');
 
       const writes = writesOf(deps);
-      expect(writes[0]).toMatchObject({ sandboxTimedOut: true, failureType: 'INFRASTRUCTURE' });
-      expect(writes.slice(1).every((write) => !('sandboxTimedOut' in write))).toBe(true);
+      expect(writes[0]).toMatchObject({
+        sandboxTimedOut: true,
+        failureType: 'INFRASTRUCTURE',
+      });
+      expect(
+        writes.slice(1).every((write) => !('sandboxTimedOut' in write)),
+      ).toBe(true);
     });
 
     it('treats a generic Sandbox client error as infrastructure: one external retry with the :2 identity (WI-CORE-025 (2))', async () => {
@@ -1571,21 +1725,26 @@ describe('ExperimentJobHandler', () => {
         configService: sequentialConfig(),
         sandboxExecutionService: { execute },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
 
       await makeHandler(deps).handle(payload, 'job-1');
 
       const [first, second] = pairOrder(SEED, 1);
       const executions = executionsOf(deps);
-      expect(executions.slice(0, 3).map((execution) => execution.requestId)).toEqual([
+      expect(
+        executions.slice(0, 3).map((execution) => execution.requestId),
+      ).toEqual([
         sandboxExperimentRequestId('job-1', first, 1),
         sandboxExperimentRequestId('job-1', first, 1, 2),
         sandboxExperimentRequestId('job-1', second, 1),
       ]);
       const writes = writesOf(deps);
-      expect(writes[0]).toMatchObject({ failureType: 'INFRASTRUCTURE', valid: false });
+      expect(writes[0]).toMatchObject({
+        failureType: 'INFRASTRUCTURE',
+        valid: false,
+      });
       expect(writes[0]).not.toHaveProperty('sandboxTimedOut');
       expect(writes[0]).not.toHaveProperty('technicallyEvaluable');
     });
@@ -1596,21 +1755,25 @@ describe('ExperimentJobHandler', () => {
         configService: sequentialConfig(),
         sandboxExecutionService: { execute },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
 
       await makeHandler(deps).handle(payload, 'job-1');
 
       expect(execute).toHaveBeenCalledTimes(12);
       const writes = writesOf(deps);
-      expect(writes.filter((write) => write.technicallyEvaluable === false)).toHaveLength(6);
+      expect(
+        writes.filter((write) => write.technicallyEvaluable === false),
+      ).toHaveLength(6);
     });
 
     it('retries an external LLM failure once and does not retry other LLM failures', async () => {
       const externalGenerate = vi
         .fn()
-        .mockRejectedValue(new LLMProviderUnavailableError('upstream 503', true));
+        .mockRejectedValue(
+          new LLMProviderUnavailableError('upstream 503', true),
+        );
       const external = makeDeps({
         llmProvider: {
           generate: externalGenerate,
@@ -1618,9 +1781,11 @@ describe('ExperimentJobHandler', () => {
         },
       });
       // El reintento externo solo aplica a runs con semilla (WI-CORE-025 (4)).
-      (external.deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        external.deps.experimentRunsRepository.findById as ReturnType<
+          typeof vi.fn
+        >
+      ).mockResolvedValue(seededRun());
       await makeHandler(external.deps).handle(payload, 'job-1');
 
       expect(externalGenerate).toHaveBeenCalledTimes(6);
@@ -1628,24 +1793,34 @@ describe('ExperimentJobHandler', () => {
         (write) => write.failureType === 'INFRASTRUCTURE',
       );
       expect(externalWrites).toHaveLength(6);
-      expect(externalWrites.filter((write) => write.technicallyEvaluable === false)).toHaveLength(3);
+      expect(
+        externalWrites.filter((write) => write.technicallyEvaluable === false),
+      ).toHaveLength(3);
 
       const notExternalGenerate = vi
         .fn()
-        .mockRejectedValue(new LLMProviderUnavailableError('bad request', false));
+        .mockRejectedValue(
+          new LLMProviderUnavailableError('bad request', false),
+        );
       const notExternal = makeDeps({
         llmProvider: {
           generate: notExternalGenerate,
           resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
         },
       });
-      (notExternal.deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun(),
-      );
+      (
+        notExternal.deps.experimentRunsRepository.findById as ReturnType<
+          typeof vi.fn
+        >
+      ).mockResolvedValue(seededRun());
       await makeHandler(notExternal.deps).handle(payload, 'job-2');
 
       expect(notExternalGenerate).toHaveBeenCalledTimes(3);
-      expect(writesOf(notExternal.deps).filter((write) => write.failureType === 'UNKNOWN')).toHaveLength(3);
+      expect(
+        writesOf(notExternal.deps).filter(
+          (write) => write.failureType === 'UNKNOWN',
+        ),
+      ).toHaveLength(3);
     });
 
     it('does not treat the generation timeout (maxDurationMs persisted on the run) as an external failure', async () => {
@@ -1654,8 +1829,16 @@ describe('ExperimentJobHandler', () => {
           generate: vi.fn(() => new Promise(() => undefined)),
         },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-        seededRun({ budget: { toolCallCap: 5, contextTokenBudget: 1234, maxDurationMs: 50 } }),
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(
+        seededRun({
+          budget: {
+            toolCallCap: 5,
+            contextTokenBudget: 1234,
+            maxDurationMs: 50,
+          },
+        }),
       );
       const handler = makeHandler(deps);
 
@@ -1664,8 +1847,12 @@ describe('ExperimentJobHandler', () => {
       expect(deps.generalistAgentService.generate).toHaveBeenCalledTimes(3);
       expect(beginsOf(deps)).toHaveLength(6);
       const writes = writesOf(deps);
-      expect(writes.filter((write) => write.failureType === 'UNKNOWN')).toHaveLength(3);
-      expect(writes.some((write) => 'technicallyEvaluable' in write)).toBe(false);
+      expect(
+        writes.filter((write) => write.failureType === 'UNKNOWN'),
+      ).toHaveLength(3);
+      expect(writes.some((write) => 'technicallyEvaluable' in write)).toBe(
+        false,
+      );
     });
 
     it('on redelivery skips terminal slots and reruns only attempt 2 of an external failure', async () => {
@@ -1677,14 +1864,37 @@ describe('ExperimentJobHandler', () => {
           markFailed: vi.fn(),
           updateRepetitionById: vi.fn(),
           refreshCompletedRepetitions: vi.fn(),
-          findRepetitions: vi.fn().mockResolvedValue([
-            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', 'Sandbox no disponible.'),
-            attemptRow('RAG', 2, 1, 'COMPLETED'),
-            attemptRow('RAG', 3, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 2, 1, 'FAILED', 'COMPILATION', 'Fallo de compilación.'),
-            attemptRow('GENERALIST_AGENT', 3, 2, 'FAILED', 'INFRASTRUCTURE', 'Sandbox no disponible.'),
-          ]),
+          findRepetitions: vi
+            .fn()
+            .mockResolvedValue([
+              attemptRow(
+                'RAG',
+                1,
+                1,
+                'FAILED',
+                'INFRASTRUCTURE',
+                'Sandbox no disponible.',
+              ),
+              attemptRow('RAG', 2, 1, 'COMPLETED'),
+              attemptRow('RAG', 3, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+              attemptRow(
+                'GENERALIST_AGENT',
+                2,
+                1,
+                'FAILED',
+                'COMPILATION',
+                'Fallo de compilación.',
+              ),
+              attemptRow(
+                'GENERALIST_AGENT',
+                3,
+                2,
+                'FAILED',
+                'INFRASTRUCTURE',
+                'Sandbox no disponible.',
+              ),
+            ]),
         },
       });
       const handler = makeHandler(deps);
@@ -1696,8 +1906,12 @@ describe('ExperimentJobHandler', () => {
       ).toEqual(['RAG:1']);
       const executions = executionsOf(deps);
       expect(executions).toHaveLength(1);
-      expect(executions[0].requestId).toBe(sandboxExperimentRequestId('job-2', 'RAG', 1, 2));
-      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+      expect(executions[0].requestId).toBe(
+        sandboxExperimentRequestId('job-2', 'RAG', 1, 2),
+      );
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
+      );
     });
 
     it('on redelivery does not retry a persisted sandbox timeout', async () => {
@@ -1709,14 +1923,24 @@ describe('ExperimentJobHandler', () => {
           markFailed: vi.fn(),
           updateRepetitionById: vi.fn(),
           refreshCompletedRepetitions: vi.fn(),
-          findRepetitions: vi.fn().mockResolvedValue([
-            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', SANDBOX_TIMED_OUT_ERROR_SUMMARY, true),
-            attemptRow('RAG', 2, 1, 'COMPLETED'),
-            attemptRow('RAG', 3, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
-          ]),
+          findRepetitions: vi
+            .fn()
+            .mockResolvedValue([
+              attemptRow(
+                'RAG',
+                1,
+                1,
+                'FAILED',
+                'INFRASTRUCTURE',
+                SANDBOX_TIMED_OUT_ERROR_SUMMARY,
+                true,
+              ),
+              attemptRow('RAG', 2, 1, 'COMPLETED'),
+              attemptRow('RAG', 3, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+            ]),
         },
       });
 
@@ -1724,13 +1948,17 @@ describe('ExperimentJobHandler', () => {
 
       expect(beginsOf(deps)).toHaveLength(0);
       expect(executionsOf(deps)).toHaveLength(0);
-      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
+      );
     });
 
     it('sends the persisted runner and execution profile to the Sandbox and uses the persisted budget in both arms', async () => {
       const configGet = vi.fn((_key: string, fallback?: unknown) => fallback);
       const { deps } = makeDeps({ configService: { get: configGet } });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(
         seededRun({ runnerHint: 'JEST', executionProfile: 'NODE_TYPESCRIPT' }),
       );
       const handler = makeHandler(deps);
@@ -1743,10 +1971,13 @@ describe('ExperimentJobHandler', () => {
         expect(execution.runnerHint).toBe('JEST');
         expect(execution.executionProfile).toBe('NODE_TYPESCRIPT');
       }
-      for (const call of (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls) {
+      for (const call of (
+        deps.generalistAgentService.generate as ReturnType<typeof vi.fn>
+      ).mock.calls) {
         expect(call[2]).toEqual({ toolCallCap: 5, contextTokenBudget: 1234 });
       }
-      for (const call of (deps.contextBuilder.build as ReturnType<typeof vi.fn>).mock.calls) {
+      for (const call of (deps.contextBuilder.build as ReturnType<typeof vi.fn>)
+        .mock.calls) {
         expect(call[3]).toEqual({ maxContextTokens: 1234 });
       }
       const readKeys = configGet.mock.calls.map((call: unknown[]) => call[0]);
@@ -1757,7 +1988,9 @@ describe('ExperimentJobHandler', () => {
 
     it('keeps legacy runs without seed, budget or profile on the environment defaults and without pair identity', async () => {
       const { deps } = makeDeps();
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: 'exp-1',
         status: 'PENDING',
         modelConfig: effectiveConfig,
@@ -1770,7 +2003,9 @@ describe('ExperimentJobHandler', () => {
 
       await handler.handle(payload, 'job-1');
 
-      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
+      );
       expect(executionsOf(deps)).toHaveLength(6);
       for (const execution of executionsOf(deps)) {
         expect(execution.runnerHint).toBe('VITEST');
@@ -1780,7 +2015,9 @@ describe('ExperimentJobHandler', () => {
         expect(begin.pairId).toBeNull();
         expect(begin.pairPosition).toBeNull();
       }
-      for (const call of (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mock.calls) {
+      for (const call of (
+        deps.generalistAgentService.generate as ReturnType<typeof vi.fn>
+      ).mock.calls) {
         expect(call[2]).toEqual({ toolCallCap: 20, contextTokenBudget: 8000 });
       }
     });
@@ -1794,14 +2031,24 @@ describe('ExperimentJobHandler', () => {
           markFailed: vi.fn(),
           updateRepetitionById: vi.fn(),
           refreshCompletedRepetitions: vi.fn(),
-          findRepetitions: vi.fn().mockResolvedValue([
-            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', SANDBOX_TIMED_OUT_ERROR_SUMMARY, null),
-            attemptRow('RAG', 2, 1, 'COMPLETED'),
-            attemptRow('RAG', 3, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
-          ]),
+          findRepetitions: vi
+            .fn()
+            .mockResolvedValue([
+              attemptRow(
+                'RAG',
+                1,
+                1,
+                'FAILED',
+                'INFRASTRUCTURE',
+                SANDBOX_TIMED_OUT_ERROR_SUMMARY,
+                null,
+              ),
+              attemptRow('RAG', 2, 1, 'COMPLETED'),
+              attemptRow('RAG', 3, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+            ]),
         },
       });
 
@@ -1810,7 +2057,9 @@ describe('ExperimentJobHandler', () => {
       expect(
         beginsOf(deps).map((begin) => `${begin.strategy}:${begin.repetition}`),
       ).toEqual(['RAG:1']);
-      expect(executionsOf(deps)[0].requestId).toBe(sandboxExperimentRequestId('job-2', 'RAG', 1, 2));
+      expect(executionsOf(deps)[0].requestId).toBe(
+        sandboxExperimentRequestId('job-2', 'RAG', 1, 2),
+      );
     });
 
     it('on redelivery with a live-heartbeat second-attempt RUNNING row, touches nothing and reschedules the job (WI-CORE-025 (3c), iii)', async () => {
@@ -1824,7 +2073,11 @@ describe('ExperimentJobHandler', () => {
           closeInterruptedRepetition: vi.fn(),
           refreshCompletedRepetitions: vi.fn(),
           findRepetitions: vi.fn().mockResolvedValue([
-            { ...attemptRow('RAG', 1, 2, 'RUNNING'), lastHeartbeatAt: new Date(), createdAt: new Date() },
+            {
+              ...attemptRow('RAG', 1, 2, 'RUNNING'),
+              lastHeartbeatAt: new Date(),
+              createdAt: new Date(),
+            },
             attemptRow('RAG', 2, 1, 'COMPLETED'),
             attemptRow('RAG', 3, 1, 'COMPLETED'),
             attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
@@ -1834,7 +2087,9 @@ describe('ExperimentJobHandler', () => {
         },
       });
 
-      await expect(makeHandler(deps).handle(payload, 'job-2')).rejects.toBeInstanceOf(RescheduleJobError);
+      await expect(
+        makeHandler(deps).handle(payload, 'job-2'),
+      ).rejects.toBeInstanceOf(RescheduleJobError);
 
       expect(beginsOf(deps)).toHaveLength(0);
       expect(executionsOf(deps)).toHaveLength(0);
@@ -1846,9 +2101,13 @@ describe('ExperimentJobHandler', () => {
     });
 
     it('legacy runs without seed execute one attempt per slot and never retry an external failure', async () => {
-      const execute = vi.fn().mockRejectedValue(new SandboxUnavailableError('down'));
+      const execute = vi
+        .fn()
+        .mockRejectedValue(new SandboxUnavailableError('down'));
       const { deps } = makeDeps({ sandboxExecutionService: { execute } });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: 'exp-1',
         status: 'PENDING',
         modelConfig: effectiveConfig,
@@ -1863,14 +2122,23 @@ describe('ExperimentJobHandler', () => {
       expect(beginsOf(deps)).toHaveLength(6);
       expect(execute).toHaveBeenCalledTimes(6);
       // Identidad sin sufijo ':2' para los seis slots: el único intento de cada uno.
-      const expectedRequestIds = (['RAG', 'GENERALIST_AGENT'] as const).flatMap((strategy) =>
-        [1, 2, 3].map((repetition) => sandboxExperimentRequestId('job-1', strategy, repetition)),
+      const expectedRequestIds = (['RAG', 'GENERALIST_AGENT'] as const).flatMap(
+        (strategy) =>
+          [1, 2, 3].map((repetition) =>
+            sandboxExperimentRequestId('job-1', strategy, repetition),
+          ),
       );
-      expect(executionsOf(deps).map((execution) => execution.requestId).sort()).toEqual(
-        [...expectedRequestIds].sort(),
+      expect(
+        executionsOf(deps)
+          .map((execution) => execution.requestId)
+          .sort(),
+      ).toEqual([...expectedRequestIds].sort());
+      expect(
+        writesOf(deps).every((write) => !('technicallyEvaluable' in write)),
+      ).toBe(true);
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
       );
-      expect(writesOf(deps).every((write) => !('technicallyEvaluable' in write))).toBe(true);
-      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
     });
 
     it('legacy redelivery skips every slot that already has an attempt, without creating a retry', async () => {
@@ -1890,14 +2158,23 @@ describe('ExperimentJobHandler', () => {
           markFailed: vi.fn(),
           updateRepetitionById: vi.fn(),
           refreshCompletedRepetitions: vi.fn(),
-          findRepetitions: vi.fn().mockResolvedValue([
-            attemptRow('RAG', 1, 1, 'FAILED', 'INFRASTRUCTURE', 'Sandbox no disponible.'),
-            attemptRow('RAG', 2, 1, 'COMPLETED'),
-            attemptRow('RAG', 3, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
-            attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
-          ]),
+          findRepetitions: vi
+            .fn()
+            .mockResolvedValue([
+              attemptRow(
+                'RAG',
+                1,
+                1,
+                'FAILED',
+                'INFRASTRUCTURE',
+                'Sandbox no disponible.',
+              ),
+              attemptRow('RAG', 2, 1, 'COMPLETED'),
+              attemptRow('RAG', 3, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 2, 1, 'COMPLETED'),
+              attemptRow('GENERALIST_AGENT', 3, 1, 'COMPLETED'),
+            ]),
         },
       });
 
@@ -1905,7 +2182,9 @@ describe('ExperimentJobHandler', () => {
 
       expect(beginsOf(deps)).toHaveLength(0);
       expect(executionsOf(deps)).toHaveLength(0);
-      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
+      );
     });
   });
 });
@@ -1918,13 +2197,19 @@ async function flushMicrotasks(rounds = 200): Promise<void> {
 }
 
 /** Acceso tipado al repositorio simulado (los métodos nuevos no están en el tipo inferido de makeDeps). */
-function repoOf(deps: ReturnType<typeof makeDeps>['deps']): Record<string, ReturnType<typeof vi.fn>> {
-  return deps.experimentRunsRepository as unknown as Record<string, ReturnType<typeof vi.fn>>;
+function repoOf(
+  deps: ReturnType<typeof makeDeps>['deps'],
+): Record<string, ReturnType<typeof vi.fn>> {
+  return deps.experimentRunsRepository as unknown as Record<
+    string,
+    ReturnType<typeof vi.fn>
+  >;
 }
 
 function configWith(values: Record<string, unknown>) {
   return {
-    get: (key: string, fallback?: unknown) => (key in values ? values[key] : fallback),
+    get: (key: string, fallback?: unknown) =>
+      key in values ? values[key] : fallback,
   };
 }
 
@@ -1985,30 +2270,38 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
         }),
       },
     });
-    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(seededRun());
     // El primer slot del par 1 falla al abrir el intento; el par 2 queda en vuelo.
-    const beginAttempt = deps.contextTracesRepository.beginAttempt as ReturnType<typeof vi.fn>;
+    const beginAttempt = deps.contextTracesRepository
+      .beginAttempt as ReturnType<typeof vi.fn>;
     beginAttempt.mockImplementation(async (input: Record<string, unknown>) => {
       if (input.repetition === 1) {
         throw new Error('boom-begin');
       }
       return {
-        repetition: { id: `rep-${String(input.strategy)}-${String(input.repetition)}`, ...input },
+        repetition: {
+          id: `rep-${String(input.strategy)}-${String(input.repetition)}`,
+          ...input,
+        },
         trace: { id: `trace-${String(input.repetition)}` },
       };
     });
 
     let settled = false;
-    const handling = makeHandler(deps).handle(payload, 'job-race').then(
-      () => {
-        settled = true;
-        return undefined;
-      },
-      (error: unknown) => {
-        settled = true;
-        return error;
-      },
-    );
+    const handling = makeHandler(deps)
+      .handle(payload, 'job-race')
+      .then(
+        () => {
+          settled = true;
+          return undefined;
+        },
+        (error: unknown) => {
+          settled = true;
+          return error;
+        },
+      );
 
     await reached;
     await flushMicrotasks();
@@ -2036,7 +2329,10 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
       });
       const touch = vi.fn().mockResolvedValue({ count: 1 });
       const { deps } = makeDeps({
-        configService: configWith({ EXPERIMENT_REPETITION_CONCURRENCY: 1, EXPERIMENT_HEARTBEAT_INTERVAL_MS: 15_000 }),
+        configService: configWith({
+          EXPERIMENT_REPETITION_CONCURRENCY: 1,
+          EXPERIMENT_HEARTBEAT_INTERVAL_MS: 15_000,
+        }),
         sandboxExecutionService: {
           execute: vi.fn(async () => {
             sandboxEntered();
@@ -2045,7 +2341,9 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
           }),
         },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
       repoOf(deps).touchRepetitionHeartbeat = touch;
 
       const handling = makeHandler(deps).handle(payload, 'job-hb');
@@ -2086,7 +2384,10 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
       });
       const touch = vi.fn().mockRejectedValue(new Error('db down'));
       const { deps } = makeDeps({
-        configService: configWith({ EXPERIMENT_REPETITION_CONCURRENCY: 1, EXPERIMENT_HEARTBEAT_INTERVAL_MS: 15_000 }),
+        configService: configWith({
+          EXPERIMENT_REPETITION_CONCURRENCY: 1,
+          EXPERIMENT_HEARTBEAT_INTERVAL_MS: 15_000,
+        }),
         sandboxExecutionService: {
           execute: vi.fn(async () => {
             sandboxEntered();
@@ -2095,7 +2396,9 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
           }),
         },
       });
-      (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+      (
+        deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(seededRun());
       repoOf(deps).touchRepetitionHeartbeat = touch;
 
       const handling = makeHandler(deps).handle(payload, 'job-hb-fail');
@@ -2106,7 +2409,9 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
 
       releaseSandbox();
       await expect(handling).resolves.toBeUndefined();
-      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -2115,58 +2420,102 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
   it('an expired RUNNING attempt 1 is closed and rerun as attempt 2 with the same pair identity (3c, i)', async () => {
     const { deps } = makeDeps({
       experimentRunsRepository: withRunRepository([
-        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', true),
+        rowWithHeartbeat(
+          attemptRow('RAG', 1, 1, 'RUNNING'),
+          'row-rag-1-a1',
+          true,
+        ),
         ...COMPLETED_OTHERS,
       ]),
     });
 
     await makeHandler(deps).handle(payload, 'job-3c-1');
 
-    const close = repoOf(deps).closeInterruptedRepetition as ReturnType<typeof vi.fn>;
+    const close = repoOf(deps).closeInterruptedRepetition as ReturnType<
+      typeof vi.fn
+    >;
     expect(close).toHaveBeenCalledTimes(1);
-    expect(close).toHaveBeenCalledWith('row-rag-1-a1', { errorSummary: expect.any(String) });
-    expect(deps.experimentRunsRepository.refreshCompletedRepetitions).toHaveBeenCalledWith('exp-1');
+    expect(close).toHaveBeenCalledWith('row-rag-1-a1', {
+      errorSummary: expect.any(String),
+    });
+    expect(
+      deps.experimentRunsRepository.refreshCompletedRepetitions,
+    ).toHaveBeenCalledWith('exp-1');
 
-    const begins = beginsOf(deps).filter((begin) => begin.strategy === 'RAG' && begin.repetition === 1);
+    const begins = beginsOf(deps).filter(
+      (begin) => begin.strategy === 'RAG' && begin.repetition === 1,
+    );
     expect(begins).toHaveLength(1);
     expect(begins[0].pairId).toBe(experimentPairId('exp-1', 1));
 
-    const requestIds = executionsOf(deps).map((execution) => execution.requestId);
-    expect(requestIds).toContain(sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 2));
-    expect(requestIds).not.toContain(sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 1));
-    expect(requestIds.filter((id) => id === sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 2))).toHaveLength(1);
-    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    const requestIds = executionsOf(deps).map(
+      (execution) => execution.requestId,
+    );
+    expect(requestIds).toContain(
+      sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 2),
+    );
+    expect(requestIds).not.toContain(
+      sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 1),
+    );
+    expect(
+      requestIds.filter(
+        (id) => id === sandboxExperimentRequestId('job-3c-1', 'RAG', 1, 2),
+      ),
+    ).toHaveLength(1);
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+      'exp-1',
+    );
   });
 
   it('an expired RUNNING attempt 2 is closed as INFRASTRUCTURE, not technically evaluable, with no third attempt (3c, ii)', async () => {
     const { deps } = makeDeps({
       experimentRunsRepository: withRunRepository([
-        rowWithHeartbeat(attemptRow('RAG', 1, 2, 'RUNNING'), 'row-rag-1-a2', true),
+        rowWithHeartbeat(
+          attemptRow('RAG', 1, 2, 'RUNNING'),
+          'row-rag-1-a2',
+          true,
+        ),
         ...COMPLETED_OTHERS,
       ]),
     });
 
     await makeHandler(deps).handle(payload, 'job-3c-2');
 
-    const close = repoOf(deps).closeInterruptedRepetition as ReturnType<typeof vi.fn>;
+    const close = repoOf(deps).closeInterruptedRepetition as ReturnType<
+      typeof vi.fn
+    >;
     expect(close).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledWith('row-rag-1-a2', {
       errorSummary: expect.any(String),
       technicallyEvaluable: false,
     });
-    expect(beginsOf(deps).filter((begin) => begin.strategy === 'RAG' && begin.repetition === 1)).toHaveLength(0);
-    const requestIds = executionsOf(deps).map((execution) => execution.requestId);
+    expect(
+      beginsOf(deps).filter(
+        (begin) => begin.strategy === 'RAG' && begin.repetition === 1,
+      ),
+    ).toHaveLength(0);
+    const requestIds = executionsOf(deps).map(
+      (execution) => execution.requestId,
+    );
     for (const attempt of [1, 2, 3]) {
-      expect(requestIds).not.toContain(sandboxExperimentRequestId('job-3c-2', 'RAG', 1, attempt));
+      expect(requestIds).not.toContain(
+        sandboxExperimentRequestId('job-3c-2', 'RAG', 1, attempt),
+      );
     }
     expect(writesOf(deps)).toHaveLength(0);
-    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+      'exp-1',
+    );
   });
 
   it('a rerun of an expired attempt 1 that also fails externally stops at attempt 2 (3c, i and ii)', async () => {
     const { deps } = makeDeps({
       experimentRunsRepository: withRunRepository([
-        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', true),
+        rowWithHeartbeat(
+          attemptRow('RAG', 1, 1, 'RUNNING'),
+          'row-rag-1-a1',
+          true,
+        ),
         ...COMPLETED_OTHERS,
       ]),
       sandboxExecutionService: {
@@ -2176,13 +2525,25 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
 
     await makeHandler(deps).handle(payload, 'job-3c-3');
 
-    const begins = beginsOf(deps).filter((begin) => begin.strategy === 'RAG' && begin.repetition === 1);
+    const begins = beginsOf(deps).filter(
+      (begin) => begin.strategy === 'RAG' && begin.repetition === 1,
+    );
     expect(begins).toHaveLength(1);
-    const requestIds = executionsOf(deps).map((execution) => execution.requestId);
-    expect(requestIds.filter((id) => id === sandboxExperimentRequestId('job-3c-3', 'RAG', 1, 2))).toHaveLength(1);
-    expect(requestIds).not.toContain(sandboxExperimentRequestId('job-3c-3', 'RAG', 1, 3));
+    const requestIds = executionsOf(deps).map(
+      (execution) => execution.requestId,
+    );
+    expect(
+      requestIds.filter(
+        (id) => id === sandboxExperimentRequestId('job-3c-3', 'RAG', 1, 2),
+      ),
+    ).toHaveLength(1);
+    expect(requestIds).not.toContain(
+      sandboxExperimentRequestId('job-3c-3', 'RAG', 1, 3),
+    );
 
-    const ragOne = writesOf(deps).filter((write) => write.strategy === 'RAG' && write.repetition === 1);
+    const ragOne = writesOf(deps).filter(
+      (write) => write.strategy === 'RAG' && write.repetition === 1,
+    );
     expect(ragOne).toHaveLength(1);
     expect(ragOne[0].technicallyEvaluable).toBe(false);
   });
@@ -2190,12 +2551,18 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
   it('a live RUNNING attempt 1 reschedules the whole job without closing or duplicating anything (3c, iii)', async () => {
     const { deps } = makeDeps({
       experimentRunsRepository: withRunRepository([
-        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', false),
+        rowWithHeartbeat(
+          attemptRow('RAG', 1, 1, 'RUNNING'),
+          'row-rag-1-a1',
+          false,
+        ),
         ...COMPLETED_OTHERS,
       ]),
     });
 
-    const error = await makeHandler(deps).handle(payload, 'job-3c-4').catch((caught: unknown) => caught);
+    const error = await makeHandler(deps)
+      .handle(payload, 'job-3c-4')
+      .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(RescheduleJobError);
     expect((error as RescheduleJobError).delayMs).toBeGreaterThan(0);
@@ -2209,8 +2576,16 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
   it('a live RUNNING row in any slot blocks the closing of an expired slot elsewhere (3c, iii)', async () => {
     const { deps } = makeDeps({
       experimentRunsRepository: withRunRepository([
-        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1-a1', true),
-        rowWithHeartbeat(attemptRow('GENERALIST_AGENT', 2, 1, 'RUNNING'), 'row-agent-2-a1', false),
+        rowWithHeartbeat(
+          attemptRow('RAG', 1, 1, 'RUNNING'),
+          'row-rag-1-a1',
+          true,
+        ),
+        rowWithHeartbeat(
+          attemptRow('GENERALIST_AGENT', 2, 1, 'RUNNING'),
+          'row-agent-2-a1',
+          false,
+        ),
         attemptRow('RAG', 2, 1, 'COMPLETED'),
         attemptRow('RAG', 3, 1, 'COMPLETED'),
         attemptRow('GENERALIST_AGENT', 1, 1, 'COMPLETED'),
@@ -2218,48 +2593,69 @@ describe('ExperimentJobHandler recovery (WI-CORE-025 (3c))', () => {
       ]),
     });
 
-    await expect(makeHandler(deps).handle(payload, 'job-3c-5')).rejects.toBeInstanceOf(RescheduleJobError);
+    await expect(
+      makeHandler(deps).handle(payload, 'job-3c-5'),
+    ).rejects.toBeInstanceOf(RescheduleJobError);
     expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
     expect(beginsOf(deps)).toHaveLength(0);
   });
 
   it('a legacy run without seed never reschedules and keeps its single attempt per slot', async () => {
     const { deps } = makeDeps({
-      experimentRunsRepository: withRunRepository([
-        rowWithHeartbeat(attemptRow('RAG', 1, 1, 'COMPLETED'), 'row-rag-1', false),
-      ], {
-        findById: vi.fn().mockResolvedValue({
-          id: 'exp-1',
-          status: 'PENDING',
-          modelConfig: effectiveConfig,
-          randomizationSeed: null,
-          budget: null,
-          executionProfile: null,
-          runnerHint: null,
-        }),
-      }),
+      experimentRunsRepository: withRunRepository(
+        [
+          rowWithHeartbeat(
+            attemptRow('RAG', 1, 1, 'COMPLETED'),
+            'row-rag-1',
+            false,
+          ),
+        ],
+        {
+          findById: vi.fn().mockResolvedValue({
+            id: 'exp-1',
+            status: 'PENDING',
+            modelConfig: effectiveConfig,
+            randomizationSeed: null,
+            budget: null,
+            executionProfile: null,
+            runnerHint: null,
+          }),
+        },
+      ),
     });
 
     await makeHandler(deps).handle(payload, 'job-legacy');
 
     expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
     expect(beginsOf(deps)).toHaveLength(5);
-    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+      'exp-1',
+    );
   });
 });
 
 describe('ExperimentJobHandler H3 (WI-CORE-030): a closed repetition is not overwritten', () => {
   it('when another worker already closed the attempt, its result is not written and neither its trace nor the counters are touched', async () => {
     const { deps } = makeDeps();
-    (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    (
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+        typeof vi.fn
+      >
+    ).mockResolvedValue(false);
 
     await makeHandler(deps).handle(payload, 'job-h3');
 
-    expect(deps.experimentRunsRepository.updateRepetitionById).toHaveBeenCalled();
+    expect(
+      deps.experimentRunsRepository.updateRepetitionById,
+    ).toHaveBeenCalled();
     expect(deps.contextTracesRepository.finishTrace).not.toHaveBeenCalled();
     expect(deps.contextTracesRepository.failTrace).not.toHaveBeenCalled();
-    expect(deps.contextTracesRepository.finishRepetition).not.toHaveBeenCalled();
-    expect(deps.experimentRunsRepository.refreshCompletedRepetitions).not.toHaveBeenCalled();
+    expect(
+      deps.contextTracesRepository.finishRepetition,
+    ).not.toHaveBeenCalled();
+    expect(
+      deps.experimentRunsRepository.refreshCompletedRepetitions,
+    ).not.toHaveBeenCalled();
   });
 });
 
@@ -2269,20 +2665,38 @@ describe('ExperimentJobHandler onExhausted (WI-CORE-030, DEC-JOBS-001)', () => {
   it('closes the orphaned RUNNING repetitions and marks the run FAILED with EXPERIMENT_WORKER_LOST, without executing anything', async () => {
     const { deps } = makeDeps({
       experimentRunsRepository: withRunRepository(
-        [rowWithHeartbeat(attemptRow('RAG', 1, 1, 'RUNNING'), 'row-rag-1', true), ...COMPLETED_OTHERS],
-        { findById: vi.fn().mockResolvedValue(seededRun({ status: 'RUNNING' })) },
+        [
+          rowWithHeartbeat(
+            attemptRow('RAG', 1, 1, 'RUNNING'),
+            'row-rag-1',
+            true,
+          ),
+          ...COMPLETED_OTHERS,
+        ],
+        {
+          findById: vi.fn().mockResolvedValue(seededRun({ status: 'RUNNING' })),
+        },
       ),
     });
 
     await makeHandler(deps).onExhausted(payload, LOST);
 
     expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledTimes(1);
-    expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledWith('row-rag-1', {
-      errorSummary: expect.any(String),
-      technicallyEvaluable: false,
-    });
-    expect(repoOf(deps).refreshCompletedRepetitions).toHaveBeenCalledWith('exp-1');
-    expect(repoOf(deps).markFailed).toHaveBeenCalledWith('exp-1', 'EXPERIMENT_WORKER_LOST', LOST);
+    expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledWith(
+      'row-rag-1',
+      {
+        errorSummary: expect.any(String),
+        technicallyEvaluable: false,
+      },
+    );
+    expect(repoOf(deps).refreshCompletedRepetitions).toHaveBeenCalledWith(
+      'exp-1',
+    );
+    expect(repoOf(deps).markFailed).toHaveBeenCalledWith(
+      'exp-1',
+      'EXPERIMENT_WORKER_LOST',
+      LOST,
+    );
     expect(beginsOf(deps)).toHaveLength(0);
     expect(executionsOf(deps)).toHaveLength(0);
   });
@@ -2296,7 +2710,11 @@ describe('ExperimentJobHandler onExhausted (WI-CORE-030, DEC-JOBS-001)', () => {
 
     await makeHandler(deps).onExhausted(payload, LOST);
 
-    expect(repoOf(deps).markFailed).toHaveBeenCalledWith('exp-1', 'EXPERIMENT_WORKER_LOST', LOST);
+    expect(repoOf(deps).markFailed).toHaveBeenCalledWith(
+      'exp-1',
+      'EXPERIMENT_WORKER_LOST',
+      LOST,
+    );
     expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
   });
 
@@ -2324,9 +2742,13 @@ describe('ExperimentJobHandler onExhausted (WI-CORE-030, DEC-JOBS-001)', () => {
     expect(repoOf(completed.deps).markFailed).not.toHaveBeenCalled();
 
     const missing = makeDeps({
-      experimentRunsRepository: withRunRepository([], { findById: vi.fn().mockResolvedValue(null) }),
+      experimentRunsRepository: withRunRepository([], {
+        findById: vi.fn().mockResolvedValue(null),
+      }),
     });
-    await expect(makeHandler(missing.deps).onExhausted(payload, LOST)).resolves.toBeUndefined();
+    await expect(
+      makeHandler(missing.deps).onExhausted(payload, LOST),
+    ).resolves.toBeUndefined();
     expect(repoOf(missing.deps).markFailed).not.toHaveBeenCalled();
   });
 });
@@ -2339,19 +2761,26 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     message: "Cannot find name 'foo'",
   };
 
-  function failedWith(failure: unknown, status: 'FAILED' | 'TIMED_OUT' = 'FAILED') {
+  function failedWith(
+    failure: unknown,
+    status: 'FAILED' | 'TIMED_OUT' = 'FAILED',
+  ) {
     return { status, facts: null, failure, stageDurations: [] };
   }
 
   function updateCallsOf(deps: ReturnType<typeof makeDeps>['deps']) {
     return (
-      deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+        typeof vi.fn
+      >
     ).mock.calls as unknown[][];
   }
 
   it('persists the Sandbox fact in the terminal write of every repetition that reports it', async () => {
     const { deps } = makeDeps({
-      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)) },
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)),
+      },
     });
 
     await makeHandler(deps).handle(payload, 'job-wf-1');
@@ -2360,7 +2789,9 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     expect(writes).toHaveLength(6);
     expect(writes.every((write) => write.failure !== undefined)).toBe(true);
     expect(writes[0].failure).toEqual(COMPILE_FACT);
-    expect(updateCallsOf(deps).every((call) => call[2] === 'FAILED')).toBe(true);
+    expect(updateCallsOf(deps).every((call) => call[2] === 'FAILED')).toBe(
+      true,
+    );
   });
 
   it('keeps the fact of attempt 1 and of attempt 2 on their own rows, without merging them', async () => {
@@ -2381,14 +2812,23 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
       .mockResolvedValueOnce(failedWith(FIRST))
       .mockResolvedValueOnce(failedWith(SECOND))
       .mockResolvedValue(successfulSandboxResult());
-    const { deps } = makeDeps({ configService: sequentialConfig(), sandboxExecutionService: { execute } });
-    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+    const { deps } = makeDeps({
+      configService: sequentialConfig(),
+      sandboxExecutionService: { execute },
+    });
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(seededRun());
 
     await makeHandler(deps).handle(payload, 'job-wf-2');
 
     const [first] = pairOrder(SEED, 1);
     const [firstWrite, secondWrite] = writesOf(deps);
-    expect(firstWrite).toMatchObject({ repetition: 1, strategy: first, failure: FIRST });
+    expect(firstWrite).toMatchObject({
+      repetition: 1,
+      strategy: first,
+      failure: FIRST,
+    });
     expect(firstWrite).not.toHaveProperty('technicallyEvaluable');
     expect(secondWrite).toMatchObject({
       repetition: 1,
@@ -2407,7 +2847,9 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     };
     const { deps } = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue(failedWith(TIMEOUT_FACT, 'TIMED_OUT')),
+        execute: vi
+          .fn()
+          .mockResolvedValue(failedWith(TIMEOUT_FACT, 'TIMED_OUT')),
       },
     });
 
@@ -2416,12 +2858,19 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     const writes = writesOf(deps);
     expect(writes).toHaveLength(6);
     expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(true);
-    expect(writes.every((write) => JSON.stringify(write.failure) === JSON.stringify(TIMEOUT_FACT))).toBe(true);
+    expect(
+      writes.every(
+        (write) =>
+          JSON.stringify(write.failure) === JSON.stringify(TIMEOUT_FACT),
+      ),
+    ).toBe(true);
   });
 
   it('leaves failure absent for a TIMED_OUT result without a fact', async () => {
     const { deps } = makeDeps({
-      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(timedOutResult()) },
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(timedOutResult()),
+      },
     });
 
     await makeHandler(deps).handle(payload, 'job-wf-4');
@@ -2435,7 +2884,11 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
   it('leaves failure absent when the Sandbox client throws', async () => {
     const { deps } = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockRejectedValue(new SandboxUnavailableError('no sandbox configured')),
+        execute: vi
+          .fn()
+          .mockRejectedValue(
+            new SandboxUnavailableError('no sandbox configured'),
+          ),
       },
     });
 
@@ -2449,7 +2902,10 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
   it('leaves failure absent for a COMPLETED result even if it carried a fact', async () => {
     const { deps } = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue({ ...successfulSandboxResult(), failure: COMPILE_FACT }),
+        execute: vi.fn().mockResolvedValue({
+          ...successfulSandboxResult(),
+          failure: COMPILE_FACT,
+        }),
       },
     });
 
@@ -2464,14 +2920,19 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
     const raw = `Falló: ghp_0123456789abcdefABCDEF y password=hunter2 ${'q'.repeat(700)}`;
     const { deps } = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, message: raw })),
+        execute: vi
+          .fn()
+          .mockResolvedValue(failedWith({ ...COMPILE_FACT, message: raw })),
       },
     });
 
     await makeHandler(deps).handle(payload, 'job-wf-7');
 
-    const persisted = (writesOf(deps)[0].failure as { message: string }).message;
-    expect(persisted.startsWith('Falló: [REDACTED] y password=[REDACTED] ')).toBe(true);
+    const persisted = (writesOf(deps)[0].failure as { message: string })
+      .message;
+    expect(
+      persisted.startsWith('Falló: [REDACTED] y password=[REDACTED] '),
+    ).toBe(true);
     expect(persisted).toHaveLength(500);
     expect(persisted).not.toContain('ghp_');
     expect(persisted).not.toContain('hunter2');
@@ -2480,7 +2941,9 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
   it('leaves failure absent when the stage is outside the closed set', async () => {
     const { deps } = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, stage: 'BOGUS' })),
+        execute: vi
+          .fn()
+          .mockResolvedValue(failedWith({ ...COMPILE_FACT, stage: 'BOGUS' })),
       },
     });
 
@@ -2492,35 +2955,55 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
   it('leaves failure absent when the code is empty or outside the allowed shape (WI-CORE-027, DEC-EVID-004)', async () => {
     const empty = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: '' })),
+        execute: vi
+          .fn()
+          .mockResolvedValue(failedWith({ ...COMPILE_FACT, code: '' })),
       },
     });
     await makeHandler(empty.deps).handle(payload, 'job-wf-9');
-    expect(writesOf(empty.deps).every((write) => !('failure' in write))).toBe(true);
+    expect(writesOf(empty.deps).every((write) => !('failure' in write))).toBe(
+      true,
+    );
 
     // Antes se truncaba a 64; ahora un código de más de 64 caracteres invalida el hecho completo.
     const long = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: 'C'.repeat(100) })),
+        execute: vi
+          .fn()
+          .mockResolvedValue(
+            failedWith({ ...COMPILE_FACT, code: 'C'.repeat(100) }),
+          ),
       },
     });
     await makeHandler(long.deps).handle(payload, 'job-wf-10');
-    expect(writesOf(long.deps).every((write) => !('failure' in write))).toBe(true);
+    expect(writesOf(long.deps).every((write) => !('failure' in write))).toBe(
+      true,
+    );
 
     const withSpaces = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue(failedWith({ ...COMPILE_FACT, code: 'TS 2304' })),
+        execute: vi
+          .fn()
+          .mockResolvedValue(failedWith({ ...COMPILE_FACT, code: 'TS 2304' })),
       },
     });
     await makeHandler(withSpaces.deps).handle(payload, 'job-wf-11');
-    expect(writesOf(withSpaces.deps).every((write) => !('failure' in write))).toBe(true);
+    expect(
+      writesOf(withSpaces.deps).every((write) => !('failure' in write)),
+    ).toBe(true);
   });
 
   it('sends the fact to the RUNNING-guarded write only, so a closed attempt is not rewritten (H3)', async () => {
     const { deps } = makeDeps({
-      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)) },
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)),
+      },
     });
-    (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    (
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+        typeof vi.fn
+      >
+    ).mockResolvedValue(false);
 
     await makeHandler(deps).handle(payload, 'job-wf-11');
 
@@ -2532,8 +3015,12 @@ describe('ExperimentJobHandler failure fact (WI-CORE-007)', () => {
   it('leaves failure absent when generation fails before the Sandbox (outer catch, regla (a))', async () => {
     const generationError = new Error('generation exploded');
     const { deps } = makeDeps({
-      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)) },
-      generalistAgentService: { generate: vi.fn().mockRejectedValue(generationError) },
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(failedWith(COMPILE_FACT)),
+      },
+      generalistAgentService: {
+        generate: vi.fn().mockRejectedValue(generationError),
+      },
       llmProvider: {
         generate: vi.fn().mockRejectedValue(generationError),
         resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
@@ -2558,7 +3045,9 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
     message: "Cannot find name 'foo'",
   };
   /** Hash del contenido que mockea `applyCreate` (la prueba enviada al Sandbox). */
-  const ARTIFACT_HASH = createHash('sha256').update('export function test() {}', 'utf8').digest('hex');
+  const ARTIFACT_HASH = createHash('sha256')
+    .update('export function test() {}', 'utf8')
+    .digest('hex');
   const FACT_KEYS = [
     'executionProfile',
     'runner',
@@ -2590,7 +3079,9 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
 
   it('records the sandbox identity, the 14 closed facts and the artifact hash of an executed repetition', async () => {
     const { deps } = makeDeps({
-      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(identified()) },
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(identified()),
+      },
     });
 
     await makeHandler(deps).handle(payload, 'job-ev-1');
@@ -2620,7 +3111,9 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
           failureMessage: null,
         },
       });
-      expect(Object.keys(write.sandboxFacts as object).sort()).toEqual([...FACT_KEYS].sort());
+      expect(Object.keys(write.sandboxFacts as object).sort()).toEqual(
+        [...FACT_KEYS].sort(),
+      );
     }
   });
 
@@ -2636,12 +3129,20 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
         failedTests: 1,
         skippedTests: 0,
         testCases: [
-          { suitePath: null, name: 'falla', status: 'FAILED', durationMs: 1, errorMessage: 'expected 1 got 2 token=abc123' },
+          {
+            suitePath: null,
+            name: 'falla',
+            status: 'FAILED',
+            durationMs: 1,
+            errorMessage: 'expected 1 got 2 token=abc123',
+          },
         ],
         testCasesTruncated: false,
       },
     });
-    const { deps } = makeDeps({ sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failing) } });
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(failing) },
+    });
 
     await makeHandler(deps).handle(payload, 'job-ev-2');
 
@@ -2656,9 +3157,13 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
       failureCode: null,
       failureMessage: null,
     });
-    expect(JSON.stringify(writes[0].sandboxFacts)).not.toContain('expected 1 got 2');
+    expect(JSON.stringify(writes[0].sandboxFacts)).not.toContain(
+      'expected 1 got 2',
+    );
     expect(JSON.stringify(writes[0].sandboxFacts)).not.toContain('abc123');
-    expect(Object.keys(writes[0].sandboxFacts as object)).not.toContain('testCases');
+    expect(Object.keys(writes[0].sandboxFacts as object)).not.toContain(
+      'testCases',
+    );
   });
 
   it('records the validated fact of a FAILED result in the sandbox facts, with the failure column unchanged', async () => {
@@ -2698,14 +3203,21 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
   it('records a TIMED_OUT result without a fact as the observed identity only, with no invented category', async () => {
     const { deps } = makeDeps({
       sandboxExecutionService: {
-        execute: vi.fn().mockResolvedValue({ ...identified(), status: 'TIMED_OUT', facts: null, failure: null }),
+        execute: vi.fn().mockResolvedValue({
+          ...identified(),
+          status: 'TIMED_OUT',
+          facts: null,
+          failure: null,
+        }),
       },
     });
 
     await makeHandler(deps).handle(payload, 'job-ev-4');
 
     const writes = writesOf(deps);
-    expect(writes.every((write) => write.sandboxExecutionId === 'exec-1')).toBe(true);
+    expect(writes.every((write) => write.sandboxExecutionId === 'exec-1')).toBe(
+      true,
+    );
     expect(writes.every((write) => write.sandboxTimedOut === true)).toBe(true);
     expect(writes[0].sandboxFacts).toMatchObject({
       executionProfile: 'NODE_TYPESCRIPT',
@@ -2720,7 +3232,9 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
   it('records every evidence column as null when the Sandbox was never invoked', async () => {
     const generationError = new Error('generation exploded');
     const { deps } = makeDeps({
-      generalistAgentService: { generate: vi.fn().mockRejectedValue(generationError) },
+      generalistAgentService: {
+        generate: vi.fn().mockRejectedValue(generationError),
+      },
       llmProvider: {
         generate: vi.fn().mockRejectedValue(generationError),
         resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
@@ -2744,7 +3258,11 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
   });
 
   it('keeps the identity of an accepted execution that failed afterwards and leaves the unobserved identifiers null', async () => {
-    const accepted = new SandboxAcceptedExecutionError('La ejecución exec-9 no terminó.', 'exec-9', 'NODE_TYPESCRIPT');
+    const accepted = new SandboxAcceptedExecutionError(
+      'La ejecución exec-9 no terminó.',
+      'exec-9',
+      'NODE_TYPESCRIPT',
+    );
     const { deps } = makeDeps({
       sandboxExecutionService: { execute: vi.fn().mockRejectedValue(accepted) },
     });
@@ -2758,13 +3276,21 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
       sandboxCorrelationId: null,
       artifactHash: ARTIFACT_HASH,
     });
-    expect(writes[0].sandboxFacts).toMatchObject({ executionProfile: 'NODE_TYPESCRIPT', passed: null, failureCategory: null });
+    expect(writes[0].sandboxFacts).toMatchObject({
+      executionProfile: 'NODE_TYPESCRIPT',
+      passed: null,
+      failureCategory: null,
+    });
   });
 
   it('stores no artifact hash when the generated content is empty', async () => {
     const { deps } = makeDeps({
       llmProvider: {
-        generate: vi.fn().mockResolvedValue({ content: '   ', inputTokens: 1, outputTokens: 1 }),
+        generate: vi.fn().mockResolvedValue({
+          content: '   ',
+          inputTokens: 1,
+          outputTokens: 1,
+        }),
         resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
       },
     });
@@ -2799,11 +3325,19 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
 
   it('keeps the repetition result when the write with evidence fails, retries without it and logs only the error name', async () => {
     const { deps } = makeDeps({
-      sandboxExecutionService: { execute: vi.fn().mockResolvedValue(identified()) },
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(identified()),
+      },
     });
-    const withEvidence = new Error('connection string postgresql://user:secret@host');
+    const withEvidence = new Error(
+      'connection string postgresql://user:secret@host',
+    );
     withEvidence.name = 'PrismaClientKnownRequestError';
-    (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mockImplementation(
+    (
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+        typeof vi.fn
+      >
+    ).mockImplementation(
       async (_id: string, input: Record<string, unknown>) => {
         if ('sandboxFacts' in input) {
           throw withEvidence;
@@ -2811,13 +3345,21 @@ describe('ExperimentJobHandler evidence capture (WI-CORE-027, corte B)', () => {
         return true;
       },
     );
-    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
 
     await makeHandler(deps).handle(payload, 'job-ev-9');
 
-    const calls = (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mock.calls;
+    const calls = (
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+        typeof vi.fn
+      >
+    ).mock.calls;
     expect(calls).toHaveLength(12);
-    const retries = calls.filter((call) => !('sandboxFacts' in (call[1] as Record<string, unknown>)));
+    const retries = calls.filter(
+      (call) => !('sandboxFacts' in (call[1] as Record<string, unknown>)),
+    );
     expect(retries).toHaveLength(6);
     expect(retries.every((call) => call[2] === 'COMPLETED')).toBe(true);
     expect(deps.contextTracesRepository.finishTrace).toHaveBeenCalledTimes(6);
@@ -2837,7 +3379,8 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
   });
   const PHP_PATH = 'tests/Unit/Services/CalculatorAddTest.php';
   const PHP_NAMESPACE = 'Tests\\Unit\\Services';
-  const PHP_TEST = '<?php\n\nnamespace Tests\\Unit\\Services;\n\nuse PHPUnit\\Framework\\TestCase;\n\nfinal class CalculatorAddTest extends TestCase {}\n';
+  const PHP_TEST =
+    '<?php\n\nnamespace Tests\\Unit\\Services;\n\nuse PHPUnit\\Framework\\TestCase;\n\nfinal class CalculatorAddTest extends TestCase {}\n';
 
   function phpDeps(overrides: Record<string, unknown> = {}) {
     const built = makeDeps({
@@ -2847,13 +3390,21 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
           snapshotKey: 'snapshot-key',
           language: 'PHP',
           detectedFramework: 'PHPUNIT',
+          effectiveProjectRoot: '.',
         }),
       },
-      testTargetsRepository: { findById: vi.fn().mockResolvedValue(PHP_TARGET) },
+      testTargetsRepository: {
+        findById: vi.fn().mockResolvedValue(PHP_TARGET),
+      },
       ...overrides,
     });
-    (built.deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
-      seededRun({ runnerHint: 'PHPUNIT', executionProfile: 'PHP_LARAVEL_PHPUNIT' }),
+    (
+      built.deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(
+      seededRun({
+        runnerHint: 'PHPUNIT',
+        executionProfile: 'PHP_LARAVEL_PHPUNIT',
+      }),
     );
     return built;
   }
@@ -2869,13 +3420,67 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
     await makeHandler(deps).handle(payload, 'job-1');
 
     expect(deps.experimentRunsRepository.markFailed).not.toHaveBeenCalled();
-    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+      'exp-1',
+    );
     expect(executionsOf(deps)).toHaveLength(3);
+  });
+
+  it('transports the frozen nested root with repo-relative PHP artifacts and unchanged deterministic request IDs (WI-CORE-037)', async () => {
+    const { deps } = phpDeps({
+      projectVersionsRepository: {
+        findById: vi.fn().mockResolvedValue({
+          id: 'version-1',
+          snapshotKey: 'snapshot-key',
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+          effectiveProjectRoot: 'backend',
+        }),
+      },
+      testTargetsRepository: {
+        findById: vi.fn().mockResolvedValue({
+          ...PHP_TARGET,
+          filePath: 'backend/app/Services/Calculator.php',
+        }),
+      },
+    });
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: PHP_TEST,
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    const executions = executionsOf(deps);
+    expect(executions).toHaveLength(3);
+    const deterministicRequestIds = ['RAG', 'GENERALIST_AGENT'].flatMap(
+      (strategy) =>
+        [1, 2, 3].map((repetition) =>
+          sandboxExperimentRequestId('job-1', strategy, repetition),
+        ),
+    );
+    for (const execution of executions) {
+      expect(execution).toMatchObject({
+        projectRoot: 'backend',
+        artifacts: [
+          expect.objectContaining({
+            relativePath: 'backend/tests/Unit/Services/CalculatorAddTest.php',
+          }),
+        ],
+      });
+      expect(deterministicRequestIds).toContain(execution.requestId);
+    }
+    expect(
+      new Set(executions.map((execution) => execution.requestId)).size,
+    ).toBe(3);
   });
 
   it('RAG arm: builds the context with language php and framework PHPUNIT, prompts with the PHP namespace and path, and writes a CREATED artifact', async () => {
     const { deps } = phpDeps();
-    (deps.zipExtractionService.extract as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (
+      deps.zipExtractionService.extract as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       dir: '/tmp/workspace-does-not-exist',
       cleanup: vi.fn().mockResolvedValue(undefined),
     });
@@ -2885,7 +3490,9 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
       outputTokens: 1,
     });
     // Un test existente en el target no se fusiona en PHP: siempre es un archivo nuevo.
-    (deps.testTargetsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (
+      deps.testTargetsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       ...PHP_TARGET,
       hasTest: true,
       testFilePaths: ['tests/Unit/Services/CalculatorTest.php'],
@@ -2893,15 +3500,20 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
 
     await makeHandler(deps).handle(payload, 'job-1');
 
-    const contextCalls = (deps.contextBuilder.build as ReturnType<typeof vi.fn>).mock.calls;
+    const contextCalls = (deps.contextBuilder.build as ReturnType<typeof vi.fn>)
+      .mock.calls;
     expect(contextCalls.length).toBeGreaterThan(0);
     for (const call of contextCalls) {
       expect(call[2]).toEqual({ framework: 'PHPUNIT', language: 'php' });
     }
-    const promptCalls = (deps.promptBuilder.build as ReturnType<typeof vi.fn>).mock.calls;
+    const promptCalls = (deps.promptBuilder.build as ReturnType<typeof vi.fn>)
+      .mock.calls;
     expect(promptCalls.length).toBe(3);
     for (const call of promptCalls) {
-      expect(call[1]).toEqual({ testNamespace: PHP_NAMESPACE, testPath: PHP_PATH });
+      expect(call[1]).toEqual({
+        testNamespace: PHP_NAMESPACE,
+        testPath: PHP_PATH,
+      });
     }
 
     const executions = executionsOf(deps);
@@ -2910,7 +3522,10 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
       expect(execution.runnerHint).toBe('PHPUNIT');
       expect(execution.executionProfile).toBe('PHP_LARAVEL_PHPUNIT');
       const artifacts = execution.artifacts as Array<Record<string, unknown>>;
-      expect(artifacts[0]).toMatchObject({ relativePath: PHP_PATH, artifactType: 'CREATED' });
+      expect(artifacts[0]).toMatchObject({
+        relativePath: PHP_PATH,
+        artifactType: 'CREATED',
+      });
       expect((artifacts[0].content as Buffer).toString('utf8')).toBe(PHP_TEST);
     }
     expect(deps.testFileMergeService.applyMerge).not.toHaveBeenCalled();
@@ -2919,11 +3534,14 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
 
   it('agent arm: instructions ask for a full PHPUnit 11 file starting with <?php, with the namespace and path, and no TypeScript wording', async () => {
     const { deps } = phpDeps();
-    const originalGenerate = deps.generalistAgentService.generate.getMockImplementation()!;
-    deps.generalistAgentService.generate.mockImplementation(async (...args: unknown[]) => {
-      const result = await originalGenerate(...args);
-      return { ...result, content: PHP_TEST };
-    });
+    const originalGenerate =
+      deps.generalistAgentService.generate.getMockImplementation()!;
+    deps.generalistAgentService.generate.mockImplementation(
+      async (...args: unknown[]) => {
+        const result = await originalGenerate(...args);
+        return { ...result, content: PHP_TEST };
+      },
+    );
 
     await makeHandler(deps).handle(payload, 'job-1');
 
@@ -2938,14 +3556,19 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
       expect(instructions).toContain(PHP_PATH);
       expect(instructions).toContain('Tests\\TestCase');
       expect(instructions).toContain('PHPUnit\\Framework\\TestCase');
-      expect(instructions).toContain('list_files, read_file, search_text, inspect_symbol');
+      expect(instructions).toContain(
+        'list_files, read_file, search_text, inspect_symbol',
+      );
       expect(instructions).not.toContain('TypeScript');
       expect(instructions).not.toContain('Jest');
     }
     for (const execution of executionsOf(deps)) {
       expect(execution.runnerHint).toBe('PHPUNIT');
       const artifacts = execution.artifacts as Array<Record<string, unknown>>;
-      expect(artifacts[0]).toMatchObject({ relativePath: PHP_PATH, artifactType: 'CREATED' });
+      expect(artifacts[0]).toMatchObject({
+        relativePath: PHP_PATH,
+        artifactType: 'CREATED',
+      });
     }
   });
 
@@ -2956,11 +3579,14 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
       inputTokens: 10,
       outputTokens: 5,
     });
-    const originalGenerate = deps.generalistAgentService.generate.getMockImplementation()!;
-    deps.generalistAgentService.generate.mockImplementation(async (...args: unknown[]) => {
-      const result = await originalGenerate(...args);
-      return { ...result, content: 'class X {}' };
-    });
+    const originalGenerate =
+      deps.generalistAgentService.generate.getMockImplementation()!;
+    deps.generalistAgentService.generate.mockImplementation(
+      async (...args: unknown[]) => {
+        const result = await originalGenerate(...args);
+        return { ...result, content: 'class X {}' };
+      },
+    );
 
     await makeHandler(deps).handle(payload, 'job-1');
 
@@ -2977,15 +3603,20 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
         passed: false,
         valid: false,
         failureType: 'COMPILATION',
-        errorSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+        errorSummary:
+          'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
       });
       expect(write).not.toHaveProperty('technicallyEvaluable');
     }
-    const terminalStates = (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mock.calls.map(
-      (call: unknown[]) => call[2],
-    );
+    const terminalStates = (
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+        typeof vi.fn
+      >
+    ).mock.calls.map((call: unknown[]) => call[2]);
     expect(terminalStates).toEqual(Array(6).fill('COMPLETED'));
-    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+      'exp-1',
+    );
   });
 
   it('reports a missing PHPUnit framework as PHPUnit, not Jest/Vitest, without calling the Sandbox', async () => {
@@ -2998,7 +3629,9 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
           detectedFramework: null,
         }),
       },
-      testTargetsRepository: { findById: vi.fn().mockResolvedValue(PHP_TARGET) },
+      testTargetsRepository: {
+        findById: vi.fn().mockResolvedValue(PHP_TARGET),
+      },
     });
 
     await makeHandler(deps).handle(payload, 'job-1');

@@ -36,15 +36,24 @@ function capitalizeSegment(segment: string): string {
 export function phpTestLocation(
   target: PhpTestLocationTarget,
   existsInSnapshot: (relativePath: string) => boolean,
+  projectRoot = '.',
 ): PhpTestLocation {
-  const filePath = target.filePath;
+  const projectPrefix = projectRoot === '.' ? '' : `${projectRoot}/`;
+  const filePath =
+    projectPrefix && target.filePath.startsWith(projectPrefix)
+      ? target.filePath.slice(projectPrefix.length)
+      : target.filePath;
   const lastSlash = filePath.lastIndexOf('/');
   const directory = lastSlash >= 0 ? filePath.slice(0, lastSlash) : '';
   const isInsideApp = filePath.startsWith('app/');
 
   // Bajo app/ se descarta el prefijo "app/"; fuera de app/ se conserva la ruta completa.
-  const relativeDirectory = isInsideApp ? directory.slice('app'.length).replace(/^\//, '') : directory;
-  const directorySegments = relativeDirectory.split('/').filter((segment) => segment.length > 0);
+  const relativeDirectory = isInsideApp
+    ? directory.slice('app'.length).replace(/^\//, '')
+    : directory;
+  const directorySegments = relativeDirectory
+    .split('/')
+    .filter((segment) => segment.length > 0);
 
   const namespaceSegments = isInsideApp
     ? directorySegments
@@ -60,9 +69,10 @@ export function phpTestLocation(
   const namespace = [TESTS_NAMESPACE, ...namespaceSegments].join('\\');
 
   const preferredPath = `${directoryPath}/${baseName}Test.php`;
-  const relativePath = existsInSnapshot(preferredPath)
-    ? `${directoryPath}/${baseName}GeneratedTest.php`
-    : preferredPath;
+  const repoRelativePreferredPath = `${projectPrefix}${preferredPath}`;
+  const relativePath = existsInSnapshot(repoRelativePreferredPath)
+    ? `${projectPrefix}${directoryPath}/${baseName}GeneratedTest.php`
+    : repoRelativePreferredPath;
 
   return { relativePath, namespace };
 }

@@ -16,7 +16,8 @@ describe('phpTestLocation', () => {
     );
 
     expect(location).toEqual({
-      relativePath: 'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php',
+      relativePath:
+        'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php',
       namespace: 'Tests\\Unit\\Pricing',
     });
   });
@@ -90,7 +91,9 @@ describe('phpTestLocation', () => {
   });
 
   it('uses the GeneratedTest suffix when the regular path already exists in the snapshot', () => {
-    const existing = new Set(['tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php']);
+    const existing = new Set([
+      'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php',
+    ]);
     const location = phpTestLocation(
       {
         filePath: 'app/Pricing/PremiumDiscountPolicy.php',
@@ -102,7 +105,30 @@ describe('phpTestLocation', () => {
     );
 
     expect(location).toEqual({
-      relativePath: 'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForGeneratedTest.php',
+      relativePath:
+        'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForGeneratedTest.php',
+      namespace: 'Tests\\Unit\\Pricing',
+    });
+  });
+
+  it('keeps a nested-project test path repo-relative while deriving its namespace inside projectRoot', () => {
+    const existing = new Set([
+      'backend/tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php',
+    ]);
+    const location = phpTestLocation(
+      {
+        filePath: 'backend/app/Pricing/PremiumDiscountPolicy.php',
+        symbolName: 'App\\Pricing\\PremiumDiscountPolicy',
+        methodName: 'discountFor',
+        targetType: 'METHOD',
+      },
+      (path) => existing.has(path),
+      'backend',
+    );
+
+    expect(location).toEqual({
+      relativePath:
+        'backend/tests/Unit/Pricing/PremiumDiscountPolicyDiscountForGeneratedTest.php',
       namespace: 'Tests\\Unit\\Pricing',
     });
   });

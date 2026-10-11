@@ -15,7 +15,9 @@ function makeConfigService(overrides: Record<string, unknown> = {}) {
     SANDBOX_MAX_POLL_ATTEMPTS: 5,
     ...overrides,
   };
-  return { get: (key: string, fallback?: unknown) => values[key] ?? fallback } as never;
+  return {
+    get: (key: string, fallback?: unknown) => values[key] ?? fallback,
+  } as never;
 }
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
@@ -84,8 +86,12 @@ describe('SandboxExecutionService', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }))
-      .mockResolvedValueOnce(jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -110,7 +116,10 @@ describe('SandboxExecutionService', () => {
         }),
       );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
 
     const result = await service.execute({
       requestId: 'request-1',
@@ -140,6 +149,7 @@ describe('SandboxExecutionService', () => {
     const postedBody = JSON.parse(postCall[1].body);
     expect(postedBody.snapshot.role).toBe('PROJECT_SNAPSHOT');
     expect(postedBody.executionProfile).toBe('NODE_TYPESCRIPT');
+    expect(postedBody).not.toHaveProperty('projectRoot');
     expect(postedBody.runnerHint).toBe('VITEST');
     expect(postedBody.artifacts[0].download.role).toBe('GENERATED_ARTIFACT');
     expect(postedBody.artifacts[0].download.sha256).toHaveLength(64);
@@ -147,8 +157,12 @@ describe('SandboxExecutionService', () => {
     expect(postCall[1].headers['x-correlation-id']).toBeTruthy();
     expect(postCall[1].headers.authorization).toBe('Bearer test-service-token');
     const statusPollCall = fetchMock.mock.calls[1];
-    expect(statusPollCall[1].headers['x-correlation-id']).toBe(postCall[1].headers['x-correlation-id']);
-    expect(statusPollCall[1].headers.authorization).toBe('Bearer test-service-token');
+    expect(statusPollCall[1].headers['x-correlation-id']).toBe(
+      postCall[1].headers['x-correlation-id'],
+    );
+    expect(statusPollCall[1].headers.authorization).toBe(
+      'Bearer test-service-token',
+    );
 
     expect(result.status).toBe('COMPLETED');
     expect(result.facts?.passed).toBe(true);
@@ -162,13 +176,23 @@ describe('SandboxExecutionService', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-jest', pollAfterMs: 0 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-jest', pollAfterMs: 0 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
       .mockResolvedValueOnce(
-        jsonResponse({ status: 'COMPLETED', facts: null, failure: null, stageDurations: [] }),
+        jsonResponse({
+          status: 'COMPLETED',
+          facts: null,
+          failure: null,
+          stageDurations: [],
+        }),
       );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
     await service.execute({
       requestId: 'request-jest',
       testRunId: 'run-jest',
@@ -186,17 +210,88 @@ describe('SandboxExecutionService', () => {
     expect(postedBody.runnerHint).toBe('JEST');
   });
 
+  it('sends the frozen PHP projectRoot without changing request identity or repo-relative artifact paths (WI-CORE-037)', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-php', pollAfterMs: 0 }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: 'COMPLETED',
+          facts: null,
+          failure: null,
+          stageDurations: [],
+        }),
+      );
+
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
+    await service.execute({
+      requestId: 'stable-generation-request-id',
+      testRunId: 'run-php',
+      projectVersionId: 'version-php',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip-bytes'),
+      artifacts: [
+        {
+          artifactId: 'artifact-php',
+          relativePath: 'backend/tests/Unit/CalculatorTest.php',
+          artifactType: 'CREATED',
+          content: Buffer.from('<?php'),
+        },
+      ],
+      scope: 'TARGET',
+      targetIds: ['target-php'],
+      runnerHint: 'PHPUNIT',
+      projectRoot: 'backend',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const postedBody = JSON.parse(init.body as string);
+    expect(url).toBe('http://sandbox.local/executions');
+    expect(postedBody).toMatchObject({
+      requestId: 'stable-generation-request-id',
+      projectRoot: 'backend',
+      runnerHint: 'PHPUNIT',
+      executionProfile: 'PHP_LARAVEL_PHPUNIT',
+      artifacts: [
+        expect.objectContaining({
+          relativePath: 'backend/tests/Unit/CalculatorTest.php',
+        }),
+      ],
+    });
+    expect(
+      init.headers &&
+        (init.headers as Record<string, string>)['idempotency-key'],
+    ).toBe('stable-generation-request-id');
+  });
+
   it('sends the executionProfile persisted on the experiment when the request carries it (WI-CORE-025)', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-profile', pollAfterMs: 0 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-profile', pollAfterMs: 0 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
       .mockResolvedValueOnce(
-        jsonResponse({ status: 'COMPLETED', facts: null, failure: null, stageDurations: [] }),
+        jsonResponse({
+          status: 'COMPLETED',
+          facts: null,
+          failure: null,
+          stageDurations: [],
+        }),
       );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
     await service.execute({
       requestId: 'request-profile',
       testRunId: 'run-profile',
@@ -216,9 +311,17 @@ describe('SandboxExecutionService', () => {
   });
 
   it('never leaks the signed download URL into a thrown error message (redaction)', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }),
+    );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
 
     await expect(
       service.execute({
@@ -239,7 +342,9 @@ describe('SandboxExecutionService', () => {
         targetIds: ['target-1'],
         runnerHint: 'VITEST',
       }),
-    ).rejects.toMatchObject({ message: expect.not.stringContaining('signed.example') });
+    ).rejects.toMatchObject({
+      message: expect.not.stringContaining('signed.example'),
+    });
   });
 
   it('throws SandboxUnavailableError when the HTTP call fails', async () => {
@@ -248,7 +353,10 @@ describe('SandboxExecutionService', () => {
       vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
     );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
 
     await expect(
       service.execute({
@@ -266,12 +374,16 @@ describe('SandboxExecutionService', () => {
   });
 
   it('logs the failure message sanitized, without secrets (WI-CORE-027, IDEA-016)', async () => {
-    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const warnSpy = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'FAILED' }))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -281,13 +393,17 @@ describe('SandboxExecutionService', () => {
             stage: 'INSTALLING_DEPENDENCIES',
             category: 'DEPENDENCY',
             code: 'NPM_INSTALL_FAILED',
-            message: 'clone https://user:hunter@git.example/r.git password hunter2 Cookie: sid=9',
+            message:
+              'clone https://user:hunter@git.example/r.git password hunter2 Cookie: sid=9',
           },
           stageDurations: [],
         }),
       );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
 
     await service.execute({
       requestId: 'request-1',
@@ -311,12 +427,16 @@ describe('SandboxExecutionService', () => {
   });
 
   it('logs the detailed sandbox failure reason when the result includes one', async () => {
-    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const warnSpy = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'FAILED' }))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -332,7 +452,10 @@ describe('SandboxExecutionService', () => {
         }),
       );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
 
     const result = await service.execute({
       requestId: 'request-1',
@@ -348,7 +471,9 @@ describe('SandboxExecutionService', () => {
 
     expect(result.failure?.category).toBe('DEPENDENCY');
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("No matching version found for 'left-pad@^99.0.0'."),
+      expect.stringContaining(
+        "No matching version found for 'left-pad@^99.0.0'.",
+      ),
     );
 
     warnSpy.mockRestore();
@@ -357,8 +482,12 @@ describe('SandboxExecutionService', () => {
   it('throws SandboxUnavailableError after exceeding the max poll attempts', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    fetchMock.mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }));
-    fetchMock.mockResolvedValue(jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }),
+    );
+    fetchMock.mockResolvedValue(
+      jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }),
+    );
 
     const service = new SandboxExecutionService(
       makeConfigService({ SANDBOX_MAX_POLL_ATTEMPTS: 2 }),
@@ -384,11 +513,18 @@ describe('SandboxExecutionService', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-accepted', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-accepted', pollAfterMs: 1 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
-      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'COMPLETED', facts: null, failure: null }),
+      );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
     const base = {
       requestId: 'request-1',
       testRunId: 'run-1',
@@ -401,25 +537,47 @@ describe('SandboxExecutionService', () => {
     };
 
     const derived = await service.execute({ ...base, runnerHint: 'JEST' });
-    expect(derived).toMatchObject({ executionId: 'exec-accepted', executionProfile: 'NODE_TYPESCRIPT', status: 'COMPLETED' });
+    expect(derived).toMatchObject({
+      executionId: 'exec-accepted',
+      executionProfile: 'NODE_TYPESCRIPT',
+      status: 'COMPLETED',
+    });
 
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-persisted', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-persisted', pollAfterMs: 1 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
-      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
-    const persisted = await service.execute({ ...base, runnerHint: 'VITEST', executionProfile: 'NODE_TYPESCRIPT' });
-    expect(persisted).toMatchObject({ executionId: 'exec-persisted', executionProfile: 'NODE_TYPESCRIPT' });
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'COMPLETED', facts: null, failure: null }),
+      );
+    const persisted = await service.execute({
+      ...base,
+      runnerHint: 'VITEST',
+      executionProfile: 'NODE_TYPESCRIPT',
+    });
+    expect(persisted).toMatchObject({
+      executionId: 'exec-persisted',
+      executionProfile: 'NODE_TYPESCRIPT',
+    });
   });
 
   it('maps runnerHint PHPUNIT to PHP_LARAVEL_PHPUNIT and never sends phase in the body (WI-CORE-013, regla 4)', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-php', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-php', pollAfterMs: 1 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
-      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'COMPLETED', facts: null, failure: null }),
+      );
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
     const result = await service.execute({
       requestId: 'request-php',
       testRunId: 'run-1',
@@ -432,7 +590,10 @@ describe('SandboxExecutionService', () => {
       runnerHint: 'PHPUNIT',
     });
 
-    expect(result).toMatchObject({ executionId: 'exec-php', executionProfile: 'PHP_LARAVEL_PHPUNIT' });
+    expect(result).toMatchObject({
+      executionId: 'exec-php',
+      executionProfile: 'PHP_LARAVEL_PHPUNIT',
+    });
     const postedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(postedBody.executionProfile).toBe('PHP_LARAVEL_PHPUNIT');
     expect(postedBody.runnerHint).toBe('PHPUNIT');
@@ -442,8 +603,12 @@ describe('SandboxExecutionService', () => {
   it('keeps the executionId in the error when the Sandbox accepted the execution but never produced a result (WI-CORE-026)', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    fetchMock.mockResolvedValueOnce(jsonResponse({ executionId: 'exec-lost', pollAfterMs: 1 }));
-    fetchMock.mockResolvedValue(jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ executionId: 'exec-lost', pollAfterMs: 1 }),
+    );
+    fetchMock.mockResolvedValue(
+      jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }),
+    );
 
     const service = new SandboxExecutionService(
       makeConfigService({ SANDBOX_MAX_POLL_ATTEMPTS: 2 }),
@@ -466,14 +631,20 @@ describe('SandboxExecutionService', () => {
 
     expect(failure).toBeInstanceOf(SandboxAcceptedExecutionError);
     expect(failure).toBeInstanceOf(SandboxUnavailableError);
-    expect(failure).toMatchObject({ executionId: 'exec-lost', executionProfile: 'NODE_TYPESCRIPT' });
+    expect(failure).toMatchObject({
+      executionId: 'exec-lost',
+      executionProfile: 'NODE_TYPESCRIPT',
+    });
   });
 
   it('does not invent an executionId when the Sandbox never accepted the execution (WI-CORE-026)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, false, 503));
     vi.stubGlobal('fetch', fetchMock);
 
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
     const failure = await service
       .execute({
         requestId: 'request-1',
@@ -496,7 +667,9 @@ describe('SandboxExecutionService', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-1', pollAfterMs: 1 }),
+      )
       .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -521,7 +694,10 @@ describe('SandboxExecutionService', () => {
       put: vi.fn().mockResolvedValue(undefined),
       presignGet: vi.fn().mockResolvedValue('https://signed.example/download'),
     };
-    const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+    const service = new SandboxExecutionService(
+      makeConfigService(),
+      objectStorageService as never,
+    );
 
     await service.execute({
       requestId: 'request-1',
@@ -534,7 +710,9 @@ describe('SandboxExecutionService', () => {
       targetIds: ['target-1'],
       runnerHint: 'VITEST',
       // Simula un llamador que intentara colar reglas: el servicio no debe reenviarlas.
-      functionalRules: [{ knowledgeId: 'rule-1', normalizedRule: 'REGLA_NO_PERMITIDA' }],
+      functionalRules: [
+        { knowledgeId: 'rule-1', normalizedRule: 'REGLA_NO_PERMITIDA' },
+      ],
     } as never);
 
     const postedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -578,16 +756,27 @@ describe('SandboxExecutionService', () => {
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
       fetchMock
-        .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-ev', pollAfterMs: 1 }))
+        .mockResolvedValueOnce(
+          jsonResponse({ executionId: 'exec-ev', pollAfterMs: 1 }),
+        )
         .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
-        .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+        .mockResolvedValueOnce(
+          jsonResponse({ status: 'COMPLETED', facts: null, failure: null }),
+        );
 
-      const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+      const service = new SandboxExecutionService(
+        makeConfigService(),
+        objectStorageService as never,
+      );
       const result = await service.execute(request);
 
       expect(result.requestId).toBe('request-27');
       expect(result.correlationId).toMatch(/^[0-9a-f-]{36}$/);
-      expect(fetchMock.mock.calls.map(headerOf)).toEqual([result.correlationId, result.correlationId, result.correlationId]);
+      expect(fetchMock.mock.calls.map(headerOf)).toEqual([
+        result.correlationId,
+        result.correlationId,
+        result.correlationId,
+      ]);
       expect(Number.isInteger(result.durationMs)).toBe(true);
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
     });
@@ -595,27 +784,45 @@ describe('SandboxExecutionService', () => {
     it('carries the requestId, correlation id and duration in the accepted error when the execution fails afterwards', async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
-      fetchMock.mockResolvedValueOnce(jsonResponse({ executionId: 'exec-lost-27', pollAfterMs: 1 }));
-      fetchMock.mockResolvedValue(jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({ executionId: 'exec-lost-27', pollAfterMs: 1 }),
+      );
+      fetchMock.mockResolvedValue(
+        jsonResponse({ status: 'RUNNING_TESTS', pollAfterMs: 1 }),
+      );
 
       const service = new SandboxExecutionService(
         makeConfigService({ SANDBOX_MAX_POLL_ATTEMPTS: 2 }),
         objectStorageService as never,
       );
-      const failure = await service.execute(request).catch((error: unknown) => error);
+      const failure = await service
+        .execute(request)
+        .catch((error: unknown) => error);
 
       expect(failure).toBeInstanceOf(SandboxAcceptedExecutionError);
-      expect(failure).toMatchObject({ executionId: 'exec-lost-27', requestId: 'request-27' });
-      expect((failure as SandboxAcceptedExecutionError).correlationId).toBe(headerOf(fetchMock.mock.calls[0]));
-      expect((failure as SandboxAcceptedExecutionError).durationMs).toBeGreaterThanOrEqual(0);
+      expect(failure).toMatchObject({
+        executionId: 'exec-lost-27',
+        requestId: 'request-27',
+      });
+      expect((failure as SandboxAcceptedExecutionError).correlationId).toBe(
+        headerOf(fetchMock.mock.calls[0]),
+      );
+      expect(
+        (failure as SandboxAcceptedExecutionError).durationMs,
+      ).toBeGreaterThanOrEqual(0);
     });
 
     it('invents no identifiers for a failure before the Sandbox accepted the request', async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, false, 503));
       vi.stubGlobal('fetch', fetchMock);
 
-      const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
-      const failure = await service.execute(request).catch((error: unknown) => error);
+      const service = new SandboxExecutionService(
+        makeConfigService(),
+        objectStorageService as never,
+      );
+      const failure = await service
+        .execute(request)
+        .catch((error: unknown) => error);
 
       expect(failure).toBeInstanceOf(SandboxUnavailableError);
       expect(failure).not.toHaveProperty('requestId');

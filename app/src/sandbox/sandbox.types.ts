@@ -5,7 +5,8 @@ export type SandboxStage =
   | 'RUNNING_TESTS'
   | 'FINALIZING';
 
-export type SandboxExecutionStatus = 'PENDING' | SandboxStage | 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
+export type SandboxExecutionStatus =
+  'PENDING' | SandboxStage | 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
 
 export interface TestCaseFact {
   suitePath: string | null;
@@ -87,6 +88,8 @@ export interface SandboxExecutionRequest {
   scope: 'TARGET' | 'BATCH';
   targetIds: string[];
   runnerHint: 'JEST' | 'VITEST' | 'PHPUNIT';
+  /** INTEROP-2.8: raíz PHP congelada para esta ProjectVersion; omitida en ejecuciones legacy/Node. */
+  projectRoot?: string;
   /** Perfil persistido al crear el experimento (WI-CORE-025); si se omite se deriva de runnerHint. */
   executionProfile?: ExecutionProfile;
 }
