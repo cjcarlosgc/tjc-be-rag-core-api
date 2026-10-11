@@ -1,5 +1,7 @@
 # CHANGELOG
 
+- **WI-CORE-034 — GH-INTEROP-1.4 (2026-10-10, decisión del usuario `DEC-CHECK-001`):** se precisa que `POST /internal/v1/github/checks` es idempotente por repositorio GitHub estable, GitHub App, `headSha` y `name`, con un `checkId` durable y convergencia bajo concurrencia. Varios candidatos de la misma identidad devuelven `GITHUB_CHECK_IDENTITY_AMBIGUOUS` sin crear ni actualizar otro Check. El mecanismo de unicidad, bloqueo y recuperación corresponde a GitHub Integration; no cambian el DTO de entrada, rutas, despliegue ni cutover.
+
 Todos los cambios notables de la línea base SDD se registran aquí. El contenido vigente vive en `spec/`; este archivo no reemplaza la especificación.
 
 ## [Unreleased]

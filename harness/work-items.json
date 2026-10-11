@@ -1812,6 +1812,32 @@
           "report": "harness/reports/wi-core-033-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-034",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-READY",
+      "priority": "P1",
+      "sprint": "GitHub Integration",
+      "title": "Precisar idempotencia de Checks para GitHub Integration",
+      "storyIds": ["HU14", "HU15"],
+      "taskIds": ["ST-CORE-041"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-026"],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": ["spec/contracts/github-integration-contract.md"],
+      "acceptanceCriteria": [
+        "GH-INTEROP define la identidad repositorio/App/headSha/name, persistencia durable, convergencia concurrente y la respuesta ante duplicados para POST /internal/v1/github/checks.",
+        "El contrato conserva el DTO y rutas existentes, y declara que la selección de mecanismo técnico pertenece a GitHub Integration.",
+        "Existe Contract Sync dirigido a GitHub Integration; no se modifica app/, despliegue, cutover ni infraestructura externa."
+      ],
+      "specPaths": [
+        "spec/contracts/github-integration-contract.md",
+        "spec/features/016-github-integration/spec.md",
+        "spec/features/016-github-integration/tasks.md"
+      ]
     }
   ]
 }
