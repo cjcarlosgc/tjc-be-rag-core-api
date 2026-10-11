@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261011-001
+source: core
+sourceWorkItem: WI-CORE-036
+targets: [console]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.7 and INTEROP-2.8 add a single detected PHP projectRoot per repository-bound Project, frozen effectiveProjectRoot, repo-relative paths, and no Console selection prompt.
+requiredAction:
+  - Import both contract mirrors; do not add a project/application/root selector. If an existing technical-details view exposes the root, show it as informational only; record a Console-local WI only for work it actually undertakes.
+sourceRevision: 187b0383817e341aa7c82e91cb36d7dcce343479
+status: C-PENDING

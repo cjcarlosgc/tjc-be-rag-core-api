@@ -8,6 +8,8 @@ El corte conserva el binding uno-a-uno vigente y se ejecuta por WIs locales. No 
 4. **Sandbox (consumidor):** registrar un WI local en su Harness vigente para aceptar y validar `projectRoot`, resolverlo bajo `repositoryRoot`, usar cwd correcto y escribir artefactos conservando rutas de repositorio. No cambiar `sddVersion` global en este corte.
 5. **GitHub Integration (consumidor):** sincronizar/revisar las copias de INTEROP/SYSTEM al importar el Contract Sync; no se requiere cambio de producto ni una política Composer/PHPUnit.
 
+Contract Syncs publicados desde el commit fuente `187b0383817e341aa7c82e91cb36d7dcce343479`: `CS-CORE-20261011-001` → Console, `CS-CORE-20261011-002` → Sandbox y `CS-CORE-20261011-003` → GitHub Integration. Están `C-PENDING`; la publicación no sustituye la importación/aceptación ni crea WIs locales en los consumidores.
+
 GitHub Integration ya expone tree y contenido anclados al commit; Core puede identificar el `composer.json` sin una decisión de dominio en el proveedor GitHub. Ningún WI de Core modifica el app o harness de otro repo.
 
 ## Gates y regresiones

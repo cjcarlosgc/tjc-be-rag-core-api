@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261011-002
+source: core
+sourceWorkItem: WI-CORE-037
+targets: [sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.8 adds optional projectRoot to Core-to-Sandbox execution; Core maps the frozen effectiveProjectRoot, while artifact paths remain repository-relative.
+requiredAction:
+  - Import INTEROP-2.8, register a Sandbox-local WI, validate projectRoot under repositoryRoot without traversal or symlink escape, use it as Composer/PHPUnit cwd, preserve repo-relative artifact paths, and acknowledge before Core sends the field. Omitted legacy field means dot.
+sourceRevision: 187b0383817e341aa7c82e91cb36d7dcce343479
+status: C-PENDING
