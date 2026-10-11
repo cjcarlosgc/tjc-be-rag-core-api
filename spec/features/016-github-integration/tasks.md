@@ -2,6 +2,8 @@
 
 - [x] **ST-CORE-045 [T-DONE] · WI-CORE-038 · HU14, HU15:** decidir y publicar el mecanismo compartido de reserva durable de Checks entre réplicas de GitHub Integration, corregir los límites de la garantía ante resultados remotos inciertos y enviar el Contract Sync a los espejos. No implementa persistencia en Core ni autoriza infraestructura o despliegue.
 
+- [x] **ST-CORE-046 [T-DONE] · WI-CORE-039 · HU14, HU15:** después de WI-CORE-037, importar y atender `CS-GH-20261011-002`; precisar en el contrato canónico GH-INTEROP el rechazo confirmado HTTP 422 de creación de Check (`CREATE_REJECTED`), su replay idempotente sin nuevo POST ni body crudo y el límite de evidencia requerido para persistirlo; resolver el evento de entrada y publicar Contract Sync canónico dirigido a GitHub Integration. No toca `app/`, otros repositorios ni infraestructura.
+
 - [x] **ST-CORE-041 [T-DONE] · WI-CORE-034 · HU14, HU15:** publicar `GH-INTEROP-1.4` para definir la identidad durable de Check, convergencia concurrente y el tratamiento de duplicados; mantener alineadas las referencias SYSTEM-2.6/INTEROP-2.7 y emitir Contract Sync para los espejos de GitHub Integration y Console. No modifica `app/` ni autoriza despliegue/cutover.
 
 - [x] **ST-CORE-003 [T-DONE] · WI-CORE-003 · HU01, HU02, HU03, HU06, HU14, HU16:** mantener Core→Integration para pipeline; preservar temporalmente discovery, verify-access y branches Core, y validar/redactar TLS, redirects y credenciales.

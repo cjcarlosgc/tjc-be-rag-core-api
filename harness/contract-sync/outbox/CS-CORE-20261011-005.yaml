@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261011-005
+source: core
+sourceWorkItem: WI-CORE-039
+targets: [console, github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GH-INTEROP-1.6 defines confirmed terminal Check-create rejection: exact HTTP 422 plus full zero-candidate reconciliation, no same-fingerprint replay POST, and serialized corrected-fingerprint retry.
+requiredAction:
+  - Console: import the canonical SYSTEM/GH mirror files, verify byte-for-byte hashes, and record local acknowledgment/resolution if its WI requires the mirror. GitHub Integration: import these files, update the existing WI-GH-012 to implement and test the confirmed HTTP 422/reconciliation/replay behavior, verify mirror hashes, and record local acknowledgment/resolution. This event does not authorize deployment, infrastructure changes, or cutover.
+sourceRevision: 4246685534bfdbb2de631c526cebce6ebb51ac99
+status: C-PENDING

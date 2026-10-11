@@ -2026,6 +2026,56 @@
         "spec/features/016-github-integration/plan.md",
         "spec/features/016-github-integration/tasks.md"
       ]
+    },
+    {
+      "id": "WI-CORE-039",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "GitHub Integration",
+      "title": "Precisar rechazo confirmado de creación de GitHub Check",
+      "storyIds": ["HU14", "HU15"],
+      "taskIds": ["ST-CORE-046"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-037"],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Solicita cambios de lifecycle/rutas de Project y RepositoryBinding; WI-CORE-039 solo precisa el rechazo y reconciliación para crear Checks, sin cambiar Projects, bindings ni autorización.",
+          "report": "harness/reports/wi-core-039-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Trata login de Console, identidad y orden de despliegue; WI-CORE-039 no cambia autenticación, login ni infraestructura.",
+          "report": "harness/reports/wi-core-039-contract-sync-scope-review.md"
+        }
+      ],
+      "acceptanceCriteria": [
+        "Una vez activo WI-CORE-039, se importa y atiende CS-GH-20261011-002 con evidencia local, sin importarlo mientras WI-CORE-036 sea el único WI activo.",
+        "El contrato canónico GH-INTEROP define que solo una respuesta remota HTTP 422 inequívoca, seguida de reconciliación completa con cero candidatos, permite persistir CREATE_REJECTED; un resultado inconcluso conserva CREATE_UNKNOWN.",
+        "El replay de la misma huella de request para CREATE_REJECTED devuelve HTTP 422 GITHUB_CHECK_CREATE_REJECTED con retryable:false, no realiza otro POST y no expone el body crudo de GitHub.",
+        "El contrato conserva la política para candidatos encontrados o reconciliación incompleta y define cuándo un request corregido puede reintentarse sin romper la reserva durable ni la idempotencia existente.",
+        "El evento entrante CS-GH-20261011-002 se resuelve con evidencia de Core; Core publica un Contract Sync nuevo con sourceWorkItem WI-CORE-039 y destinatario github-integration, con acción requerida para que Integration refleje byte-a-byte, valide y resuelva el evento en su WI local.",
+        "El corte depende de WI-CORE-037 y no inicia implementación en app/, no edita otros repositorios, no provisiona infraestructura ni cambia el baseline SDD 2.1 de Sandbox."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/features/016-github-integration/spec.md",
+        "spec/features/016-github-integration/plan.md",
+        "spec/features/016-github-integration/tasks.md"
+      ]
     }
   ]
 }
