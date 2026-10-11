@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
-import { isIgnoredPath, isPhpPoolFile, isTypeScriptPoolFile } from '../project-versions/indexing.constants.js';
+import { isComposerManifest, isIgnoredPath, isPhpPoolFile, isTypeScriptPoolFile } from '../project-versions/indexing.constants.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
 
@@ -37,7 +37,7 @@ export class GithubSnapshotMaterializerService {
       // ausencia -> UNSUPPORTED_PACKAGE_MANAGER); se incluye siempre que
       // exista, sin ampliar `isPoolFile` para no afectar la indexación.
       const phpProject = allPaths.some((path) =>
-        !isIgnoredPath(path) && path.split('/').at(-1)?.toLowerCase() === 'composer.json',
+        !isIgnoredPath(path) && isComposerManifest(path),
       );
       const poolPaths = allPaths.filter((path) =>
         phpProject ? isPhpPoolFile(path) : isTypeScriptPoolFile(path),

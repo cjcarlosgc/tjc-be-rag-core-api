@@ -23,6 +23,7 @@ import {
   findPackageJsonPath,
 } from '../project-versions/inventory/framework-detector.js';
 import {
+  isComposerManifest,
   isPhpSourceFile,
   isTestFile,
   isTypeScriptSourceFile,
@@ -210,7 +211,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
 
       const discovered = await this.fileDiscoveryService.discover(workspace.dir);
       const composerCandidateCount = discovered.filter((path) =>
-        path.split('/').at(-1)?.toLowerCase() === 'composer.json',
+        isComposerManifest(path),
       ).length;
 
       if (composerCandidateCount > 1) {

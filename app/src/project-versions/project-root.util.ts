@@ -1,11 +1,12 @@
 import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 import { posix } from 'node:path';
+import { isComposerManifest } from './indexing.constants.js';
 
 /** Returns the single Composer candidate. Ambiguous snapshots deliberately have no selected root. */
 export function resolveUniqueComposerRoot(discoveredFiles: string[]): string | undefined {
   const candidates = discoveredFiles.filter((path) =>
-    path.split('/').at(-1)?.toLowerCase() === 'composer.json',
+    isComposerManifest(path),
   );
 
   if (candidates.length !== 1) return undefined;

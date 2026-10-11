@@ -18,6 +18,10 @@ describe('project root helpers', () => {
       'backend/composer.json', 'other/composer.json', 'backend/src/App.php',
     ])).toBeUndefined();
     expect(resolveUniqueComposerRoot(['backend/composer.lock', 'backend/src/App.php'])).toBeUndefined();
+    expect(resolveUniqueComposerRoot(['COMPOSER.JSON', 'web/COMPOSER.JSON', 'src/index.ts'])).toBeUndefined();
+    expect(resolveUniqueComposerRoot(['backend/composer.json', 'other/COMPOSER.JSON'])).toBe('backend');
+    expect(resolveUniqueComposerRoot(['backend/composer.json', 'other/composer.json', 'COMPOSER.JSON']))
+      .toBeUndefined();
   });
 
   it('accepts the repository root and an existing normalized nested directory', async () => {

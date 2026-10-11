@@ -311,7 +311,8 @@ describe('SnapshotAnalysisJobHandler', () => {
     const nestedChunk = buildChunk({ filePath: 'src/Service.php', symbolName: 'App\\Service' });
     fileDiscoveryService.discover.mockResolvedValue([
       'backend/composer.json', 'backend/phpunit.xml', 'backend/src/Service.php',
-      'backend/tests/ServiceTest.php', 'frontend/package.json', 'frontend/src/main.ts',
+      'backend/tests/ServiceTest.php', 'COMPOSER.JSON', 'frontend/COMPOSER.JSON',
+      'frontend/package.json', 'frontend/src/main.ts',
     ]);
     githubRepositoryContentService.compare.mockResolvedValue([
       { filename: 'backend/src/Service.php', status: 'modified' },
@@ -357,7 +358,7 @@ describe('SnapshotAnalysisJobHandler', () => {
     } = setup();
     fileDiscoveryService.discover.mockResolvedValue([
       'backend/composer.json', 'backend/src/Service.php',
-      'other/composer.json', 'other/src/Other.php', 'web/src/main.ts',
+      'other/composer.json', 'other/src/Other.php', 'COMPOSER.JSON', 'web/COMPOSER.JSON', 'web/src/main.ts',
     ]);
 
     const outcome = handler.handle({ analysisRunId: 'run-1' });

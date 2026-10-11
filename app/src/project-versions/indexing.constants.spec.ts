@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isPhpPoolFile,
   isPhpSourceFile,
+  isComposerManifest,
   isTestFile,
   isTypeScriptPoolFile,
 } from './indexing.constants.js';
@@ -12,6 +13,9 @@ describe('PHP and TypeScript indexing pools', () => {
     expect(isPhpSourceFile('resources/views/invoice.blade.php')).toBe(false);
     expect(isTestFile('tests/Feature/InvoiceTest.php')).toBe(true);
     expect(isPhpPoolFile('composer.json')).toBe(true);
+    expect(isPhpPoolFile('COMPOSER.JSON')).toBe(false);
+    expect(isComposerManifest('backend/composer.json')).toBe(true);
+    expect(isComposerManifest('backend/COMPOSER.JSON')).toBe(false);
     expect(isPhpPoolFile('vendor/acme/Package.php')).toBe(false);
   });
 
@@ -26,5 +30,6 @@ describe('PHP and TypeScript indexing pools', () => {
     expect(isTypeScriptPoolFile('pnpm-lock.yaml')).toBe(true);
     expect(isTypeScriptPoolFile('composer.json')).toBe(false);
     expect(isTypeScriptPoolFile('src/Service.php')).toBe(false);
+    expect(isTypeScriptPoolFile('src/index.ts')).toBe(true);
   });
 });

@@ -26,6 +26,10 @@ export function isIgnoredPath(relativePath: string): boolean {
   return relativePath.split('/').some((segment) => INDEXING_IGNORED_DIRS.has(segment));
 }
 
+export function isComposerManifest(relativePath: string): boolean {
+  return relativePath.split('/').at(-1) === 'composer.json';
+}
+
 export function isSourceFile(relativePath: string): boolean {
   return isTypeScriptSourceFile(relativePath) || isPhpSourceFile(relativePath);
 }
@@ -62,5 +66,6 @@ export function isTypeScriptPoolFile(relativePath: string): boolean {
 export function isPhpPoolFile(relativePath: string): boolean {
   return !isIgnoredPath(relativePath)
     && (isPhpSourceFile(relativePath)
-      || /(?:^|\/)(?:composer\.json|composer\.lock|phpunit\.xml(?:\.dist)?)$/i.test(relativePath));
+      || isComposerManifest(relativePath)
+      || /(?:^|\/)(?:composer\.lock|phpunit\.xml(?:\.dist)?)$/i.test(relativePath));
 }

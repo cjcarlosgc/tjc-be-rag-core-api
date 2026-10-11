@@ -11,7 +11,7 @@ Soportar un repositorio GitHub que contiene una aplicación PHP en un subdirecto
 
 - Se conserva la regla de `SYSTEM-2.7`: un `repositoryId` solo puede estar vinculado a un Project. No se permiten Projects simultáneos para distintas aplicaciones del mismo repositorio.
 - Un Project tiene un único `projectRoot` efectivo. No se mezclan parsers PHP y TypeScript dentro de una `ProjectVersion`.
-- `composer.json` en el snapshot lógico es el marcador primario de un candidato PHP, aplicando las exclusiones de archivos/directorios ya definidas en `018-php-laravel-support`. `composer.lock`, `artisan`, `phpunit.xml`, `phpunit.xml.dist` y `phpunit/phpunit` solo caracterizan el candidato y no sustituyen al manifiesto ni sirven para puntuarlo.
+- El nombre base exacto y case-sensitive `composer.json` en el snapshot lógico es el marcador primario de un candidato PHP, aplicando las exclusiones de archivos/directorios ya definidas en `018-php-laravel-support`; nombres con otra capitalización no son marcadores. `composer.lock`, `artisan`, `phpunit.xml`, `phpunit.xml.dist` y `phpunit/phpunit` solo caracterizan el candidato y no sustituyen al manifiesto ni sirven para puntuarlo.
 - Cero candidatos: conservar la detección legacy desde la raíz del repositorio; si ningún stack es compatible, usar la incompatibilidad existente.
 - Un candidato: seleccionar automáticamente el directorio que contiene `composer.json`; `.` representa la raíz lógica del repositorio. No se muestra un diálogo de selección en Console.
 - Dos o más candidatos: no aplicar ranking/score ni seleccionar por heurística. Console no solicita elegir aplicación o Project. El resultado ejecutable para este subcaso requiere la decisión pendiente `DEC-PHP-ROOT-001`; no bloquea el trabajo de candidato único.

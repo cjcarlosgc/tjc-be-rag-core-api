@@ -1821,10 +1821,17 @@
       "priority": "P0",
       "sprint": "GitHub Integration",
       "title": "Precisar idempotencia de Checks para GitHub Integration",
-      "storyIds": ["HU14", "HU15"],
-      "taskIds": ["ST-CORE-041"],
+      "storyIds": [
+        "HU14",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-041"
+      ],
       "caseIds": [],
-      "dependsOn": ["WI-CORE-026"],
+      "dependsOn": [
+        "WI-CORE-026"
+      ],
       "contractImpact": true,
       "publishesContract": true,
       "syncScopePaths": [
@@ -1870,13 +1877,21 @@
       "priority": "P0",
       "sprint": "PHP V1",
       "title": "Adaptar POST experiments al request OE5 V3 de AnalysisRun",
-      "storyIds": ["HU17"],
-      "taskIds": ["ST-CORE-042"],
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-042"
+      ],
       "caseIds": [],
-      "dependsOn": ["WI-CORE-029"],
+      "dependsOn": [
+        "WI-CORE-029"
+      ],
       "contractImpact": false,
       "publishesContract": false,
-      "syncScopePaths": ["spec/contracts/interoperability-contract.md"],
+      "syncScopePaths": [
+        "spec/contracts/interoperability-contract.md"
+      ],
       "acceptanceCriteria": [
         "POST /experiments valida el request OE5 V3: analysisRunId, symbolFilePath, symbolQualifiedName y repetitions opcional; projectId y targetId legados no son aceptados por el DTO público.",
         "La autorización Writer se resuelve desde analysisRunId; Core consulta el AnalysisRun visible y elegible, exige su ProjectVersion congelada completada y valida el símbolo por la pareja exacta (filePath, qualifiedName), METHOD/FUNCTION y DIRECTLY_CHANGED.",
@@ -1916,8 +1931,14 @@
       "priority": "P1",
       "sprint": "PHP compatibility cross",
       "title": "Detectar projectRoot PHP único y aislar ProjectVersion",
-      "storyIds": ["HU01", "HU03", "HU04"],
-      "taskIds": ["ST-CORE-043"],
+      "storyIds": [
+        "HU01",
+        "HU03",
+        "HU04"
+      ],
+      "taskIds": [
+        "ST-CORE-043"
+      ],
       "caseIds": [],
       "dependsOn": [],
       "contractImpact": true,
@@ -1968,10 +1989,18 @@
       "priority": "P1",
       "sprint": "PHP compatibility cross",
       "title": "Transportar projectRoot y preservar paths repo-relative en Sandbox",
-      "storyIds": ["HU10", "HU11", "HU12"],
-      "taskIds": ["ST-CORE-044"],
+      "storyIds": [
+        "HU10",
+        "HU11",
+        "HU12"
+      ],
+      "taskIds": [
+        "ST-CORE-044"
+      ],
       "caseIds": [],
-      "dependsOn": ["WI-CORE-036"],
+      "dependsOn": [
+        "WI-CORE-036"
+      ],
       "contractSyncReview": [
         {
           "eventId": "CS-20260920-001",
@@ -1990,7 +2019,9 @@
       ],
       "contractImpact": true,
       "publishesContract": true,
-      "syncScopePaths": ["spec/contracts/interoperability-contract.md"],
+      "syncScopePaths": [
+        "spec/contracts/interoperability-contract.md"
+      ],
       "acceptanceCriteria": [
         "Core envía projectRoot en ejecuciones PHP y conserva la raíz congelada del snapshot; la omisión transitoria en requests legacy equivale a '.', sin cambiar el requestId/idempotencia para una misma raíz normalizada.",
         "El Sandbox valida projectRoot bajo repositoryRoot y ejecuta Composer/PHPUnit con cwd en el subproyecto; el wrapper de extracción no se trata como raíz del proyecto.",
@@ -2015,10 +2046,17 @@
       "priority": "P0",
       "sprint": "GitHub Integration",
       "title": "Decidir coordinación durable de Checks entre réplicas",
-      "storyIds": ["HU14", "HU15"],
-      "taskIds": ["ST-CORE-045"],
+      "storyIds": [
+        "HU14",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-045"
+      ],
       "caseIds": [],
-      "dependsOn": ["WI-CORE-034"],
+      "dependsOn": [
+        "WI-CORE-034"
+      ],
       "contractSyncReview": [
         {
           "eventId": "CS-20260920-001",
@@ -2067,10 +2105,17 @@
       "priority": "P1",
       "sprint": "GitHub Integration",
       "title": "Precisar rechazo confirmado de creación de GitHub Check",
-      "storyIds": ["HU14", "HU15"],
-      "taskIds": ["ST-CORE-046"],
+      "storyIds": [
+        "HU14",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-046"
+      ],
       "caseIds": [],
-      "dependsOn": ["WI-CORE-037"],
+      "dependsOn": [
+        "WI-CORE-037"
+      ],
       "contractImpact": true,
       "publishesContract": true,
       "syncScopePaths": [
@@ -2113,7 +2158,7 @@
       "id": "WI-CORE-040",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_PROGRESS",
+      "status": "W-DONE",
       "priority": "P0",
       "sprint": "GitHub Integration",
       "title": "Formalizar coordinación de Checks con instancia única",
@@ -2168,6 +2213,57 @@
         "spec/features/016-github-integration/tasks.md",
         "spec/README.md",
         "CHANGELOG.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-041",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "PHP compatibility cross",
+      "title": "Alinear detección del manifiesto Composer con el snapshot",
+      "storyIds": [
+        "HU03"
+      ],
+      "taskIds": [
+        "ST-CORE-048"
+      ],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "syncScopePaths": [
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "Solo el nombre base exacto y case-sensitive composer.json actúa como marcador PHP en selección del pool y detección de candidatos; una variante COMPOSER.JSON no activa el modo PHP.",
+        "Un snapshot con COMPOSER.JSON y fuentes TypeScript conserva las fuentes .ts para discovery y no queda vacío por el filtro PHP.",
+        "Los manifiestos canónicos composer.json en raíz y subdirectorio mantienen el comportamiento PHP/root vigente; pruebas cubren ambos y la regresión de capitalización.",
+        "No cambian contratos, DTOs, rutas ni otros repositorios."
+      ],
+      "specPaths": [
+        "spec/features/019-project-root-detection/spec.md",
+        "spec/features/019-project-root-detection/plan.md",
+        "spec/features/019-project-root-detection/tasks.md",
+        "spec/features/002-project-version-indexing/spec.md",
+        "spec/features/018-php-laravel-support/spec.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Trata lifecycle, binding y autorización de Projects; WI-CORE-041 solo alinea la clasificación local del nombre de manifiesto Composer y el filtro de snapshot.",
+          "report": "harness/reports/wi-core-041-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Trata autenticación de Console, orden de despliegue y configuración; WI-CORE-041 no cambia login, autorización, despliegue ni infraestructura.",
+          "report": "harness/reports/wi-core-041-contract-sync-scope-review.md"
+        }
       ]
     }
   ]
