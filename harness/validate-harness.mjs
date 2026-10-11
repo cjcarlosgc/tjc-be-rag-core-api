@@ -52,7 +52,7 @@ for (const agent of ['leader', 'sdd-analyst', 'implementer', 'implementer-high',
   assert(fs.existsSync(path.join(root, '.claude/agents', `${agent}.md`)), `missing Claude agent profile: ${agent}`);
 }
 const agentProfiles = fs.readFileSync(path.join(root, 'harness/agent-profiles.yaml'), 'utf8');
-for (const modelId of ['claude-sonnet-5-5', 'claude-haiku-5-5']) {
+for (const modelId of ['claude-sonnet-5-5', 'claude-haiku-5-5', 'gpt-6-luna']) {
   assert(agentProfiles.includes(modelId), `agent-profiles.yaml missing exactModelId: ${modelId}`);
 }
 
@@ -99,7 +99,26 @@ if (state) {
     assert(item.execution?.leaderAgent === 'leader', 'execution.leaderAgent must be leader');
     assert(Number.isInteger(item.execution?.reviewCycles) && Number.isInteger(item.execution?.maxReviewCycles), 'review-cycle controls are required');
     assert(item.execution?.reviewCycles <= item.execution?.maxReviewCycles, 'review-cycle limit exceeded');
-    assert(item.execution?.maxReviewCycles === 2, 'review-cycle limit must be two');
+    const reviewCycleException = item.execution?.reviewCycleException;
+    const additionalAuthorization = reviewCycleException?.additionalAuthorization;
+    const fourthCycleException = reviewCycleException?.maxReviewCycles === 4
+      && additionalAuthorization?.authorizedBy === 'user'
+      && additionalAuthorization?.previousMaxReviewCycles === 3
+      && additionalAuthorization?.maxReviewCycles === 4
+      && additionalAuthorization?.quote === 'Sì.'
+      && Number.isFinite(Date.parse(additionalAuthorization?.authorizedAt ?? ''));
+    const scopedUserException = item.id === 'WI-CORE-036'
+      && ['W-IN_PROGRESS', 'W-IN_REVIEW', 'W-DONE'].includes(item.status)
+      && state.awayMode?.enabled === true
+      && state.awayMode?.activatedBy === 'user'
+      && reviewCycleException?.workItemId === item.id
+      && reviewCycleException?.authorizedBy === 'user'
+      && reviewCycleException?.previousMaxReviewCycles === 2
+      && reviewCycleException?.quote === 'Sí, haz una excepción para este work item.'
+      && Number.isFinite(Date.parse(reviewCycleException?.authorizedAt ?? ''))
+      && (reviewCycleException?.maxReviewCycles === 3 || fourthCycleException);
+    const expectedReviewCycleLimit = scopedUserException ? reviewCycleException.maxReviewCycles : 2;
+    assert(item.execution?.maxReviewCycles === expectedReviewCycleLimit, `review-cycle limit must be ${expectedReviewCycleLimit}`);
     for (const issue of agentAssignmentIssues(item)) assert(false, issue);
     for (const gate of requiredGates) assert(gateValues.has(item.gates?.[gate]), `invalid or missing gate: ${gate}`);
     assert(Array.isArray(item.coordination?.pullCheckpoints), 'coordination.pullCheckpoints must be an array');

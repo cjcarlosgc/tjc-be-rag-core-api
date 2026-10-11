@@ -23,7 +23,7 @@ const completion = {
   evidence: ['harness/reports/closure.md'],
 };
 
-function run(completions, inboxEvents = []) {
+function run(completions, inboxEvents = [], workItems = [item]) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tjc-completion-test-'));
   try {
     fs.mkdirSync(path.join(directory, 'harness'));
@@ -32,7 +32,7 @@ function run(completions, inboxEvents = []) {
     for (const [index, event] of inboxEvents.entries()) fs.writeFileSync(path.join(directory, 'harness/contract-sync/inbox', `CS-test-${index}.yaml`), event);
     fs.writeFileSync(path.join(directory, 'harness/reports/closure.md'), 'Verified test fixture.\n');
     fs.writeFileSync(path.join(directory, 'harness/state.json'), JSON.stringify({ completedWorkItems: completions }));
-    fs.writeFileSync(path.join(directory, 'harness/work-items.json'), JSON.stringify({ workItems: [item] }));
+    fs.writeFileSync(path.join(directory, 'harness/work-items.json'), JSON.stringify({ workItems }));
     return spawnSync(process.execPath, [validator], { cwd: directory, encoding: 'utf8' });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
@@ -59,6 +59,59 @@ test('W-DONE accepts the human reviewer as the independent reviewer', () => {
   humanReviewed.execution.reviewAgent = 'human-reviewer';
   humanReviewed.execution.handoffs[0].agent = 'human-reviewer';
   assert.equal(run([humanReviewed]).status, 0);
+});
+
+test('W-DONE accepts the exactly authorized fourth review cycle for WI-CORE-036', () => {
+  const wiItem = { ...item, id: 'WI-CORE-036', component: 'CORE', workItemType: 'PRODUCT' };
+  const wiCompletion = {
+    ...structuredClone(completion),
+    ...wiItem,
+    approved: true,
+    coordination: {
+      ...structuredClone(completion.coordination),
+      pullCheckpoints: completion.coordination.pullCheckpoints.map((checkpoint) => ({
+        ...checkpoint,
+        workItem: 'WI-CORE-036',
+      })),
+    },
+    execution: {
+      ...structuredClone(completion.execution),
+      reviewCycles: 4,
+      maxReviewCycles: 4,
+      reviewCycleException: {
+        workItemId: 'WI-CORE-036',
+        authorizedBy: 'user',
+        authorizedAt: '2026-10-11T17:01:27Z',
+        quote: 'Sí, haz una excepción para este work item.',
+        previousMaxReviewCycles: 2,
+        maxReviewCycles: 4,
+        additionalAuthorization: {
+          authorizedBy: 'user',
+          authorizedAt: '2026-10-11T17:56:51Z',
+          quote: 'Sì.',
+          previousMaxReviewCycles: 3,
+          maxReviewCycles: 4,
+        },
+      },
+    },
+  };
+
+  const result = run([wiCompletion], [], [wiItem]);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('W-DONE rejects a fourth review cycle without the exact scoped user authorization', () => {
+  const wiItem = { ...item, id: 'WI-CORE-036', component: 'CORE', workItemType: 'PRODUCT' };
+  const wiCompletion = {
+    ...structuredClone(completion),
+    ...wiItem,
+    approved: true,
+    execution: { ...structuredClone(completion.execution), reviewCycles: 4, maxReviewCycles: 4 },
+  };
+  const result = run([wiCompletion], [], [wiItem]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /exceeded review cycles without a scoped user exception/);
 });
 
 test('W-DONE is rejected when a relevant inbox event is merely acknowledged', () => {
