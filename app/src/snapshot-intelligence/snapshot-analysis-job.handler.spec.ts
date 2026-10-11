@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { SnapshotAnalysisJobHandler } from './snapshot-analysis-job.handler.js';
 import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
 import type { ParsedChunk } from '../project-versions/parsing/typescript-parser.service.js';
 import type { AnalysisRun, RepositoryBinding, ProjectVersion } from '../generated/prisma/client.js';
+import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
 
 function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
   return {
@@ -68,7 +72,14 @@ function buildChunk(overrides: Partial<ParsedChunk> = {}): ParsedChunk {
 }
 
 describe('SnapshotAnalysisJobHandler', () => {
+  const workspaceDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(workspaceDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
   function setup() {
+    const workspaceDirPromise = mkdtemp(join(tmpdir(), 'snapshot-handler-test-'));
     const jobsService = { registerHandler: vi.fn(), enqueue: vi.fn() };
     const analysisRunsRepository = { findById: vi.fn() };
     const analysisRunsService = {
@@ -99,7 +110,12 @@ describe('SnapshotAnalysisJobHandler', () => {
     };
     const workspaceCleanup = vi.fn().mockResolvedValue(undefined);
     const githubSnapshotMaterializerService = {
-      materialize: vi.fn().mockResolvedValue({ dir: '/tmp/fake-workspace', cleanup: workspaceCleanup }),
+      materialize: vi.fn(async () => {
+        const dir = await workspaceDirPromise;
+        workspaceDirs.push(dir);
+        await mkdir(join(dir, 'backend'), { recursive: true });
+        return { dir, cleanup: workspaceCleanup };
+      }),
     };
     const analysisSymbolsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
     const symbolBehaviorConstructsService = {
@@ -221,7 +237,11 @@ describe('SnapshotAnalysisJobHandler', () => {
       projectId: 'project-1',
       commitSha: 'head-sha',
       language: 'TYPESCRIPT',
+      effectiveProjectRoot: '.',
     });
+    expect(projectVersionsRepository.completeAndPromote).toHaveBeenCalledWith(
+      'project-1', 'version-1', expect.objectContaining({ projectRoot: '.' }),
+    );
     expect(analysisRunsService.recordSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'PROCESSING' }),
       { indexMode: 'BOOTSTRAP', indexDeltaBaseSha: null, projectVersionId: 'version-1' },
@@ -269,22 +289,175 @@ describe('SnapshotAnalysisJobHandler', () => {
 
     expect(typeScriptParserService.parse).not.toHaveBeenCalled();
     expect(phpParserService.analyze).toHaveBeenCalledWith(
-      '/tmp/fake-workspace', ['app/Service.php', 'tests/ServiceTest.php'],
+      expect.stringContaining('snapshot-handler-test-'), ['app/Service.php', 'tests/ServiceTest.php'],
     );
     expect(phpExistingTestResolverService.resolve).toHaveBeenCalledWith(
-      '/tmp/fake-workspace', ['tests/ServiceTest.php'], [candidate],
+      expect.stringContaining('snapshot-handler-test-'), ['tests/ServiceTest.php'], [candidate],
     );
     expect(projectVersionsRepository.createPending).toHaveBeenCalledWith({
-      projectId: 'project-1', commitSha: 'head-sha', language: 'PHP',
+      projectId: 'project-1', commitSha: 'head-sha', language: 'PHP', effectiveProjectRoot: '.',
     });
     expect(projectVersionsRepository.completeAndPromote).toHaveBeenCalledWith(
-      'project-1', 'version-1', expect.objectContaining({ detectedFramework: 'PHPUNIT' }),
+      'project-1', 'version-1', expect.objectContaining({ detectedFramework: 'PHPUNIT', projectRoot: '.' }),
     );
     expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith(
       'run-1', [expect.objectContaining({ language: 'PHP', kind: 'CLASS' })],
     );
     expect(symbolBehaviorConstructsService.compute).not.toHaveBeenCalled();
   });
+
+  it('selects a unique nested Composer root and isolates PHP indexing while preserving repository-relative paths', async () => {
+    const { handler, fileDiscoveryService, phpParserService, phpExistingTestResolverService, projectVersionsRepository, analysisSymbolsRepository, githubRepositoryContentService, typeScriptParserService, testTargetsRepository } = setup();
+    const nestedChunk = buildChunk({ filePath: 'src/Service.php', symbolName: 'App\\Service' });
+    fileDiscoveryService.discover.mockResolvedValue([
+      'backend/composer.json', 'backend/phpunit.xml', 'backend/src/Service.php',
+      'backend/tests/ServiceTest.php', 'frontend/package.json', 'frontend/src/main.ts',
+    ]);
+    githubRepositoryContentService.compare.mockResolvedValue([
+      { filename: 'backend/src/Service.php', status: 'modified' },
+    ]);
+    phpParserService.analyze.mockResolvedValue({ chunks: [nestedChunk], candidates: [] });
+    phpExistingTestResolverService.resolve.mockResolvedValue([
+      { ...nestedChunk, targetType: 'METHOD', methodName: 'run', hasTest: true, testFilePaths: ['tests/ServiceTest.php'] },
+    ]);
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(phpParserService.analyze).toHaveBeenCalledWith(expect.stringMatching(/backend$/), [
+      'src/Service.php', 'tests/ServiceTest.php',
+    ]);
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.createPending).toHaveBeenCalledWith(expect.objectContaining({
+      language: 'PHP', effectiveProjectRoot: 'backend',
+    }));
+    expect(projectVersionsRepository.completeAndPromote).toHaveBeenCalledWith(
+      'project-1', 'version-1', expect.objectContaining({ projectRoot: 'backend' }),
+    );
+    expect(testTargetsRepository.insertMany).toHaveBeenCalledWith('version-1', [
+      expect.objectContaining({ filePath: 'backend/src/Service.php', testFilePaths: ['backend/tests/ServiceTest.php'] }),
+    ]);
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith('run-1', [
+      expect.objectContaining({ filePath: 'backend/src/Service.php' }),
+    ]);
+  });
+
+  it('parks multi-manifest snapshots before compare, analysis, persistence, or public Run results', async () => {
+    const {
+      handler,
+      fileDiscoveryService,
+      projectVersionsRepository,
+      codeChunksRepository,
+      testTargetsRepository,
+      typeScriptParserService,
+      phpParserService,
+      analysisRunsService,
+      analysisRunsRepository,
+      githubRepositoryContentService,
+      workspaceCleanup,
+    } = setup();
+    fileDiscoveryService.discover.mockResolvedValue([
+      'backend/composer.json', 'backend/src/Service.php',
+      'other/composer.json', 'other/src/Other.php', 'web/src/main.ts',
+    ]);
+
+    const outcome = handler.handle({ analysisRunId: 'run-1' });
+    await expect(outcome).rejects.toMatchObject({
+      delayMs: 60_000,
+      payload: {
+        analysisRunId: 'run-1',
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 1 },
+      },
+    });
+    await expect(outcome).rejects.toBeInstanceOf(RescheduleJobError);
+
+    expect(analysisRunsService.startProcessing).not.toHaveBeenCalled();
+    expect(githubRepositoryContentService.compare).not.toHaveBeenCalled();
+    expect(analysisRunsRepository.findById).toHaveBeenCalledTimes(1);
+    expect(projectVersionsRepository.createPending).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.completeAndPromote).not.toHaveBeenCalled();
+    expect(codeChunksRepository.insertMany).not.toHaveBeenCalled();
+    expect(testTargetsRepository.insertMany).not.toHaveBeenCalled();
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(phpParserService.analyze).not.toHaveBeenCalled();
+    expect(analysisRunsService.recordSnapshot).not.toHaveBeenCalled();
+    expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+    expect(workspaceCleanup).toHaveBeenCalled();
+    expect(githubRepositoryContentService.compare).not.toHaveBeenCalled();
+  });
+
+  it('keeps a parked immutable SHA sticky without rematerializing it and caps remote rechecks at 24 hours', async () => {
+    const {
+      handler,
+      repositoryBindingsRepository,
+      githubSnapshotMaterializerService,
+      fileDiscoveryService,
+      githubRepositoryContentService,
+      typeScriptParserService,
+      phpParserService,
+      projectVersionsRepository,
+      codeChunksRepository,
+      testTargetsRepository,
+      analysisRunsService,
+    } = setup();
+
+    await expect(handler.handle({
+      analysisRunId: 'run-1',
+      ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 12 },
+    })).rejects.toMatchObject({
+      delayMs: 86_400_000,
+      payload: {
+        analysisRunId: 'run-1',
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 13 },
+      },
+    });
+
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
+    expect(githubSnapshotMaterializerService.materialize).not.toHaveBeenCalled();
+    expect(fileDiscoveryService.discover).not.toHaveBeenCalled();
+    expect(githubRepositoryContentService.compare).not.toHaveBeenCalled();
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(phpParserService.analyze).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.createPending).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.completeAndPromote).not.toHaveBeenCalled();
+    expect(codeChunksRepository.insertMany).not.toHaveBeenCalled();
+    expect(testTargetsRepository.insertMany).not.toHaveBeenCalled();
+    expect(analysisRunsService.startProcessing).not.toHaveBeenCalled();
+    expect(analysisRunsService.recordSnapshot).not.toHaveBeenCalled();
+    expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+  });
+
+  it('invalidates sticky ambiguity parking when its head SHA differs from the current Run', async () => {
+    const { handler, githubSnapshotMaterializerService, fileDiscoveryService } = setup();
+    fileDiscoveryService.discover.mockResolvedValue(['a/composer.json', 'b/composer.json']);
+
+    await expect(handler.handle({
+      analysisRunId: 'run-1',
+      ambiguousSnapshotParking: { headSha: 'old-head', policyVersion: 1, deferrals: 99 },
+    })).rejects.toMatchObject({
+      payload: {
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 1 },
+      },
+    });
+
+    expect(githubSnapshotMaterializerService.materialize).toHaveBeenCalledWith(binding, 'head-sha');
+  });
+
+  it('invalidates sticky ambiguity parking when the explicit policy version changes', async () => {
+    const { handler, githubSnapshotMaterializerService, fileDiscoveryService } = setup();
+    fileDiscoveryService.discover.mockResolvedValue(['a/composer.json', 'b/composer.json']);
+
+    await expect(handler.handle({
+      analysisRunId: 'run-1',
+      ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 0, deferrals: 99 },
+    })).rejects.toMatchObject({
+      payload: {
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 1 },
+      },
+    });
+
+    expect(githubSnapshotMaterializerService.materialize).toHaveBeenCalledWith(binding, 'head-sha');
+  });
+
 
   it('marks INCREMENTAL with the previous commit as indexDeltaBaseSha when a previous version exists', async () => {
     const { handler, analysisRunsService, projectVersionsRepository } = setup();
@@ -431,7 +604,7 @@ describe('SnapshotAnalysisJobHandler', () => {
       'INFRASTRUCTURE_FAILURE',
       expect.objectContaining({ resultSummary: 'GitHub API 503' }),
     );
-    expect(workspaceCleanup).not.toHaveBeenCalled();
+    expect(workspaceCleanup).toHaveBeenCalled();
   });
 
   it('does not overwrite or publish a late failure when the run became obsolete', async () => {
@@ -455,7 +628,7 @@ describe('SnapshotAnalysisJobHandler', () => {
 
     expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledWith(
       {
-        workspaceDir: '/tmp/fake-workspace',
+        workspaceDir: expect.stringContaining('snapshot-handler-test-'),
         installationId: '999',
         repositoryName: 'org/repo',
         baseSha: 'base-sha',

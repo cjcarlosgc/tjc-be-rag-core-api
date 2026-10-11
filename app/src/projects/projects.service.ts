@@ -187,6 +187,7 @@ export class ProjectsService {
     return {
       id: project.id,
       name: project.name,
+      projectRoot: project.projectRoot,
       currentVersionId: project.currentVersionId,
       workspace,
       role,

@@ -5,6 +5,7 @@ export interface ProjectVersionResultsResponse {
   projectId: string;
   status: string;
   language: ProjectLanguage;
+  effectiveProjectRoot: string;
   filesProcessed: number;
   chunksCount: number;
   detectedFramework: TestFramework | null;

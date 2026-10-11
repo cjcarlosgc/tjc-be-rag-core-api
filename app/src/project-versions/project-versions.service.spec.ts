@@ -18,6 +18,7 @@ describe('ProjectVersionsService', () => {
   const project: Project = {
     id: 'project-1',
     name: 'demo',
+    projectRoot: '.',
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
     deletedAt: null,
@@ -32,6 +33,7 @@ describe('ProjectVersionsService', () => {
     projectId: 'project-1',
     status: 'PENDING',
     language: 'TYPESCRIPT',
+    effectiveProjectRoot: '.',
     originalFileName: null,
     sizeBytes: null,
     snapshotKey: null,
@@ -79,6 +81,7 @@ describe('ProjectVersionsService', () => {
 
       expect(result.id).toBe(version.id);
       expect(result.status).toBe('PENDING');
+      expect(result.effectiveProjectRoot).toBe('.');
     });
   });
 

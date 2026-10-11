@@ -62,5 +62,5 @@ export function isTypeScriptPoolFile(relativePath: string): boolean {
 export function isPhpPoolFile(relativePath: string): boolean {
   return !isIgnoredPath(relativePath)
     && (isPhpSourceFile(relativePath)
-      || /^(?:composer\.json|composer\.lock|phpunit\.xml(?:\.dist)?)$/i.test(relativePath));
+      || /(?:^|\/)(?:composer\.json|composer\.lock|phpunit\.xml(?:\.dist)?)$/i.test(relativePath));
 }

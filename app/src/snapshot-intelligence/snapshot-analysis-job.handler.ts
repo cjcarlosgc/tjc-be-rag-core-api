@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join, dirname, normalize } from 'node:path';
 import type { JobHandler } from '../jobs/job-handler.interface.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
@@ -39,9 +40,15 @@ import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.
 import type { AnalysisIndexMode, CodeChunk } from '../generated/prisma/client.js';
 import { ProjectLanguage, type TestFramework } from '../generated/prisma/enums.js';
 import type { ResolvedTestTarget } from '../project-versions/inventory/existing-test-resolver.service.js';
+import { resolveUniqueComposerRoot, validateProjectRoot } from '../project-versions/project-root.util.js';
 
 export interface SnapshotAnalysisJobPayload {
   analysisRunId: string;
+  ambiguousSnapshotParking?: {
+    headSha: string;
+    policyVersion: number;
+    deferrals: number;
+  };
 }
 
 export const SNAPSHOT_ANALYSIS_JOB_TYPE = 'snapshot-analysis';
@@ -58,6 +65,22 @@ const CHUNK_SYMBOL_TO_ANALYSIS_KIND: Record<ParsedChunk['symbolKind'], AnalysisS
   FILE: null,
 };
 
+const AMBIGUOUS_SNAPSHOT_RETRY_BASE_MS = 60_000;
+const AMBIGUOUS_SNAPSHOT_RETRY_MAX_MS = 86_400_000;
+// Increment this when the ambiguity policy changes so pending jobs can resume discovery.
+const AMBIGUOUS_SNAPSHOT_POLICY_VERSION = 1;
+
+function ambiguousSnapshotRetryDelay(deferrals: number): number {
+  return Math.min(
+    AMBIGUOUS_SNAPSHOT_RETRY_BASE_MS * 2 ** Math.min(deferrals, 16),
+    AMBIGUOUS_SNAPSHOT_RETRY_MAX_MS,
+  );
+}
+
+function validDeferrals(value: unknown): number {
+  return Number.isInteger(value) && typeof value === 'number' && value >= 0 ? value : 0;
+}
+
 interface ChunkIdentityFields {
   filePath: string;
   symbolKind: string;
@@ -67,6 +90,10 @@ interface ChunkIdentityFields {
 
 function chunkIdentity(chunk: ChunkIdentityFields): string {
   return `${chunk.filePath}::${chunk.symbolKind}::${chunk.symbolName ?? ''}::${chunk.parentSymbolName ?? ''}`;
+}
+
+function withProjectRoot(projectRoot: string, path: string): string {
+  return projectRoot === '.' ? path : `${projectRoot}/${path}`;
 }
 
 function qualifiedNameOf(chunk: Pick<ParsedChunk, 'filePath' | 'symbolName' | 'parentSymbolName'>): string {
@@ -143,6 +170,26 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       return;
     }
 
+    const parking = payload.ambiguousSnapshotParking;
+    if (
+      parking?.headSha === initialRun.headSha
+      && parking.policyVersion === AMBIGUOUS_SNAPSHOT_POLICY_VERSION
+    ) {
+      const deferrals = validDeferrals(parking.deferrals);
+      throw new RescheduleJobError(
+        ambiguousSnapshotRetryDelay(deferrals),
+        'Snapshot has multiple Composer manifests; execution awaits the pending project-root decision.',
+        {
+          analysisRunId: initialRun.id,
+          ambiguousSnapshotParking: {
+            headSha: initialRun.headSha,
+            policyVersion: AMBIGUOUS_SNAPSHOT_POLICY_VERSION,
+            deferrals: deferrals + 1,
+          },
+        },
+      );
+    }
+
     const binding = await this.repositoryBindingsRepository.findForRun(initialRun);
 
     if (!binding) {
@@ -155,10 +202,39 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       return;
     }
 
-    let run = await this.analysisRunsService.startProcessing(initialRun);
+    let run = initialRun;
     let workspace: ExtractedWorkspace | undefined;
 
     try {
+      workspace = await this.githubSnapshotMaterializerService.materialize(binding, run.headSha);
+
+      const discovered = await this.fileDiscoveryService.discover(workspace.dir);
+      const composerCandidateCount = discovered.filter((path) =>
+        path.split('/').at(-1)?.toLowerCase() === 'composer.json',
+      ).length;
+
+      if (composerCandidateCount > 1) {
+        throw new RescheduleJobError(
+          ambiguousSnapshotRetryDelay(0),
+          'Snapshot has multiple Composer manifests; execution awaits the pending project-root decision.',
+          {
+            analysisRunId: run.id,
+            ambiguousSnapshotParking: {
+              headSha: run.headSha,
+              policyVersion: AMBIGUOUS_SNAPSHOT_POLICY_VERSION,
+              deferrals: 1,
+            },
+          },
+        );
+      }
+
+      const uniqueComposerRoot = resolveUniqueComposerRoot(discovered);
+      // Only the contract-approved single-candidate case changes the active root.
+      // Zero candidates preserve legacy analysis from repository root.
+      const selectedProjectRoot = uniqueComposerRoot ?? '.';
+      await validateProjectRoot(workspace.dir, selectedProjectRoot);
+
+      run = await this.analysisRunsService.startProcessing(run);
       const changesetFiles = await this.githubRepositoryContentService.compare(
         binding.installationId,
         binding.repositoryName,
@@ -172,12 +248,14 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       const indexMode: AnalysisIndexMode = previousVersion ? 'INCREMENTAL' : 'BOOTSTRAP';
       const indexDeltaBaseSha = previousVersion?.commitSha ?? null;
 
-      workspace = await this.githubSnapshotMaterializerService.materialize(binding, run.headSha);
-
-      const discovered = await this.fileDiscoveryService.discover(workspace.dir);
-      const language = detectProjectLanguage(discovered);
+      const language = uniqueComposerRoot
+        ? ProjectLanguage.PHP
+        : detectProjectLanguage(discovered);
       const isPhp = language === ProjectLanguage.PHP;
-      const sourceFiles = discovered.filter((path) =>
+      const scopedDiscovered = discovered.filter((path) =>
+        selectedProjectRoot === '.' || path.startsWith(`${selectedProjectRoot}/`),
+      ).map((path) => selectedProjectRoot === '.' ? path : path.slice(selectedProjectRoot.length + 1));
+      const sourceFiles = scopedDiscovered.filter((path) =>
         isPhp ? isPhpSourceFile(path) : isTypeScriptSourceFile(path),
       );
       const testFiles = sourceFiles.filter((path) => isTestFile(path));
@@ -188,24 +266,35 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       let detectedFramework: TestFramework | null;
 
       if (isPhp) {
-        const analysis = await this.phpParserService.analyze(workspace.dir, sourceFiles);
-        chunks = analysis.chunks;
+        const projectWorkspaceDir = selectedProjectRoot === '.'
+          ? workspace.dir
+          : join(workspace.dir, selectedProjectRoot);
+        const analysis = await this.phpParserService.analyze(projectWorkspaceDir, sourceFiles);
+        chunks = analysis.chunks.map((chunk) => ({
+          ...chunk,
+          filePath: withProjectRoot(selectedProjectRoot, chunk.filePath),
+        }));
         resolvedTargets = await this.phpExistingTestResolverService.resolve(
-          workspace.dir,
+          projectWorkspaceDir,
           testFiles,
           analysis.candidates.filter((candidate) => !testFiles.includes(candidate.filePath)),
         );
-        const composerJson = await readFile(join(workspace.dir, 'composer.json'), 'utf8').catch(() => undefined);
-        detectedFramework = detectPhpFramework(composerJson, discovered);
+        resolvedTargets = resolvedTargets.map((target) => ({
+          ...target,
+          filePath: withProjectRoot(selectedProjectRoot, target.filePath),
+          testFilePaths: target.testFilePaths.map((path) => withProjectRoot(selectedProjectRoot, path)),
+        }));
+        const composerJson = await readFile(join(projectWorkspaceDir, 'composer.json'), 'utf8').catch(() => undefined);
+        detectedFramework = detectPhpFramework(composerJson, scopedDiscovered);
       } else {
         chunks = this.typeScriptParserService.parse(workspace.dir, sourceFiles);
         const candidates = this.testTargetExtractorService.extract(workspace.dir, productionFiles);
         resolvedTargets = this.existingTestResolverService.resolve(workspace.dir, testFiles, candidates);
-        const packageJsonPath = findPackageJsonPath(discovered);
+        const packageJsonPath = findPackageJsonPath(scopedDiscovered);
         const packageJsonContent = packageJsonPath
           ? await readFile(join(workspace.dir, packageJsonPath), 'utf8').catch(() => undefined)
           : undefined;
-        detectedFramework = detectFramework(packageJsonContent, discovered);
+        detectedFramework = detectFramework(packageJsonContent, scopedDiscovered);
       }
 
       const embeddings =
@@ -219,16 +308,18 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         projectId: run.projectId,
         commitSha: run.headSha,
         language,
+        effectiveProjectRoot: isPhp ? selectedProjectRoot : '.',
       });
       await this.projectVersionsRepository.markStarted(version.id);
       await this.codeChunksRepository.insertMany(version.id, chunksToPersist);
       await this.testTargetsRepository.insertMany(version.id, resolvedTargets);
       await this.projectVersionsRepository.completeAndPromote(run.projectId, version.id, {
-        filesProcessed: discovered.length,
+        filesProcessed: scopedDiscovered.length,
         chunksCount: chunksToPersist.length,
         detectedFramework,
         targetsTotal: resolvedTargets.length,
         targetsWithTest: resolvedTargets.filter((t) => t.hasTest).length,
+        projectRoot: selectedProjectRoot,
       });
 
       let symbols = await this.detectSymbols(
@@ -263,9 +354,13 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         projectVersionId: version.id,
       });
 
-      const changesetTouchesSource = changesetFiles.some((file) =>
-        isPhp ? isPhpSourceFile(file.filename) : isTypeScriptSourceFile(file.filename),
-      );
+      const changesetTouchesSource = changesetFiles.some((file) => {
+        const filePath = file.filename;
+        const isInEffectiveProject = selectedProjectRoot === '.'
+          || filePath.startsWith(`${selectedProjectRoot}/`);
+        return isInEffectiveProject
+          && (isPhp ? isPhpSourceFile(filePath) : isTypeScriptSourceFile(filePath));
+      });
 
       if (!changesetTouchesSource) {
         const completed = await this.analysisRunsService.completeRunFromSystem(run, 'NO_TEST_RELEVANT_CHANGES', {
@@ -288,6 +383,12 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         }
       }
     } catch (error) {
+      if (error instanceof RescheduleJobError) throw error;
+
+      if (run.status === 'QUEUED') {
+        run = await this.analysisRunsService.startProcessing(run);
+      }
+
       const message = error instanceof Error ? error.message : 'Error desconocido en snapshot intelligence.';
       this.logger.error(`AnalysisRun ${run.id} falló en snapshot intelligence: ${message}`);
       const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {

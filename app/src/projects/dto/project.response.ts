@@ -7,6 +7,7 @@ export type { ProjectRole };
 export interface ProjectResponse {
   id: string;
   name: string;
+  projectRoot: string | null;
   currentVersionId: string | null;
   workspace: WorkspaceRefResponse;
   role: ProjectRole;

@@ -8,6 +8,7 @@ export interface CreatePendingVersionInput {
   projectId: string;
   commitSha: string;
   language: ProjectLanguage;
+  effectiveProjectRoot: string;
 }
 
 @Injectable()
@@ -20,6 +21,7 @@ export class ProjectVersionsRepository {
         projectId: input.projectId,
         commitSha: input.commitSha,
         language: input.language,
+        effectiveProjectRoot: input.effectiveProjectRoot,
         status: ProjectVersionStatus.PENDING,
       },
     });
@@ -107,6 +109,7 @@ export class ProjectVersionsRepository {
       detectedFramework: TestFramework | null;
       targetsTotal: number;
       targetsWithTest: number;
+      projectRoot: string;
     },
   ): Promise<void> {
     await this.prisma.$transaction([
@@ -124,7 +127,10 @@ export class ProjectVersionsRepository {
       }),
       this.prisma.project.update({
         where: { id: projectId },
-        data: { currentVersionId: versionId },
+        data: {
+          currentVersionId: versionId,
+          projectRoot: result.projectRoot,
+        },
       }),
     ]);
   }

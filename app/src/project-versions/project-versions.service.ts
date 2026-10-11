@@ -50,6 +50,7 @@ export class ProjectVersionsService {
       projectId: version.projectId,
       status: version.status,
       language: version.language,
+      effectiveProjectRoot: version.effectiveProjectRoot,
       filesProcessed: version.filesProcessed ?? 0,
       chunksCount: version.chunksCount ?? 0,
       detectedFramework: version.detectedFramework,

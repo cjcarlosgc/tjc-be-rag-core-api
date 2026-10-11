@@ -87,6 +87,30 @@ describe('GithubSnapshotMaterializerService', () => {
     expect(written).toBe('// content of pnpm-lock.yaml');
   });
 
+  it('materializes nested PHP applications when the only Composer manifest is below repository root', async () => {
+    setup();
+    githubRepositoryContentService.getTree.mockResolvedValue([
+      { path: 'backend/composer.json' },
+      { path: 'backend/composer.lock' },
+      { path: 'backend/src/Service.php' },
+      { path: 'web/package.json' },
+      { path: 'web/src/main.ts' },
+      { path: 'vendor/acme/ignored.php' },
+    ]);
+    githubRepositoryContentService.getFileContent.mockImplementation(
+      async (_installationId: string, _repo: string, path: string) => `// content of ${path}`,
+    );
+
+    const workspace = await service.materialize(binding, 'head-sha');
+    createdDirs.push(workspace.dir);
+
+    expect(githubRepositoryContentService.getFileContent.mock.calls.map((call) => call[2])).toEqual([
+      'backend/composer.json', 'backend/composer.lock', 'backend/src/Service.php',
+    ]);
+    expect(await readFile(join(workspace.dir, 'backend/composer.json'), 'utf8')).toContain('backend/composer.json');
+    await expect(stat(join(workspace.dir, 'web/src/main.ts'))).rejects.toThrow();
+  });
+
   it('cleans up the temp dir if materialization fails partway through', async () => {
     setup();
     githubRepositoryContentService.getTree.mockResolvedValue([{ path: 'src/a.ts' }]);

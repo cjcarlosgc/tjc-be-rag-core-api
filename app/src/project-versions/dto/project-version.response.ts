@@ -6,6 +6,7 @@ export interface ProjectVersionResponse {
   projectId: string;
   status: string;
   language: ProjectLanguage;
+  effectiveProjectRoot: string;
   originalFileName: string | null;
   sizeBytes: number | null;
   filesProcessed: number | null;
@@ -23,6 +24,7 @@ export function toProjectVersionResponse(version: ProjectVersion): ProjectVersio
     projectId: version.projectId,
     status: version.status,
     language: version.language,
+    effectiveProjectRoot: version.effectiveProjectRoot,
     originalFileName: version.originalFileName,
     sizeBytes: version.sizeBytes,
     filesProcessed: version.filesProcessed,

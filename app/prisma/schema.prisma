@@ -229,6 +229,7 @@ enum ConfirmingRole {
 model Project {
   id                  String                @id @default(uuid())
   name                String
+  projectRoot         String?
   ownerUserId         String?
   currentVersionId    String?               @unique
   deletedAt           DateTime?
@@ -669,6 +670,7 @@ model ProjectVersion {
   currentFor        Project?             @relation("ProjectCurrentVersion")
   status            ProjectVersionStatus @default(PENDING)
   language          ProjectLanguage      @default(TYPESCRIPT)
+  effectiveProjectRoot String             @default(".")
   originalFileName  String?
   sizeBytes         Int?
   snapshotKey       String?

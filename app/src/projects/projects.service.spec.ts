@@ -12,6 +12,7 @@ const PERSONAL_WORKSPACE = { kind: 'PERSONAL', id: GITHUB_USER_ID, login: 'octoc
 const project: Project = {
   id: 'project-1',
   name: 'demo',
+  projectRoot: null,
   ownerUserId: OWNER_USER_ID,
   currentVersionId: null,
   deletedAt: null,
@@ -86,6 +87,7 @@ describe('ProjectsService', () => {
       expect(result).toEqual({
         id: 'project-1',
         name: 'demo',
+        projectRoot: null,
         currentVersionId: null,
         workspace: PERSONAL_WORKSPACE,
         role: 'ADMIN',
@@ -157,8 +159,20 @@ describe('ProjectsService', () => {
 
       expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, 'project-1', 'READER');
       expect(result.currentVersionId).toBe('version-1');
+      expect(result.projectRoot).toBeNull();
       expect(result.workspace).toEqual(PERSONAL_WORKSPACE);
       expect(result.role).toBe('ADMIN');
+    });
+
+    it('preserves the root of a legacy Project after the migration backfill', async () => {
+      projectAccess.require.mockResolvedValue({
+        project: { ...project, currentVersionId: 'version-legacy', projectRoot: '.' },
+        role: 'ADMIN',
+      });
+
+      const result = await service.getById('project-1', OWNER_USER_ID, GITHUB_USER_ID);
+
+      expect(result).toMatchObject({ currentVersionId: 'version-legacy', projectRoot: '.' });
     });
 
     it('exposes the organization columns as the workspace and the derived role of an organization project', async () => {
