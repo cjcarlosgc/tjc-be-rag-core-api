@@ -1,5 +1,6 @@
 # Subtareas — Frontera GitHub Integration (Core)
 
+- [ ] **ST-CORE-047 · T-IN_PROGRESS · WI-CORE-040 · HU14, HU15:** sustituir DEC-CHECK-002 por la restricción aprobada de instancia única y publicar GH-INTEROP-1.7 con mutex efímero, sin base adicional y con el riesgo de reinicio explícito; emitir Contract Sync a GitHub Integration y Console. No modifica código, crea infraestructura ni autoriza deploy/cutover.
 - [x] **ST-CORE-045 [T-DONE] · WI-CORE-038 · HU14, HU15:** decidir y publicar el mecanismo compartido de reserva durable de Checks entre réplicas de GitHub Integration, corregir los límites de la garantía ante resultados remotos inciertos y enviar el Contract Sync a los espejos. No implementa persistencia en Core ni autoriza infraestructura o despliegue.
 
 - [x] **ST-CORE-046 [T-DONE] · WI-CORE-039 · HU14, HU15:** después de WI-CORE-037, importar y atender `CS-GH-20261011-002`; precisar en el contrato canónico GH-INTEROP el rechazo confirmado HTTP 422 de creación de Check (`CREATE_REJECTED`), su replay idempotente sin nuevo POST ni body crudo y el límite de evidencia requerido para persistirlo; resolver el evento de entrada y publicar Contract Sync canónico dirigido a GitHub Integration. No toca `app/`, otros repositorios ni infraestructura.

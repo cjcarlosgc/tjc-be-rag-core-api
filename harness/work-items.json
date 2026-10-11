@@ -2079,3 +2079,48 @@
     }
   ]
 }
+    },
+    {
+      "id": "WI-CORE-040",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-IN_PROGRESS",
+      "priority": "P0",
+      "sprint": "GitHub Integration",
+      "title": "Formalizar coordinación de Checks con instancia única",
+      "storyIds": [
+        "HU14",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-047"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-038",
+        "WI-CORE-039"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "DEC-CHECK-003, aprobada explícitamente por el usuario, sustituye DEC-CHECK-002 para el comportamiento vigente y GH-INTEROP-1.7 refleja esa decisión.",
+        "La operación contractual exige exactamente un proceso/instancia de GitHub Integration activo por entorno; no se permiten réplicas concurrentes ni solapamiento de procesos durante un reemplazo.",
+        "Las solicitudes concurrentes de Check con la misma identidad exacta se serializan con un mutex efímero en memoria, sin PostgreSQL, tabla, URL de coordinación, migración SQL o componente externo adicional.",
+        "La búsqueda completa de GitHub adopta/actualiza un único candidato, responde 409 ante múltiples, y crea ante cero solo según el estado incierto conservado en el proceso; mantiene 200 con checkId confirmado y el 422 confirmado solo después de reconciliación completa en cero.",
+        "El estado de coordinación y replay terminal solo vive durante el proceso; un reinicio lo elimina. El nuevo proceso vuelve a consultar GitHub, y si ve cero candidatos puede crear, aceptando explícitamente el riesgo de duplicado cuando una creación previa aún no sea visible.",
+        "SYSTEM-2.8 y GH-INTEROP-1.7 quedan canónicos en Core; se publica Contract Sync namespaced hacia GitHub Integration y Console para importar, espejar y crear/actualizar sus WIs locales.",
+        "No se cambia código app/ de Core, contrato público INTEROP, base de dominio Supabase/Core, Sandbox, provisión, configuración externa, despliegue o cutover."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/features/016-github-integration/spec.md",
+        "spec/features/016-github-integration/plan.md",
+        "spec/features/016-github-integration/tasks.md",
+        "spec/README.md",
+        "CHANGELOG.md"
+      ]

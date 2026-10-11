@@ -9556,7 +9556,163 @@
       "closedAt": "2026-10-11T20:54:21Z"
     }
   ],
-  "activeWorkItem": null,
+  "activeWorkItem": {
+    "id": "WI-CORE-040",
+    "component": "CORE",
+    "workItemType": "HARNESS",
+    "storyIds": [
+      "HU14",
+      "HU15"
+    ],
+    "taskIds": [
+      "ST-CORE-047"
+    ],
+    "caseIds": [],
+    "sprint": "GitHub Integration",
+    "status": "W-IN_PROGRESS",
+    "specPaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/github-integration-contract.md",
+      "spec/features/016-github-integration/spec.md",
+      "spec/features/016-github-integration/plan.md",
+      "spec/features/016-github-integration/tasks.md",
+      "spec/README.md",
+      "CHANGELOG.md"
+    ],
+    "syncScopePaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/github-integration-contract.md"
+    ],
+    "transversalPaths": [],
+    "approved": true,
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-CHECK-001",
+        "DEC-CHECK-002",
+        "DEC-CHECK-003"
+      ],
+      "checkedAt": "2026-10-11T21:58:06Z"
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "leader",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "La decisión y fuente canónica quedan verificadas; DEC-CHECK-003 está aprobada y no hay decisión bloqueante.",
+            "La observación sobre syncScopePaths y PULL start se resolvió; el Harness y SDD check pasan después de corregir el snapshot."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-040-sdd-verification.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-040-sdd-verification.md"
+          ],
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "gpt-6-luna",
+            "servedModel": "unknown",
+            "effort": "high"
+          },
+          "recommendedNextStep": "Completar revisión contractual del Contract Sync y mantener WI-CORE-040 abierto hasta evidencia de los consumidores."
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "El contenido canónico corregido es coherente; aún no existe el evento CS-CORE-20261011-006 que comunique la obligación a Console e Integration."
+          ],
+          "blockers": [
+            "Publicar y revisar CS-CORE-20261011-006 antes de pasar contractReviewed."
+          ],
+          "filesAffected": [
+            "spec/contracts/system-contract.md",
+            "spec/contracts/github-integration-contract.md",
+            "harness/work-items.json"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-040-sdd-verification.md"
+          ],
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "gpt-6-luna",
+            "servedModel": "unknown",
+            "effort": "high"
+          },
+          "recommendedNextStep": "Publicar el Contract Sync con acciones separadas para Integration y Console; ACK significa recepción, no implementación."
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-NOT_RUN",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-040-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-040-sdd-verification.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-040-sdd-verification.md"
+      ]
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": true,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-040",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-11T21:58:26.063Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-040-sdd-verification.md"
+    ],
+    "blockedReason": null
+  },
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",
