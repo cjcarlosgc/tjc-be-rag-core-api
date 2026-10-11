@@ -1,6 +1,6 @@
 # 008-experimental-comparison — Especificación
 
-**Estado:** comparación aprobada como objetivo; entrada live por AnalysisRun y aceptación por evidencia pendientes.
+**Estado:** comparación aprobada como objetivo; entrada live por AnalysisRun implementada en WI-CORE-035; aceptación integrada por evidencia pendiente.
 **Historias:** HU17, HU18
 
 La adaptación live de `POST /experiments` queda registrada en `WI-CORE-035`: recibe `analysisRunId`, `symbolFilePath` y `symbolQualifiedName`; Core autoriza sobre el AnalysisRun y resuelve el `TestTarget` interno desde la versión congelada del Run. El contrato canónico ya define esa forma en INTEROP-2.7 §6.5; esta tarea implementa conformidad sin cambiar el contrato ni el DTO público.
