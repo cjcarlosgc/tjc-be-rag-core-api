@@ -1817,8 +1817,8 @@
       "id": "WI-CORE-034",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-READY",
-      "priority": "P1",
+      "status": "W-DONE",
+      "priority": "P0",
       "sprint": "GitHub Integration",
       "title": "Precisar idempotencia de Checks para GitHub Integration",
       "storyIds": ["HU14", "HU15"],
@@ -1827,16 +1827,39 @@
       "dependsOn": ["WI-CORE-026"],
       "contractImpact": true,
       "publishesContract": true,
-      "syncScopePaths": ["spec/contracts/github-integration-contract.md"],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
       "acceptanceCriteria": [
         "GH-INTEROP define la identidad repositorio/App/headSha/name, persistencia durable, convergencia concurrente y la respuesta ante duplicados para POST /internal/v1/github/checks.",
         "El contrato conserva el DTO y rutas existentes, y declara que la selección de mecanismo técnico pertenece a GitHub Integration.",
-        "Existe Contract Sync dirigido a GitHub Integration; no se modifica app/, despliegue, cutover ni infraestructura externa."
+        "Los contratos canónicos SYSTEM, INTEROP y GH-INTEROP se alinean y existe Contract Sync dirigido a GitHub Integration y Console para sus espejos.",
+        "No se modifica app/, despliegue, cutover ni infraestructura externa."
       ],
       "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
         "spec/contracts/github-integration-contract.md",
         "spec/features/016-github-integration/spec.md",
         "spec/features/016-github-integration/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Solicita cambios de conflictos y lifecycle de Project y RepositoryBinding; WI-CORE-034 solo precisa identidad, persistencia y concurrencia de Checks.",
+          "report": "harness/reports/wi-core-034-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Trata autenticación, workspace y despliegue; WI-CORE-034 solo precisa identidad, persistencia y concurrencia de Checks.",
+          "report": "harness/reports/wi-core-034-contract-sync-scope-review.md"
+        }
       ]
     },
     {

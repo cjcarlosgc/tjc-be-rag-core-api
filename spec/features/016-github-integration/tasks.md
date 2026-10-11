@@ -1,6 +1,6 @@
 # Subtareas — Frontera GitHub Integration (Core)
 
-- [ ] **ST-CORE-041 [T-READY] · WI-CORE-034 · HU14, HU15:** publicar `GH-INTEROP-1.4` para definir la identidad durable de Check, convergencia concurrente y el tratamiento de duplicados; emitir Contract Sync a GitHub Integration. No modifica `app/` ni autoriza despliegue/cutover.
+- [x] **ST-CORE-041 [T-DONE] · WI-CORE-034 · HU14, HU15:** publicar `GH-INTEROP-1.4` para definir la identidad durable de Check, convergencia concurrente y el tratamiento de duplicados; mantener alineadas las referencias SYSTEM-2.6/INTEROP-2.7 y emitir Contract Sync para los espejos de GitHub Integration y Console. No modifica `app/` ni autoriza despliegue/cutover.
 
 - [x] **ST-CORE-003 [T-DONE] · WI-CORE-003 · HU01, HU02, HU03, HU06, HU14, HU16:** mantener Core→Integration para pipeline; preservar temporalmente discovery, verify-access y branches Core, y validar/redactar TLS, redirects y credenciales.
 - [x] **ST-CORE-011 [T-DONE] · WI-CORE-003 · HU01, HU02, HU03, HU06, HU14, HU16:** migrar compare, árbol, contenido por commit, Checks y publicación al contrato privado; mantener freshness, decisión de publicación, materialización y snapshot ZIP interno.
