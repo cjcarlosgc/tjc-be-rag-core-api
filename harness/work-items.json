@@ -1974,6 +1974,58 @@
         "spec/features/008-experimental-comparison/spec.md",
         "spec/transversal/async-jobs/spec.md"
       ]
+    },
+    {
+      "id": "WI-CORE-038",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-IN_PROGRESS",
+      "priority": "P0",
+      "sprint": "GitHub Integration",
+      "title": "Decidir coordinación durable de Checks entre réplicas",
+      "storyIds": ["HU14", "HU15"],
+      "taskIds": ["ST-CORE-045"],
+      "caseIds": [],
+      "dependsOn": ["WI-CORE-034"],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Solicita cambios de lifecycle, conflictos y borrado de Project/RepositoryBinding; WI-CORE-038 solo resuelve coordinación técnica de Checks.",
+          "report": "harness/reports/wi-core-038-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Trata autenticación, workspace/roles y despliegue; WI-CORE-038 mantiene esas políticas y limita el cambio a Checks.",
+          "report": "harness/reports/wi-core-038-contract-sync-scope-review.md"
+        }
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "DEC-CHECK-002 resuelve por delegación explícita del usuario el bloqueo multi-réplica: PostgreSQL propio de GitHub Integration con reserva única por repositoryId/appId/headSha/name exacto; no se comparte la base de dominio Supabase de Core ni se restringe el despliegue a una réplica.",
+        "GH-INTEROP distingue reserva durable/at-most-one creación automática de exactly-once remoto: una llamada cuyo resultado sea incierto queda bloqueada y se reconcilia; ninguna réplica reintenta create a ciegas.",
+        "Las actualizaciones ACTIVE también se serializan en PostgreSQL; UPDATE_UNKNOWN solo vuelve a ACTIVE si un GET por checkId confirma status=completed, conclusion, title, summary y detailsUrl cuando se envió; detailsUrl omitido no borra ni se compara. Requests distintos permanecen bloqueados si no puede verificarse.",
+        "El contrato fija ownership técnico y de datos, retención, fallo cerrado, migración/cutover y operación/recuperación; las filas confirmadas y tombstones inciertos no expiran automáticamente.",
+        "GH-INTEROP-1.5 actualiza los punteros canónicos SYSTEM/INTEROP necesarios y existe Contract Sync pendiente para Console y GitHub Integration con acciones concretas para sus WIs locales.",
+        "Solo se modifican especificación, registro Harness, changelog y Contract Sync en Core; no se implementan tablas en app/, no se editan otros repositorios y no se provisiona ni despliega infraestructura externa."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/features/016-github-integration/spec.md",
+        "spec/features/016-github-integration/plan.md",
+        "spec/features/016-github-integration/tasks.md"
+      ]
     }
   ]
 }
