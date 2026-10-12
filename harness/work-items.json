@@ -2398,7 +2398,7 @@
     {
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P0",
       "sprint": "PHP E2E infrastructure",
       "caseIds": [],
