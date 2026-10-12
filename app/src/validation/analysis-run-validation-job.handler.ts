@@ -63,6 +63,7 @@ import {
   toRetrievalTarget,
   findMatchingTestTarget,
 } from './symbol-target.util.js';
+import { isTestSourcePath } from './test-source-path.util.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
 import type {
   LLMGenerationResult,
@@ -236,10 +237,13 @@ export class AnalysisRunValidationJobHandler
       const language: 'typescript' | 'php' =
         version.language === 'PHP' ? 'php' : 'typescript';
 
+      // WI-CORE-044 (corte 2): los símbolos de archivos de test no son objetivos de generación.
+      // El filtro vive solo aquí; `analysis_symbols` y el resto de consumidores no cambian.
       const candidates = symbols.filter(
         (symbol) =>
           symbol.changeKind === 'DIRECTLY_CHANGED' &&
-          (symbol.kind === 'METHOD' || symbol.kind === 'FUNCTION'),
+          (symbol.kind === 'METHOD' || symbol.kind === 'FUNCTION') &&
+          !isTestSourcePath(symbol.filePath, language),
       );
 
       workspace = await this.githubSnapshotMaterializerService.materialize(

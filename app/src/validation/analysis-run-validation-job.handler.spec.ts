@@ -619,6 +619,108 @@ describe('AnalysisRunValidationJobHandler', () => {
     );
   });
 
+  describe('símbolos de archivos de test excluidos de la generación (WI-CORE-044, corte 2)', () => {
+    async function setupPhpCase() {
+      const context = await setup();
+      context.projectVersionsRepository.findById.mockResolvedValue(
+        buildVersion({
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+        } as Partial<ProjectVersion>),
+      );
+      context.llmProvider.generate.mockResolvedValue({
+        content:
+          '<?php\n\nnamespace Tests\\Unit\\Pricing;\n\nfinal class PremiumDiscountPolicyDiscountForTest {}',
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+      return context;
+    }
+
+    it('does not generate a proposal, call the LLM or the Sandbox for a PHP test-file method', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, sandboxExecutionService, generatedTestProposalsRepository, analysisRunsService, retrievalService } =
+        await setupPhpCase();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicyTest.testDiscountFor',
+          filePath: 'tests/Unit/Pricing/PremiumDiscountPolicyTest.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(retrievalService.retrieve).not.toHaveBeenCalled();
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(generatedTestProposalsRepository.upsertForSymbol).not.toHaveBeenCalled();
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'NO_TEST_RELEVANT_CHANGES',
+        expect.objectContaining({ generatedTestsCount: 0 }),
+      );
+    });
+
+    it('does not generate a proposal, call the LLM or the Sandbox for a TypeScript spec-file method', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, sandboxExecutionService, generatedTestProposalsRepository, analysisRunsService, retrievalService } =
+        await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          kind: 'METHOD',
+          qualifiedName: 'Thing.doIt',
+          filePath: 'src/foo.spec.ts',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(retrievalService.retrieve).not.toHaveBeenCalled();
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(generatedTestProposalsRepository.upsertForSymbol).not.toHaveBeenCalled();
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'NO_TEST_RELEVANT_CHANGES',
+        expect.objectContaining({ generatedTestsCount: 0 }),
+      );
+    });
+
+    it('generates only for the production symbol when the run mixes it with a test-file symbol', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, generatedTestProposalsRepository, analysisRunsService } =
+        await setupPhpCase();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          id: 'symbol-test',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicyTest.testDiscountFor',
+          filePath: 'tests/Unit/Pricing/PremiumDiscountPolicyTest.php',
+        }),
+        buildSymbol({
+          id: 'symbol-prod',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'app/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ analysisSymbolId: 'symbol-prod' }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.anything(),
+      );
+    });
+  });
+
   it('is a no-op when the run is not PROCESSING', async () => {
     const { handler, analysisRunsRepository, repositoryBindingsRepository } =
       await setup();
