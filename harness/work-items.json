@@ -2821,7 +2821,7 @@
       "id": "WI-CORE-050",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "PHP E2E infrastructure",
       "title": "Validar SANDBOX_URL con isAllowedSandboxUrl (HTTPS obligatorio en producción)",
@@ -2851,7 +2851,9 @@
         "harness/reports/wi-core-050-scope-approval.md",
         "harness/reports/wi-core-050-contract-sync-scope-review.md",
         "app/.env.example",
-        "harness/reports/wi-core-050-technical-checks.md"
+        "harness/reports/wi-core-050-technical-checks.md",
+        "harness/reports/wi-core-050-independent-review.md",
+        "harness/reports/wi-core-050-closure.md"
       ],
       "contractSyncReview": [
         {
