@@ -243,7 +243,11 @@ export class AnalysisRunValidationJobHandler
         (symbol) =>
           symbol.changeKind === 'DIRECTLY_CHANGED' &&
           (symbol.kind === 'METHOD' || symbol.kind === 'FUNCTION') &&
-          !isTestSourcePath(symbol.filePath, language),
+          !isTestSourcePath(
+            symbol.filePath,
+            language,
+            version.effectiveProjectRoot,
+          ),
       );
 
       workspace = await this.githubSnapshotMaterializerService.materialize(

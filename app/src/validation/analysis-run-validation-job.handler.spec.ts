@@ -719,6 +719,68 @@ describe('AnalysisRunValidationJobHandler', () => {
         expect.anything(),
       );
     });
+
+    it('keeps a production symbol under a non-root Tests/ directory as a generation candidate', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, generatedTestProposalsRepository } =
+        await setupPhpCase();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          id: 'symbol-app-tests',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'app/Tests/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ analysisSymbolId: 'symbol-app-tests' }),
+      );
+    });
+
+    it('excludes test files under projectRoot "backend" and keeps production files under backend/src/tests/', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, generatedTestProposalsRepository, analysisRunsService, projectVersionsRepository } =
+        await setupPhpCase();
+      projectVersionsRepository.findById.mockResolvedValue(
+        buildVersion({
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+          effectiveProjectRoot: 'backend',
+        } as Partial<ProjectVersion>),
+      );
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          id: 'symbol-backend-test',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicyTest.testDiscountFor',
+          filePath: 'backend/tests/Unit/Pricing/PremiumDiscountPolicyTest.php',
+        }),
+        buildSymbol({
+          id: 'symbol-backend-prod',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'backend/src/tests/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ analysisSymbolId: 'symbol-backend-prod' }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.anything(),
+      );
+    });
   });
 
   it('is a no-op when the run is not PROCESSING', async () => {
