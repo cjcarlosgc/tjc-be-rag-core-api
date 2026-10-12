@@ -12888,7 +12888,7 @@
     "id": "WI-CORE-046",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P2",
     "title": "OC11: resultSummary explícito y no relanzar el error cuando el compare del PR es UNVERIFIABLE",
     "approved": true,
@@ -12913,7 +12913,9 @@
       "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
       "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
       "app/src/github-app/github-repository-content.service.ts",
-      "app/src/github-app/github-repository-content.service.spec.ts"
+      "app/src/github-app/github-repository-content.service.spec.ts",
+      "harness/reports/wi-core-046-technical-checks.md",
+      "harness/reports/wi-core-046-review-request.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -12946,24 +12948,50 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "human-reviewer",
+      "handoffs": [
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Compare UNVERIFIABLE completa INFRASTRUCTURE_FAILURE/neutral con el resumen del contrato y no relanza; otros errores conservan su comportamiento; rojo-verde y no regresion."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/github-app/github-app-auth.service.ts",
+            "app/src/github-app/github-repository-content.service.ts",
+            "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
+            "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
+            "app/src/github-app/github-repository-content.service.spec.ts"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-046-technical-checks.md"
+          ],
+          "recommendedNextStep": "Veredicto del usuario.",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -12980,6 +13008,36 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-12T22:24:31.651Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-046",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-12T22:27:17.680Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-046",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-12T22:27:17.774Z"
         }
       ],
       "publishedSyncIds": [],
@@ -12987,7 +13045,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-046-scope-approval.md",
-      "harness/reports/wi-core-046-preparation.md"
+      "harness/reports/wi-core-046-preparation.md",
+      "harness/reports/wi-core-046-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -12996,6 +13055,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-046-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-046-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-046-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-046-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-046-technical-checks.md"
       ]
     }
   },

@@ -2554,7 +2554,7 @@
       "id": "WI-CORE-046",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "OC11: resultSummary explícito y no relanzar el error cuando el compare del PR es UNVERIFIABLE",
@@ -2589,7 +2589,9 @@
         "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
         "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
         "app/src/github-app/github-repository-content.service.ts",
-        "app/src/github-app/github-repository-content.service.spec.ts"
+        "app/src/github-app/github-repository-content.service.spec.ts",
+        "harness/reports/wi-core-046-technical-checks.md",
+        "harness/reports/wi-core-046-review-request.md"
       ],
       "contractSyncReview": [
         {
