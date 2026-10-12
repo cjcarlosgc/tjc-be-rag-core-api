@@ -71,3 +71,28 @@ El script, versionado junto a este reporte, instancia `SupabaseObjectStorageAdap
 
 - Hay cambios sin commitear de otra sesión en `AGENTS.md` y en `harness/` (perfiles de Codex); este reporte los deja intactos y se commitea solo.
 - La base real de Supabase no tiene `20261011100000_project_roots`: pendiente de aplicar cuando Jean lo ordene antes de desplegar Core con esa migración.
+
+## 7. Intento remoto único a la VM (2026-10-12, 13:40 -05)
+
+Autorización: Jean confirmó en el chat de la sesión Core «Sí, un único POST»; Cross avisó «VM lista» (WI-SANDBOX-005 desplegado, Sandbox `9e2d1b0`, código `0c2b43a`) y abrió el túnel IAP en `127.0.0.1:3101`. `/health/ready` por el túnel: `200` (`docker`, `downloadPolicy`, `workspace` en `ok`). Mismo script, `SANDBOX_URL=http://127.0.0.1:3101`. El Sandbox local de macOS en `:3001` no se tocó.
+
+| Dato | Resultado |
+| --- | --- |
+| `POST /executions` | Exactamente 1 (`executionPosts=1`), aceptado; sin reintento |
+| `executionId` | `d6f8a87e-273f-4e6f-8d8f-a3b6fbac138b` |
+| `requestId` | `686deefd-0c5e-4711-b123-5296689f212d` |
+| `correlationId` | `19d6ee85-700e-410e-95d6-2167bd377bed` |
+| Estado | `FAILED` en `PREPARING`, `CONFIGURATION` / `UNSUPPORTED_RUNNER` |
+| Mensaje | `project does not declare or configure PHPUNIT` |
+| `facts` | `null` (no llegó a instalar ni a ejecutar PHPUnit) |
+| Duración | 4827 ms |
+| SHA-256 del snapshot demo | `985b45cafe24f5f941eb41b18703d68093481bc13d4035530281340d61bfc338` |
+| Limpieza de Storage | 3 objetos escritos, 3 borrados |
+
+**Avance respecto del intento anterior:** ya no aparece el fallo de ACL del UID 10001 ni de `composer.json` por permisos del workspace: WI-SANDBOX-005 hizo su efecto y el aprovisionamiento terminó. El resultado llegó a Core como `CONFIGURATION`, no como `UNKNOWN`.
+
+**Causa probable (inferida del código, no confirmada en la VM):** el adaptador PHPUnit (`phpunit-test-runner.adapter.ts`, `0c2b43a`) busca `composer.json` con `phpunit/phpunit` o `phpunit.xml[.dist]` en la raíz resuelta por `projectRoot`. El `SafeArchiveExtractor` de ese commit **no aplana** una carpeta contenedora (sin lógica de renombrado ni de prefijo). El smoke empaquetó la fixture dentro de una carpeta `tjc-demo-php-0000001/` y envió `projectRoot: "."`, así que `composer.json` y `phpunit.xml.dist` quedaban un nivel más abajo. Es un error de empaquetado del smoke frente al contrato (la raíz efectiva debe coincidir con la ubicación del manifiesto en el snapshot), no un defecto demostrado de Core ni del Sandbox. El script se corrigió para empaquetar plano; **no se ha vuelto a ejecutar**.
+
+**Pregunta abierta para el contrato real:** cómo congela Core `projectRoot` cuando el snapshot de GitHub trae carpeta contenedora, y si el Sandbox debe aplanarla o Core debe emitir el prefijo. No se inventa cierre aquí.
+
+**Siguiente paso:** un segundo POST remoto con el ZIP plano requiere una autorización nueva, distinta de la del «único POST» ya gastado. El túnel lo cierra Cross.

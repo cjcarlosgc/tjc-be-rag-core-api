@@ -48,12 +48,15 @@ const storage = {
 };
 const sandbox = new SandboxExecutionService(config, storage);
 
-// Snapshot efímero: fixture PHPUnit del propio Sandbox, envuelto en una carpeta como los ZIP de GitHub.
+// Snapshot efímero: fixture PHPUnit del propio Sandbox, EMPAQUETADA PLANA (composer.json en la raíz del ZIP).
+// El Sandbox no aplana una carpeta contenedora (SafeArchiveExtractor, 0c2b43a): con `projectRoot: "."` el
+// manifiesto debe estar en la raíz del ZIP. La primera corrida remota (executionId d6f8a87e) envolvió el
+// proyecto en una carpeta y falló con UNSUPPORTED_RUNNER por esa causa probable.
 const work = mkdtempSync(path.join(tmpdir(), 'php-smoke-'));
-const wrapper = 'tjc-demo-php-0000001';
-cpSync(path.join(SANDBOX_REPO, 'app/test/fixtures/phpunit-sample-project'), path.join(work, wrapper), { recursive: true });
+const projectDir = path.join(work, 'project');
+cpSync(path.join(SANDBOX_REPO, 'app/test/fixtures/phpunit-sample-project'), projectDir, { recursive: true });
 const zipPath = path.join(work, 'snapshot.zip');
-execFileSync('zip', ['-qr', zipPath, wrapper], { cwd: work });
+execFileSync('zip', ['-qr', zipPath, '.'], { cwd: projectDir });
 const snapshotBuffer = readFileSync(zipPath);
 const snapshotSha = createHash('sha256').update(snapshotBuffer).digest('hex');
 
