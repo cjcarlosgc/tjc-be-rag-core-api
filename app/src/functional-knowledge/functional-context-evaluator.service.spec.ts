@@ -3,6 +3,7 @@ import { FunctionalContextEvaluatorService } from './functional-context-evaluato
 import { AnalysisSymbolsRepository } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { FunctionalQuestionsRepository } from './functional-questions.repository.js';
 import { FunctionalKnowledgeRepository } from './functional-knowledge.repository.js';
+import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import type { AnalysisRun, AnalysisSymbol, FunctionalQuestion } from '../generated/prisma/client.js';
 
 const RUN = { id: 'run-1', projectId: 'project-1', status: 'PROCESSING', current: true } as AnalysisRun;
@@ -50,6 +51,7 @@ describe('FunctionalContextEvaluatorService', () => {
     createForCurrentRun: ReturnType<typeof vi.fn>;
   };
   let functionalKnowledgeRepository: { findActive: ReturnType<typeof vi.fn> };
+  let projectVersionsRepository: { findById: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     analysisSymbolsRepository = { findByAnalysisRun: vi.fn().mockResolvedValue([]) };
@@ -61,10 +63,12 @@ describe('FunctionalContextEvaluatorService', () => {
       }),
     };
     functionalKnowledgeRepository = { findActive: vi.fn().mockResolvedValue(null) };
+    projectVersionsRepository = { findById: vi.fn().mockResolvedValue(null) };
     service = new FunctionalContextEvaluatorService(
       analysisSymbolsRepository as unknown as AnalysisSymbolsRepository,
       functionalQuestionsRepository as unknown as FunctionalQuestionsRepository,
       functionalKnowledgeRepository as unknown as FunctionalKnowledgeRepository,
+      projectVersionsRepository as unknown as ProjectVersionsRepository,
     );
   });
 
@@ -382,6 +386,115 @@ describe('FunctionalContextEvaluatorService', () => {
       expect(calls).toHaveLength(2);
       expect(calls[0][0]).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:cccccccccccccccc' });
       expect(calls[1][0]).toMatchObject({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:cccccccccccccccc' });
+    });
+  });
+
+  describe('exclusión de archivos de test (WI-CORE-044 corte 5)', () => {
+    const RUN_WITH_VERSION = { ...RUN, projectVersionId: 'version-1' } as AnalysisRun;
+
+    it('does not ask about a TypeScript test symbol with constructs (spec file)', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ filePath: 'src/foo.spec.ts', qualifiedName: 'suite.test_x', behaviorConstructs: [buildConstruct()] }),
+      ]);
+
+      const result = await service.evaluate(RUN);
+
+      expect(result).toEqual({ actionRequired: false });
+      expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+    });
+
+    it('does not ask about a PHP test method with constructs (tests/ directory and *Test.php)', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          kind: 'METHOD',
+          filePath: 'tests/Unit/FooTest.php',
+          qualifiedName: 'FooTest.test_x',
+          behaviorConstructs: [buildConstruct({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:1111111111111111' })],
+        }),
+      ]);
+
+      const result = await service.evaluate(RUN);
+
+      expect(result).toEqual({ actionRequired: false });
+      expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+    });
+
+    it('still asks about a production symbol with constructs', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ filePath: 'src/foo.ts', qualifiedName: 'Foo.run', behaviorConstructs: [buildConstruct()] }),
+      ]);
+
+      const result = await service.evaluate(RUN);
+
+      expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+        expect.objectContaining({ filePath: 'src/foo.ts', qualifiedName: 'Foo.run' }),
+        'PROCESSING',
+      );
+    });
+
+    it('with a mix of test and production symbols, only asks about the production one', async () => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ filePath: 'src/a.spec.ts', qualifiedName: 'a.test_x', behaviorConstructs: [buildConstruct()] }),
+        buildSymbol({
+          filePath: 'src/z.ts',
+          qualifiedName: 'Z.run',
+          behaviorConstructs: [buildConstruct({ scenarioKey: 'EXPECTED_RESULT:9999999999999999' })],
+        }),
+      ]);
+
+      await service.evaluate(RUN);
+
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+        expect.objectContaining({ filePath: 'src/z.ts', qualifiedName: 'Z.run' }),
+        'PROCESSING',
+      );
+    });
+
+    it('uses the effectiveProjectRoot of the ProjectVersion: backend/tests excluded, tests/ outside the root is not a directory match', async () => {
+      projectVersionsRepository.findById.mockResolvedValue({
+        id: 'version-1',
+        language: 'PHP',
+        effectiveProjectRoot: 'backend',
+      });
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          filePath: 'backend/tests/Unit/Foo.php',
+          qualifiedName: 'FooTest.test_x',
+          behaviorConstructs: [buildConstruct({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:2222222222222222' })],
+        }),
+        buildSymbol({
+          language: 'PHP',
+          filePath: 'tests/Unit/Foo.php',
+          qualifiedName: 'Foo.run',
+          behaviorConstructs: [buildConstruct({ scenarioKind: 'BOUNDARY', scenarioKey: 'BOUNDARY:3333333333333333' })],
+        }),
+      ]);
+
+      const result = await service.evaluate(RUN_WITH_VERSION);
+
+      expect(projectVersionsRepository.findById).toHaveBeenCalledWith('version-1');
+      expect(result).toEqual({ actionRequired: true, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } });
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledTimes(1);
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledWith(
+        expect.objectContaining({ filePath: 'tests/Unit/Foo.php', qualifiedName: 'Foo.run' }),
+        'PROCESSING',
+      );
+    });
+
+    it('falls back to projectRoot "." without failing when the run has no ProjectVersion found', async () => {
+      projectVersionsRepository.findById.mockResolvedValue(null);
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ filePath: 'src/foo.spec.ts', qualifiedName: 'suite.test_x', behaviorConstructs: [buildConstruct()] }),
+      ]);
+
+      const result = await service.evaluate(RUN_WITH_VERSION);
+
+      expect(result).toEqual({ actionRequired: false });
+      expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
     });
   });
 });

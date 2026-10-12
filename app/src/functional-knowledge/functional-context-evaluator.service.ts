@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { FunctionalQuestionsRepository } from './functional-questions.repository.js';
 import { FunctionalKnowledgeRepository } from './functional-knowledge.repository.js';
+import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
+import { isTestSourcePath } from '../validation/test-source-path.util.js';
 import {
   AnalysisSymbolsRepository,
   readBehaviorConstructs,
@@ -23,6 +25,16 @@ function symbolTargetRef(symbol: Pick<AnalysisSymbol, 'filePath' | 'qualifiedNam
 
 function symbolScope(kind: AnalysisSymbol['kind']): FunctionalScope {
   return kind === 'METHOD' ? 'METHOD' : 'SYMBOL';
+}
+
+/**
+ * WI-CORE-044 (corte 5): un símbolo cuyo archivo es de test no es objetivo de pregunta, con la misma
+ * regla que el validador (`isTestSourcePath`), sensible al projectRoot de la ProjectVersion.
+ * No altera `analysis_symbols` ni las construcciones persistidas; el filtro vive solo aquí.
+ */
+function isTestTarget(symbol: AnalysisSymbol, projectRoot: string): boolean {
+  const language = symbol.language === 'PHP' ? 'php' : symbol.language === 'TYPESCRIPT' ? 'typescript' : undefined;
+  return isTestSourcePath(symbol.filePath, language, projectRoot);
 }
 
 /**
@@ -84,12 +96,14 @@ export class FunctionalContextEvaluatorService {
     private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
     private readonly functionalQuestionsRepository: FunctionalQuestionsRepository,
     private readonly functionalKnowledgeRepository: FunctionalKnowledgeRepository,
+    private readonly projectVersionsRepository: ProjectVersionsRepository,
   ) {}
 
   async evaluate(run: AnalysisRun): Promise<EvaluateFunctionalContextResult> {
+    const projectRoot = await this.resolveProjectRoot(run);
     const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(run.id);
     const targets = symbols
-      .filter(isBehaviorTarget)
+      .filter((symbol) => isBehaviorTarget(symbol) && !isTestTarget(symbol, projectRoot))
       .map((symbol) => ({ symbol, constructs: readBehaviorConstructs(symbol.behaviorConstructs) ?? [] }))
       .filter((target) => target.constructs.length > 0)
       .sort(compareStable);
@@ -156,5 +170,14 @@ export class FunctionalContextEvaluatorService {
     }
 
     return { actionRequired: false };
+  }
+
+  /** effectiveProjectRoot de la ProjectVersion del Run; sin versión, la raíz del repositorio ('.'). */
+  private async resolveProjectRoot(run: AnalysisRun): Promise<string> {
+    if (!run.projectVersionId) {
+      return '.';
+    }
+    const version = await this.projectVersionsRepository.findById(run.projectVersionId);
+    return version?.effectiveProjectRoot ?? '.';
   }
 }

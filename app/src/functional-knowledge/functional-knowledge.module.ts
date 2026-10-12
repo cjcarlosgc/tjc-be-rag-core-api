@@ -10,9 +10,10 @@ import { ProjectAccessModule } from '../project-access/project-access.module.js'
 import { ChecksModule } from '../checks/checks.module.js';
 import { GithubAppModule } from '../github-app/github-app.module.js';
 import { SymbolBehaviorConstructsService } from './symbol-behavior-constructs.service.js';
+import { ProjectVersionsModule } from '../project-versions/project-versions.module.js';
 
 @Module({
-  imports: [AnalysisRunsModule, ProjectAccessModule, ChecksModule, GithubAppModule],
+  imports: [AnalysisRunsModule, ProjectAccessModule, ProjectVersionsModule, ChecksModule, GithubAppModule],
   controllers: [FunctionalKnowledgeController],
   providers: [
     FunctionalKnowledgeService,
