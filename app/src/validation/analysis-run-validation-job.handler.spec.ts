@@ -2228,5 +2228,83 @@ describe('AnalysisRunValidationJobHandler', () => {
         }),
       );
     });
+
+    it('records TECHNICAL_GENERATION_FAILURE as execution evidence when the Sandbox times out', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository, analysisRunsService } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'TIMED_OUT',
+          facts: null,
+          failure: null,
+          executionId: 'exec-timeout',
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.anything(),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-timeout',
+          outcome: 'TECHNICAL_GENERATION_FAILURE',
+        }),
+      );
+    });
+
+    it('records TECHNICAL_GENERATION_FAILURE as execution evidence when the Sandbox fails with the INFRASTRUCTURE category', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'FAILED',
+          facts: null,
+          failure: { category: 'INFRASTRUCTURE', message: 'Docker no responde.' },
+          executionId: 'exec-infra',
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-infra',
+          outcome: 'TECHNICAL_GENERATION_FAILURE',
+        }),
+      );
+    });
+
+    it('reports the exact summary with a platform failure, a compilation failure and an AVAILABLE proposal', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ id: 'symbol-1', qualifiedName: 'Thing.first' }),
+        buildSymbol({ id: 'symbol-2', qualifiedName: 'Thing.second' }),
+        buildSymbol({ id: 'symbol-3', qualifiedName: 'Thing.third' }),
+      ]);
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(new SandboxUnavailableError('Sandbox no disponible.'))
+        .mockResolvedValueOnce(sandboxResult({ facts: compilationFacts }))
+        .mockResolvedValueOnce(sandboxResult());
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.objectContaining({
+          resultSummary:
+            'TECHNICAL_GENERATION_FAILURE: 1 propuesta(s) disponible(s), 0 símbolo(s) ya cubiertos por tests existentes, 0 behavioral mismatch, 1 fallo(s) técnico(s) de generación, 1 fallo(s) de plataforma sin veredicto (Thing.first).',
+        }),
+      );
+    });
   });
 });
