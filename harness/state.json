@@ -11080,6 +11080,279 @@
         }
       ],
       "closedAt": "2026-10-11T22:42:40.139Z"
+    },
+    {
+      "id": "WI-CORE-042",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-049"
+      ],
+      "caseIds": [],
+      "sprint": "PHP compatibility cross",
+      "status": "W-DONE",
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/plan.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/plan.md",
+        "spec/features/018-php-laravel-support/tasks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Trata lifecycle, binding y autorización de Projects; WI-CORE-042 solo cambia el cierre del agente y sus pruebas.",
+          "report": "harness/reports/wi-core-042-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Trata auth de Console, despliegue y configuración; WI-CORE-042 no cambia esos contratos ni infraestructura.",
+          "report": "harness/reports/wi-core-042-contract-sync-scope-review.md"
+        }
+      ],
+      "transversalPaths": [],
+      "approved": true,
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-PHP-GEN-001",
+          "DEC-PHP-GEN-002"
+        ],
+        "checkedAt": "2026-10-12T03:50:03.028Z"
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "SPEC_VERIFIED",
+            "findings": [
+              "WI-CORE-042 es corrección de conformidad con la regla 4 de WI-CORE-029; no amplía capacidad ni cambia contrato.",
+              "No hay decisiones bloqueantes; las regresiones deben cubrir PHP/PHPUnit al tool cap y conservar TypeScript."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-042-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-042-sdd-verification.md"
+            ],
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "gpt-6-luna",
+              "effort": "high"
+            },
+            "recommendedNextStep": "Implementar el corte acotado y conservar las regresiones PHP/TypeScript."
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "El cierre al alcanzar toolCallCap respeta las convenciones iniciales en PHP y TypeScript sin cambiar el cap ni la configuración."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/generation/agent/generalist-agent.service.ts",
+              "app/src/generation/agent/generalist-agent.service.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-042-implementation.md"
+            ],
+            "recommendedNextStep": "Ejecutar Contract Sync implementation-delivery y before-review; lanzar revisión independiente.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "CHANGES_REQUESTED",
+            "findings": [
+              "P2: la regresión rotulada PHP/PHPUnit usa sintaxis Pest y solo valida <?php; no verifica el archivo completo PHPUnit 11 ni namespace/TestCase."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/generation/agent/generalist-agent.service.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-042-independent-review.md"
+            ],
+            "recommendedNextStep": "Corregir solo el fixture/aserciones PHP para PHPUnit 11 Laravel y volver a revisión independiente.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "gpt-6-luna",
+              "effort": "xhigh"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "El fixture PHP ahora es un archivo completo Laravel/PHPUnit 11 y las aserciones verifican namespace, TestCase, clase y método; se conserva la regresión TypeScript."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/generation/agent/generalist-agent.service.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-042-implementation.md"
+            ],
+            "recommendedNextStep": "Solicitar segunda revisión independiente.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/generation/agent/generalist-agent.service.ts",
+              "app/src/generation/agent/generalist-agent.service.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-042-independent-review.md"
+            ],
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "gpt-6-luna",
+              "servedModel": "gpt-6-luna",
+              "effort": "xhigh"
+            },
+            "recommendedNextStep": "WI-CORE-042 puede cerrarse localmente; no se hizo commit ni push."
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-042-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-042-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-042-implementation.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-042-implementation.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-042-contract-sync-scope-review.md",
+          "harness/reports/wi-core-042-implementation.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-042-independent-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-042-independent-review.md",
+          "harness/reports/wi-core-042-closure.md"
+        ]
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-042",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-12T03:49:06.883Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-042",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-12T03:55:45.476Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-042",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-12T03:55:47.782Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-042",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-12T04:02:41.145Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-042-sdd-verification.md",
+        "harness/reports/wi-core-042-scope-basis.md",
+        "harness/reports/wi-core-042-implementation.md",
+        "harness/reports/wi-core-042-contract-sync-scope-review.md",
+        "harness/reports/wi-core-042-independent-review.md",
+        "harness/reports/wi-core-042-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-12T04:04:27.000Z"
     }
   ],
   "activeWorkItem": null,

@@ -41,3 +41,7 @@ Los cortes trazan a EP02 (inteligencia de repositorio) y EP04 (generación/valid
 1. `WorkspaceAgentTools.inspect_symbol` para PHP (tree-sitter, `loadPhpLanguage`) + pruebas.
 2. `ExperimentsService` (elegibilidad PHPUNIT) y `ExperimentJobHandler` (sin bloqueo PHP; ruta, saneamiento y `CREATED` por DEC-PHP-GEN-001; contexto/prompt PHP en RAG; instrucciones PHP del agente) + pruebas.
 3. INTEROP §6.5/§6.5.1 y Contract Sync a Console.
+
+## WI-CORE-042 — cierre de GENERALIST_AGENT al alcanzar el tool cap
+
+Corrección de conformidad con la regla 4 de WI-CORE-029: la llamada final sin herramientas sigue el lenguaje, framework, formato, namespace y ruta especificados en las instrucciones iniciales. La regresión fuerza el cap con instrucciones PHP/PHPUnit y verifica que no aparezca una exigencia TypeScript; el caso TypeScript conserva su prompt y resultado. No cambia el cómputo del cap, el contrato, la persistencia ni la superficie pública.

@@ -76,7 +76,7 @@ const MAX_RESULT_CHARS = 2000;
 const BUDGET_TRUNCATION_MARKER = '\n... (truncado por presupuesto de contexto)';
 const TOOL_CAP_MESSAGE = 'Límite de herramientas alcanzado. No se ejecutó esta llamada.';
 const FINAL_INSTRUCTION =
-  'Alcanzaste el límite de herramientas disponibles. Responde ahora con el código final de la prueba: solo código TypeScript (imports + bloques de test), sin explicaciones ni más llamadas a herramientas.';
+  'Alcanzaste el límite de herramientas disponibles. Responde ahora con el artefacto final siguiendo estrictamente el lenguaje, framework, formato, namespace, ruta y demás convenciones indicados en las instrucciones iniciales. No hagas más llamadas a herramientas; entrega solo el artefacto solicitado, sin explicaciones.';
 
 const AGENT_TOOL_DEFINITIONS: LLMToolDefinition[] = AGENT_TOOL_SCHEMAS.map(
   (schema) => ({

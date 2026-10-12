@@ -347,20 +347,59 @@ describe('GeneralistAgentService', () => {
     ]);
   });
 
-  it('forces a final answer without tools once maxToolCalls is reached', async () => {
+  it('preserves PHP/PHPUnit instructions and forces a PHP final answer without tools at the cap', async () => {
+    const phpFile = `<?php
+
+namespace Tests\\Feature;
+
+use Tests\\TestCase;
+
+class ExampleTest extends TestCase
+{
+    public function test_example_page_is_available(): void
+    {
+        $this->assertTrue(true);
+    }
+}`;
     const provider = makeProvider();
     provider.generateWithTools
       .mockResolvedValueOnce(toolCallResponse('search_text', { query: 'x' }, { in: 5, out: 5 }))
-      .mockResolvedValueOnce(finalResponse('forced final answer', { in: 5, out: 5 }));
+      .mockResolvedValueOnce(finalResponse(phpFile, { in: 5, out: 5 }));
 
     const service = new GeneralistAgentService(provider as never);
-    const result = await service.generate('prompt', makeTools(async () => 'match found'), limits(1), config);
+    const initialInstructions = 'Genera el archivo completo tests/Feature/ExampleTest.php para Laravel con PHPUnit 11, namespace Tests\\Feature y clase ExampleTest que extienda Tests\\TestCase. Usa un método de prueba PHPUnit llamado test_example_page_is_available; no uses Pest.';
+    const result = await service.generate(initialInstructions, makeTools(async () => 'match found'), limits(1), config);
 
-    expect(result.content).toBe('forced final answer');
+    expect(result.content).toBe(phpFile);
+    expect(result.content).toContain('<?php');
+    expect(result.content).toContain('namespace Tests\\Feature;');
+    expect(result.content).toContain('use Tests\\TestCase;');
+    expect(result.content).toContain('class ExampleTest extends TestCase');
+    expect(result.content).toContain('function test_example_page_is_available(): void');
     expect(result.capReached).toBe(true);
     expect(provider.generateWithTools).toHaveBeenCalledTimes(2);
     const [messages, tools] = provider.generateWithTools.mock.calls[1];
-    expect(messages.at(-1).content).toContain('límite de herramientas');
+    expect(messages[0]).toEqual({ role: 'user', content: initialInstructions });
+    expect(messages.at(-1).content).toContain('lenguaje, framework, formato, namespace, ruta');
+    expect(messages.at(-1).content).not.toMatch(/TypeScript|solo código TypeScript/i);
+    expect(tools).toEqual([]);
+  });
+
+  it('preserves TypeScript/Jest instructions and forces a TypeScript final answer without tools at the cap', async () => {
+    const provider = makeProvider();
+    provider.generateWithTools
+      .mockResolvedValueOnce(toolCallResponse('search_text', { query: 'x' }, { in: 5, out: 5 }))
+      .mockResolvedValueOnce(finalResponse('import { expect, it } from \'vitest\';\nit(\'works\', () => expect(true).toBe(true));', { in: 5, out: 5 }));
+
+    const service = new GeneralistAgentService(provider as never);
+    const initialInstructions = 'Genera una prueba TypeScript con Vitest en tests/example.spec.ts.';
+    const result = await service.generate(initialInstructions, makeTools(async () => 'match found'), limits(1), config);
+
+    expect(result.content).toContain("from 'vitest'");
+    expect(result.capReached).toBe(true);
+    const [messages, tools] = provider.generateWithTools.mock.calls[1];
+    expect(messages[0]).toEqual({ role: 'user', content: initialInstructions });
+    expect(messages.at(-1).content).toContain('lenguaje, framework, formato, namespace, ruta');
     expect(tools).toEqual([]);
   });
 
