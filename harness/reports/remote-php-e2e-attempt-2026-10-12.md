@@ -33,4 +33,4 @@ No se imprimieron ni persistieron el token, las URLs firmadas o el cuerpo de err
 - `WI-CORE-004` sigue `W-PLANNED`, P2. Corresponde a formalizar OC01–OC15 empezando por happy paths; su dependencia local `WI-CORE-001` está `W-DONE`. No tiene aprobación registrada y no es necesario para este smoke, así que no se seleccionó.
 - `WI-CORE-008` sigue `W-PLANNED`, P2, con `contractImpact` y `publishesContract` verdaderos. `ST-CORE-008` cubre verificación de roles/aislamiento, Contract Sync y precondiciones de despliegue organizacional; no habilita este E2E ni autoriza operaciones externas. No se seleccionó.
 
-No se cambió código, Harness, contrato ni infraestructura en este corte. No se reabrió `WI-CORE-043` ni se creó/cerró otro WI Core.
+No se cambió código, estado del Harness, contrato ni infraestructura en este corte; únicamente se agregó este reporte de evidencia. No se reabrió `WI-CORE-043` ni se creó/cerró otro WI Core.
