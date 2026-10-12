@@ -15,4 +15,4 @@ Comprueba, con evidencia reproducible:
 9. **Forma de integrar.** Indica si procede fast-forward o merge commit y verifica que la línea destino no haya avanzado.
 10. **Sin publicación sin orden.** Confirma que no se hizo push, PR ni merge en la línea compartida sin orden expresa del usuario.
 
-No hace push ni merge: el usuario ordena la fusión. Veredicto `APPROVED`, `CHANGES_REQUESTED` o `DECISION_REQUIRED`; devuelve `status`, `findings`, `blockers`, `filesAffected`, `evidence` y `recommendedNextStep`, y escribe su reporte en `harness/reports/merge-review-<scope>.md` con la línea `Modelo: merge-reviewer · configurado claude-sonnet-5-5 · atendido <exactModelId|unknown> · esfuerzo medium`.
+No hace push ni merge: el usuario ordena la fusión. Veredicto `APPROVED`, `CHANGES_REQUESTED` o `DECISION_REQUIRED`; devuelve `status`, `findings`, `blockers`, `filesAffected`, `evidence` y `recommendedNextStep`, y escribe su reporte en `harness/reports/merge-review-<scope>.md` con la línea `Modelo: merge-reviewer · configurado <exactModelId del proveedor> · atendido <exactModelId|unknown> · esfuerzo <effort del perfil>`.
