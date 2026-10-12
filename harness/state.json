@@ -12239,7 +12239,134 @@
       "closedAt": "2026-10-12T21:54:51.000Z"
     }
   ],
-  "activeWorkItem": null,
+  "activeWorkItem": {
+    "id": "WI-CORE-045",
+    "component": "CORE",
+    "workItemType": "HARNESS",
+    "status": "W-SELECTED",
+    "priority": "P1",
+    "title": "Precisar contrato: errores de OC15, semántica de functionalBehaviorValidated y clasificación por plataforma (OC08/OC11)",
+    "approved": true,
+    "storyIds": [
+      "HU04",
+      "HU06",
+      "HU08",
+      "HU10",
+      "HU11",
+      "HU13",
+      "HU14"
+    ],
+    "taskIds": [
+      "ST-CORE-052"
+    ],
+    "caseIds": [
+      "OC02",
+      "OC08",
+      "OC11",
+      "OC15"
+    ],
+    "sprint": "P2",
+    "specPaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md",
+      "spec/features/013-pr-driven-analysis/spec.md",
+      "spec/features/013-pr-driven-analysis/tasks.md",
+      "spec/operational-cases.md",
+      "CHANGELOG.md",
+      "harness/reports/wi-core-045-scope-approval.md",
+      "harness/reports/wi-core-045-contract-sync-scope-review.md"
+    ],
+    "transversalPaths": [],
+    "syncScopePaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md"
+    ],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata códigos de conflicto de binding, rutas enable/DELETE y lifecycle de Project/RepositoryBinding; WI-CORE-045 precisa errores, estados y semántica del pipeline PR-driven (§6.10/§6.11 y clasificación) sin tocar binding, auth ni despliegue de ese evento.",
+        "report": "harness/reports/wi-core-045-contract-sync-scope-review.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "El evento trata autenticación GitHub y orden de despliegue; WI-CORE-045 precisa errores, estados y semántica del pipeline PR-driven (§6.10/§6.11 y clasificación) sin tocar binding, auth ni despliegue de ese evento.",
+        "report": "harness/reports/wi-core-045-contract-sync-scope-review.md"
+      }
+    ],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-FK-002",
+        "DEC-VAL-001"
+      ],
+      "checkedAt": "2026-10-12T21:58:53.000Z",
+      "note": "DEC-VAL-001 no bloquea (sin código empresarial). La decisión sobre la precedencia por plataforma se registra como PROPOSED y solo bloquea el WI de código de OC08."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "leader",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-NOT_RUN",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
+      "contractSyncPublished": "G-NOT_RUN",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-NOT_RUN",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": true,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-045",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-12T21:58:53.167Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-045-scope-approval.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {}
+  },
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",
