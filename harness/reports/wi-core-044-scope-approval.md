@@ -10,3 +10,6 @@ Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo 
 
 ## Fuera de alcance
 Contratos, DTO, Sandbox, GitHub Integration, migraciones. Sin push ni PR; no se ejecuta `build` en `app/` (protege el Core local E2E en vivo). El usuario emite el veredicto final; no se declara `W-DONE` sin él.
+
+## Ampliación de alcance (2026-10-12, usuario, directa en el chat de Core)
+Tras la revisión independiente (ciclo 1, APPROVED con tres riesgos menores), el usuario respondió a la pregunta de cierre: «corrige los 3 riesgos menores y pásale un review más». Se amplía el alcance con: (1) colisión METHOD/CONSTRUCTOR homónimos en `RetrievalService`/`findBySymbol` (elegir un solo `symbolKind` ganador, METHOD preferido, y reunir las partes solo de ese kind); (2) `isTestSourcePath` sensible a `projectRoot` (PHP: `tests/` solo en la raíz del proyecto más sufijo `Test.php`; TS/JS: `__tests__`, sufijos `.spec`/`.test` y `tests/`/`test/` solo en la raíz); (3) la misma exclusión de archivos de test en el evaluador funcional (`ACTION_REQUIRED`), sin cambiar `analysis_symbols`, trace, evidencia 027, experimentos ni OE2 (su contrato §6.16 lo exige). Cada corrección con prueba roja y luego verde, sin build en `app/`, sin contratos ni `php-test-path.ts`. Segunda revisión del agente `reviewer` (ciclo 2 de 2); no se declara `W-DONE` sin el veredicto del usuario.
