@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-006
+source: core
+sourceWorkItem: WI-CORE-045
+targets: [github-integration]
+scopePaths: [spec/contracts/interoperability-contract.md, spec/contracts/system-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.9 aclara 404 FUNCTIONAL_QUESTION_NOT_FOUND y su orden en POST …/answers, continuationAttemptId null/opaco, semántica de functionalBehaviorValidated y resultSummary de OC11; SYSTEM: DEC-VAL-002 PROPOSED sin efecto normativo hasta su aprobación
+requiredAction:
+  - Revisar solo la descripcion del limite de 300 archivos del compare como propiedad de Integration (resultSummary objetivo de OC11 en Core); sin cambio de codigo ni del contrato GH; espejar INTEROP-2.9 solo si lo mantiene
+sourceRevision: 30b9acdfbc063b027ad891799574b4553574559e
+status: C-PENDING

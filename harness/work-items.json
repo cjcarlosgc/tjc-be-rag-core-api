@@ -2473,7 +2473,7 @@
       "id": "WI-CORE-045",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-SELECTED",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Precisar contrato: errores de OC15, semántica de functionalBehaviorValidated y clasificación por plataforma (OC08/OC11)",
@@ -2524,10 +2524,10 @@
       "acceptanceCriteria": [
         "INTEROP §6.11 nombra `404 FUNCTIONAL_QUESTION_NOT_FOUND` para una respuesta (incluida `UNKNOWN`) a una pregunta inexistente, de otro Run, obsoleta o ya no accionable; no persiste ni crea conocimiento, abstención ni continuación; la narrativa deja de hablar de una regla potencial conservada.",
         "INTEROP §6.10/§6.11 y la feature 013 definen `functionalBehaviorValidated` como «el pipeline terminó sin hallar discrepancia», no «se ejecutó una validación».",
-        "INTEROP §6.11: `continuationAttemptId` es `null` mientras queden preguntas pendientes tras una respuesta `ANSWERED` y no `null` solo cuando se encola una continuación; se documenta su carácter opaco.",
+        "INTEROP §6.11: `continuationAttemptId` es `null` sin continuación (abstención o `ANSWERED` que deja el Run en `ACTION_REQUIRED` porque el evaluador aún exige contexto) y distinto de `null` solo si se encola; se documenta su carácter opaco.",
         "SYSTEM define «fallo de plataforma por símbolo» y la precedencia con resultados mezclados sin ocultar resultados buenos; la precedencia entre alternativas con consecuencias de producto queda como decisión PROPOSED con recomendación y no se presenta como cerrada.",
         "OC11: el contrato recoge el `resultSummary` aprobado y que el límite de 300 archivos pertenece a GitHub Integration (repositorio ajeno, solo documentado).",
-        "Se decide y registra si basta una aclaración sobre INTEROP-2.8 o se exige INTEROP-2.9 (aditivo/aclaratorio, sin romper consumidores).",
+        "Versionado decidido por el contract-reviewer y aceptado por el coordinador: INTEROP-2.9 aditivo (`breaking: false`); SYSTEM sin bump mientras DEC-VAL-002 sea solo PROPOSED y confinada a su sección más una línea de estado; DEC-VAL-002 registrada como PROPOSED con `Blocks` limitado al WI de código de OC08.",
         "Contract-reviewer aprueba antes de editar los contratos; Contract Sync se publica a Console e Integration (Sandbox solo si el contenido le afecta); sin cambios en `app/`."
       ],
       "specPaths": [
@@ -2538,7 +2538,16 @@
         "spec/operational-cases.md",
         "CHANGELOG.md",
         "harness/reports/wi-core-045-scope-approval.md",
-        "harness/reports/wi-core-045-contract-sync-scope-review.md"
+        "harness/reports/wi-core-045-contract-sync-scope-review.md",
+        "spec/README.md",
+        "harness/reports/wi-core-045-contract-proposal.md",
+        "harness/reports/wi-core-045-sdd-analysis.md",
+        "harness/reports/wi-core-045-contract-review.md",
+        "harness/contract-sync/outbox/CS-CORE-20261012-005.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-006.yaml",
+        "harness/reports/contract-sync-publish-cs-core-20261012-005.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-006.md",
+        "harness/reports/wi-core-045-technical-checks.md"
       ]
     }
   ]

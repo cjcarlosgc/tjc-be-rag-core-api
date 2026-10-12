@@ -12243,7 +12243,7 @@
     "id": "WI-CORE-045",
     "component": "CORE",
     "workItemType": "HARNESS",
-    "status": "W-SELECTED",
+    "status": "W-IN_REVIEW",
     "priority": "P1",
     "title": "Precisar contrato: errores de OC15, semántica de functionalBehaviorValidated y clasificación por plataforma (OC08/OC11)",
     "approved": true,
@@ -12274,7 +12274,16 @@
       "spec/operational-cases.md",
       "CHANGELOG.md",
       "harness/reports/wi-core-045-scope-approval.md",
-      "harness/reports/wi-core-045-contract-sync-scope-review.md"
+      "harness/reports/wi-core-045-contract-sync-scope-review.md",
+      "spec/README.md",
+      "harness/reports/wi-core-045-contract-proposal.md",
+      "harness/reports/wi-core-045-sdd-analysis.md",
+      "harness/reports/wi-core-045-contract-review.md",
+      "harness/contract-sync/outbox/CS-CORE-20261012-005.yaml",
+      "harness/contract-sync/outbox/CS-CORE-20261012-006.yaml",
+      "harness/reports/contract-sync-publish-cs-core-20261012-005.md",
+      "harness/reports/contract-sync-publish-cs-core-20261012-006.md",
+      "harness/reports/wi-core-045-technical-checks.md"
     ],
     "transversalPaths": [],
     "syncScopePaths": [
@@ -12314,22 +12323,67 @@
       "analysisAgent": "sdd-analyst",
       "implementationAgent": "leader",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "human-reviewer",
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "Propuesta dentro del alcance; ajustes de redaccion (continuationAttemptId con pregunta adaptativa, consecuencia de INFRASTRUCTURE_FAILURE sobre SUCCESS, Blocks acotado al WI de codigo de OC08, cita del contrato GH). Aplicados por el leader."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/contracts/interoperability-contract.md",
+            "spec/contracts/system-contract.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-045-sdd-analysis.md"
+          ],
+          "recommendedNextStep": "Aplicar los ajustes y revisar el texto final.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "Solo texto: orden de errores 404/404/403, null y opaco de continuationAttemptId, semantica de functionalBehaviorValidated, resultSummary de OC11 como objetivo, DEC-VAL-002 solo en su seccion, INTEROP-2.9 aditivo, cabecera Compatible con SYSTEM-2.9. Aplicados por el leader."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/contracts/interoperability-contract.md",
+            "spec/contracts/system-contract.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-045-contract-review.md"
+          ],
+          "recommendedNextStep": "Publicar Contract Sync a console y github-integration.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
-      "implementationCompleted": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
-      "retryLimitRespected": "G-NOT_RUN"
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": true,
@@ -12356,16 +12410,105 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-12T21:58:53.167Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-045",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-12T22:03:36.552Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-045",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-12T22:03:50.589Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261012-005",
+        "CS-CORE-20261012-006"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-045-scope-approval.md"
+      "harness/reports/wi-core-045-scope-approval.md",
+      "harness/reports/wi-core-045-sdd-analysis.md",
+      "harness/reports/wi-core-045-contract-review.md",
+      "harness/reports/wi-core-045-contract-proposal.md",
+      "harness/reports/contract-sync-publish-cs-core-20261012-005.md",
+      "harness/reports/contract-sync-publish-cs-core-20261012-006.md",
+      "harness/reports/wi-core-045-technical-checks.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-045-sdd-analysis.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-045-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-045-contract-proposal.md",
+        "harness/reports/wi-core-045-contract-review.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-045-technical-checks.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-045-contract-review.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-045-contract-review.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20261012-005.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-006.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-045-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-045-technical-checks.md"
+      ]
+    }
   },
   "awayMode": {
     "enabled": true,
