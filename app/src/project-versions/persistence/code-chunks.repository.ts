@@ -39,15 +39,20 @@ export class CodeChunksRepository {
     return this.prisma.codeChunk.findMany({ where: { projectVersionId } });
   }
 
+  /**
+   * Chunks de un símbolo. `symbolKind` acepta una lista (p. ej. `['METHOD', 'CONSTRUCTOR']`) que se
+   * traduce a `IN`; con un string se mantiene la igualdad.
+   */
   findBySymbol(
     projectVersionId: string,
     filePath: string,
-    symbolKind: string,
+    symbolKind: string | readonly string[],
     symbolName: string,
     parentSymbolName: string | null,
   ): Promise<CodeChunk[]> {
+    const kindFilter = typeof symbolKind === 'string' ? symbolKind : { in: [...symbolKind] };
     return this.prisma.codeChunk.findMany({
-      where: { projectVersionId, filePath, symbolKind, symbolName, parentSymbolName },
+      where: { projectVersionId, filePath, symbolKind: kindFilter, symbolName, parentSymbolName },
       orderBy: { partIndex: 'asc' },
     });
   }

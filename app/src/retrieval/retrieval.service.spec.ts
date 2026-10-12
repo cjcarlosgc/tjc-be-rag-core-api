@@ -69,10 +69,86 @@ describe('RetrievalService', () => {
       targetType: 'METHOD',
     });
 
-    expect(findBySymbol).toHaveBeenCalledWith('version-1', 'src/greeter.ts', 'METHOD', 'greet', 'Greeter');
+    expect(findBySymbol).toHaveBeenCalledWith('version-1', 'src/greeter.ts', ['METHOD', 'CONSTRUCTOR'], 'greet', 'Greeter');
     expect(result.targetChunks).toEqual([anchor]);
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]).toMatchObject({ semanticScore: 0.8, structuralMatch: null });
+  });
+
+  it('resolves a METHOD target whose chunk was persisted as CONSTRUCTOR (PHP __construct)', async () => {
+    const constructorChunk = makeChunk({
+      id: 'ctor',
+      symbolKind: 'CONSTRUCTOR',
+      symbolName: '__construct',
+      parentSymbolName: 'Greeter',
+      filePath: 'src/Greeter.php',
+    });
+    const findBySymbol = vi.fn(
+      async (_v: string, _f: string, kinds: string | readonly string[], name: string, parent: string | null) =>
+        (Array.isArray(kinds) ? kinds : [kinds]).includes('CONSTRUCTOR') &&
+        name === '__construct' &&
+        parent === 'Greeter'
+          ? [constructorChunk]
+          : [],
+    );
+    const service = new RetrievalService({
+      findBySymbol,
+      findSimilarByEmbedding: vi.fn().mockResolvedValue([]),
+      findByProjectVersion: vi.fn().mockResolvedValue([constructorChunk]),
+    } as never);
+
+    const result = await service.retrieve('version-1', {
+      filePath: 'src/Greeter.php',
+      symbolName: 'Greeter',
+      methodName: '__construct',
+      targetType: 'METHOD',
+    });
+
+    expect(result.targetChunks).toEqual([constructorChunk]);
+  });
+
+  it('resolves a METHOD target whose chunk was persisted as CONSTRUCTOR (TypeScript constructor)', async () => {
+    const constructorChunk = makeChunk({
+      id: 'ctor-ts',
+      symbolKind: 'CONSTRUCTOR',
+      symbolName: 'constructor',
+      parentSymbolName: 'Greeter',
+      filePath: 'src/greeter.ts',
+    });
+    const service = new RetrievalService({
+      findBySymbol: vi.fn(async (_v: string, _f: string, kinds: string | readonly string[]) =>
+        (Array.isArray(kinds) ? kinds : [kinds]).includes('CONSTRUCTOR') ? [constructorChunk] : [],
+      ),
+      findSimilarByEmbedding: vi.fn().mockResolvedValue([]),
+      findByProjectVersion: vi.fn().mockResolvedValue([constructorChunk]),
+    } as never);
+
+    const result = await service.retrieve('version-1', {
+      filePath: 'src/greeter.ts',
+      symbolName: 'Greeter',
+      methodName: 'constructor',
+      targetType: 'METHOD',
+    });
+
+    expect(result.targetChunks).toEqual([constructorChunk]);
+  });
+
+  it('keeps FUNCTION targets searching only FUNCTION chunks', async () => {
+    const findBySymbol = vi.fn().mockResolvedValue([makeChunk()]);
+    const service = new RetrievalService({
+      findBySymbol,
+      findSimilarByEmbedding: vi.fn().mockResolvedValue([]),
+      findByProjectVersion: vi.fn().mockResolvedValue([]),
+    } as never);
+
+    await service.retrieve('version-1', {
+      filePath: 'src/foo.ts',
+      symbolName: 'foo',
+      methodName: null,
+      targetType: 'FUNCTION',
+    });
+
+    expect(findBySymbol).toHaveBeenCalledWith('version-1', 'src/foo.ts', 'FUNCTION', 'foo', null);
   });
 
   it('marks a chunk imported by the target file as an IMPORTS structural match', async () => {

@@ -92,7 +92,9 @@ export class RetrievalService {
     vectorTopK = DEFAULT_VECTOR_TOP_K,
     mode: RetrievalMode = 'SE',
   ): Promise<RetrievalResult> {
-    const symbolKind = target.targetType === 'METHOD' ? 'METHOD' : 'FUNCTION';
+    // Un método puede estar persistido como METHOD o CONSTRUCTOR (el parser guarda CONSTRUCTOR;
+    // el análisis lo colapsa a METHOD). Se busca ambos sin cambiar el chunk key indexado.
+    const symbolKind = target.targetType === 'METHOD' ? (['METHOD', 'CONSTRUCTOR'] as const) : 'FUNCTION';
     const symbolName = target.targetType === 'METHOD' ? (target.methodName ?? '') : target.symbolName;
     const parentSymbolName = target.targetType === 'METHOD' ? target.symbolName : null;
 
