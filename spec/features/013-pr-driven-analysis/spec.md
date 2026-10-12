@@ -76,7 +76,7 @@ Fuentes: `SYSTEM-2.6` («Contexto RAG y Functional Knowledge») e `INTEROP-2.7` 
 - `ACTION_REQUIRED`: falta conocimiento funcional relevante.
 - `BEHAVIORAL_MISMATCH`: test técnicamente válido evidencia diferencia expected/observed.
 - `TECHNICAL_GENERATION_FAILURE`: la prueba propuesta es técnicamente inválida.
-- `INFRASTRUCTURE_FAILURE`: plataforma/Sandbox/storage/worker impide validar. La precedencia y el tratamiento del fallo de plataforma de un solo símbolo con resultados mezclados están en `DEC-VAL-002` (APROBADA 2026-10-12, SYSTEM-2.10); hasta que el work item de código de OC08 se cierre una excepción del Sandbox por símbolo sigue siendo `TECHNICAL_GENERATION_FAILURE`.
+- `INFRASTRUCTURE_FAILURE`: plataforma/Sandbox/storage/worker impide validar. La precedencia y el tratamiento del fallo de plataforma de un solo símbolo con resultados mezclados están en `DEC-VAL-002` (APROBADA 2026-10-12, SYSTEM-2.10); desde `WI-CORE-048` (2026-10-12) una excepción, timeout o categoría `INFRASTRUCTURE` del Sandbox por símbolo es fallo de plataforma y deja el Run en `INFRASTRUCTURE_FAILURE` salvo que haya `BEHAVIORAL_MISMATCH` o `TECHNICAL_GENERATION_FAILURE` en otro símbolo.
 - `BASELINE_FAILED`: tests existentes relevantes ya estaban rojos.
 - `OBSOLETE`: otro HEAD o lifecycle del PR invalida vigencia.
 

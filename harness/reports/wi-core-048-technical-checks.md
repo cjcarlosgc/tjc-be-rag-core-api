@@ -15,3 +15,6 @@ Antes del cambio fallaban 7 de 58 pruebas del spec del handler (las nuevas y las
 
 ## Condición del usuario
 Solo `validation/analysis-run-validation-job.handler.ts` y su spec. `sandbox/map-sandbox-result.ts`, experimentos, OE2/OE5, evidencia por ejecución (`recordExecution` mantiene `TECHNICAL_GENERATION_FAILURE`) y métricas sin cambios. Check `neutral` por el mapeo existente de `INFRASTRUCTURE_FAILURE`; publicación `409 TEST_PUBLICATION_INVALID_RUN_STATUS` por la regla existente (Run no `SUCCESS`).
+
+## Corte B (hallazgos F1 y F2 de la revisión independiente)
+Solo pruebas (`analysis-run-validation-job.handler.spec.ts`, +78 líneas): evidencia por ejecución `TECHNICAL_GENERATION_FAILURE` en TIMED_OUT y en FAILED con categoría `INFRASTRUCTURE`, y resumen exacto con plataforma + técnico + AVAILABLE. Mutantes: registrar `INFRASTRUCTURE_FAILURE` como evidencia → fallan 2 pruebas; contar plataforma también como técnico → falla 1. Handler byte a byte igual. `npx vitest run` completo: 140 archivos / 2183 pruebas pasan; oxlint limpio; tsc 45 (delta 0).
