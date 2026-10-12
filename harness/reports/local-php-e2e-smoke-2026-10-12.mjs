@@ -7,6 +7,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const APP = process.cwd();
+
+// Guarda de un solo POST: cualquier segundo POST /executions en este proceso lanza antes de salir a la red.
+const realFetch = globalThis.fetch;
+let executionPosts = 0;
+globalThis.fetch = async (input, init) => {
+  const url = typeof input === 'string' ? input : input?.url ?? String(input);
+  if ((init?.method ?? 'GET').toUpperCase() === 'POST' && /\/executions(\?|$)/.test(url)) {
+    executionPosts += 1;
+    if (executionPosts > 1) throw new Error('Guarda: un solo POST /executions por ejecución del smoke.');
+  }
+  return realFetch(input, init);
+};
+
 const SANDBOX_REPO = process.env.SANDBOX_REPO ?? '/Users/jean/Tesis/workspaces/tjc-be-test-execution-sandbox';
 const { SandboxExecutionService } = await import(path.join(APP, 'dist/sandbox/sandbox-execution.service.js'));
 const { SupabaseObjectStorageAdapter } = await import(path.join(APP, 'dist/object-storage/supabase-object-storage.adapter.js'));
@@ -138,4 +151,4 @@ const summary = outcome.kind === 'RESULT'
       },
     }
   : outcome;
-console.log(JSON.stringify({ snapshotSha256: snapshotSha, requestId: request.requestId, summary }, null, 2));
+console.log(JSON.stringify({ snapshotSha256: snapshotSha, requestId: request.requestId, executionPosts, summary }, null, 2));

@@ -65,7 +65,7 @@ pnpm -s build
 node ../harness/reports/local-php-e2e-smoke-2026-10-12.mjs   # una sola ejecución; no reintenta; borra todo lo que escribió
 ```
 
-El script, versionado junto a este reporte, instancia `SupabaseObjectStorageAdapter` y `SandboxExecutionService` desde `dist/`, empaqueta la fixture con `zip`, construye la petición descrita arriba, registra las claves escritas y las borra en `finally`, e imprime solo los hechos de la ejecución (sin URL firmadas ni token).
+El script, versionado junto a este reporte, instancia `SupabaseObjectStorageAdapter` y `SandboxExecutionService` desde `dist/`, empaqueta la fixture con `zip`, construye la petición descrita arriba, registra las claves escritas y las borra en `finally`, e imprime solo los hechos de la ejecución (sin URL firmadas ni token). Incluye una guarda de proceso que lanza ante un segundo `POST /executions` y reporta `executionPosts` (esperado: 1). Para un intento remoto por túnel IAP se reutiliza tal cual con `SANDBOX_URL` apuntando al túnel; abrir y cerrar el túnel es responsabilidad de la sesión Cross y requiere su aviso «VM lista».
 
 ## 6. Observaciones del entorno
 
