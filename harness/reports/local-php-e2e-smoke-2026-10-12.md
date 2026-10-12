@@ -1,0 +1,73 @@
+# Smoke E2E local Core → Sandbox (PHP/PHPUnit)
+
+Modelo: agente principal de la sesión Core · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+**Fecha:** 2026-10-12. **Estado:** ejecución local completada **con fallo del Sandbox en `PREPARING`**; no es un E2E exitoso. **No es observación oficial del piloto** ni evidencia experimental.
+
+## Autorización y alcance
+
+- Petición de la sesión Cross/Integration («generar el e2e», E2E local reproducible, sin push/PR/infra). La escritura temporal en Supabase Storage la **autorizó Jean en el chat de la sesión Core** (2026-10-12): un objeto temporal, un único `POST /executions`, borrado posterior.
+- Core `feature/jean` en `19709f7` (`pnpm build` correcto). Sandbox local ya existente en `127.0.0.1:3001` (`/health/ready` 200, `docker`, `downloadPolicy` y `workspace` en `ok`); **no se reinició ni se tocó su configuración**.
+- Sin cambios en `.env`, secretos, código de producto, contratos, CI ni infraestructura remota. Sin push ni PR.
+
+## 1. Base de datos local desechable
+
+El Postgres de compose (`app-postgres-1`, `pgvector/pgvector:pg16`, `localhost:5433`, 0 proyectos) tenía 30 migraciones. Se aplicaron las 16 pendientes **solo ahí**, desde una copia limpia del commit (`git archive HEAD app/prisma app/prisma.config.ts app/package.json`), sin tocar `DATABASE_URL` del `.env`:
+
+```sh
+# desde una copia exportada de app/prisma (HEAD) con node_modules enlazado
+DATABASE_URL='postgresql://rag_core:rag_core@127.0.0.1:5433/rag_core' npx prisma migrate deploy
+```
+
+Resultado: 46 migraciones aplicadas, `Database schema is up to date!`. Última: `20261011100000_project_roots`. La base real de Supabase **no** se tocó y **no** tiene todavía `20261011100000_project_roots` (sigue en 45).
+
+## 2. Smoke
+
+Una sola invocación de `SandboxExecutionService.execute()` (compilado desde `dist/`), perfil `PHP_LARAVEL_PHPUNIT`, runner `PHPUNIT`, `projectRoot: "."`, `scope: BATCH`. Snapshot efímero: la fixture `phpunit-sample-project` del Sandbox envuelta en una carpeta contenedora (patrón de los ZIP de GitHub), subida al bucket `repository-zips` y descargada por URL firmada. Dos artefactos `CREATED`: `tests/Unit/AddTest.php` (usa `App\Math`) y `tests/Unit/RuntimeIdentityTest.php` (comprueba `getmyuid() === 10001` y que `getcwd()` no sea una ruta del host).
+
+| Dato | Resultado |
+| --- | --- |
+| `POST /executions` | Exactamente 1, aceptado (el token de Core es válido para el Sandbox local) |
+| `executionId` | `c24cc736-5ef0-4bc3-b1b2-93da364cfe32` |
+| `requestId` | `c7c7b4a6-1968-4c49-bd2e-12c2ee93ece7` |
+| `correlationId` | `b7b876e4-3627-4a91-b253-df6d355a55df` |
+| Estado | `FAILED` en `PREPARING`, `category=UNKNOWN`, `code=UNKNOWN` |
+| `facts` | `null` (no llegó a instalar ni ejecutar PHPUnit) |
+| Duración (POST → resultado) | 2061 ms |
+| SHA-256 del snapshot demo | `428b271c10fd1f2e60f5dceeca3401ba8b35c8708cd1fdf3ab6cc047fc56a097` |
+| Limpieza | 3 objetos escritos (snapshot + 2 artefactos), 3 borrados |
+
+Mensaje del Sandbox: *«Unable to provision isolated workspace ACL for UID 10001; Linux acl utilities (setfacl/getfacl) are required»*.
+
+## 3. Causa y lectura
+
+El Sandbox local corre como proceso en **macOS** y, para aislar el workspace del contenedor con UID 10001, necesita las utilidades Linux `setfacl`/`getfacl`, que macOS no trae. El fallo ocurre dentro del Sandbox, en preparación, **antes** de instalar dependencias o ejecutar PHPUnit; no es un defecto de Core.
+
+Lo que sí quedó demostrado de extremo a extremo en esta corrida: Core construyó y firmó la petición, el Sandbox la aceptó con el token compartido, devolvió un resultado terminal por polling y Core lo recibió y lo mapeó (`status`, `failure`, `executionId`, `correlationId`). **No** se pudo comprobar `projectRoot` ni rutas relativas de `testCases` ni el UID 10001 efectivo, porque no hubo ejecución de pruebas.
+
+Hallazgo de clasificación: el fallo llegó a Core como `UNKNOWN/UNKNOWN`. Un fallo de plataforma del Sandbox (herramienta del host ausente) podría clasificarse como `INFRASTRUCTURE`; es cosa del dueño del Sandbox y de DEC-INF-001, no se corrige aquí.
+
+## 4. Para completar el E2E
+
+Cualquiera de estas dos vías, a cargo de la sesión/dueño del Sandbox, sin tocar Core:
+
+1. Ejecutar el Sandbox en Linux (la VM o un contenedor Linux) con `acl` instalado.
+2. Instalar las utilidades ACL en el host de pruebas, o configurar el Sandbox con un modo de aislamiento compatible con macOS.
+
+Con el Sandbox ya apto, repetir **una** ejecución con el mismo script (sección 5) y registrar `facts.testCases[].suitePath`, `runner` y el resultado de `RuntimeIdentityTest`.
+
+## 5. Reproducción
+
+Desde `app/`, con `SUPABASE_*` y `SANDBOX_SERVICE_TOKEN` exportados desde el `.env` solo en el entorno del proceso (sin imprimirlos) y `SANDBOX_URL=http://127.0.0.1:3001`:
+
+```sh
+pnpm -s build
+node ../harness/reports/local-php-e2e-smoke-2026-10-12.mjs   # una sola ejecución; no reintenta; borra todo lo que escribió
+```
+
+El script, versionado junto a este reporte, instancia `SupabaseObjectStorageAdapter` y `SandboxExecutionService` desde `dist/`, empaqueta la fixture con `zip`, construye la petición descrita arriba, registra las claves escritas y las borra en `finally`, e imprime solo los hechos de la ejecución (sin URL firmadas ni token).
+
+## 6. Observaciones del entorno
+
+- Hay cambios sin commitear de otra sesión en `AGENTS.md` y en `harness/` (perfiles de Codex); este reporte los deja intactos y se commitea solo.
+- La base real de Supabase no tiene `20261011100000_project_roots`: pendiente de aplicar cuando Jean lo ordene antes de desplegar Core con esa migración.
