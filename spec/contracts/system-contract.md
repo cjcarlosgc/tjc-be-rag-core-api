@@ -1,6 +1,6 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.9
+**Versión del contrato:** SYSTEM-2.10
 **Fecha de corte:** 2026-10-12
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
@@ -65,10 +65,10 @@ Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la A
 
 ## Workspaces, roles y acceso
 
-Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo vigente de rutas, DTOs, errores y eventos vive en `INTEROP-2.8` §6.13 y §6.14.
+Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo vigente de rutas, DTOs, errores y eventos vive en `INTEROP-2.10` §6.13 y §6.14.
 
 - Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. Un Project personal solo lo ve su creador, que es siempre su Admin y no tiene registro de acceso; solo se comparte mediante organizaciones. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y, para Projects de organización, un registro de acceso `(projectId, userId, rol, verifiedAt)`.
-- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (en una organización, Maintainer, Writer y Reader exigen además ser miembro activo de ella; `DEC-ORG-003`): Reader solo consulta; Writer opera el día a día (dispara Runs, vincula, pausa y reactiva repositorios, publica tests, envía cambios a una rama nueva y los acepta, ejecuta experimentos y comparaciones de retrieval) salvo responder preguntas funcionales y registrar `UNKNOWN`; Maintainer, además, responde preguntas funcionales y confirma conocimiento funcional; Admin, además, crea, renombra y elimina Projects. Core deriva el rol de los hechos de permiso que entrega GitHub Integration y no acepta un rol enviado por el navegador: owner de la organización o creador del workspace personal → Admin; `admin` o `maintain` → Maintainer; `write` → Writer; `triage` o `read` → Reader. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.8` §6.13.
+- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (en una organización, Maintainer, Writer y Reader exigen además ser miembro activo de ella; `DEC-ORG-003`): Reader solo consulta; Writer opera el día a día (dispara Runs, vincula, pausa y reactiva repositorios, publica tests, envía cambios a una rama nueva y los acepta, ejecuta experimentos y comparaciones de retrieval) salvo responder preguntas funcionales y registrar `UNKNOWN`; Maintainer, además, responde preguntas funcionales y confirma conocimiento funcional; Admin, además, crea, renombra y elimina Projects. Core deriva el rol de los hechos de permiso que entrega GitHub Integration y no acepta un rol enviado por el navegador: owner de la organización o creador del workspace personal → Admin; `admin` o `maintain` → Maintainer; `write` → Writer; `triage` o `read` → Reader. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.10` §6.13.
 - El acceso se crea al entrar mediante una verificación en vivo solicitada a GitHub Integration, donde reside el installation token de la App; se revoca por los eventos normalizados de webhook y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
 - Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente responde `403`.
 
@@ -152,7 +152,7 @@ Antes de atribuir una falla a pruebas generadas, se ejecuta el baseline relevant
 - test generado técnicamente válido que evidencia discrepancia -> `BEHAVIORAL_MISMATCH`;
 - namespace/import/API/mock/setup/sintaxis inválidos generados -> `TECHNICAL_GENERATION_FAILURE`;
 - Docker/red/storage/worker/runtime de plataforma -> `INFRASTRUCTURE_FAILURE`;
-  - Para un símbolo cuya ejecución falla por plataforma, ver `DEC-VAL-002` (PROPOSED); mientras no se apruebe rige el comportamiento descrito allí.
+  - Para un símbolo elegible cuya ejecución falla por plataforma y para la precedencia del estado del Run con resultados mezclados rige `DEC-VAL-002` (APROBADA; implementación pendiente).
 - validación correcta -> `SUCCESS`.
 
 No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU17) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
@@ -282,17 +282,21 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 
 ### DEC-VAL-002 — Fallo de plataforma por símbolo y precedencia del estado del Run
 
-**Estado:** PROPOSED (sin efecto normativo hasta su aprobación; 2026-10-12, `WI-CORE-045`, caso operativo OC08)
+**Estado:** APROBADA (usuario, 2026-10-12, `WI-CORE-047`; caso operativo OC08). El usuario aprobó la versión recomendada «sin afectar métricas»; una redacción anterior que ponía la plataforma sobre cualquier otra clasificación fue descartada y no tiene efecto.
 
-**Blocks:** solo el work item de código que alinee OC08 (clasificación por símbolo en `validation/analysis-run-validation-job.handler.ts` y `sandbox/map-sandbox-result.ts`); no bloquea trabajo documental ni otros work items.
+**Blocks:** NONE. Desbloquea el work item de código que alinee OC08, que hereda la condición de abajo.
 
-**Estado vigente hasta su aprobación:** una excepción o indisponibilidad del Sandbox por símbolo, o su timeout, se clasifica como `TECHNICAL_GENERATION_FAILURE`; `INFRASTRUCTURE_FAILURE` solo lo fija el job cuando falla binding, versión, materializado, compare o el job completo. El estado del Run, con resultados mezclados, es `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `SUCCESS` > `NO_TEST_RELEVANT_CHANGES`/`NO_ADDITIONAL_TESTS_REQUIRED`.
+**Regla.** *Fallo de plataforma por símbolo:* el símbolo elegible no obtuvo veredicto porque el Sandbox no estuvo disponible o rechazó la ejecución, la ejecución agotó el tiempo límite del Sandbox o el Sandbox reportó una falla de categoría `INFRASTRUCTURE` (Docker, red, almacenamiento, worker o runtime de plataforma). No lo son compilación, aserción, error de ejecución de la prueba, dependencia ni configuración del framework (siguen siendo fallo técnico), y un fallo `UNKNOWN` no se atribuye a la plataforma sin evidencia. *Precedencia del estado del Run con resultados mezclados por símbolo* (de mayor a menor): `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `INFRASTRUCTURE_FAILURE` > `SUCCESS` > `NO_ADDITIONAL_TESTS_REQUIRED` / `NO_TEST_RELEVANT_CHANGES` (estos dos últimos son excluyentes entre sí). `BASELINE_FAILED` y los `INFRASTRUCTURE_FAILURE` de nivel job (binding, versión, materializado, compare o job completo) terminan el Run antes de la clasificación por símbolo y no entran en esta precedencia.
 
-**Propuesta (recomendada).** *Fallo de plataforma por símbolo:* el símbolo no obtuvo veredicto porque el Sandbox no estuvo disponible o rechazó la ejecución, la ejecución agotó el tiempo límite del Sandbox o el Sandbox reportó una falla de categoría `INFRASTRUCTURE` (Docker, red, almacenamiento, worker o runtime de plataforma). No lo son compilación, aserción, error de ejecución de la prueba, dependencia ni configuración del framework (siguen siendo fallo técnico), y un fallo `UNKNOWN` no se atribuye a la plataforma sin evidencia. *Precedencia del estado del Run:* `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `INFRASTRUCTURE_FAILURE` > `SUCCESS` > `NO_ADDITIONAL_TESTS_REQUIRED` > `NO_TEST_RELEVANT_CHANGES`. El resultado de cada símbolo se conserva siempre (propuestas `AVAILABLE`, evidencia de discrepancia y fallo por símbolo) y `resultSummary` cuenta por separado los fallos de plataforma y los técnicos; el estado del Run es solo el más accionable.
+**Aclaración (no cambia la decisión):** los resultados por símbolo (propuestas, ejecuciones, evidencia de discrepancia y fallo por símbolo) y el `resultSummary`, que cuenta por separado los fallos de plataforma y los técnicos, se conservan y siguen consultables aunque el estado agregado sea `INFRASTRUCTURE_FAILURE`; el estado del Run es solo el más accionable.
 
-**Razón:** una discrepancia demostrada no se oculta por un fallo ajeno de plataforma en otro símbolo; un fallo técnico atribuible no se degrada a `neutral`; un Run con un símbolo sin veredicto no es `SUCCESS` ni permite publicar como si todo estuviera validado (la publicación del companion PR exige Run `SUCCESS`). Consecuencia declarada: con `INFRASTRUCTURE_FAILURE` sobre `SUCCESS`, un Run con propuestas `AVAILABLE` válidas no es publicable (`409 TEST_PUBLICATION_INVALID_RUN_STATUS`) hasta reintentar; `NO_TEST_RELEVANT_CHANGES` mantiene Check `success`.
+**Razón:** una discrepancia demostrada no se oculta por un fallo ajeno de plataforma en otro símbolo; un fallo técnico atribuible no se degrada a `neutral`; un Run con un símbolo sin veredicto no es `SUCCESS` ni permite publicar como si todo estuviera validado. Las alternativas «plataforma sobre técnico» y «la falla de plataforma no altera el Run» no fueron elegidas.
 
-**Alternativas:** (A2) plataforma sobre técnico: el Check pasa de `failure` a `neutral` y un fallo técnico real queda enmascarado hasta reintentar; (A3) la falla de plataforma de un símbolo no altera el Run si otros pasan: permitiría publicar con un símbolo sin validar. A2 y A3 cambian la conclusión del Check (`failure`/`neutral`) y la publicación del companion PR, por lo que requieren decisión del usuario.
+**Consecuencias:** un Run en `INFRASTRUCTURE_FAILURE` con propuestas `AVAILABLE` válidas tiene Check `neutral` y no es publicable (`409 TEST_PUBLICATION_INVALID_RUN_STATUS`) hasta reintentar; `NO_TEST_RELEVANT_CHANGES` mantiene Check `success`.
+
+**Condición del usuario:** el cambio queda confinado al análisis de PR (clasificación por símbolo y del `AnalysisRun`) y no puede alterar el comportamiento de experimentos (008), OE2/OE5 ni la evidencia o métricas existentes. Si se toca `sandbox/map-sandbox-result.ts` (compartido por generación y experimentos), exige prueba de no regresión explícita sobre experimentos o no se toca; si afecta métricas, `DECISION_REQUIRED` y no se aplica.
+
+**Estado de la implementación:** pendiente. Hasta que el work item de código de OC08 se cierre, una excepción o timeout del Sandbox por símbolo se sigue clasificando `TECHNICAL_GENERATION_FAILURE` y la lista «Baseline» describe el comportamiento vigente.
 
 ### DEC-ORG-001 — Organizaciones y compartición de Projects
 
@@ -437,6 +441,8 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 **Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable. Las menciones de roles de `DEC-ORG-001` y `DEC-ORG-002` y de los planes de cortes ya implementados describen la historia; donde difieran, prevalece esta decisión.
 
 ## Regla de compatibilidad
+
+`SYSTEM-2.10` (2026-10-12, `WI-CORE-047`) aprueba `DEC-VAL-002` (fallo de plataforma por símbolo y precedencia del estado del Run, sin cambiar `DEC-INF-001` ni la infraestructura). Sandbox conserva SYSTEM-2.2 y no requiere acción local. `INTEROP-2.10` es la versión compatible.
 
 `SYSTEM-2.9` (2026-10-12) resuelve `DEC-INF-001`: reutiliza la VM GCE existente para el Sandbox del piloto controlado, con ingreso administrativo y del servicio vía IAP a TCP 22 y al puerto de Sandbox (predeterminado 3000), sin agregar componentes. La instancia actual aún tiene reglas de ingreso público y no una regla IAP; su clon y despliegue inicial fueron reportados por el usuario como anteriores a correcciones recientes, por lo que no cuentan como prueba del corte corregido. `DEC-VAL-001` sigue pendiente para código y evidencia empresarial.
 

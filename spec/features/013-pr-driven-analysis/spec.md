@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU02–HU16 (las que citan las subtareas de esta feature y los casos OC01–OC15; el encabezado anterior listaba solo HU02, HU06–HU09 y HU13–HU16)
-**Contrato:** SYSTEM-2.9 / INTEROP-2.9 / GH-INTEROP-1.7 (verificado en la cabecera de `spec/contracts`; el cuerpo de esta feature conserva sus reglas y no se reescribió en esta corrección)
+**Contrato:** SYSTEM-2.10 / INTEROP-2.10 / GH-INTEROP-1.7 (verificado en la cabecera de `spec/contracts`; el cuerpo de esta feature conserva sus reglas y no se reescribió en esta corrección)
 
 ## Objetivo
 
@@ -76,7 +76,7 @@ Fuentes: `SYSTEM-2.6` («Contexto RAG y Functional Knowledge») e `INTEROP-2.7` 
 - `ACTION_REQUIRED`: falta conocimiento funcional relevante.
 - `BEHAVIORAL_MISMATCH`: test técnicamente válido evidencia diferencia expected/observed.
 - `TECHNICAL_GENERATION_FAILURE`: la prueba propuesta es técnicamente inválida.
-- `INFRASTRUCTURE_FAILURE`: plataforma/Sandbox/storage/worker impide validar. La precedencia y el tratamiento del fallo de plataforma de un solo símbolo con resultados mezclados están en `DEC-VAL-002` (PROPOSED, SYSTEM); hasta su aprobación una excepción del Sandbox por símbolo sigue siendo `TECHNICAL_GENERATION_FAILURE`.
+- `INFRASTRUCTURE_FAILURE`: plataforma/Sandbox/storage/worker impide validar. La precedencia y el tratamiento del fallo de plataforma de un solo símbolo con resultados mezclados están en `DEC-VAL-002` (APROBADA 2026-10-12, SYSTEM-2.10); hasta que el work item de código de OC08 se cierre una excepción del Sandbox por símbolo sigue siendo `TECHNICAL_GENERATION_FAILURE`.
 - `BASELINE_FAILED`: tests existentes relevantes ya estaban rojos.
 - `OBSOLETE`: otro HEAD o lifecycle del PR invalida vigencia.
 
@@ -209,7 +209,7 @@ Resumen de estado: **FORMALIZADO** OC01–OC15; OC09 es especificación sin impl
 - **Prueba propuesta:** integración con fixture de import inválido: Run `TECHNICAL_GENERATION_FAILURE`, propuesta `HELD`, Check `failure` y ausencia de clasificación mismatch.
 - **Fuente:** SYS «Baseline, generación y clasificación»; INT §6.10, §6.12; HU11, HU13, HU14.
 - **Brecha:** una excepción del Sandbox por símbolo (no disponible, `TIMED_OUT`, categoría `INFRASTRUCTURE`) se clasifica `TECHNICAL_GENERATION_FAILURE` (`:535-565`, `map-sandbox-result.ts:57-67`), mientras SYS asigna Docker/red/storage/worker a `INFRASTRUCTURE_FAILURE`; `INFRASTRUCTURE_FAILURE` solo se usa cuando falla el binding, el `ProjectVersion`, el materializado, el compare o el job completo.
-- **Decisión aprobada (usuario, 2026-10-12, con condición):** primero se **precisa el contrato** (SYSTEM tabla «Baseline, generación y clasificación», §152-154): qué es un fallo de plataforma por símbolo y la precedencia cuando un símbolo falla por plataforma y otros pasan o hacen mismatch, sin ocultar resultados buenos; solo después se alinea el código (excepciones del Sandbox por símbolo hoy clasificadas como técnicas) en un WI aparte. **Consolidado en `WI-CORE-045`:** el contrato registra la definición y la precedencia como `DEC-VAL-002` (SYSTEM, PROPOSED, con recomendación y alternativas A2/A3); el WI de código queda bloqueado hasta que el usuario la apruebe.
+- **Decisión aprobada (usuario, 2026-10-12, con condición):** primero se **precisa el contrato** (SYSTEM tabla «Baseline, generación y clasificación», §152-154): qué es un fallo de plataforma por símbolo y la precedencia cuando un símbolo falla por plataforma y otros pasan o hacen mismatch, sin ocultar resultados buenos; solo después se alinea el código (excepciones del Sandbox por símbolo hoy clasificadas como técnicas) en un WI aparte. **Consolidado (`WI-CORE-047`, SYSTEM-2.10):** `DEC-VAL-002` APROBADA el 2026-10-12 por el usuario («La recomendada, sin afectar métricas»): precedencia `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `INFRASTRUCTURE_FAILURE` > `SUCCESS` > `NO_ADDITIONAL_TESTS_REQUIRED`/`NO_TEST_RELEVANT_CHANGES`, definición de fallo de plataforma por símbolo y la condición de no afectar experimentos, evidencia ni métricas (`sandbox/map-sandbox-result.ts` solo con prueba de no regresión). Falta alinear el código en el WI de OC08.
 
 ### OC09 — Suite existente ya fallaba — FORMALIZADO (especificado; implementación pendiente)
 
@@ -236,8 +236,8 @@ Resumen de estado: **FORMALIZADO** OC01–OC15; OC09 es especificación sin impl
 ### OC11 — PR o commit grande — FORMALIZADO (PQ-OC11 aprobada)
 
 - **Por qué no se formaliza:** SYS indica que los PR grandes «se filtran, priorizan y pueden dividirse en batches sin fijar thresholds»; Core no implementa filtrado, priorización ni batches (los candidatos se procesan en serie, `analysis-run-validation-job.handler.ts:257-303`). Comportamiento observado: GH fija que un compare que alcanza 300 archivos es `UNVERIFIABLE`, `unwrapLookup` lo convierte en error (`github-repository-content.service.ts:157-171`) y el job termina el Run `INFRASTRUCTURE_FAILURE` con Check `neutral` (`snapshot-analysis-job.handler.ts:386-401`).
-- **Decisión aprobada (PQ-OC11, 2026-10-12):** V1 mantiene `INFRASTRUCTURE_FAILURE` con Check `neutral`, sin estado nuevo, con `resultSummary` explícito «PR excede 300 archivos; análisis no realizado», distinguiendo `UNVERIFIABLE` de una caída en Core. Filtrado, priorización y batches siguen diferidos hasta fijar umbrales (SYS). Hoy el reintento del job entra en `snapshot-analysis-job.handler.ts:168-172` y termina sin trabajo (ruido, no costo); el WI pequeño de OC11 puede dejar de relanzar el error en `UNVERIFIABLE` y fija el `resultSummary`, con prueba.
-- **Estado final:** Run `INFRASTRUCTURE_FAILURE`. Check `neutral`. **Contrato (`WI-CORE-045`, INTEROP-2.9 §6.10):** el `resultSummary` aprobado es el objetivo del WI de OC11 (pendiente, no comportamiento actual) y el límite de 300 archivos pertenece a GitHub Integration (repositorio ajeno; solo documentado).
+- **Decisión aprobada (PQ-OC11, 2026-10-12), actualizada el mismo día por el usuario («1: mensaje genérico veraz (Recomendado)»):** V1 mantiene `INFRASTRUCTURE_FAILURE` con Check `neutral`, sin estado nuevo, y un `resultSummary` genérico y veraz «No se pudo verificar el compare de GitHub (por ejemplo, un PR con 300 o más archivos); análisis no realizado», porque `UNVERIFIABLE` no distingue el límite de 300 de otras causas (permiso, 403, 429, 5xx, red) y no se debe afirmar que sean 300 archivos. Sin cambios en GitHub Integration ni en su contrato. La redacción «PR excede 300 archivos; análisis no realizado» queda como objetivo diferido en la deuda «umbral de repo grande + progreso». El WI de OC11 (`WI-CORE-046`) deja de relanzar el error en `UNVERIFIABLE` (el reintento entra en `snapshot-analysis-job.handler.ts:168-172` y termina sin trabajo), con prueba.
+- **Estado final:** Run `INFRASTRUCTURE_FAILURE`. Check `neutral`. **Contrato (`WI-CORE-047`, INTEROP-2.10 §6.10):** el `resultSummary` genérico es el objetivo del WI de OC11 (pendiente hasta su cierre, no comportamiento actual) y el límite de 300 archivos pertenece a GitHub Integration (repositorio ajeno; solo documentado).
 - **Fuente:** SYS «CHANGESET, INDEX DELTA y símbolos»; GH §Operaciones (Compare); HU06, HU14.
 - **Cobertura existente:** `snapshot-intelligence/snapshot-analysis-job.handler.spec.ts` → «transitions to INFRASTRUCTURE_FAILURE and rethrows when the GitHub API fails» (falla genérica del compare); `github-app/github-repository-content.service.spec.ts` no cubre el límite de 300; sin cobertura localizada del caso.
 

@@ -2,7 +2,7 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-**Línea base de planificación Core/Console:** SDD 3.0 / INTEROP-2.9. Core mantiene SYSTEM-2.9 como contrato canónico; Console sincronizó los espejos SYSTEM-2.9 e INTEROP-2.8 en `WI-CONSOLE-025` (`CS-CORE-20261012-001`). **Homologación global pendiente:** Sandbox conserva SDD 2.1 y SYSTEM-2.2; su `WI-SANDBOX-003` registra solo el preflight/ACK de la decisión aplicable, no aprobación local de `DEC-INF-001`, despliegue ni compatibilidad global.
+**Línea base de planificación Core/Console:** SDD 3.0 / INTEROP-2.10. Core mantiene SYSTEM-2.10 como contrato canónico; Console sincronizó los espejos SYSTEM-2.9 e INTEROP-2.8 en `WI-CONSOLE-025` (`CS-CORE-20261012-001`). **Homologación global pendiente:** Sandbox conserva SDD 2.1 y SYSTEM-2.2; su `WI-SANDBOX-003` registra solo el preflight/ACK de la decisión aplicable, no aprobación local de `DEC-INF-001`, despliegue ni compatibilidad global.
 
 Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> `constitution/planning-model.md` y constitución aplicable -> `backlog.md`/`operational-cases.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables -> `harness/work-items.json`. La extracción está detallada en `features/016-github-integration/`; las dependencias entre repos y sus puertas locales, en `features/017-cross-repository-dependency-gates/`. Cada repo mantiene solo WIs locales y se coordina por Contract Sync.
 
