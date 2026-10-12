@@ -2569,12 +2569,12 @@
         "OC11"
       ],
       "dependsOn": [
-        "WI-CORE-045"
+        "WI-CORE-047"
       ],
       "contractImpact": false,
       "publishesContract": false,
       "acceptanceCriteria": [
-        "Un compare UNVERIFIABLE completa el Run INFRASTRUCTURE_FAILURE con Check neutral y un resultSummary explícito que lo distingue de una caída de Core; el texto exacto lo aprueba el usuario (ver harness/reports/wi-core-046-preparation.md: UNVERIFIABLE no distingue el límite de 300 de otras causas).",
+        "Un compare UNVERIFIABLE completa el Run INFRASTRUCTURE_FAILURE con Check neutral y resultSummary «No se pudo verificar el compare de GitHub (por ejemplo, un PR con 300 o más archivos); análisis no realizado» (decisión del usuario 2026-10-12, «1: mensaje genérico veraz (Recomendado)»; no afirma que sean 300 archivos); «PR excede 300 archivos» queda diferido a la deuda «umbral de repo grande + progreso».",
         "El job no relanza el error en UNVERIFIABLE, de modo que no hay reintento ruidoso; los demás errores conservan su comportamiento actual.",
         "Prueba roja-verde en snapshot-analysis-job.handler.spec.ts; vitest, lint y tsc contra la línea base (delta 0 por archivo).",
         "Confinado al análisis de PR: no se modifican experimentos (008), OE2/OE5, evidencia, métricas ni sandbox/map-sandbox-result.ts; sin cambio de contrato, DTO ni migración."
@@ -2583,14 +2583,15 @@
         "spec/features/013-pr-driven-analysis/spec.md",
         "spec/features/013-pr-driven-analysis/tasks.md",
         "spec/contracts/interoperability-contract.md",
-        "harness/reports/wi-core-046-preparation.md"
+        "harness/reports/wi-core-046-preparation.md",
+        "spec/contracts/interoperability-contract.md"
       ]
     },
     {
       "id": "WI-CORE-047",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-SELECTED",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Aprobar DEC-VAL-002 en SYSTEM-2.10: fallo de plataforma por símbolo y precedencia del Run",
@@ -2612,7 +2613,8 @@
       "contractImpact": true,
       "publishesContract": true,
       "syncScopePaths": [
-        "spec/contracts/system-contract.md"
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
       ],
       "scopeApprovalReport": "harness/reports/wi-core-047-scope-approval.md",
       "contractSyncReview": [
@@ -2635,7 +2637,7 @@
         "DEC-VAL-002 queda APROBADA en SYSTEM-2.10 con la precedencia BEHAVIORAL_MISMATCH > TECHNICAL_GENERATION_FAILURE > INFRASTRUCTURE_FAILURE > SUCCESS > NO_ADDITIONAL_TESTS_REQUIRED/NO_TEST_RELEVANT_CHANGES, la definición de fallo de plataforma por símbolo y la razón; A2/A3 se retiran como no elegidas.",
         "Se declaran las consecuencias: un Run con un símbolo sin veredicto por plataforma no es SUCCESS y su companion PR no es publicable hasta reintentar; los resultados por símbolo se conservan y siguen consultables.",
         "Se escribe la condición del usuario: el cambio se confina al análisis de PR y no altera experimentos (008), OE2/OE5 ni evidencia/métricas existentes; map-sandbox-result.ts exige prueba de no regresión o no se toca; si afecta métricas, DECISION_REQUIRED.",
-        "Se actualiza la línea «Ver DEC-VAL-002» y se corrige la cita INTEROP-2.8 de system-contract.md l.68; INTEROP solo si el contract-reviewer lo exige.",
+        "Se actualiza la línea «Ver DEC-VAL-002», se corrigen las citas INTEROP-2.8 de system-contract.md y, por decisión del usuario sobre OC11, INTEROP-2.10 aclara en §6.10 el mensaje genérico veraz de un compare UNVERIFIABLE (sin afirmar 300 archivos; «PR excede 300 archivos» diferido a la deuda «umbral de repo grande + progreso»).",
         "Contract-reviewer aprueba antes de editar; Contract Sync a console y github-integration (Sandbox solo si aplica); sin cambios en app/."
       ],
       "specPaths": [
@@ -2645,7 +2647,54 @@
         "spec/contracts/interoperability-contract.md",
         "CHANGELOG.md",
         "harness/reports/wi-core-047-scope-approval.md",
-        "harness/reports/wi-core-047-contract-sync-scope-review.md"
+        "harness/reports/wi-core-047-contract-sync-scope-review.md",
+        "harness/reports/wi-core-047-contract-proposal.md",
+        "harness/reports/wi-core-047-contract-review.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-007.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-008.md",
+        "harness/contract-sync/outbox/CS-CORE-20261012-007.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-008.yaml",
+        "harness/reports/wi-core-047-technical-checks.md",
+        "harness/reports/wi-core-047-review-request.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-048",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "OC08: alinear la clasificación por símbolo y del Run a DEC-VAL-002 aprobada",
+      "storyIds": [
+        "HU04",
+        "HU11",
+        "HU13",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-055"
+      ],
+      "caseIds": [
+        "OC08"
+      ],
+      "dependsOn": [
+        "WI-CORE-047"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Una excepción de Sandbox no disponible, un timeout o una falla de categoría INFRASTRUCTURE de un símbolo elegible se clasifica como fallo de plataforma del símbolo (no TECHNICAL_GENERATION_FAILURE); compilación, aserción, error de ejecución, dependencia, configuración y UNKNOWN siguen siendo técnicos.",
+        "La precedencia del estado del Run con resultados mezclados es BEHAVIORAL_MISMATCH > TECHNICAL_GENERATION_FAILURE > INFRASTRUCTURE_FAILURE > SUCCESS > NO_ADDITIONAL_TESTS_REQUIRED/NO_TEST_RELEVANT_CHANGES; prueba roja-verde por cada par de la precedencia.",
+        "Los resultados por símbolo (propuestas, ejecuciones, evidencia) y el resultSummary, que cuenta aparte los fallos de plataforma, se conservan y siguen consultables con Run INFRASTRUCTURE_FAILURE.",
+        "Condición del usuario: confinado al análisis de PR (analysis-run-validation-job.handler.ts y su clasificación); no altera experimentos (008), OE2/OE5, evidencia ni métricas existentes; si se toca sandbox/map-sandbox-result.ts exige prueba de no regresión sobre experimentos o no se toca; si afecta métricas, DECISION_REQUIRED y no se aplica.",
+        "Check neutral y companion PR no publicable (409) con INFRASTRUCTURE_FAILURE; vitest, lint y tsc contra la línea base (delta 0 por archivo); sin build en app/ mientras el Core local ajeno esté vivo."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-048-preparation.md"
       ]
     }
   ]
