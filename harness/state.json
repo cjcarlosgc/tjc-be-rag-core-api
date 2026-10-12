@@ -11703,7 +11703,130 @@
       "closedAt": "2026-10-12T13:43:52.000Z"
     }
   ],
-  "activeWorkItem": null,
+  "activeWorkItem": {
+    "id": "WI-CORE-004",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "storyIds": [
+      "HU03",
+      "HU04",
+      "HU05",
+      "HU06",
+      "HU07",
+      "HU08",
+      "HU09",
+      "HU10",
+      "HU11",
+      "HU12",
+      "HU13",
+      "HU14",
+      "HU15",
+      "HU16"
+    ],
+    "taskIds": [
+      "ST-CORE-004"
+    ],
+    "caseIds": [
+      "OC01",
+      "OC02",
+      "OC03",
+      "OC04",
+      "OC05",
+      "OC06",
+      "OC07",
+      "OC08",
+      "OC09",
+      "OC10",
+      "OC11",
+      "OC12",
+      "OC13",
+      "OC14",
+      "OC15"
+    ],
+    "sprint": "P2",
+    "status": "W-SELECTED",
+    "specPaths": [
+      "spec/features/015-sdd-harness-transition/spec.md",
+      "spec/features/015-sdd-harness-transition/plan.md",
+      "spec/features/015-sdd-harness-transition/tasks.md",
+      "spec/operational-cases.md",
+      "spec/features/013-pr-driven-analysis/spec.md",
+      "spec/features/013-pr-driven-analysis/plan.md",
+      "spec/features/013-pr-driven-analysis/tasks.md",
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md",
+      "spec/contracts/github-integration-contract.md"
+    ],
+    "transversalPaths": [],
+    "approved": false,
+    "decisionGate": {
+      "checked": false,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": null
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": null,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-NOT_RUN",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-NOT_RUN",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-004",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-12T21:04:36.781Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-004-scope-approval.md",
+      "harness/reports/wi-core-004-contract-sync-scope-review.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {}
+  },
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",

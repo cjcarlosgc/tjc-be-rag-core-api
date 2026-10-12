@@ -210,7 +210,7 @@
       "id": "WI-CORE-004",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-SELECTED",
       "priority": "P2",
       "sprint": "P2",
       "title": "Formalizar casos operativos",
@@ -258,8 +258,16 @@
       "specPaths": [
         "spec/features/015-sdd-harness-transition/spec.md",
         "spec/features/015-sdd-harness-transition/plan.md",
-        "spec/features/015-sdd-harness-transition/tasks.md"
-      ]
+        "spec/features/015-sdd-harness-transition/tasks.md",
+        "spec/operational-cases.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/plan.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-004-scope-approval.md"
     },
     {
       "id": "WI-CORE-005",
@@ -2274,10 +2282,16 @@
       "priority": "P1",
       "sprint": "PHP compatibility cross",
       "title": "Preservar instrucciones PHP al alcanzar toolCallCap",
-      "storyIds": ["HU17"],
-      "taskIds": ["ST-CORE-049"],
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-049"
+      ],
       "caseIds": [],
-      "dependsOn": ["WI-CORE-029"],
+      "dependsOn": [
+        "WI-CORE-029"
+      ],
       "contractImpact": false,
       "publishesContract": false,
       "acceptanceCriteria": [
@@ -2319,13 +2333,20 @@
       "priority": "P1",
       "sprint": "PHP E2E infrastructure",
       "title": "Resolver DEC-INF-001 para infraestructura remota de Sandbox",
-      "storyIds": ["HU11"],
-      "taskIds": ["ST-CORE-050"],
+      "storyIds": [
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-050"
+      ],
       "caseIds": [],
       "dependsOn": [],
       "contractImpact": true,
       "publishesContract": true,
-      "syncScopePaths": ["spec/contracts/system-contract.md", "spec/contracts/interoperability-contract.md"],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
       "contractSyncReview": [
         {
           "eventId": "CS-20260920-001",
@@ -2364,14 +2385,14 @@
         "harness/reports/wi-core-043-sdd-analyst-review.md",
         "harness/reports/wi-core-043-contract-review.md",
         "harness/reports/wi-core-043-independent-review-cycle-1.md",
-            "harness/reports/wi-core-043-independent-review-cycle-2.md",
+        "harness/reports/wi-core-043-independent-review-cycle-2.md",
         "harness/reports/wi-core-043-technical-checks.md",
         "harness/reports/wi-core-043-final-reconciliation.md",
         "harness/reports/wi-core-043-contract-sync-relevance.md",
         "harness/reports/contract-sync-resolution-cs-gh-20261011-003.md",
-            "harness/contract-sync/inbox/CS-GH-20261011-003.yaml",
-            "harness/contract-sync/outbox/CS-CORE-20261012-001.yaml",
-            "harness/reports/contract-sync-publish-cs-core-20261012-001.md"
+        "harness/contract-sync/inbox/CS-GH-20261011-003.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-001.yaml",
+        "harness/reports/contract-sync-publish-cs-core-20261012-001.md"
       ]
     }
   ]
