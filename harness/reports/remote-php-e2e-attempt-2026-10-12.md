@@ -28,6 +28,32 @@ Core invocó una sola vez `SandboxExecutionService.execute()` con el perfil `PHP
 
 No se imprimieron ni persistieron el token, las URLs firmadas o el cuerpo de error. La causa concreta del `401` no se atribuye sin inspección; no se reintentó el POST. El resultado y el requestId se comunicaron a la sesión Sandbox para anexarlos a `WI-SANDBOX-004`, que permanece activo y no se declara cerrado.
 
+Cross cerró el túnel IAP y restauró el Sandbox local; después informó live/ready `200`/`200` en local. El proceso remoto temporal reportado como PID `13683` **no está confirmado detenido**; Core/Cross no harán otra conexión SSH/2FA. Jean puede detenerlo en la terminal ya abierta de la VM, desde el directorio `app`, usando esta guarda para verificar PID, comando y cwd antes de enviar `TERM`:
+
+```sh
+pid=13683
+expected_cwd="$(pwd -P)"
+actual_cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+process_args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+
+if [ "$actual_cwd" = "$expected_cwd" ] && printf '%s' "$process_args" | grep -Fq 'node dist/main.js'; then
+  kill -TERM "$pid"
+  for attempt in $(seq 1 10); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    echo 'El proceso sigue activo; no enviar otra señal automáticamente.'
+  else
+    echo 'Proceso temporal detenido.'
+  fi
+else
+  echo 'PID/cwd/comando no coincide; no se detuvo ningún proceso.'
+fi
+
+ss -lntp | grep ':3001' || true
+```
+
 ## WIs Core planificados revisados
 
 - `WI-CORE-004` sigue `W-PLANNED`, P2. Corresponde a formalizar OC01–OC15 empezando por happy paths; su dependencia local `WI-CORE-001` está `W-DONE`. No tiene aprobación registrada y no es necesario para este smoke, así que no se seleccionó.
