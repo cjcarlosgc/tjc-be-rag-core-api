@@ -2686,7 +2686,7 @@
       "id": "WI-CORE-048",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "OC08: alinear la clasificación por símbolo y del Run a DEC-VAL-002 aprobada",
@@ -2722,7 +2722,9 @@
         "harness/reports/wi-core-048-scope-approval.md",
         "harness/reports/wi-core-048-contract-sync-scope-review.md",
         "app/src/validation/analysis-run-validation-job.handler.ts",
-        "app/src/validation/analysis-run-validation-job.handler.spec.ts"
+        "app/src/validation/analysis-run-validation-job.handler.spec.ts",
+        "harness/reports/wi-core-048-technical-checks.md",
+        "harness/reports/wi-core-048-review-request.md"
       ],
       "contractSyncReview": [
         {
