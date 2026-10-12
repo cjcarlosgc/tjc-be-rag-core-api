@@ -13670,7 +13670,7 @@
     "id": "WI-CORE-050",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P2",
     "title": "Validar SANDBOX_URL con isAllowedSandboxUrl (HTTPS obligatorio en producción)",
     "approved": true,
@@ -13690,7 +13690,8 @@
       "app/src/config/env.validation.spec.ts",
       "harness/reports/wi-core-050-scope-approval.md",
       "harness/reports/wi-core-050-contract-sync-scope-review.md",
-      "app/.env.example"
+      "app/.env.example",
+      "harness/reports/wi-core-050-technical-checks.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -13723,24 +13724,48 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "isAllowedSandboxUrl: HTTPS obligatorio en produccion, HTTP solo loopback fuera de produccion, sin credenciales/ruta/query; DEC-AUTH-001 intacta; rojo-verde."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/config/env.validation.ts",
+            "app/src/config/env.validation.spec.ts",
+            "app/.env.example"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-050-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -13755,6 +13780,32 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-12T23:06:22.788Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-050",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-12T23:07:58.493Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-050",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-12T23:07:58.597Z"
         }
       ],
       "publishedSyncIds": [],
@@ -13762,7 +13813,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-050-scope-approval.md",
-      "harness/reports/wi-core-050-preparation.md"
+      "harness/reports/wi-core-050-preparation.md",
+      "harness/reports/wi-core-050-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -13771,6 +13823,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-050-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-050-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-050-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-050-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-050-technical-checks.md"
       ]
     }
   },
