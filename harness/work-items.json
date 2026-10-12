@@ -2473,7 +2473,7 @@
       "id": "WI-CORE-045",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Precisar contrato: errores de OC15, semántica de functionalBehaviorValidated y clasificación por plataforma (OC08/OC11)",
