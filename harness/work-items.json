@@ -2554,7 +2554,7 @@
       "id": "WI-CORE-046",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "OC11: resultSummary explícito y no relanzar el error cuando el compare del PR es UNVERIFIABLE",
