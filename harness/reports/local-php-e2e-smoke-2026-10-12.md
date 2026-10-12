@@ -96,3 +96,38 @@ Autorización: Jean confirmó en el chat de la sesión Core «Sí, un único POS
 **Pregunta abierta para el contrato real:** cómo congela Core `projectRoot` cuando el snapshot de GitHub trae carpeta contenedora, y si el Sandbox debe aplanarla o Core debe emitir el prefijo. No se inventa cierre aquí.
 
 **Siguiente paso:** un segundo POST remoto con el ZIP plano requiere una autorización nueva, distinta de la del «único POST» ya gastado. El túnel lo cierra Cross.
+
+## 8. Segundo POST remoto a la VM, con ZIP plano (2026-10-12, 13:46 -05): COMPLETED
+
+Autorización: Jean confirmó en el chat de la sesión Core «Sí, un POST adicional» (alcance: un solo `POST /executions`, ZIP plano, `projectRoot "."`, sin reintento, sin push ni infraestructura). Mismo script corregido (`SANDBOX_URL=http://127.0.0.1:3101`, túnel de Cross, Sandbox `9e2d1b0`/código `0c2b43a`). `/health/ready` por el túnel: `200` justo antes. El Sandbox local `:3001` no se tocó.
+
+| Dato | Resultado |
+| --- | --- |
+| `POST /executions` | Exactamente 1 (`executionPosts=1`), sin reintento |
+| `executionId` | `d1ed72b9-b1f2-4477-b220-05dff0078647` |
+| `requestId` | `497cd174-2e1c-4f3a-94de-83e8398b820c` |
+| `correlationId` | `d8093f4c-b1f5-4ada-8367-98b0f6ae6997` |
+| Estado | `COMPLETED`, `failure: null` |
+| Perfil / runner | `PHP_LARAVEL_PHPUNIT` / `PHPUNIT` |
+| `facts` | `compiled=true`, `executed=true`, `passed=true`; `totalTests=3`, `passedTests=3`, `failedTests=0` |
+| Etapas (ms) | `PREPARING` 747 · `INSTALLING_DEPENDENCIES` 3441 · `RUNNING_TESTS` 668 |
+| Duración (POST → resultado) | 14079 ms |
+| SHA-256 del snapshot demo (ZIP plano) | `29898019dba98a01985b81c2329be141d509db427af615d5424e470aad49ce2b` |
+| Limpieza de Storage | 3 objetos escritos, 3 borrados |
+
+Casos (`testCases`): `Tests\Unit\AddTest::testAddsTwoNumbers` PASSED; `Tests\Unit\RuntimeIdentityTest::testRunsAsSandboxUser` PASSED; `Tests\Unit\RuntimeIdentityTest::testWorkingDirectoryIsNotTheHostPath` PASSED. Los tres con `failureKind: null`.
+
+**Qué demuestra:**
+- Core → Sandbox remoto por IAP de extremo a extremo con PHP/PHPUnit: aceptación, `composer install`, ejecución de los artefactos CREATED y resultado terminal mapeado por Core.
+- **`projectRoot "."` con ZIP plano funciona**: el adaptador encontró `composer.json` y PHPUnit. Confirma la causa del §7: el fallo anterior fue de empaquetado del smoke.
+- **UID 10001**: `getmyuid() === 10001` dentro del contenedor (el test pasó). WI-SANDBOX-005 efectivo en la VM.
+- **Aislamiento del host**: `getcwd()` sin ruta del host (`/Users/`).
+- Solo se ejecutaron los artefactos generados (3 tests; la fixture trae además `MathTest`, que no figura).
+
+**Matices honestos (no se maquillan):**
+- `suitePath` llega como **nombre de clase** (`Tests\Unit\AddTest`), no como ruta de archivo repo-relativa. La comprobación de «paths repo-relative» sobre `testCases` queda abierta: lo que sí está probado es que los artefactos se aplicaron en `tests/Unit/...` relativos a `projectRoot`.
+- Se ejercitó `projectRoot "."`. No se probó un subproyecto (`projectRoot` anidado, p. ej. `backend`).
+- Es un proyecto de demo (fixture de PHPUnit), **no** un repositorio Laravel ni un PR real: no hay Run de Core, ni generación por LLM, ni Check de GitHub. No es una observación oficial del piloto.
+- Una sola ejecución: no estima variabilidad ni estabilidad.
+
+**Siguiente paso posible (requiere decisión de Jean):** repetir con un `projectRoot` anidado y con un repositorio piloto real (flujo PR → AnalysisRun → Sandbox). El túnel lo cierra Cross.
