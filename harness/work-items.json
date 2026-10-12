@@ -2591,7 +2591,7 @@
       "id": "WI-CORE-047",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Aprobar DEC-VAL-002 en SYSTEM-2.10: fallo de plataforma por símbolo y precedencia del Run",
