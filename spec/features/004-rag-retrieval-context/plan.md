@@ -50,3 +50,6 @@ Verificación SDD en `harness/reports/wi-core-022-sdd-verification.md` (2026-10-
 - **Cortes.** (1) migración + repositorio + modo SE/SEM + ranking/métricas puros; (2) job + handler + servicio + idempotencia; (3) controlador/DTO/errores/roles/listado; (4) cierre y Contract Sync a Console.
 
 **DEC-RC-003 (APROBADA el 2026-10-09 por el usuario, en chat):** `GET /retrieval-comparisons/{id}/results` en una comparación `FAILED` responde `409 RETRIEVAL_COMPARISON_FAILED` (mismo cuerpo de error de §4; `failureCode`/`failureMessage` se leen del status); `RETRIEVAL_COMPARISON_NOT_FINISHED` aplica solo a `PENDING`/`RUNNING`; el 200 trae siempre exactamente SE y SEM. `completedAt` no se inventa: no se rellena con `new Date()` cuando es null. Revisión: `harness/reports/wi-core-022-failed-results-review.md`.
+
+## Corrección de la búsqueda de chunk de un método (WI-CORE-044, 2026-10-12)
+Un objetivo de método busca los chunks `METHOD` y `CONSTRUCTOR` (el parser persiste `CONSTRUCTOR` y el `AnalysisRun` lo colapsa a `METHOD`) sin cambiar el chunk key persistido ni reindexar. Si coexisten ambos kinds con el mismo `symbolName` y `parentSymbolName`, gana `METHOD` y solo se reúnen las partes (`partIndex`/`partsTotal`) de ese kind; `CONSTRUCTOR` solo se usa si no hay `METHOD`. Un objetivo de función sigue buscando `FUNCTION`.

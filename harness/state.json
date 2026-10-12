@@ -11720,10 +11720,11 @@
     "sprint": "PHP E2E infrastructure",
     "status": "W-IN_REVIEW",
     "specPaths": [
+      "spec/features/004-rag-retrieval-context/plan.md",
+      "spec/features/004-rag-retrieval-context/spec.md",
       "spec/features/013-pr-driven-analysis/spec.md",
       "spec/features/013-pr-driven-analysis/tasks.md",
-      "spec/features/018-php-laravel-support/spec.md",
-      "spec/features/004-rag-retrieval-context/spec.md"
+      "spec/features/018-php-laravel-support/spec.md"
     ],
     "transversalPaths": [],
     "approved": true,

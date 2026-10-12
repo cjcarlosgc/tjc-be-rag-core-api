@@ -2424,13 +2424,17 @@
         "Un símbolo CONSTRUCTOR (PHP y TypeScript) resuelve su chunk en la recuperación sin cambiar el chunk key persistido; prueba roja-verde.",
         "Los símbolos de archivos de test (clase y métodos de tests PHP/TS) no son objetivos de generación en el validador de AnalysisRun; sin cambiar el pool de indexación ni lo persistido; se documentan los consumidores de analysis_symbols; prueba roja-verde.",
         "La ruta propuesta PHP no duplica tests/Unit/tests/Unit; DEC-PHP-GEN-001/002 no se revierten (DECISION_REQUIRED si el arreglo las exige).",
-        "Sin cambio de contrato, DTO, Sandbox, GitHub Integration ni migraciones; vitest, lint y tsc contra la línea base; evidencia roja-verde por corte en el reporte."
+        "Sin cambio de contrato, DTO, Sandbox, GitHub Integration ni migraciones; vitest, lint y tsc contra la línea base; evidencia roja-verde por corte en el reporte.",
+        "Ampliación (usuario, 2026-10-12): si coexisten METHOD y CONSTRUCTOR homónimos gana METHOD y solo se reúnen las partes de ese kind; con prueba roja-verde.",
+        "Ampliación: isTestSourcePath es sensible al projectRoot (PHP: tests solo como primer segmento relativo a la raíz o *Test.php; TS/JS: .spec/.test, __tests__ y tests/test solo como primer segmento) y el validador pasa version.effectiveProjectRoot.",
+        "Ampliación: el evaluador funcional excluye los símbolos de archivos de test para que un método de test con ramas no origine ACTION_REQUIRED, sin cambiar analysis_symbols, trace, evidencia, experimentos ni OE2."
       ],
       "specPaths": [
+        "spec/features/004-rag-retrieval-context/plan.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
         "spec/features/013-pr-driven-analysis/spec.md",
         "spec/features/013-pr-driven-analysis/tasks.md",
-        "spec/features/018-php-laravel-support/spec.md",
-        "spec/features/004-rag-retrieval-context/spec.md"
+        "spec/features/018-php-laravel-support/spec.md"
       ],
       "contractSyncReview": [
         {
