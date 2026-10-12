@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU02–HU16 (las que citan las subtareas de esta feature y los casos OC01–OC15; el encabezado anterior listaba solo HU02, HU06–HU09 y HU13–HU16)
-**Contrato:** SYSTEM-2.10 / INTEROP-2.10 / GH-INTEROP-1.7 (verificado en la cabecera de `spec/contracts`; el cuerpo de esta feature conserva sus reglas y no se reescribió en esta corrección)
+**Contrato:** SYSTEM-2.11 / INTEROP-2.11 / GH-INTEROP-1.7 (verificado en la cabecera de `spec/contracts`; el cuerpo de esta feature conserva sus reglas y no se reescribió en esta corrección)
 
 ## Objetivo
 
@@ -237,7 +237,7 @@ Resumen de estado: **FORMALIZADO** OC01–OC15; OC09 es especificación sin impl
 
 - **Por qué no se formaliza:** SYS indica que los PR grandes «se filtran, priorizan y pueden dividirse en batches sin fijar thresholds»; Core no implementa filtrado, priorización ni batches (los candidatos se procesan en serie, `analysis-run-validation-job.handler.ts:257-303`). Comportamiento observado: GH fija que un compare que alcanza 300 archivos es `UNVERIFIABLE`, `unwrapLookup` lo convierte en error (`github-repository-content.service.ts:157-171`) y el job termina el Run `INFRASTRUCTURE_FAILURE` con Check `neutral` (`snapshot-analysis-job.handler.ts:386-401`).
 - **Decisión aprobada (PQ-OC11, 2026-10-12), actualizada el mismo día por el usuario («1: mensaje genérico veraz (Recomendado)»):** V1 mantiene `INFRASTRUCTURE_FAILURE` con Check `neutral`, sin estado nuevo, y un `resultSummary` genérico y veraz «No se pudo verificar el compare de GitHub (por ejemplo, un PR con 300 o más archivos); análisis no realizado», porque `UNVERIFIABLE` no distingue el límite de 300 de otras causas (permiso, 403, 429, 5xx, red) y no se debe afirmar que sean 300 archivos. Sin cambios en GitHub Integration ni en su contrato. La redacción «PR excede 300 archivos; análisis no realizado» queda como objetivo diferido en la deuda «umbral de repo grande + progreso». El WI de OC11 (`WI-CORE-046`) deja de relanzar el error en `UNVERIFIABLE` (el reintento entra en `snapshot-analysis-job.handler.ts:168-172` y termina sin trabajo), con prueba.
-- **Estado final:** Run `INFRASTRUCTURE_FAILURE`. Check `neutral`. **Contrato (`WI-CORE-047`, INTEROP-2.10 §6.10):** el `resultSummary` genérico es el objetivo del WI de OC11 (pendiente hasta su cierre, no comportamiento actual) y el límite de 300 archivos pertenece a GitHub Integration (repositorio ajeno; solo documentado).
+- **Estado final:** Run `INFRASTRUCTURE_FAILURE`. Check `neutral`. **Contrato (INTEROP-2.11 §6.10):** el `resultSummary` genérico está implementado en `WI-CORE-046` y el límite de 300 archivos pertenece a GitHub Integration (repositorio ajeno; solo documentado).
 - **Fuente:** SYS «CHANGESET, INDEX DELTA y símbolos»; GH §Operaciones (Compare); HU06, HU14.
 - **Cobertura existente:** `snapshot-intelligence/snapshot-analysis-job.handler.spec.ts` → «transitions to INFRASTRUCTURE_FAILURE and rethrows when the GitHub API fails» (falla genérica del compare). **Implementado en `WI-CORE-046` (2026-10-12):** «completes as INFRASTRUCTURE_FAILURE with the exact neutral summary and does not rethrow when compare is UNVERIFIABLE», «keeps rethrowing a GitHub unavailable error without UNVERIFIABLE lookup status from compare», «keeps rethrowing an UNVERIFIABLE lookup from another operation with its own message» y, en `github-app/github-repository-content.service.spec.ts`, «exposes the lookup status on the unavailable error for compare UNVERIFIABLE».
 

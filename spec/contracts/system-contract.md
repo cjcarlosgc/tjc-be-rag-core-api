@@ -1,8 +1,8 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.10
+**Versión del contrato:** SYSTEM-2.11
 **Fecha de corte:** 2026-10-12
-**Estado:** APROBADO salvo decisiones `PENDING` explícitas
+**Estado:** APROBADO salvo decisiones `PENDING`/`PROPOSED` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
 Core y Console establecen la frontera de un cuarto componente durante `planningBaseline: 2026-09-24-core-console-transition`. Sandbox conserva por ahora la copia operativa SYSTEM-2.2, correspondiente a su línea SDD 2.1, sin editarla ni homologarla en este corte. `GH-INTEROP-1.7` extiende el contrato de extracción: Core y GitHub Integration sirven al pipeline; Console accede directamente a GitHub Integration para capacidades de GitHub propias de su interfaz, con autorización síncrona de Core; la publicación de Checks queda limitada a una única instancia activa de GitHub Integration y un mutex efímero en proceso, sin una base adicional de coordinación. Tras reiniciar el proceso, la coordinación volátil se pierde y el contrato acepta el riesgo residual de duplicado cuando el resultado remoto de una creación anterior no sea visible en la búsqueda. El rechazo terminal confirmado de creación conserva la reconciliación completa sin candidatos. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consumió en `WI-CORE-011`; Console sincronizó y validó el corte previo en `WI-CONSOLE-008`. Los cierres son locales: la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
@@ -65,10 +65,10 @@ Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la A
 
 ## Workspaces, roles y acceso
 
-Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo vigente de rutas, DTOs, errores y eventos vive en `INTEROP-2.10` §6.13 y §6.14.
+Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo vigente de rutas, DTOs, errores y eventos vive en `INTEROP-2.11` §6.13 y §6.14.
 
 - Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. Un Project personal solo lo ve su creador, que es siempre su Admin y no tiene registro de acceso; solo se comparte mediante organizaciones. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y, para Projects de organización, un registro de acceso `(projectId, userId, rol, verifiedAt)`.
-- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (en una organización, Maintainer, Writer y Reader exigen además ser miembro activo de ella; `DEC-ORG-003`): Reader solo consulta; Writer opera el día a día (dispara Runs, vincula, pausa y reactiva repositorios, publica tests, envía cambios a una rama nueva y los acepta, ejecuta experimentos y comparaciones de retrieval) salvo responder preguntas funcionales y registrar `UNKNOWN`; Maintainer, además, responde preguntas funcionales y confirma conocimiento funcional; Admin, además, crea, renombra y elimina Projects. Core deriva el rol de los hechos de permiso que entrega GitHub Integration y no acepta un rol enviado por el navegador: owner de la organización o creador del workspace personal → Admin; `admin` o `maintain` → Maintainer; `write` → Writer; `triage` o `read` → Reader. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.10` §6.13.
+- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (en una organización, Maintainer, Writer y Reader exigen además ser miembro activo de ella; `DEC-ORG-003`): Reader solo consulta; Writer opera el día a día (dispara Runs, vincula, pausa y reactiva repositorios, publica tests, envía cambios a una rama nueva y los acepta, ejecuta experimentos y comparaciones de retrieval) salvo responder preguntas funcionales y registrar `UNKNOWN`; Maintainer, además, responde preguntas funcionales y confirma conocimiento funcional; Admin, además, crea, renombra y elimina Projects. Core deriva el rol de los hechos de permiso que entrega GitHub Integration y no acepta un rol enviado por el navegador: owner de la organización o creador del workspace personal → Admin; `admin` o `maintain` → Maintainer; `write` → Writer; `triage` o `read` → Reader. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.11` §6.13.
 - El acceso se crea al entrar mediante una verificación en vivo solicitada a GitHub Integration, donde reside el installation token de la App; se revoca por los eventos normalizados de webhook y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
 - Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente responde `403`.
 
@@ -152,7 +152,7 @@ Antes de atribuir una falla a pruebas generadas, se ejecuta el baseline relevant
 - test generado técnicamente válido que evidencia discrepancia -> `BEHAVIORAL_MISMATCH`;
 - namespace/import/API/mock/setup/sintaxis inválidos generados -> `TECHNICAL_GENERATION_FAILURE`;
 - Docker/red/storage/worker/runtime de plataforma -> `INFRASTRUCTURE_FAILURE`;
-  - Para un símbolo elegible cuya ejecución falla por plataforma y para la precedencia del estado del Run con resultados mezclados rige `DEC-VAL-002` (APROBADA; implementación pendiente).
+  - Para un símbolo elegible cuya ejecución falla por plataforma y para la precedencia del estado del Run con resultados mezclados rige `DEC-VAL-002` (APROBADA; implementada en `WI-CORE-048`).
 - validación correcta -> `SUCCESS`.
 
 No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU17) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
@@ -272,6 +272,26 @@ Trace operativo (HU15): el recorrido auditable de un cambio tiene nueve enlaces:
 
 Esta resolución selecciona una topología y controles, pero no equivale a haber cambiado firewall, desplegado código, iniciado/parado la VM o autorizado un gasto adicional fuera del uso de esta instancia.
 
+### DEC-INF-002 — Exposición del servicio de Sandbox a Core desplegado en Render
+
+**Estado:** PROPOSED (2026-10-12, `WI-CORE-049`). Sin efecto normativo hasta su aprobación por el usuario; `DEC-INF-001` sigue vigente. Aprobarla no autoriza por sí sola firewall, proxy, VM, DNS, certificados ni cambios en Render: cada operación requiere su autorización operativa explícita.
+
+**Blocks:** el despliegue de Core en Render contra el Sandbox remoto de la VM; no bloquea el trabajo local ni el túnel IAP vigente. El work item de código (`isAllowedSandboxUrl`) no empieza antes de su aprobación.
+
+**Contexto:** `DEC-INF-001` fija el ingreso al servicio del Sandbox por IAP TCP forwarding. Un Core desplegado en Render (red pública) no puede abrir un túnel IAP interactivo; el único destino verificado hasta ahora es `http://127.0.0.1:3101` (túnel desde una máquina del usuario). La validación de entorno actual de `SANDBOX_URL` no restringe esquema ni host.
+
+**Propuesta:** sustituye **parcialmente** solo la parte del párrafo «Red» de `DEC-INF-001` que fija el servicio del Sandbox por IAP y TCP 3000; el resto del párrafo «Red» sigue vigente (SSH/administración por IAP con OS Login y 2FA, los hallazgos de reglas existentes y «no publicar en `0.0.0.0/0`»). Core llegaría al Sandbox por HTTPS desde las IP de salida de Render, con TLS y `Authorization: Bearer` (`DEC-AUTH-001`, sin cambios). El puerto HTTP del Sandbox no se publica: escucha en loopback o red interna y solo es alcanzable por un proxy TLS en la misma VM, cuyo firewall limita el ingreso al puerto TLS a las IP de salida publicadas de Render. El resto de `DEC-INF-001` (VM única, alcance de datos, aislamiento por ejecución, retención) no cambia.
+
+**Riesgos:** (1) las IP de salida de Render, su estabilidad y su exclusividad no están verificadas; si son compartidas por la región, el firewall filtra el origen pero no identifica a Core, y la barrera efectiva es TLS más el bearer; (2) el Sandbox ejecuta código de terceros: más superficie de red aumenta el impacto de una fuga del token o de una falla del proxy; (3) el token pasa a viajar por Internet bajo TLS y su rotación no está definida, lo que refuerza la necesidad de rotación sin cambiar `DEC-AUTH-001`; (4) sin rate limit un portador del token puede agotar la VM; (5) sin monitoreo ni alertas un abuso pasa inadvertido; (6) TLS sin dominio propio exige decidir entre un nombre público gratuito con certificado público o una CA privada en la que Core confíe (cambio de código inexistente hoy); ninguna opción está verificada ni elegida; (7) las reglas públicas HTTP/HTTPS existentes (tags `http-server`/`https-server`, `0.0.0.0/0`) abarcarían el puerto TLS: deben retirarse o usarse otro tag y puerto antes de cualquier uso, y verificarse; (8) `/health/live` y `/health/ready` no llevan bearer y no deben quedar expuestos por el proxy, que además no debe registrar `Authorization`; (9) un cambio de IP de salida de Render deja a Core sin acceso hasta actualizar el firewall; (10) la latencia adicional puede acercar ejecuciones al timeout del Sandbox y producir fallos de plataforma (`DEC-VAL-002`), sin alterar la validez ni las métricas.
+
+**Reversión:** retirar la regla del puerto TLS y el proxy y volver al túnel IAP (`SANDBOX_URL` loopback), que `DEC-INF-001` mantiene como ruta aprobada.
+
+**Impacto en experimentos y métricas:** nulo en validez y resultados (mismo Sandbox, perfiles, aislamiento y clasificación); las métricas de duración medidas por Core incorporan el tiempo de red adicional y no son comparables con corridas por túnel sin declararlo.
+
+**Cambios previstos si se aprueba:** validación de entorno `isAllowedSandboxUrl` análoga a `isAllowedGithubIntegrationUrl` (HTTPS obligatorio en producción; HTTP solo loopback fuera de producción; sin credenciales, ruta ni query; sin romper `http://localhost:3001` ni `http://127.0.0.1:3101`) en un work item de código aparte; proxy, firewall y VM pertenecen al componente Sandbox/Cross con autorización operativa explícita.
+
+**Preguntas abiertas para el usuario:** TLS sin dominio propio (nombre gratuito con certificado público o CA privada); dueño y ventana del proxy y del firewall; plan de Render e IP de salida estables; límite de ejecuciones por minuto y por Project; si se mantiene el túnel IAP de respaldo; mecanismo y periodicidad de rotación del token.
+
 ### DEC-VAL-001 — Validación empresarial
 
 **Estado:** PENDING
@@ -296,7 +316,7 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 
 **Condición del usuario:** el cambio queda confinado al análisis de PR (clasificación por símbolo y del `AnalysisRun`) y no puede alterar el comportamiento de experimentos (008), OE2/OE5 ni la evidencia o métricas existentes. Si se toca `sandbox/map-sandbox-result.ts` (compartido por generación y experimentos), exige prueba de no regresión explícita sobre experimentos o no se toca; si afecta métricas, `DECISION_REQUIRED` y no se aplica.
 
-**Estado de la implementación:** pendiente. Hasta que el work item de código de OC08 se cierre, una excepción o timeout del Sandbox por símbolo se sigue clasificando `TECHNICAL_GENERATION_FAILURE` y la lista «Baseline» describe el comportamiento vigente.
+**Estado de la implementación:** implementada en `WI-CORE-048` (2026-10-12): una excepción, timeout o categoría `INFRASTRUCTURE` del Sandbox por símbolo es fallo de plataforma y el estado del Run aplica la precedencia; la evidencia por ejecución, los experimentos y las métricas no cambian.
 
 ### DEC-ORG-001 — Organizaciones y compartición de Projects
 
@@ -441,6 +461,8 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 **Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable. Las menciones de roles de `DEC-ORG-001` y `DEC-ORG-002` y de los planes de cortes ya implementados describen la historia; donde difieran, prevalece esta decisión.
 
 ## Regla de compatibilidad
+
+`SYSTEM-2.11` (2026-10-12, `WI-CORE-049`) registra `DEC-INF-002` como PROPOSED (sin efecto normativo; `DEC-INF-001` sigue vigente) y corrige el estado editorial de `DEC-VAL-002` (implementada en `WI-CORE-048`). Sandbox conserva SYSTEM-2.2 y no requiere acción local; `INTEROP-2.11` es la versión compatible.
 
 `SYSTEM-2.10` (2026-10-12, `WI-CORE-047`) aprueba `DEC-VAL-002` (fallo de plataforma por símbolo y precedencia del estado del Run, sin cambiar `DEC-INF-001` ni la infraestructura). Sandbox conserva SYSTEM-2.2 y no requiere acción local. `INTEROP-2.10` es la versión compatible.
 
