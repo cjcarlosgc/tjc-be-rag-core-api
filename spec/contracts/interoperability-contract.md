@@ -1481,7 +1481,7 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - Core implementa el consumo de `PHP_LARAVEL_PHPUNIT` (`WI-CORE-013`, `WI-CORE-028`, `WI-CORE-029`). El Sandbox publicado implementa el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest; `PHP_LARAVEL_PHPUNIT`, `phase` y `failureKind` los entrega el Sandbox según `CS-SANDBOX-20261009-001` y su estado de implementación se declara en ese componente.
 - La integración Core↔Sandbox actual continúa operativa bajo el subconjunto compatible de 1.6; la adopción completa de los campos 2.0 exige migración coordinada y contract tests en ambos backends.
 - `DEC-GH-001`, `DEC-INT-001`, `DEC-AUTH-001`, `DEC-IDEMP-001`, `DEC-WEB-AUTH-001`, `DEC-ORG-001`, `DEC-ORG-002`, `DEC-EXP-002`, `DEC-CHUNK-001` y `DEC-EMB-001` están `APROBADO` y, desde `INTEROP-2.7`, `DEC-EXP-003`, `DEC-EXP-FK-001`, `DEC-FK-001`, `DEC-FK-002` y `DEC-ORG-003` (todas `APROBADO`).
-- `DEC-INF-001` y `DEC-VAL-001` permanecen `PENDING` con blocks acotados. Mutation testing fue descartado para este alcance.
+- `DEC-INF-001` está `APROBADO` en SYSTEM-2.9 para reutilizar la VM GCE existente del Sandbox bajo los controles allí fijados; esto no declara firewall endurecido ni E2E desplegado. `DEC-VAL-001` permanece `PENDING` para código/evidencia empresarial, sin bloquear repositorios de piloto controlados. Mutation testing fue descartado para este alcance.
 
 ## 9. Reglas de implementación
 

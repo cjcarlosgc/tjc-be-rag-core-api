@@ -1,7 +1,7 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.8
-**Fecha de corte:** 2026-10-11
+**Versión del contrato:** SYSTEM-2.9
+**Fecha de corte:** 2026-10-12
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
@@ -255,11 +255,21 @@ Trace operativo (HU15): el recorrido auditable de un cambio tiene nueve enlaces:
 
 ### DEC-INF-001 — Infraestructura remota del Sandbox
 
-**Estado:** PENDING
+**Estado:** APROBADO (2026-10-12, por solicitud del usuario de resolver la decisión y autorización previa para adoptar la recomendación técnica)
 
-**Blocks:** aprovisionamiento remoto; no bloquea desarrollo ni prevalidación local.
+**Blocks:** NONE para seleccionar el destino; antes de ejecutar el despliegue deben cumplirse los controles de red de esta resolución y contar con autorización operativa explícita para los cambios concretos de GCE.
 
-**Pregunta:** seleccionar proveedor y controles de VM remota sin resolver silenciosamente costo, aislamiento, red o retención.
+**Resolución:** reutilizar la VM GCE ya existente `rag-test-execution-sandbox` en `us-central1-a` (e2-standard-4, 4 vCPU, 16 GiB RAM, disco de arranque pd-balanced de 100 GB). No crear otra VM, Cloud NAT, balanceador, base de coordinación ni otro componente de arquitectura. La instancia existente está en ejecución y genera cargos de cómputo mientras permanezca encendida; el disco, la IP externa y los snapshots también pueden generar cargos. No se presume que el crédito de GCP siga disponible ni se presenta esta opción como gratuita. Limitar el uso a ventanas autorizadas de prueba y detener la VM cuando no se esté usando para el piloto.
+
+**Alcance de datos y aislamiento:** exclusivamente repositorios de demostración/piloto controlados por el usuario; no código empresarial, datos de producción, secretos ni evidencia empresarial. `DEC-VAL-001` permanece `PENDING`. Mantener una sola VM de Sandbox y los controles ya aprobados para cada ejecución: contenedor efímero, usuario no-root UID/GID 10001, `CapDrop: ALL`, `no-new-privileges`, workspace aislado y red deshabilitada durante PHPUnit/tests. La salida a Internet de la VM existente se usa solo para obtener dependencias durante la fase de instalación; no se habilita red del contenedor durante las pruebas.
+
+**Red:** el acceso administrativo y al servicio de Sandbox será por IAP TCP forwarding, limitado mediante firewall al rango IAP IPv4 `35.235.240.0/20`, a esta VM y solo a TCP 22 (SSH) y TCP 3000 (puerto HTTP predeterminado de Sandbox; confirmar `PORT` efectivo). OS Login y 2FA permanecen habilitados. No publicar el puerto de Sandbox en `0.0.0.0/0`. Se conserva la IP externa existente únicamente para salida de la VM y descargas; IAP no requiere IP externa. La inspección de solo lectura del 2026-10-12 encontró reglas existentes de SSH, RDP, HTTP, HTTPS e ICMP desde `0.0.0.0/0` (HTTP/HTTPS aplican por los tags actuales `http-server`/`https-server`), y no encontró una regla de ingreso IAP. Por tanto, la política de ingreso no está aún satisfecha: antes de reutilizar la VM para otra prueba se deben limitar o eludir esas exposiciones para esta instancia, habilitar solo el ingreso aprobado por IAP y verificarlo sin interrumpir otras VMs del proyecto. Esta decisión no cambia reglas de firewall por sí sola.
+
+**Retención:** se acepta para este piloto controlado la política ya adjunta al disco: snapshots diarios, retención máxima de 14 días y `KEEP_AUTO_SNAPSHOTS` al borrar el disco de origen. El código clonado puede permanecer en el disco persistente y en sus snapshots; borrar contenedores o workspaces no purga esas copias. No colocar allí datos o código que requieran una retención menor. La decisión no elimina ni modifica la política de snapshots existente.
+
+**Estado de despliegue reportado por el usuario (2026-10-12):** el repositorio ya está clonado en esta VM y hubo un primer despliegue con fallas antes de correcciones recientes. Ese despliegue previo no demuestra que las correcciones estén instaladas ni que el E2E esté validado; antes de la próxima prueba se debe identificar el commit remoto desplegado y actualizar la copia a la revisión corregida aprobada. La clonación y el primer despliegue no cambian la política de ingreso ni autorizan por sí solos una operación nueva.
+
+Esta resolución selecciona una topología y controles, pero no equivale a haber cambiado firewall, desplegado código, iniciado/parado la VM o autorizado un gasto adicional fuera del uso de esta instancia.
 
 ### DEC-VAL-001 — Validación empresarial
 
@@ -412,5 +422,7 @@ Trace operativo (HU15): el recorrido auditable de un cambio tiene nueve enlaces:
 **Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable. Las menciones de roles de `DEC-ORG-001` y `DEC-ORG-002` y de los planes de cortes ya implementados describen la historia; donde difieran, prevalece esta decisión.
 
 ## Regla de compatibilidad
+
+`SYSTEM-2.9` (2026-10-12) resuelve `DEC-INF-001`: reutiliza la VM GCE existente para el Sandbox del piloto controlado, con ingreso administrativo y del servicio vía IAP a TCP 22 y al puerto de Sandbox (predeterminado 3000), sin agregar componentes. La instancia actual aún tiene reglas de ingreso público y no una regla IAP; su clon y despliegue inicial fueron reportados por el usuario como anteriores a correcciones recientes, por lo que no cuentan como prueba del corte corregido. `DEC-VAL-001` sigue pendiente para código y evidencia empresarial.
 
 `SYSTEM-2.5` conserva las reglas operativas PR/HEAD; la topología de cuatro componentes está implementada y cerrada localmente por los WIs de migración bajo `GH-INTEROP-1.1`. `GH-INTEROP-1.2` agrega la fecha original de creación del PR, implementada y cerrada localmente en `WI-GH-007` y consumida por Core en `WI-CORE-011`, tras la publicación canónica de `WI-CORE-014`. Console validó el corte previo del espejo en `WI-CONSOLE-008`. `GH-INTEROP-1.3` (`WI-CORE-026`, `DEC-TRACE-001`) añade `checkId` a la respuesta de `POST /internal/v1/github/checks`; `GH-INTEROP-1.4` (`WI-CORE-034`, `DEC-CHECK-001`) define su identidad lógica; `GH-INTEROP-1.5` (`WI-CORE-038`, `DEC-CHECK-002`) fijó históricamente PostgreSQL compartido; `GH-INTEROP-1.6` (`WI-CORE-039`) precisó el rechazo tras HTTP 422 y reconciliación completa. `GH-INTEROP-1.7` (`WI-CORE-040`, `DEC-CHECK-003`) reemplaza la coordinación durable entre réplicas por una única instancia activa y mutex en proceso; por ello no conserva reservas ni replay terminales a través de reinicios y acepta el riesgo residual documentado. Core tolera `204`, y la implementación de GitHub Integration y los espejos quedan pendientes de sus WIs locales. No hay despliegue ni cutover. La carga manual ZIP y los modos manuales no son rutas de producto; el ZIP interno de snapshot para Docker/Sandbox continúa. El estado de implementación o despliegue de cada capacidad se demuestra con evidencia por componente, no se infiere del número de contrato. `SYSTEM-2.6` (preparado en `WI-CORE-017`; la abstención `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge están implementados en Core por `WI-CORE-018`, `WI-CORE-019` y `WI-CORE-020`; el resto sigue su propio WI) agrega el rol Writer, la abstención auditada de `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge, la jerarquía de métricas, el trace operativo de nueve enlaces y las decisiones `DEC-EXP-003`, `DEC-EXP-004`, `DEC-FK-001`, `DEC-FK-002`, `DEC-FK-003`, `DEC-FK-004` y `DEC-ORG-003`; cierra `DEC-EXP-FK-001`. `SYSTEM-2.7` conserva esa base e incorpora la raíz PHP por subproyecto, la cardinalidad única repositorio↔Project, paths repo-relative y la raíz efectiva congelada; el subcaso con varios manifiestos permanece pendiente en `DEC-PHP-ROOT-001`. `SYSTEM-2.8` conserva SYSTEM-2.7 e incorpora la topología de Checks de una sola instancia descrita por `GH-INTEROP-1.7`. La implementación de SDD y el estado de espejos se demuestran con evidencia por WI y componente, no por el número de contrato.

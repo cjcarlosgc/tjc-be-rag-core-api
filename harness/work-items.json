@@ -2310,6 +2310,66 @@
           "report": "harness/reports/wi-core-042-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-043",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "PHP E2E infrastructure",
+      "title": "Resolver DEC-INF-001 para infraestructura remota de Sandbox",
+      "storyIds": ["HU11"],
+      "taskIds": ["ST-CORE-050"],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": ["spec/contracts/system-contract.md", "spec/contracts/interoperability-contract.md"],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Evento global histórico previo al baseline sobre binding y lifecycle de Projects; WI-CORE-043 no cambia Projects ni sus rutas.",
+          "report": "harness/reports/wi-core-043-contract-sync-relevance.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Evento global histórico previo al baseline sobre login e identidad; WI-CORE-043 no cambia auth, identity ni despliegue de Core/Console.",
+          "report": "harness/reports/wi-core-043-contract-sync-relevance.md"
+        }
+      ],
+      "acceptanceCriteria": [
+        "DEC-INF-001 queda aprobada en SYSTEM-2.9 seleccionando la VM existente rag-test-execution-sandbox en us-central1-a; no se agrega VM, Cloud NAT ni otro componente.",
+        "La decisión documenta cargos existentes de cómputo/disco/IP/snapshots sin prometer gratuidad ni asumir que el crédito sigue disponible.",
+        "El ingreso futuro a administración y Sandbox queda limitado a IAP (TCP 22 y el puerto Sandbox, predeterminado 3000); el ingreso público actual SSH/RDP/HTTP/HTTPS/ICMP y la ausencia de regla IAP se registran como precondición pendiente, sin modificarlos en este WI.",
+        "El alcance se limita a repositorios de piloto controlados por el usuario y conserva aislamiento por ejecución; DEC-VAL-001 continúa PENDING para código/evidencia empresarial.",
+        "La retención existente queda explícita: snapshots diarios, máximo 14 días y conservación al eliminar el disco; no se afirma que limpiar un contenedor purgue snapshots.",
+        "Se publica Contract Sync hacia Console y Sandbox; Console debe atender el espejo SYSTEM y el estado de INTEROP, Sandbox debe registrar un WI local para la decisión aplicable conservando SDD 2.1, y ningún ACK se considera implementación ni homologación global.",
+        "El reporte del usuario sobre repo clonado y primer despliegue previo a las correcciones recientes queda registrado como no verificado; cualquier nueva prueba remota deberá identificar el SHA desplegado y usar una revisión corregida, pero su operación requiere un corte/autorización separados.",
+        "No se cambia app/, firewall, VM, disco, snapshots ni configuración externa; cualquier operación concreta GCE requiere su autorización operativa explícita."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/README.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-043-decision-resolution.md",
+        "harness/reports/wi-core-043-sdd-verification.md",
+        "harness/reports/wi-core-043-sdd-analyst-review.md",
+        "harness/reports/wi-core-043-contract-review.md",
+        "harness/reports/wi-core-043-independent-review-cycle-1.md",
+            "harness/reports/wi-core-043-independent-review-cycle-2.md",
+        "harness/reports/wi-core-043-technical-checks.md",
+        "harness/reports/wi-core-043-contract-sync-relevance.md",
+        "harness/reports/contract-sync-resolution-cs-gh-20261011-003.md",
+        "harness/contract-sync/inbox/CS-GH-20261011-003.yaml"
+      ]
     }
   ]
 }

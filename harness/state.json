@@ -11355,7 +11355,279 @@
       "closedAt": "2026-10-12T04:04:27.000Z"
     }
   ],
-  "activeWorkItem": null,
+  "activeWorkItem": {
+    "id": "WI-CORE-043",
+    "component": "CORE",
+    "workItemType": "HARNESS",
+    "status": "W-IN_PROGRESS",
+    "priority": "P1",
+    "title": "Resolver DEC-INF-001 para infraestructura remota de Sandbox",
+    "approved": true,
+    "storyIds": [
+      "HU11"
+    ],
+    "taskIds": [
+      "ST-CORE-050"
+    ],
+    "caseIds": [],
+    "sprint": "PHP E2E infrastructure",
+    "specPaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md",
+      "spec/README.md",
+      "spec/features/013-pr-driven-analysis/spec.md",
+      "spec/features/018-php-laravel-support/tasks.md",
+      "CHANGELOG.md",
+      "harness/reports/wi-core-043-decision-resolution.md",
+      "harness/reports/wi-core-043-sdd-verification.md",
+      "harness/reports/wi-core-043-sdd-analyst-review.md",
+      "harness/reports/wi-core-043-contract-review.md",
+      "harness/reports/wi-core-043-independent-review-cycle-1.md",
+        "harness/reports/wi-core-043-independent-review-cycle-2.md",
+      "harness/reports/wi-core-043-technical-checks.md",
+      "harness/reports/wi-core-043-contract-sync-relevance.md",
+      "harness/reports/contract-sync-resolution-cs-gh-20261011-003.md",
+      "harness/contract-sync/inbox/CS-GH-20261011-003.yaml"
+    ],
+    "transversalPaths": [],
+    "syncScopePaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md"
+    ],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Evento global histórico previo al baseline sobre binding y lifecycle de Projects; WI-CORE-043 no cambia Projects ni sus rutas.",
+        "report": "harness/reports/wi-core-043-contract-sync-relevance.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Evento global histórico previo al baseline sobre login e identidad; WI-CORE-043 no cambia auth, identity ni despliegue de Core/Console.",
+        "report": "harness/reports/wi-core-043-contract-sync-relevance.md"
+      }
+    ],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-VAL-001"
+      ],
+      "checkedAt": "2026-10-12T08:13:44Z",
+      "note": "Solo se usa código de piloto controlado; DEC-VAL-001 sigue bloqueando código y evidencia empresariales, fuera del alcance aprobado."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "leader",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "El contenido de DEC-INF-001 y su alcance SDD son correctos; antes del cierre faltaba publicar el Contract Sync para permitir que los consumidores importen el cambio.",
+            "La documentación no debía afirmar que Console/Sandbox ya habían sincronizado; README y CHANGELOG quedaron redactados como estado pendiente."
+          ],
+          "blockers": [
+            "Publicar el evento namespaced de WI-CORE-043 y esperar la importación/atención local de Console y Sandbox; el ACK no cierra implementación."
+          ],
+          "filesAffected": [
+            "spec/contracts/system-contract.md",
+            "spec/contracts/interoperability-contract.md",
+            "spec/README.md",
+            "harness/work-items.json"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-043-sdd-analyst-review.md"
+          ],
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "gpt-6-luna",
+            "servedModel": "unknown",
+            "effort": "high"
+          },
+          "recommendedNextStep": "Publicar Contract Sync después del commit fuente y verificar la importación/acción local; no cerrar el WI hasta resolver ambos consumidores."
+        },
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [],
+          "blockers": [],
+          "filesAffected": [
+            "spec/contracts/system-contract.md",
+            "spec/contracts/interoperability-contract.md",
+            "spec/README.md",
+            "harness/work-items.json"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-043-contract-review.md"
+          ],
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "gpt-6-luna",
+            "servedModel": "unknown",
+            "effort": "high"
+          },
+          "recommendedNextStep": "Publicar el Contract Sync; no hacer cambios de firewall ni desplegar sin una autorización operativa separada."
+        },
+        {
+          "agent": "reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "El contenido sustantivo está aprobado, pero el handoff SDD asignado no estaba persistido: faltaban reporte independiente de sdd-analyst y registro en execution.handoffs/gateEvidence."
+          ],
+          "blockers": [
+            "Persistir la revisión del sdd-analyst y pedir una revisión de seguimiento antes de marcar el gate independiente."
+          ],
+          "filesAffected": [
+            "harness/state.json",
+            "harness/reports/wi-core-043-sdd-analyst-review.md",
+            "harness/reports/wi-core-043-independent-review-cycle-1.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-043-independent-review-cycle-1.md"
+          ],
+          "executedBy": {
+            "agent": "reviewer",
+            "configuredModel": "gpt-6-luna",
+            "servedModel": "unknown",
+            "effort": "xhigh"
+          },
+          "recommendedNextStep": "Registrar el artefacto SDD y los handoffs; actualizar el snapshot y repetir una sola revisión independiente de seguimiento."
+        },
+        {
+          "agent": "reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "El hallazgo de trazabilidad del ciclo 1 quedó resuelto: el reporte SDD y los handoffs están persistidos con evidencia.",
+            "La decisión y su alcance documental son correctos; la aprobación no cierra el WI ni acredita importación contractual, endurecimiento GCE o despliegue corregido."
+          ],
+          "blockers": [
+            "Publicar Contract Sync y esperar atención local de Console y Sandbox.",
+            "Renovar verificación GCE, aplicar y verificar la política de red con autorización operativa separada, e identificar el SHA desplegado antes de otro E2E."
+          ],
+          "filesAffected": [
+            "spec/contracts/system-contract.md",
+            "spec/contracts/interoperability-contract.md",
+            "spec/README.md",
+            "harness/state.json",
+            "harness/reports/wi-core-043-independent-review-cycle-2.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-043-independent-review-cycle-2.md"
+          ],
+          "executedBy": {
+            "agent": "reviewer",
+            "configuredModel": "gpt-6-luna",
+            "servedModel": "unknown",
+            "effort": "xhigh"
+          },
+          "recommendedNextStep": "Publicar el evento revisado, coordinar importación/atención local y mantener la operación remota separada hasta obtener autorización explícita."
+        }
+      ],
+      "reviewCycles": 2,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-PASSED",
+      "independentReviewPassed": "G-PASSED",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-NOT_RUN",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-PASSED"
+    },
+    "gateEvidence": {
+      "independentReviewPassed": [
+        "harness/reports/wi-core-043-independent-review-cycle-2.md"
+      ],
+      "sddVerified": [
+        "harness/reports/wi-core-043-sdd-verification.md",
+        "harness/reports/wi-core-043-sdd-analyst-review.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-043-decision-resolution.md",
+        "harness/reports/contract-sync-resolution-cs-gh-20261011-003.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-043-technical-checks.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-043-contract-review.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-043-sdd-verification.md"
+      ]
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": true,
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": [],
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-043",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003",
+            "CS-GH-20261011-003"
+          ],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-12T08:13:44.754Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-043",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-12T08:24:24.773Z"
+        }
+      ]
+    }
+  },
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",

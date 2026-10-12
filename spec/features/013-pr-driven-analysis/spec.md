@@ -108,4 +108,4 @@ GitHub Integration verifica firma sobre body crudo, estado de instalación y mí
 - proveedor remoto del Sandbox;
 - despliegue o cutover de GitHub Integration; el código fuente y sus consumidores están migrados bajo `016-github-integration`, pero la operación externa requiere aprobación y secuencia coordinada. PHP completo sigue bajo desarrollo paralelo de Sandbox.
 
-`DEC-INF-001` y `DEC-VAL-001` conservan sus blocks acotados y no bloquean esta baseline documental. `DEC-EXP-FK-001` quedó `APROBADO` (2026-10-08).
+`DEC-INF-001` quedó `APROBADO` en SYSTEM-2.9 para reutilizar la VM existente del Sandbox bajo controles de red, aislamiento y retención definidos allí; no implica que el firewall ya esté corregido ni que el despliegue/E2E esté actualizado. `DEC-VAL-001` continúa `PENDING` para código/evidencia empresarial y no bloquea el piloto controlado. `DEC-EXP-FK-001` quedó `APROBADO` (2026-10-08).
