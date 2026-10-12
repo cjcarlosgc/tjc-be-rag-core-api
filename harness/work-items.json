@@ -210,7 +210,7 @@
       "id": "WI-CORE-004",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Formalizar casos operativos",

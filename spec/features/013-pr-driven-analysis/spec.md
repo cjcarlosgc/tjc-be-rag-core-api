@@ -1,8 +1,8 @@
 # 013 — Análisis PR-driven y contexto funcional
 
 **Estado:** APROBADO
-**Story IDs:** HU02, HU06-HU09, HU13-HU16
-**Contrato:** SYSTEM-2.6 / INTEROP-2.7
+**Story IDs:** HU02–HU16 (las que citan las subtareas de esta feature y los casos OC01–OC15; el encabezado anterior listaba solo HU02, HU06–HU09 y HU13–HU16)
+**Contrato:** SYSTEM-2.9 / INTEROP-2.8 / GH-INTEROP-1.7 (verificado en la cabecera de `spec/contracts`; el cuerpo de esta feature conserva sus reglas y no se reescribió en esta corrección)
 
 ## Objetivo
 
