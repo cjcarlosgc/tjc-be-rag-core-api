@@ -7,6 +7,7 @@ import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-val
 import type { ParsedChunk } from '../project-versions/parsing/typescript-parser.service.js';
 import type { AnalysisRun, RepositoryBinding, ProjectVersion } from '../generated/prisma/client.js';
 import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
+import { GithubAppUnavailableError } from '../github-app/github-app-auth.service.js';
 
 function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
   return {
@@ -606,6 +607,58 @@ describe('SnapshotAnalysisJobHandler', () => {
       expect.objectContaining({ resultSummary: 'GitHub API 503' }),
     );
     expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('completes as INFRASTRUCTURE_FAILURE with the exact neutral summary and does not rethrow when compare is UNVERIFIABLE', async () => {
+    const { handler, githubRepositoryContentService, analysisRunsService, analysisRunChecksService, workspaceCleanup, processingRun } =
+      setup();
+    githubRepositoryContentService.compare.mockRejectedValue(
+      new GithubAppUnavailableError('x', 503, 'UNVERIFIABLE'),
+    );
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      processingRun,
+      'INFRASTRUCTURE_FAILURE',
+      {
+        resultSummary:
+          'No se pudo verificar el compare de GitHub (por ejemplo, un PR con 300 o más archivos); análisis no realizado',
+      },
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
+    expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('keeps rethrowing a GitHub unavailable error without UNVERIFIABLE lookup status from compare', async () => {
+    const { handler, githubRepositoryContentService, analysisRunsService, analysisRunChecksService } = setup();
+    githubRepositoryContentService.compare.mockRejectedValue(new GithubAppUnavailableError('x', 503));
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('x');
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      expect.anything(),
+      'INFRASTRUCTURE_FAILURE',
+      expect.objectContaining({ resultSummary: 'x' }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
+  });
+
+  it('keeps rethrowing an UNVERIFIABLE lookup from another operation with its own message', async () => {
+    const { handler, githubSnapshotMaterializerService, analysisRunsService, analysisRunChecksService, processingRun } =
+      setup();
+    githubSnapshotMaterializerService.materialize.mockRejectedValue(
+      new GithubAppUnavailableError('No se pudo verificar el árbol de GitHub.', 503, 'UNVERIFIABLE'),
+    );
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('No se pudo verificar el árbol de GitHub.');
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      processingRun,
+      'INFRASTRUCTURE_FAILURE',
+      expect.objectContaining({ resultSummary: 'No se pudo verificar el árbol de GitHub.' }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
   });
 
   it('does not overwrite or publish a late failure when the run became obsolete', async () => {

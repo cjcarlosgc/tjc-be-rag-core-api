@@ -8,6 +8,7 @@ export class GithubAppUnavailableError extends Error {
   constructor(
     message: string,
     public readonly status?: number,
+    public readonly lookupStatus?: 'NOT_FOUND' | 'NOT_INSTALLED' | 'UNVERIFIABLE',
   ) {
     super(message);
     this.name = GithubAppUnavailableError.name;

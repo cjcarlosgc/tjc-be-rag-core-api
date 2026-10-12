@@ -29,6 +29,7 @@ import {
   isTypeScriptSourceFile,
 } from '../project-versions/indexing.constants.js';
 import { GithubRepositoryContentService, type CompareFile } from '../github-app/github-repository-content.service.js';
+import { GithubAppUnavailableError } from '../github-app/github-app-auth.service.js';
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import { AnalysisSymbolsRepository, type AnalysisSymbolToPersist } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { FunctionalContextEvaluatorService } from '../functional-knowledge/functional-context-evaluator.service.js';
@@ -53,6 +54,16 @@ export interface SnapshotAnalysisJobPayload {
 }
 
 export const SNAPSHOT_ANALYSIS_JOB_TYPE = 'snapshot-analysis';
+
+export const COMPARE_UNVERIFIABLE_RESULT_SUMMARY =
+  'No se pudo verificar el compare de GitHub (por ejemplo, un PR con 300 o más archivos); análisis no realizado';
+
+class CompareUnverifiableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = CompareUnverifiableError.name;
+  }
+}
 
 const CHUNK_SYMBOL_TO_ANALYSIS_KIND: Record<ParsedChunk['symbolKind'], AnalysisSymbolToPersist['kind'] | null> = {
   CLASS: 'CLASS',
@@ -236,12 +247,20 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       await validateProjectRoot(workspace.dir, selectedProjectRoot);
 
       run = await this.analysisRunsService.startProcessing(run);
-      const changesetFiles = await this.githubRepositoryContentService.compare(
-        binding.installationId,
-        binding.repositoryName,
-        run.baseSha,
-        run.headSha,
-      );
+      let changesetFiles: CompareFile[];
+      try {
+        changesetFiles = await this.githubRepositoryContentService.compare(
+          binding.installationId,
+          binding.repositoryName,
+          run.baseSha,
+          run.headSha,
+        );
+      } catch (error) {
+        if (error instanceof GithubAppUnavailableError && error.lookupStatus === 'UNVERIFIABLE') {
+          throw new CompareUnverifiableError(error.message);
+        }
+        throw error;
+      }
 
       const previousVersion = await this.projectVersionsRepository.findLatestCompletedByProject(
         run.projectId,
@@ -388,6 +407,19 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
 
       if (run.status === 'QUEUED') {
         run = await this.analysisRunsService.startProcessing(run);
+      }
+
+      if (error instanceof CompareUnverifiableError) {
+        this.logger.warn(`AnalysisRun ${run.id}: el compare de GitHub no pudo verificarse; análisis no realizado.`);
+        const failed = await this.analysisRunsService.completeRunFromSystem(run, 'INFRASTRUCTURE_FAILURE', {
+          resultSummary: COMPARE_UNVERIFIABLE_RESULT_SUMMARY,
+        });
+        if (failed) {
+          await this.analysisRunChecksService.publishForRun(failed);
+        } else {
+          this.logger.debug(`Se omite el fallo tardío del AnalysisRun ${run.id}: el Run ya no admite esa transición.`);
+        }
+        return;
       }
 
       const message = error instanceof Error ? error.message : 'Error desconocido en snapshot intelligence.';

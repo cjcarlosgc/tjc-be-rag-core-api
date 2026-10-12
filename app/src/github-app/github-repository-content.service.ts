@@ -161,11 +161,11 @@ function unwrapLookup<T>(result: unknown, message: string): T {
       if (!Object.hasOwn(result, 'value')) throw invalidLookupResponse();
       return result.value as T;
     case 'NOT_FOUND':
-      throw new GithubAppUnavailableError(message, 404);
+      throw new GithubAppUnavailableError(message, 404, 'NOT_FOUND');
     case 'NOT_INSTALLED':
-      throw new GithubAppUnavailableError(message, 403);
+      throw new GithubAppUnavailableError(message, 403, 'NOT_INSTALLED');
     case 'UNVERIFIABLE':
-      throw new GithubAppUnavailableError(message, 503);
+      throw new GithubAppUnavailableError(message, 503, 'UNVERIFIABLE');
     default:
       throw invalidLookupResponse();
   }

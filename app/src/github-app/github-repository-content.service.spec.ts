@@ -52,6 +52,17 @@ describe('GithubRepositoryContentService', () => {
     });
   });
 
+  it('exposes the lookup status on the unavailable error for compare UNVERIFIABLE', async () => {
+    const { integration, service } = setup();
+    integration.post.mockResolvedValue({ status: 'UNVERIFIABLE' });
+
+    await expect(service.compare(INSTALLATION_ID, REPOSITORY_NAME, 'base', 'head')).rejects.toMatchObject({
+      constructor: GithubAppUnavailableError,
+      status: 503,
+      lookupStatus: 'UNVERIFIABLE',
+    });
+  });
+
   it('maps the verified tree and decodes file bytes returned as base64', async () => {
     const { integration, service } = setup();
     integration.post
