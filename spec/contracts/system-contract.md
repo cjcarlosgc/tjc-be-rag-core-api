@@ -152,6 +152,7 @@ Antes de atribuir una falla a pruebas generadas, se ejecuta el baseline relevant
 - test generado técnicamente válido que evidencia discrepancia -> `BEHAVIORAL_MISMATCH`;
 - namespace/import/API/mock/setup/sintaxis inválidos generados -> `TECHNICAL_GENERATION_FAILURE`;
 - Docker/red/storage/worker/runtime de plataforma -> `INFRASTRUCTURE_FAILURE`;
+  - Para un símbolo cuya ejecución falla por plataforma, ver `DEC-VAL-002` (PROPOSED); mientras no se apruebe rige el comportamiento descrito allí.
 - validación correcta -> `SUCCESS`.
 
 No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU17) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
@@ -278,6 +279,20 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 **Blocks:** ingestión/despliegue con código empresarial y producción de evidencia empresarial; no bloquea trabajo con código de demostración autorizado.
 
 **Pregunta:** aprobar autorización organizacional, retención, proveedores externos, protección de código y exportación de evidencia.
+
+### DEC-VAL-002 — Fallo de plataforma por símbolo y precedencia del estado del Run
+
+**Estado:** PROPOSED (sin efecto normativo hasta su aprobación; 2026-10-12, `WI-CORE-045`, caso operativo OC08)
+
+**Blocks:** solo el work item de código que alinee OC08 (clasificación por símbolo en `validation/analysis-run-validation-job.handler.ts` y `sandbox/map-sandbox-result.ts`); no bloquea trabajo documental ni otros work items.
+
+**Estado vigente hasta su aprobación:** una excepción o indisponibilidad del Sandbox por símbolo, o su timeout, se clasifica como `TECHNICAL_GENERATION_FAILURE`; `INFRASTRUCTURE_FAILURE` solo lo fija el job cuando falla binding, versión, materializado, compare o el job completo. El estado del Run, con resultados mezclados, es `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `SUCCESS` > `NO_TEST_RELEVANT_CHANGES`/`NO_ADDITIONAL_TESTS_REQUIRED`.
+
+**Propuesta (recomendada).** *Fallo de plataforma por símbolo:* el símbolo no obtuvo veredicto porque el Sandbox no estuvo disponible o rechazó la ejecución, la ejecución agotó el tiempo límite del Sandbox o el Sandbox reportó una falla de categoría `INFRASTRUCTURE` (Docker, red, almacenamiento, worker o runtime de plataforma). No lo son compilación, aserción, error de ejecución de la prueba, dependencia ni configuración del framework (siguen siendo fallo técnico), y un fallo `UNKNOWN` no se atribuye a la plataforma sin evidencia. *Precedencia del estado del Run:* `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `INFRASTRUCTURE_FAILURE` > `SUCCESS` > `NO_ADDITIONAL_TESTS_REQUIRED` > `NO_TEST_RELEVANT_CHANGES`. El resultado de cada símbolo se conserva siempre (propuestas `AVAILABLE`, evidencia de discrepancia y fallo por símbolo) y `resultSummary` cuenta por separado los fallos de plataforma y los técnicos; el estado del Run es solo el más accionable.
+
+**Razón:** una discrepancia demostrada no se oculta por un fallo ajeno de plataforma en otro símbolo; un fallo técnico atribuible no se degrada a `neutral`; un Run con un símbolo sin veredicto no es `SUCCESS` ni permite publicar como si todo estuviera validado (la publicación del companion PR exige Run `SUCCESS`). Consecuencia declarada: con `INFRASTRUCTURE_FAILURE` sobre `SUCCESS`, un Run con propuestas `AVAILABLE` válidas no es publicable (`409 TEST_PUBLICATION_INVALID_RUN_STATUS`) hasta reintentar; `NO_TEST_RELEVANT_CHANGES` mantiene Check `success`.
+
+**Alternativas:** (A2) plataforma sobre técnico: el Check pasa de `failure` a `neutral` y un fallo técnico real queda enmascarado hasta reintentar; (A3) la falla de plataforma de un símbolo no altera el Run si otros pasan: permitiría publicar con un símbolo sin validar. A2 y A3 cambian la conclusión del Check (`failure`/`neutral`) y la publicación del companion PR, por lo que requieren decisión del usuario.
 
 ### DEC-ORG-001 — Organizaciones y compartición de Projects
 

@@ -2,7 +2,7 @@
 
 **Estado:** APROBADO
 **Story IDs:** HU02–HU16 (las que citan las subtareas de esta feature y los casos OC01–OC15; el encabezado anterior listaba solo HU02, HU06–HU09 y HU13–HU16)
-**Contrato:** SYSTEM-2.9 / INTEROP-2.8 / GH-INTEROP-1.7 (verificado en la cabecera de `spec/contracts`; el cuerpo de esta feature conserva sus reglas y no se reescribió en esta corrección)
+**Contrato:** SYSTEM-2.9 / INTEROP-2.9 / GH-INTEROP-1.7 (verificado en la cabecera de `spec/contracts`; el cuerpo de esta feature conserva sus reglas y no se reescribió en esta corrección)
 
 ## Objetivo
 
@@ -76,7 +76,7 @@ Fuentes: `SYSTEM-2.6` («Contexto RAG y Functional Knowledge») e `INTEROP-2.7` 
 - `ACTION_REQUIRED`: falta conocimiento funcional relevante.
 - `BEHAVIORAL_MISMATCH`: test técnicamente válido evidencia diferencia expected/observed.
 - `TECHNICAL_GENERATION_FAILURE`: la prueba propuesta es técnicamente inválida.
-- `INFRASTRUCTURE_FAILURE`: plataforma/Sandbox/storage/worker impide validar.
+- `INFRASTRUCTURE_FAILURE`: plataforma/Sandbox/storage/worker impide validar. La precedencia y el tratamiento del fallo de plataforma de un solo símbolo con resultados mezclados están en `DEC-VAL-002` (PROPOSED, SYSTEM); hasta su aprobación una excepción del Sandbox por símbolo sigue siendo `TECHNICAL_GENERATION_FAILURE`.
 - `BASELINE_FAILED`: tests existentes relevantes ya estaban rojos.
 - `OBSOLETE`: otro HEAD o lifecycle del PR invalida vigencia.
 
@@ -141,7 +141,7 @@ Resumen de estado: **FORMALIZADO** OC01–OC15; OC09 es especificación sin impl
 
 - **Entrada/precondiciones:** PR con un test (aportado por developer o agente) para un target cambiado; Core indexa el HEAD completo, de modo que el test del PR está en el snapshot y el resolvedor de tests marca `hasTest` cuando un archivo de test importa el símbolo y menciona `.método(` (`existing-test-resolver.service.ts:55-93`).
 - **Decisión aprobada (PQ-OC02, 2026-10-12):** un test aportado en el mismo PR cuenta como test existente: el símbolo se omite sin ejecutarse (`analysis-run-validation-job.handler.ts:262-265`) y, si todos los candidatos están cubiertos, el Run termina `NO_ADDITIONAL_TESTS_REQUIRED`. Core no distingue un test del PR de uno preexistente. Esto cambia cuando exista el baseline de OC09 (el baseline ejecutaría esa suite sobre el snapshot del HEAD; decisión de diseño del WI de baseline).
-- **Salida observable:** Run `NO_ADDITIONAL_TESTS_REQUIRED`, sin propuestas, con `functionalBehaviorValidated=true`. **Semántica aprobada:** `functionalBehaviorValidated=true` significa «el pipeline terminó sin hallar discrepancia», no «se ejecutó una validación»; se define en INTEROP y en esta feature en el WI de contrato.
+- **Salida observable:** Run `NO_ADDITIONAL_TESTS_REQUIRED`, sin propuestas, con `functionalBehaviorValidated=true`. **Semántica aprobada:** `functionalBehaviorValidated=true` significa «el pipeline terminó sin hallar discrepancia», no «se ejecutó una validación»; se define en INTEROP-2.9 §6.11 (`WI-CORE-045`): `true` solo con `SUCCESS` o `NO_ADDITIONAL_TESTS_REQUIRED`, `false` en cualquier otro estado y mientras el Run no completó; no acredita que un baseline se haya ejecutado (OC09).
 - **Estado final:** Run `NO_ADDITIONAL_TESTS_REQUIRED`. Check `success` / «Cobertura existente suficiente».
 - **Fuente:** SYS «Baseline, generación y clasificación»; INT §6.10; HU04, HU10, HU14. `DEC-EXP-003` no aplica (agente generalista de experimentos).
 - **Cobertura existente:** sin cobertura localizada para «test aportado por el PR»; la omisión por test existente se ejercita en OC03.
@@ -209,7 +209,7 @@ Resumen de estado: **FORMALIZADO** OC01–OC15; OC09 es especificación sin impl
 - **Prueba propuesta:** integración con fixture de import inválido: Run `TECHNICAL_GENERATION_FAILURE`, propuesta `HELD`, Check `failure` y ausencia de clasificación mismatch.
 - **Fuente:** SYS «Baseline, generación y clasificación»; INT §6.10, §6.12; HU11, HU13, HU14.
 - **Brecha:** una excepción del Sandbox por símbolo (no disponible, `TIMED_OUT`, categoría `INFRASTRUCTURE`) se clasifica `TECHNICAL_GENERATION_FAILURE` (`:535-565`, `map-sandbox-result.ts:57-67`), mientras SYS asigna Docker/red/storage/worker a `INFRASTRUCTURE_FAILURE`; `INFRASTRUCTURE_FAILURE` solo se usa cuando falla el binding, el `ProjectVersion`, el materializado, el compare o el job completo.
-- **Decisión aprobada (usuario, 2026-10-12, con condición):** primero se **precisa el contrato** (SYSTEM tabla «Baseline, generación y clasificación», §152-154): qué es un fallo de plataforma por símbolo y la precedencia cuando un símbolo falla por plataforma y otros pasan o hacen mismatch, sin ocultar resultados buenos; solo después se alinea el código (excepciones del Sandbox por símbolo hoy clasificadas como técnicas) en un WI aparte.
+- **Decisión aprobada (usuario, 2026-10-12, con condición):** primero se **precisa el contrato** (SYSTEM tabla «Baseline, generación y clasificación», §152-154): qué es un fallo de plataforma por símbolo y la precedencia cuando un símbolo falla por plataforma y otros pasan o hacen mismatch, sin ocultar resultados buenos; solo después se alinea el código (excepciones del Sandbox por símbolo hoy clasificadas como técnicas) en un WI aparte. **Consolidado en `WI-CORE-045`:** el contrato registra la definición y la precedencia como `DEC-VAL-002` (SYSTEM, PROPOSED, con recomendación y alternativas A2/A3); el WI de código queda bloqueado hasta que el usuario la apruebe.
 
 ### OC09 — Suite existente ya fallaba — FORMALIZADO (especificado; implementación pendiente)
 
@@ -237,7 +237,7 @@ Resumen de estado: **FORMALIZADO** OC01–OC15; OC09 es especificación sin impl
 
 - **Por qué no se formaliza:** SYS indica que los PR grandes «se filtran, priorizan y pueden dividirse en batches sin fijar thresholds»; Core no implementa filtrado, priorización ni batches (los candidatos se procesan en serie, `analysis-run-validation-job.handler.ts:257-303`). Comportamiento observado: GH fija que un compare que alcanza 300 archivos es `UNVERIFIABLE`, `unwrapLookup` lo convierte en error (`github-repository-content.service.ts:157-171`) y el job termina el Run `INFRASTRUCTURE_FAILURE` con Check `neutral` (`snapshot-analysis-job.handler.ts:386-401`).
 - **Decisión aprobada (PQ-OC11, 2026-10-12):** V1 mantiene `INFRASTRUCTURE_FAILURE` con Check `neutral`, sin estado nuevo, con `resultSummary` explícito «PR excede 300 archivos; análisis no realizado», distinguiendo `UNVERIFIABLE` de una caída en Core. Filtrado, priorización y batches siguen diferidos hasta fijar umbrales (SYS). Hoy el reintento del job entra en `snapshot-analysis-job.handler.ts:168-172` y termina sin trabajo (ruido, no costo); el WI pequeño de OC11 puede dejar de relanzar el error en `UNVERIFIABLE` y fija el `resultSummary`, con prueba.
-- **Estado final:** Run `INFRASTRUCTURE_FAILURE`. Check `neutral`.
+- **Estado final:** Run `INFRASTRUCTURE_FAILURE`. Check `neutral`. **Contrato (`WI-CORE-045`, INTEROP-2.9 §6.10):** el `resultSummary` aprobado es el objetivo del WI de OC11 (pendiente, no comportamiento actual) y el límite de 300 archivos pertenece a GitHub Integration (repositorio ajeno; solo documentado).
 - **Fuente:** SYS «CHANGESET, INDEX DELTA y símbolos»; GH §Operaciones (Compare); HU06, HU14.
 - **Cobertura existente:** `snapshot-intelligence/snapshot-analysis-job.handler.spec.ts` → «transitions to INFRASTRUCTURE_FAILURE and rethrows when the GitHub API fails» (falla genérica del compare); `github-app/github-repository-content.service.spec.ts` no cubre el límite de 300; sin cobertura localizada del caso.
 
@@ -278,4 +278,4 @@ Resumen de estado: **FORMALIZADO** OC01–OC15; OC09 es especificación sin impl
 - **Cobertura existente:** `analysis-runs/analysis-runs.repository.spec.ts` → «atomically obsoletes pending questions when a current run is obsoleted»; `functional-knowledge/functional-knowledge.service.spec.ts` → «returns null and obsoletes the question when the run is no longer current», «obsoletes and rejects a PENDING question when the run is no longer current», «a HEAD change makes a pending question OBSOLETE even when the answer is UNKNOWN»; `functional-knowledge/functional-questions.repository.spec.ts` → «filters the cross-project inbox before pagination», «hides direct pending-question reads for unclassified or pre-binding runs»; `functional-knowledge/functional-context-evaluator.service.spec.ts` → «does not report ACTION_REQUIRED when the run became obsolete before the atomic write».
 - **Prueba propuesta:** integración Core: Run `ACTION_REQUIRED` con pregunta → `synchronize` HEAD B → pregunta `OBSOLETE`, inbox vacío para A, `POST …/answers` sobre A `404`, Run B `QUEUED`.
 - **Fuente:** SYS «Contexto RAG y Functional Knowledge»; INT §6.10, §6.11 (`UNKNOWN` y HEAD cambiado); HU08, HU14.
-- **Decisión aprobada (PQ-OC15, 2026-10-12):** una respuesta tardía se rechaza con `404 FUNCTIONAL_QUESTION_NOT_FOUND` y no se persiste. La narrativa de §Pipeline de esta feature se corrigió en este corte; el contrato debe **nombrar** el código de error y corregir la narrativa de INTEROP §6.11 («cualquier regla potencial se reevalúa contra el Run actual»), lo que se publica en el WI de contrato con Contract Sync a Console e Integration.
+- **Decisión aprobada (PQ-OC15, 2026-10-12):** una respuesta tardía se rechaza con `404 FUNCTIONAL_QUESTION_NOT_FOUND` y no se persiste. La narrativa de §Pipeline de esta feature se corrigió en este corte; el contrato debe **nombrar** el código de error y corregir la narrativa de INTEROP §6.11 («cualquier regla potencial se reevalúa contra el Run actual»), lo que se publica en el WI de contrato con Contract Sync a Console e Integration. **Consolidado en `WI-CORE-045` (INTEROP-2.9 §6.11):** el código, su orden frente a `ANALYSIS_RUN_NOT_FOUND`/`403` y la ausencia de persistencia quedan nombrados; la frase de `UNKNOWN` con HEAD cambiado ya no habla de una regla potencial.

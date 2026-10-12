@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.8
-**Compatible con:** SYSTEM-2.7
-**Fecha de corte:** 2026-10-11
+**Versión:** INTEROP-2.9
+**Compatible con:** SYSTEM-2.9
+**Fecha de corte:** 2026-10-12
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.8` es la versión documental vigente. Sobre la base de `INTEROP-2.7` agrega `projectRoot`/`effectiveProjectRoot`, el aislamiento de paths al subproyecto y el transporte de la raíz efectiva en Core→Sandbox (§6.1, §6.2 y §7.2); la selección automática se limita a un único candidato PHP y conserva un repositorio por Project. El consumidor Sandbox debe importar y aceptar el campo antes de que Core lo envíe en ejecuciones PHP; omitirlo conserva el comportamiento legacy de raíz `.` durante la transición. `INTEROP-2.7` (preparado en `WI-CORE-017`) agregó el rol Writer (§6.13), `UNKNOWN` auditado y procedencia/escenarios de Functional Knowledge (§6.11), OE5 (§6.5.1), comparación de retrieval OE2 (§6.15) y trace/evidencia (§6.16). Cada sección indica su estado: las capacidades implementadas en Core incluyen `UNKNOWN`/Functional Knowledge (`WI-CORE-018`–`020`), OE5 (`WI-CORE-023`–`025`), retrieval (`WI-CORE-022`, `028`), trace/evidencia (`WI-CORE-026`, `027`), PHP/PHPUnit (`WI-CORE-013`, `029`) y el rol Writer (`WI-CORE-019`); el resto sigue pendiente del WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantuvo rutas Core→Console y Core↔Sandbox, agregó el límite directo de UI GitHub (§6.14) y declaró el lenguaje de `ProjectVersion` y framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.9` es la versión documental vigente (`WI-CORE-045`, aditiva y aclaratoria, sin cambio de rutas, campos ni códigos ya emitidos por Core): fija en §6.11 el `404 FUNCTIONAL_QUESTION_NOT_FOUND` de una respuesta a una pregunta no accionable y el orden de errores de `POST …/answers`, cuándo `continuationAttemptId` es `null` y su carácter opaco, y en §6.10/§6.11 la semántica de `functionalBehaviorValidated` y el `resultSummary` objetivo de un PR que excede el límite del compare. `INTEROP-2.8`, sobre la base de `INTEROP-2.7`, agrega `projectRoot`/`effectiveProjectRoot`, el aislamiento de paths al subproyecto y el transporte de la raíz efectiva en Core→Sandbox (§6.1, §6.2 y §7.2); la selección automática se limita a un único candidato PHP y conserva un repositorio por Project. El consumidor Sandbox debe importar y aceptar el campo antes de que Core lo envíe en ejecuciones PHP; omitirlo conserva el comportamiento legacy de raíz `.` durante la transición. `INTEROP-2.7` (preparado en `WI-CORE-017`) agregó el rol Writer (§6.13), `UNKNOWN` auditado y procedencia/escenarios de Functional Knowledge (§6.11), OE5 (§6.5.1), comparación de retrieval OE2 (§6.15) y trace/evidencia (§6.16). Cada sección indica su estado: las capacidades implementadas en Core incluyen `UNKNOWN`/Functional Knowledge (`WI-CORE-018`–`020`), OE5 (`WI-CORE-023`–`025`), retrieval (`WI-CORE-022`, `028`), trace/evidencia (`WI-CORE-026`, `027`), PHP/PHPUnit (`WI-CORE-013`, `029`) y el rol Writer (`WI-CORE-019`); el resto sigue pendiente del WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantuvo rutas Core→Console y Core↔Sandbox, agregó el límite directo de UI GitHub (§6.14) y declaró el lenguaje de `ProjectVersion` y framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -758,6 +758,8 @@ interface AnalysisRunDetailResponse extends AnalysisRunSummaryResponse {
 }
 ```
 
+`functionalBehaviorValidated` tiene la semántica fijada en §6.11 (INTEROP-2.9). `resultSummary` es texto para personas, no un enum ni un valor garantizado. **Objetivo del `WI` de OC11 (pendiente; no es comportamiento actual de Core):** cuando el compare del PR alcanza el límite de 300 archivos que expone GitHub y GitHub Integration devuelve `UNVERIFIABLE` (`spec/contracts/github-integration-contract.md`, operación «Compare»), el Run termina `INFRASTRUCTURE_FAILURE` con Check `neutral` y `resultSummary` «PR excede 300 archivos; análisis no realizado», distinguible de una caída de Core, sin un estado nuevo. El límite pertenece a GitHub Integration: este contrato no lo fija ni lo hace configurable.
+
 Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respuesta humana incrementa attempts sobre el mismo Run si el SHA no cambia. Un HEAD nuevo crea otro Run y marca el anterior `OBSOLETE` aunque estuviera `PROCESSING` o `ACTION_REQUIRED`.
 
 `history` (HU12) es append-only y ordenado cronológicamente ascendente, incluida la creación inicial (`fromStatus: null`, `toStatus: 'QUEUED'`, `reason: 'RUN_CREATED'`); complementa los timestamps de `AnalysisRunSummaryResponse`, no los reemplaza. **Definido, pendiente de implementación.**
@@ -768,6 +770,8 @@ Un Run corresponde a un PR/HEAD; un Job/Attempt no. Una continuación por respue
 - `GET /analysis-runs/{analysisRunId}/context-questions` -> `200 FunctionalQuestionSetResponse`.
 - `POST /analysis-runs/{analysisRunId}/context-questions/{questionId}/answers` -> `202 FunctionalAnswerAcceptedResponse`.
 - `GET /projects/{projectId}/functional-knowledge?status&cursor&limit` -> `200 Page<FunctionalKnowledgeResponse>`.
+
+**Errores de `POST …/answers` (INTEROP-2.9; comportamiento ya emitido por Core).** Las condiciones se evalúan en este orden: Run inexistente o no visible para quien responde → `404 ANALYSIS_RUN_NOT_FOUND`; pregunta inexistente, de otro Run o no accionable (por ejemplo, ya no `PENDING`, `OBSOLETE`, o su Run dejó de ser el vigente o de estar en `ACTION_REQUIRED` tras un HEAD nuevo o un PR cerrado) → `404 FUNCTIONAL_QUESTION_NOT_FOUND`; rol menor que Maintainer → `403 PROJECT_ROLE_INSUFFICIENT`. Por eso un Reader o Writer que responde tarde recibe `404` y no `403`: la comprobación de rol viene después y la respuesta no revela nada que su visibilidad del Run no le diera. El `404 FUNCTIONAL_QUESTION_NOT_FOUND` aplica a cualquier `choice`, incluida `UNKNOWN`, y no persiste respuesta, no crea ni modifica Functional Knowledge, no registra abstención y no encola continuación: una respuesta tardía no se conserva. El Run vigente evalúa su propio contexto y formula, si hace falta, sus propias preguntas.
 
 El inbox de preguntas también omite cualquier pregunta cuyo Run esté sin clasificar o corresponda a un PR anterior al binding. Al clasificarlo como anterior, las preguntas `PENDING` se obsoletan junto al Run.
 
@@ -831,7 +835,7 @@ interface SubmitFunctionalAnswerRequest {
 interface FunctionalAnswerAcceptedResponse extends AsyncAccepted {
   analysisRunId: Id
   questionId: Id
-  continuationAttemptId: Id | null
+  continuationAttemptId: Id | null // INTEROP-2.9: null si no se encoló continuación (ABSTAINED, o ANSWERED que deja el Run en ACTION_REQUIRED); opaco
   knowledgeId: Id | null
   outcome: 'ANSWERED' | 'ABSTAINED' // INTEROP-2.7 (implementado en WI-CORE-018): ABSTAINED implica continuationAttemptId=null y knowledgeId=null
 }
@@ -865,11 +869,15 @@ interface FunctionalKnowledgeConflictResponse {
 }
 ```
 
+**`continuationAttemptId` (INTEROP-2.9).** Es `null` cuando Core no encola una continuación: una abstención `UNKNOWN` (`outcome: 'ABSTAINED'`) y también una respuesta `ANSWERED` tras la cual el Run permanece `ACTION_REQUIRED` porque el evaluador funcional aún exige contexto (quedan preguntas por responder o surge una nueva pregunta adaptativa). Solo es distinto de `null` cuando Core encoló la continuación del Run; es un identificador opaco de correlación y no es consultable por otro endpoint. `knowledgeId` es `null` con `UNKNOWN` y con `KEEP_EXISTING`.
+
+**`functionalBehaviorValidated` (INTEROP-2.9).** Significa «el pipeline terminó sin hallar discrepancia», no «se ejecutó una validación». Es `true` solo cuando el Run termina `SUCCESS` o `NO_ADDITIONAL_TESTS_REQUIRED` (en este último caso los tests existentes suficientes no se ejecutan) y `false` en cualquier otro estado y mientras el Run no completó. No acredita que un baseline se haya ejecutado (`spec/features/013-pr-driven-analysis/spec.md`, OC09).
+
 **HU09, implementado (2026-09-18).** Antes de persistir la regla que produciría una respuesta, Core evalúa si ya existe una `FunctionalKnowledge` `ACTIVE` para el mismo scope+símbolo exacto+`scenarioKey` (desde INTEROP-2.7 el match incluye el `scenarioKey`, `DEC-FK-001`; otro `scenarioKey` del mismo target coexiste y no es conflicto; jerarquía PROJECT⊃MODULE⊃CLASS y contradicción semántica vía LLM quedan pendientes, ver `harness/state.json`). Si detecta una regla existente y la request no trae `conflictResolution`, responde `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con `details: FunctionalKnowledgeConflictResponse` (§4) y no persiste ni avanza el Run — Focus Mode muestra la regla existente junto a la propuesta para que el usuario decida antes de contaminar el conocimiento. Un reenvío con `conflictResolution.action: 'SUPERSEDE'` persiste la nueva regla `ACTIVE` y pasa la existente a `SUPERSEDED` (`supersedesId` la referencia); `'KEEP_EXISTING'` registra la respuesta como evidencia de la pregunta (`knowledgeId: null`) sin tocar la regla vigente. `conflictId` reutiliza el `questionId` (de un solo uso, expira si el HEAD cambia igual que una pregunta `OBSOLETE`).
 
 **INTEROP-2.7, `DEC-FK-001` (definido e implementado en `WI-CORE-020`).** La regla hereda `scenarioKind`/`scenarioKey` de la pregunta que la originó (las históricas, `EXPECTED_RESULT`/`LEGACY`); nunca los envía la persona. El match se refina por `scenarioKey`: el conflicto solo existe entre reglas con el mismo scope, `targetRef` y `scenarioKey`, y reglas con distinto `scenarioKey` coexisten como `ACTIVE`. Un índice único parcial `ACTIVE` sobre project+scope+`targetRef`+`scenarioKey` resuelve la carrera: la segunda respuesta recibe `409 FUNCTIONAL_KNOWLEDGE_CONFLICT` con la forma existente. El listado devuelve todas las reglas `ACTIVE` del target.
 
-**`UNKNOWN` (INTEROP-2.7, `DEC-FK-002`; definido e implementado en `WI-CORE-018`).** `UNKNOWN` es una abstención auditada y no una respuesta: solo Maintainer o Admin pueden registrarla (`403 PROJECT_ROLE_INSUFFICIENT` para Writer y Reader). La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED`, no se crea ni modifica Functional Knowledge, no se encola continuación y no hay generación. Core responde `202` con `outcome: 'ABSTAINED'`, `continuationAttemptId: null` y `knowledgeId: null`, y registra quién se abstuvo, con qué rol y cuándo (`abstention`). Otra persona con autoridad puede responder la misma pregunta después. Si el HEAD cambió, la pregunta queda `OBSOLETE`, no se reanuda el Run viejo y cualquier regla potencial se reevalúa contra el Run actual. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
+**`UNKNOWN` (INTEROP-2.7, `DEC-FK-002`; definido e implementado en `WI-CORE-018`).** `UNKNOWN` es una abstención auditada y no una respuesta: solo Maintainer o Admin pueden registrarla (`403 PROJECT_ROLE_INSUFFICIENT` para Writer y Reader). La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED`, no se crea ni modifica Functional Knowledge, no se encola continuación y no hay generación. Core responde `202` con `outcome: 'ABSTAINED'`, `continuationAttemptId: null` y `knowledgeId: null`, y registra quién se abstuvo, con qué rol y cuándo (`abstention`). Otra persona con autoridad puede responder la misma pregunta después. Si el HEAD cambió, la pregunta queda `OBSOLETE` y no se reanuda el Run viejo; responderla después recibe `404 FUNCTIONAL_QUESTION_NOT_FOUND` y no se conserva. El Run actual evalúa su propio contexto. La siguiente pregunta es adaptativa y reemplaza visualmente a la anterior; no se expone un total fijo.
 
 ### 6.12 Checks, propuestas y companion PR
 
