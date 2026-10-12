@@ -34,13 +34,13 @@ describe('validateEnv', () => {
   it('accepts SANDBOX_URL and SANDBOX_SERVICE_TOKEN both set (DEC-AUTH-001)', () => {
     expect(() =>
       validateEnv(
-        baseConfig({ SANDBOX_URL: 'http://sandbox.local', SANDBOX_SERVICE_TOKEN: 'token' }),
+        baseConfig({ SANDBOX_URL: 'http://localhost:3001', SANDBOX_SERVICE_TOKEN: 'token' }),
       ),
     ).not.toThrow();
   });
 
   it('rejects SANDBOX_URL set without SANDBOX_SERVICE_TOKEN (DEC-AUTH-001)', () => {
-    expect(() => validateEnv(baseConfig({ SANDBOX_URL: 'http://sandbox.local' }))).toThrow(
+    expect(() => validateEnv(baseConfig({ SANDBOX_URL: 'http://localhost:3001' }))).toThrow(
       /DEC-AUTH-001/,
     );
   });
@@ -212,5 +212,61 @@ describe('validateEnv', () => {
     expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).toThrow(
       /esfuerzos desconocidos \(ultra\)/,
     );
+  });
+
+  describe('SANDBOX_URL (isAllowedSandboxUrl)', () => {
+    const sandboxSecret = { SANDBOX_SERVICE_TOKEN: 'token' };
+    const sandboxMessage = /SANDBOX_URL debe usar HTTPS; HTTP solo se permite en loopback fuera de producción, y no admite credenciales, ruta ni parámetros\./;
+
+    it('accepts an HTTPS Sandbox URL in production with a token', () => {
+      expect(() =>
+        validateEnv(baseConfig({
+          NODE_ENV: 'production',
+          SANDBOX_URL: 'https://136-115-2-208.sslip.io',
+          ...sandboxSecret,
+        })),
+      ).not.toThrow();
+    });
+
+    it('rejects a non-loopback HTTP Sandbox URL in production and outside production', () => {
+      expect(() => validateEnv(baseConfig({
+        NODE_ENV: 'production', SANDBOX_URL: 'http://sandbox.local', ...sandboxSecret,
+      }))).toThrow(sandboxMessage);
+      expect(() => validateEnv(baseConfig({
+        NODE_ENV: 'development', SANDBOX_URL: 'http://sandbox.local', ...sandboxSecret,
+      }))).toThrow(sandboxMessage);
+    });
+
+    it('accepts loopback HTTP Sandbox URLs outside production and rejects them in production', () => {
+      for (const url of ['http://localhost:3001', 'http://127.0.0.1:3101', 'http://[::1]:3001']) {
+        expect(() => validateEnv(baseConfig({ NODE_ENV: 'development', SANDBOX_URL: url, ...sandboxSecret }))).not.toThrow();
+        expect(() => validateEnv(baseConfig({ NODE_ENV: 'production', SANDBOX_URL: url, ...sandboxSecret }))).toThrow(sandboxMessage);
+      }
+    });
+
+    it('rejects Sandbox URLs with credentials, path or query', () => {
+      for (const url of ['https://u:p@host.example', 'https://host.example/x', 'https://host.example/?a=1']) {
+        expect(() => validateEnv(baseConfig({ NODE_ENV: 'production', SANDBOX_URL: url, ...sandboxSecret }))).toThrow(sandboxMessage);
+      }
+    });
+
+    it('rejects an unparseable Sandbox URL', () => {
+      expect(() => validateEnv(baseConfig({ SANDBOX_URL: 'no-es-url', ...sandboxSecret }))).toThrow(sandboxMessage);
+    });
+
+    it('keeps an unset SANDBOX_URL allowed', () => {
+      expect(() => validateEnv(baseConfig({ NODE_ENV: 'production' }))).not.toThrow();
+    });
+
+    it('does not print the Sandbox URL value in the error', () => {
+      const secretHost = 'https://secreto-host.example/ruta-secreta';
+      try {
+        validateEnv(baseConfig({ NODE_ENV: 'production', SANDBOX_URL: secretHost, ...sandboxSecret }));
+        throw new Error('se esperaba un error');
+      } catch (error) {
+        expect((error as Error).message).not.toContain('secreto-host');
+        expect((error as Error).message).not.toContain('ruta-secreta');
+      }
+    });
   });
 });

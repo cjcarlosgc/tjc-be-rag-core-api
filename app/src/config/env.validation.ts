@@ -287,6 +287,16 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
     );
   }
 
+  // SANDBOX_URL: HTTPS obligatorio; HTTP solo en loopback fuera de producción. El mensaje no imprime el valor.
+  if (validated.SANDBOX_URL && !isAllowedSandboxUrl(
+    validated.SANDBOX_URL,
+    validated.NODE_ENV !== 'production',
+  )) {
+    throw new Error(
+      'Configuración de entorno inválida: SANDBOX_URL debe usar HTTPS; HTTP solo se permite en loopback fuera de producción, y no admite credenciales, ruta ni parámetros.',
+    );
+  }
+
   // El acceso entre Core y GitHub Integration es una configuración indivisible;
   // los secretos de la GitHub App ya no pertenecen a este componente.
   const githubIntegrationFields = [
@@ -378,6 +388,19 @@ function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
         `Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS contiene esfuerzos desconocidos (${unknownEfforts.map(String).join(', ')}); valores válidos: ${REASONING_EFFORT_SCALE.join(', ')}.`,
       );
     }
+  }
+}
+
+function isAllowedSandboxUrl(value: string, allowHttpLoopback: boolean): boolean {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password || url.search || url.hash || (url.pathname !== '' && url.pathname !== '/')) return false;
+    return url.protocol === 'https:' || (
+      url.protocol === 'http:' && allowHttpLoopback &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    );
+  } catch {
+    return false;
   }
 }
 
