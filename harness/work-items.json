@@ -210,7 +210,7 @@
       "id": "WI-CORE-004",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-SELECTED",
+      "status": "W-PLANNED",
       "priority": "P2",
       "sprint": "P2",
       "title": "Formalizar casos operativos",
@@ -2393,6 +2393,44 @@
         "harness/contract-sync/inbox/CS-GH-20261011-003.yaml",
         "harness/contract-sync/outbox/CS-CORE-20261012-001.yaml",
         "harness/reports/contract-sync-publish-cs-core-20261012-001.md"
+      ]
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P0",
+      "sprint": "PHP E2E infrastructure",
+      "caseIds": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/wi-core-044-scope-approval.md",
+      "id": "WI-CORE-044",
+      "title": "Corregir constructor sin chunk, símbolos de archivos de test y ruta PHP duplicada",
+      "storyIds": [
+        "HU05",
+        "HU06",
+        "HU10",
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-051"
+      ],
+      "dependsOn": [
+        "WI-CORE-013",
+        "WI-CORE-026"
+      ],
+      "acceptanceCriteria": [
+        "Un símbolo CONSTRUCTOR (PHP y TypeScript) resuelve su chunk en la recuperación sin cambiar el chunk key persistido; prueba roja-verde.",
+        "Los símbolos de archivos de test (clase y métodos de tests PHP/TS) no son objetivos de generación en el validador de AnalysisRun; sin cambiar el pool de indexación ni lo persistido; se documentan los consumidores de analysis_symbols; prueba roja-verde.",
+        "La ruta propuesta PHP no duplica tests/Unit/tests/Unit; DEC-PHP-GEN-001/002 no se revierten (DECISION_REQUIRED si el arreglo las exige).",
+        "Sin cambio de contrato, DTO, Sandbox, GitHub Integration ni migraciones; vitest, lint y tsc contra la línea base; evidencia roja-verde por corte en el reporte."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/004-rag-retrieval-context/spec.md"
       ]
     }
   ]

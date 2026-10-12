@@ -11704,71 +11704,39 @@
     }
   ],
   "activeWorkItem": {
-    "id": "WI-CORE-004",
+    "id": "WI-CORE-044",
     "component": "CORE",
     "workItemType": "PRODUCT",
     "storyIds": [
-      "HU03",
-      "HU04",
       "HU05",
       "HU06",
-      "HU07",
-      "HU08",
-      "HU09",
       "HU10",
-      "HU11",
-      "HU12",
-      "HU13",
-      "HU14",
-      "HU15",
-      "HU16"
+      "HU11"
     ],
     "taskIds": [
-      "ST-CORE-004"
+      "ST-CORE-051"
     ],
-    "caseIds": [
-      "OC01",
-      "OC02",
-      "OC03",
-      "OC04",
-      "OC05",
-      "OC06",
-      "OC07",
-      "OC08",
-      "OC09",
-      "OC10",
-      "OC11",
-      "OC12",
-      "OC13",
-      "OC14",
-      "OC15"
-    ],
-    "sprint": "P2",
-    "status": "W-SELECTED",
+    "caseIds": [],
+    "sprint": "PHP E2E infrastructure",
+    "status": "W-IN_PROGRESS",
     "specPaths": [
-      "spec/features/015-sdd-harness-transition/spec.md",
-      "spec/features/015-sdd-harness-transition/plan.md",
-      "spec/features/015-sdd-harness-transition/tasks.md",
-      "spec/operational-cases.md",
       "spec/features/013-pr-driven-analysis/spec.md",
-      "spec/features/013-pr-driven-analysis/plan.md",
       "spec/features/013-pr-driven-analysis/tasks.md",
-      "spec/contracts/system-contract.md",
-      "spec/contracts/interoperability-contract.md",
-      "spec/contracts/github-integration-contract.md"
+      "spec/features/018-php-laravel-support/spec.md",
+      "spec/features/004-rag-retrieval-context/spec.md"
     ],
     "transversalPaths": [],
-    "approved": false,
+    "approved": true,
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
       "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "checkedAt": "2026-10-12T21:11:35.000Z"
     },
     "execution": {
       "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "analysisAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
       "reviewAgent": null,
       "handoffs": [],
@@ -11776,7 +11744,7 @@
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -11784,7 +11752,7 @@
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -11793,39 +11761,35 @@
       "pullCheckpoints": [
         {
           "checkpoint": "start",
-          "workItem": "WI-CORE-004",
+          "workItem": "WI-CORE-044",
           "relevantPendingSyncIds": [],
           "acknowledgedSyncIds": [
             "CS-20260920-001",
             "CS-20260921-003"
           ],
-          "resolvedSyncIds": [
-            "CS-CONSOLE-20261010-001",
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001",
-            "CS-GH-20261010-001",
-            "CS-GH-20261011-002",
-            "CS-GH-20261011-003"
-          ],
+          "resolvedSyncIds": [],
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-12T21:04:36.781Z"
+          "checkedAt": "2026-10-12T21:11:16.120Z"
         }
       ],
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-004-scope-approval.md",
-      "harness/reports/wi-core-004-contract-sync-scope-review.md"
+      "harness/reports/wi-core-044-scope-approval.md",
+      "harness/reports/wi-core-044-contract-sync-scope-review.md",
+      "harness/reports/wi-core-044-sdd-verification.md"
     ],
     "blockedReason": null,
-    "gateEvidence": {}
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-044-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-044-sdd-verification.md"
+      ]
+    }
   },
   "awayMode": {
     "enabled": true,
