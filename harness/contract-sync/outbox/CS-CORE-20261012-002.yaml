@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-002
+source: core
+sourceWorkItem: WI-CORE-013
+targets: [console, sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - Correccion de procedencia, solo sourceRevision, de CS-CORE-20261009-016 (INTEROP-2.7 §7: failureKind, phase, TEST_COMPILATION_FAILED, IMAGE_UNAVAILABLE). El evento original no se modifica; su sourceRevision 123f8ed pertenece a la rama PHP anterior a WI-CORE-027. El contenido contractual vigente es el del commit fusionado a7c04cef en feature/jean. Sin cambio de contrato ni de comportamiento.
+requiredAction:
+  - Console: al espejar INTEROP-2.7, tomar spec/contracts/interoperability-contract.md del commit indicado en sourceRevision (fusion en feature/jean, a7c04cef) y NO de la revision original del evento corregido, que vive en la rama PHP con base anterior a WI-CORE-027 y regresionaria /evidence y las tasas nulas. Sin cambio funcional ni de contrato.
+sourceRevision: a7c04cef12740941d8559c743f84ed287fb57ced
+status: C-PENDING
