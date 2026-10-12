@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-012
+source: core
+sourceWorkItem: WI-CORE-049
+targets: [sandbox]
+scopePaths: [spec/contracts/system-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.12/INTEROP-2.12 (sucesores de CS-CORE-20261012-009/010): DEC-INF-002 APROBADA AS-BUILT (servicio del Sandbox por HTTPS con TLS y bearer detras de un proxy en la VM; sustituye solo el ingreso por IAP al puerto del servicio y la obligacion de limitar HTTP/HTTPS para 80/443 hacia el proxy; SSH sigue IAP-only; rate limit aprobado con valores iniciales a ratificar; rotacion de 90 dias; IAP como respaldo). Reemplaza el estado PROPOSED publicado en SYSTEM-2.11/INTEROP-2.11. Sin cambios de rutas, campos, codigos ni transporte.
+requiredAction:
+  - Ratificar o ajustar los valores iniciales de rate limit en el proxy (POST /executions 20/min por IP y 30/min global; GET 240/min por IP; 10 intentos/min sin bearer valido) y el procedimiento de rotacion del token cada 90 dias con dueño Jean; conservar el tunel IAP como respaldo; sin cambios en VM, firewall ni proxy sin autorizacion operativa; conserva SYSTEM-2.2; reemplaza CS-CORE-20261012-010
+sourceRevision: 864aa837b95fa379cc2c6d0a98f37521ff3eb3b6
+status: C-PENDING

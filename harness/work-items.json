@@ -2750,7 +2750,7 @@
       "id": "WI-CORE-049",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "PHP E2E infrastructure",
       "title": "DEC-INF-002 (PROPOSED): exposición HTTPS del servicio de Sandbox para Core en Render",
@@ -2807,7 +2807,47 @@
         "harness/reports/wi-core-049-contract-review.md",
         "harness/reports/wi-core-049-technical-checks.md",
         "harness/reports/wi-core-049-review-request.md",
-        "spec/contracts/interoperability-contract.md"
+        "spec/contracts/interoperability-contract.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-011.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-012.md",
+        "harness/reports/wi-core-049-closure.md",
+        "harness/reports/wi-core-049-asbuilt-contract-review.md",
+        "harness/reports/wi-core-049-asbuilt-proposal.md",
+        "harness/contract-sync/outbox/CS-CORE-20261012-011.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-012.yaml"
+      ]
+    },
+    {
+      "id": "WI-CORE-050",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "PHP E2E infrastructure",
+      "title": "Validar SANDBOX_URL con isAllowedSandboxUrl (HTTPS obligatorio en producción)",
+      "storyIds": [
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-057"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-049"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "SANDBOX_URL exige HTTPS en production y solo admite HTTP en loopback (localhost, 127.0.0.1, [::1]) fuera de producción; rechaza credenciales, ruta distinta de «/», query y hash.",
+        "http://localhost:3001 y http://127.0.0.1:3101 siguen siendo válidos fuera de producción; la regla de SANDBOX_URL y SANDBOX_SERVICE_TOKEN juntos (DEC-AUTH-001) no cambia; el mensaje de error no imprime el valor.",
+        "Pruebas roja-verde en env.validation.spec.ts; vitest, lint y tsc contra la línea base (delta 0); sin build en app/; sin cambios de contrato."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "harness/reports/wi-core-050-preparation.md",
+        "app/src/config/env.validation.ts",
+        "app/src/config/env.validation.spec.ts"
       ]
     }
   ]

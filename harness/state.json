@@ -13325,264 +13325,348 @@
         ]
       },
       "closedAt": "2026-10-12T22:48:45.000Z"
+    },
+    {
+      "id": "WI-CORE-049",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "priority": "P1",
+      "title": "DEC-INF-002 (PROPOSED): exposición HTTPS del servicio de Sandbox para Core en Render",
+      "approved": true,
+      "storyIds": [
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-056"
+      ],
+      "caseIds": [],
+      "sprint": "PHP E2E infrastructure",
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-049-scope-approval.md",
+        "harness/reports/wi-core-049-contract-sync-scope-review.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-009.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-010.md",
+        "harness/contract-sync/outbox/CS-CORE-20261012-009.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-010.yaml",
+        "harness/reports/wi-core-049-contract-proposal.md",
+        "harness/reports/wi-core-049-contract-review.md",
+        "harness/reports/wi-core-049-technical-checks.md",
+        "harness/reports/wi-core-049-review-request.md",
+        "spec/contracts/interoperability-contract.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-011.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-012.md",
+        "harness/reports/wi-core-049-closure.md",
+        "harness/reports/wi-core-049-asbuilt-contract-review.md",
+        "harness/reports/wi-core-049-asbuilt-proposal.md",
+        "harness/contract-sync/outbox/CS-CORE-20261012-011.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-012.yaml"
+      ],
+      "transversalPaths": [],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-049 solo documenta la exposición del servicio de Sandbox (DEC-INF-002 PROPOSED) y una corrección editorial, sin tocar binding ni auth de usuario.",
+          "report": "harness/reports/wi-core-049-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-049 solo documenta la exposición del servicio de Sandbox (DEC-INF-002 PROPOSED) y una corrección editorial, sin tocar binding ni auth de usuario.",
+          "report": "harness/reports/wi-core-049-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-VAL-001",
+          "DEC-INF-001"
+        ],
+        "checkedAt": "2026-10-12T22:49:41.000Z",
+        "note": "DEC-INF-002 se registra solo como PROPOSED; no cambia la regla vigente de DEC-INF-001; DEC-VAL-001 no bloquea (sin código empresarial)."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "leader",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "human-reviewer",
+        "handoffs": [
+          {
+            "agent": "contract-reviewer",
+            "status": "CHANGES_REQUESTED",
+            "findings": [
+              "Menores: declarar la parte sustituida del parrafo Red, riesgos de reglas HTTP/HTTPS publicas y health sin bearer, honestidad sobre IP de Render y TLS, versionado SYSTEM-2.11/INTEROP-2.11. Aplicados por el leader."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/system-contract.md",
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-049-contract-review.md"
+            ],
+            "recommendedNextStep": "Confirmar el texto final.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Confirmacion del texto final: DEC-INF-002 PROPOSED sin efecto normativo ni autorizacion de infraestructura; versionado y correccion editorial exactos."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/system-contract.md",
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-049-contract-review.md"
+            ],
+            "recommendedNextStep": "Publicar Contract Sync a console y sandbox.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Revision as-built de DEC-INF-002: cambios aplicados (sustitucion explicita de (i) y (ii), riesgo sin suavizar, honestidad sobre rate limit y 429, SYSTEM-2.12/INTEROP-2.12 minimo); ajustes menores finales aplicados por el leader."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/system-contract.md",
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-049-asbuilt-contract-review.md"
+            ],
+            "recommendedNextStep": "Publicar sucesores a console y sandbox.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "human-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Veredicto directo del usuario en el chat de Core (2026-10-12): «Sí, aprobada as-built»."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/system-contract.md",
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-049-closure.md"
+            ],
+            "recommendedNextStep": "Cerrar WI-CORE-049."
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "retryLimitRespected": "G-PASSED",
+        "sddVerified": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-049",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-12T22:49:41.479Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-049",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-12T22:52:37.221Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-049",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-12T22:52:50.147Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-049",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-12T22:56:52.253Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261012-009",
+          "CS-CORE-20261012-010",
+          "CS-CORE-20261012-011",
+          "CS-CORE-20261012-012"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-049-scope-approval.md",
+        "harness/reports/wi-core-049-contract-review.md",
+        "harness/reports/wi-core-049-contract-proposal.md",
+        "harness/reports/wi-core-049-technical-checks.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-009.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-010.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-011.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-012.md",
+        "harness/reports/wi-core-049-closure.md",
+        "harness/reports/wi-core-049-asbuilt-contract-review.md",
+        "harness/reports/wi-core-049-asbuilt-proposal.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-049-scope-approval.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-049-scope-approval.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-049-contract-proposal.md",
+          "harness/reports/wi-core-049-contract-review.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-049-technical-checks.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-049-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-049-contract-review.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-049-contract-sync-scope-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-049-technical-checks.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/contract-sync-publish-cs-core-20261012-009.md",
+          "harness/reports/contract-sync-publish-cs-core-20261012-010.md",
+          "harness/reports/contract-sync-publish-cs-core-20261012-011.md",
+          "harness/reports/contract-sync-publish-cs-core-20261012-012.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-049-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-12T22:56:54.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-049",
-    "component": "CORE",
-    "workItemType": "HARNESS",
-    "status": "W-IN_REVIEW",
-    "priority": "P1",
-    "title": "DEC-INF-002 (PROPOSED): exposición HTTPS del servicio de Sandbox para Core en Render",
-    "approved": true,
-    "storyIds": [
-      "HU11"
-    ],
-    "taskIds": [
-      "ST-CORE-056"
-    ],
-    "caseIds": [],
-    "sprint": "PHP E2E infrastructure",
-    "specPaths": [
-      "spec/contracts/system-contract.md",
-      "spec/features/018-php-laravel-support/tasks.md",
-      "CHANGELOG.md",
-      "harness/reports/wi-core-049-scope-approval.md",
-      "harness/reports/wi-core-049-contract-sync-scope-review.md",
-      "harness/reports/contract-sync-publish-cs-core-20261012-009.md",
-      "harness/reports/contract-sync-publish-cs-core-20261012-010.md",
-      "harness/contract-sync/outbox/CS-CORE-20261012-009.yaml",
-      "harness/contract-sync/outbox/CS-CORE-20261012-010.yaml",
-      "harness/reports/wi-core-049-contract-proposal.md",
-      "harness/reports/wi-core-049-contract-review.md",
-      "harness/reports/wi-core-049-technical-checks.md",
-      "harness/reports/wi-core-049-review-request.md",
-      "spec/contracts/interoperability-contract.md"
-    ],
-    "transversalPaths": [],
-    "syncScopePaths": [
-      "spec/contracts/system-contract.md",
-      "spec/contracts/interoperability-contract.md"
-    ],
-    "deferredSyncIds": [],
-    "deferredSyncDigests": {},
-    "contractSyncReview": [
-      {
-        "eventId": "CS-20260920-001",
-        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
-        "disposition": "NOT_RELEVANT",
-        "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-049 solo documenta la exposición del servicio de Sandbox (DEC-INF-002 PROPOSED) y una corrección editorial, sin tocar binding ni auth de usuario.",
-        "report": "harness/reports/wi-core-049-contract-sync-scope-review.md"
-      },
-      {
-        "eventId": "CS-20260921-003",
-        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
-        "disposition": "NOT_RELEVANT",
-        "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-049 solo documenta la exposición del servicio de Sandbox (DEC-INF-002 PROPOSED) y una corrección editorial, sin tocar binding ni auth de usuario.",
-        "report": "harness/reports/wi-core-049-contract-sync-scope-review.md"
-      }
-    ],
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-VAL-001",
-        "DEC-INF-001"
-      ],
-      "checkedAt": "2026-10-12T22:49:41.000Z",
-      "note": "DEC-INF-002 se registra solo como PROPOSED; no cambia la regla vigente de DEC-INF-001; DEC-VAL-001 no bloquea (sin código empresarial)."
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": "leader",
-      "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": "human-reviewer",
-      "handoffs": [
-        {
-          "agent": "contract-reviewer",
-          "status": "CHANGES_REQUESTED",
-          "findings": [
-            "Menores: declarar la parte sustituida del parrafo Red, riesgos de reglas HTTP/HTTPS publicas y health sin bearer, honestidad sobre IP de Render y TLS, versionado SYSTEM-2.11/INTEROP-2.11. Aplicados por el leader."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "spec/contracts/system-contract.md",
-            "spec/contracts/interoperability-contract.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-049-contract-review.md"
-          ],
-          "recommendedNextStep": "Confirmar el texto final.",
-          "executedBy": {
-            "agent": "contract-reviewer",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        },
-        {
-          "agent": "contract-reviewer",
-          "status": "APPROVED",
-          "findings": [
-            "Confirmacion del texto final: DEC-INF-002 PROPOSED sin efecto normativo ni autorizacion de infraestructura; versionado y correccion editorial exactos."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "spec/contracts/system-contract.md",
-            "spec/contracts/interoperability-contract.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-049-contract-review.md"
-          ],
-          "recommendedNextStep": "Publicar Contract Sync a console y sandbox.",
-          "executedBy": {
-            "agent": "contract-reviewer",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        }
-      ],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-PASSED",
-      "canonicalContractSynced": "G-PASSED",
-      "contractSyncPublished": "G-PASSED",
-      "interopSyncChecked": "G-PASSED",
-      "retryLimitRespected": "G-PASSED",
-      "sddVerified": "G-PASSED",
-      "noBlockingDecisions": "G-PASSED"
-    },
-    "coordination": {
-      "contractImpact": true,
-      "publishesContract": true,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-049",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-CONSOLE-20261010-001",
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001",
-            "CS-GH-20261010-001",
-            "CS-GH-20261011-002",
-            "CS-GH-20261011-003"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-12T22:49:41.479Z"
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "workItem": "WI-CORE-049",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-CONSOLE-20261010-001",
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001",
-            "CS-GH-20261010-001",
-            "CS-GH-20261011-002",
-            "CS-GH-20261011-003"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-12T22:52:37.221Z"
-        },
-        {
-          "checkpoint": "before-review",
-          "workItem": "WI-CORE-049",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [
-            "CS-CONSOLE-20261010-001",
-            "CS-GH-20260925-001",
-            "CS-GH-20260925-002",
-            "CS-GH-20260925-003",
-            "CS-GH-20260925-004",
-            "CS-GH-20260925-005",
-            "CS-GH-20260926-001",
-            "CS-GH-20260927-001",
-            "CS-GH-20261010-001",
-            "CS-GH-20261011-002",
-            "CS-GH-20261011-003"
-          ],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-12T22:52:50.147Z"
-        }
-      ],
-      "publishedSyncIds": [
-        "CS-CORE-20261012-009",
-        "CS-CORE-20261012-010"
-      ],
-      "pendingRelevantSyncIds": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-049-scope-approval.md",
-      "harness/reports/wi-core-049-contract-review.md",
-      "harness/reports/wi-core-049-contract-proposal.md",
-      "harness/reports/wi-core-049-technical-checks.md",
-      "harness/reports/contract-sync-publish-cs-core-20261012-009.md",
-      "harness/reports/contract-sync-publish-cs-core-20261012-010.md"
-    ],
-    "blockedReason": null,
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-049-scope-approval.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-049-scope-approval.md"
-      ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-049-contract-proposal.md",
-        "harness/reports/wi-core-049-contract-review.md"
-      ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-049-technical-checks.md"
-      ],
-      "contractReviewed": [
-        "harness/reports/wi-core-049-contract-review.md"
-      ],
-      "canonicalContractSynced": [
-        "harness/reports/wi-core-049-contract-review.md"
-      ],
-      "interopSyncChecked": [
-        "harness/reports/wi-core-049-contract-sync-scope-review.md"
-      ],
-      "retryLimitRespected": [
-        "harness/reports/wi-core-049-technical-checks.md"
-      ],
-      "contractSyncPublished": [
-        "harness/reports/contract-sync-publish-cs-core-20261012-009.md",
-        "harness/reports/contract-sync-publish-cs-core-20261012-010.md"
-      ]
-    }
-  },
+  "activeWorkItem": null,
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",

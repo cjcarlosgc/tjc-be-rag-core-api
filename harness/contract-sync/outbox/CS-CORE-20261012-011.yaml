@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-011
+source: core
+sourceWorkItem: WI-CORE-049
+targets: [console]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.12/INTEROP-2.12 (sucesores de CS-CORE-20261012-009/010): DEC-INF-002 APROBADA AS-BUILT (servicio del Sandbox por HTTPS con TLS y bearer detras de un proxy en la VM; sustituye solo el ingreso por IAP al puerto del servicio y la obligacion de limitar HTTP/HTTPS para 80/443 hacia el proxy; SSH sigue IAP-only; rate limit aprobado con valores iniciales a ratificar; rotacion de 90 dias; IAP como respaldo). Reemplaza el estado PROPOSED publicado en SYSTEM-2.11/INTEROP-2.11. Sin cambios de rutas, campos, codigos ni transporte.
+requiredAction:
+  - Sincronizar el espejo INTEROP-2.12 (y SYSTEM-2.12 si lo mantiene) byte a byte; sin cambio de comportamiento; reemplaza CS-CORE-20261012-009
+sourceRevision: 864aa837b95fa379cc2c6d0a98f37521ff3eb3b6
+status: C-PENDING
