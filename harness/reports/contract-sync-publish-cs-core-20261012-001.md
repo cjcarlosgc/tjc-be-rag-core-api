@@ -20,3 +20,9 @@ La publicación quedó acreditada en el outbox; las importaciones se registran d
 - Sandbox: importación con su Harness V2 mediante una proyección JSON compatible, persistida en el inbox del consumidor. La proyección conserva ID, `sourceWorkItem`, `scopePaths`, `sourceRevision`, `breaking` y `sourceStatus: C-PENDING`; adapta el estado a `PENDING`, reduce `targets` a `sandbox` y mapea el área local a `executions` porque el Harness V2 solo reconoce sus áreas históricas. El inbox permanece `PENDING`; no se cambió el espejo SYSTEM-2.2 ni la línea base SDD 2.1.
 
 Ambos consumidores aún deben seleccionar y atender su WI local. Ningún evento se ACK o RESOLVED por esta importación; el WI-CORE-043 continúa abierto.
+
+## Actualización de consumidores — 2026-10-12
+
+- Console: `WI-CONSOLE-025` está `W-DONE`; su inbox registra `CS-CORE-20261012-001` como `C-RESOLVED` con `harness/reports/wi-console-025-implementation.md`. Los SHA-256 del espejo coinciden con la fuente Core.
+- Sandbox: `WI-SANDBOX-003` está `DONE`; su inbox permanece `ACKNOWLEDGED` con `harness/reports/wi-sandbox-003-contract-sync-preflight.md`. Ese ACK certifica preflight/recepción, no aprobación local de `DEC-INF-001`, despliegue ni resolución de su evento. Se preservan su SDD 2.1 y SYSTEM-2.2; no se exige `C-RESOLVED` para el criterio de WI-CORE-043 que pide registrar y completar ese preflight local.
+- Por tanto, la espera de selección/atención de los consumidores descrita arriba es histórica. El gate documental de Core puede cerrarse; IAP/firewall y SHA desplegado siguen siendo puertas separadas antes de una corrida remota.
