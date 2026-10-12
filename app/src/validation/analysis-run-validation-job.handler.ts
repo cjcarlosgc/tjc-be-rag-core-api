@@ -102,6 +102,12 @@ function toExecutionOutcome(kind: ExecutionOutcomeKind): string {
 interface SymbolOutcome {
   symbol: AnalysisSymbol;
   kind: SymbolOutcomeKind;
+  /**
+   * DEC-VAL-002 (WI-CORE-048): el símbolo no obtuvo veredicto por fallo de plataforma (Sandbox no disponible o
+   * rechazó la ejecución, timeout o categoría INFRASTRUCTURE). Solo afecta a la clasificación del Run y al
+   * resumen; `kind` y la evidencia por ejecución no cambian.
+   */
+  platformFailure?: boolean;
 }
 
 /** Ruta y namespace del test de un símbolo; `namespace` solo existe para PHP. */
@@ -539,7 +545,12 @@ export class AnalysisRunValidationJobHandler
         generation,
       });
       await this.recordExecutionBestEffort(run, proposalId, evidence, kind);
-      return { symbol, kind };
+      // DEC-VAL-002: timeout del Sandbox o categoría INFRASTRUCTURE es fallo de plataforma por símbolo.
+      return {
+        symbol,
+        kind,
+        platformFailure: outcome.failureType === 'INFRASTRUCTURE',
+      };
     } catch (error) {
       const summary =
         error instanceof SandboxUnavailableError
@@ -569,7 +580,13 @@ export class AnalysisRunValidationJobHandler
           'TECHNICAL_GENERATION_FAILURE',
         );
       }
-      return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
+      // DEC-VAL-002: Sandbox no disponible o ejecución aceptada sin resultado es fallo de plataforma (la evidencia
+      // por ejecución conserva TECHNICAL_GENERATION_FAILURE). Otras excepciones (LLM, etc.) siguen técnicas.
+      return {
+        symbol,
+        kind: 'TECHNICAL_GENERATION_FAILURE',
+        platformFailure: error instanceof SandboxUnavailableError,
+      };
     }
   }
 
@@ -581,12 +598,23 @@ export class AnalysisRunValidationJobHandler
       : 'TECHNICAL_GENERATION_FAILURE';
   }
 
+  /**
+   * Precedencia DEC-VAL-002: BEHAVIORAL_MISMATCH > TECHNICAL_GENERATION_FAILURE > INFRASTRUCTURE_FAILURE >
+   * SUCCESS > NO_ADDITIONAL_TESTS_REQUIRED / NO_TEST_RELEVANT_CHANGES.
+   */
   private classifyRun(outcomes: SymbolOutcome[]): AnalysisRunCompletionStatus {
     if (outcomes.some((o) => o.kind === 'BEHAVIORAL_MISMATCH')) {
       return 'BEHAVIORAL_MISMATCH';
     }
-    if (outcomes.some((o) => o.kind === 'TECHNICAL_GENERATION_FAILURE')) {
+    if (
+      outcomes.some(
+        (o) => o.kind === 'TECHNICAL_GENERATION_FAILURE' && !o.platformFailure,
+      )
+    ) {
       return 'TECHNICAL_GENERATION_FAILURE';
+    }
+    if (outcomes.some((o) => o.platformFailure)) {
+      return 'INFRASTRUCTURE_FAILURE';
     }
     if (outcomes.some((o) => o.kind === 'AVAILABLE')) {
       return 'SUCCESS';
@@ -609,14 +637,21 @@ export class AnalysisRunValidationJobHandler
       (o) => o.kind === 'BEHAVIORAL_MISMATCH',
     ).length;
     const failed = outcomes.filter(
-      (o) => o.kind === 'TECHNICAL_GENERATION_FAILURE',
+      (o) => o.kind === 'TECHNICAL_GENERATION_FAILURE' && !o.platformFailure,
     ).length;
+    // DEC-VAL-002: los fallos de plataforma se cuentan aparte, con los símbolos sin veredicto.
+    const platform = outcomes.filter((o) => o.platformFailure);
 
     if (status === 'NO_TEST_RELEVANT_CHANGES' && outcomes.length === 0) {
       return `${status}: 0 candidato(s) METHOD/FUNCTION directamente cambiado(s), 0 propuesta(s) disponible(s); cobertura existente no evaluada.`;
     }
 
-    return `${status}: ${available} propuesta(s) disponible(s), ${skipped} símbolo(s) ya cubiertos por tests existentes, ${mismatched} behavioral mismatch, ${failed} fallo(s) técnico(s) de generación.`;
+    const base = `${status}: ${available} propuesta(s) disponible(s), ${skipped} símbolo(s) ya cubiertos por tests existentes, ${mismatched} behavioral mismatch, ${failed} fallo(s) técnico(s) de generación`;
+    if (platform.length === 0) {
+      return `${base}.`;
+    }
+    const names = platform.map((o) => o.symbol.qualifiedName).join(', ');
+    return `${base}, ${platform.length} fallo(s) de plataforma sin veredicto (${names}).`;
   }
 
   /**

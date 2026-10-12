@@ -1068,9 +1068,11 @@ describe('AnalysisRunValidationJobHandler', () => {
         failureSummary: 'Sandbox no disponible.',
       }),
     );
+    // DEC-VAL-002 (OC08): un Sandbox no disponible es fallo de plataforma por símbolo; el Run lo refleja como
+    // INFRASTRUCTURE_FAILURE. La evidencia por ejecución de la propuesta no cambia (recordExecutionBestEffort).
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
-      'TECHNICAL_GENERATION_FAILURE',
+      'INFRASTRUCTURE_FAILURE',
       expect.anything(),
     );
   });
@@ -1361,9 +1363,10 @@ describe('AnalysisRunValidationJobHandler', () => {
           failureSummary: 'La ejecución exec-9 no terminó.',
         }),
       );
+      // DEC-VAL-002 (OC08): la ejecución aceptada sin resultado es fallo de plataforma por símbolo (Run INFRASTRUCTURE_FAILURE).
       expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
         expect.anything(),
-        'TECHNICAL_GENERATION_FAILURE',
+        'INFRASTRUCTURE_FAILURE',
         expect.anything(),
       );
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('exec-9'));
@@ -1993,6 +1996,237 @@ describe('AnalysisRunValidationJobHandler', () => {
       expect(logged).toContain('PrismaClientKnownRequestError');
       expect(logged).not.toContain('secret');
       warn.mockRestore();
+    });
+  });
+
+  describe('fallo de plataforma por símbolo y precedencia del Run (DEC-VAL-002, WI-CORE-048 / OC08)', () => {
+    const TWO_SYMBOLS = [
+      buildSymbol({ id: 'symbol-1', qualifiedName: 'Thing.first' }),
+      buildSymbol({ id: 'symbol-2', qualifiedName: 'Thing.second' }),
+    ];
+
+    const mismatchFacts = {
+      runner: 'JEST',
+      compiled: true,
+      executed: true,
+      passed: false,
+      totalTests: 1,
+      passedTests: 0,
+      failedTests: 1,
+      skippedTests: 0,
+      testCases: [],
+      testCasesTruncated: false,
+    };
+
+    const compilationFacts = {
+      runner: 'JEST',
+      compiled: false,
+      executed: false,
+      passed: false,
+      totalTests: 0,
+      passedTests: 0,
+      failedTests: 0,
+      skippedTests: 0,
+      testCases: [],
+      testCasesTruncated: false,
+    };
+
+    it('reports a platform failure on one symbol as INFRASTRUCTURE_FAILURE and keeps the other AVAILABLE proposal', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+        generatedTestProposalsRepository,
+        analysisTraceRepository,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(
+          new SandboxAcceptedExecutionError(
+            'La ejecución exec-9 no terminó.',
+            'exec-9',
+            'NODE_TYPESCRIPT',
+          ),
+        )
+        .mockResolvedValueOnce(sandboxResult());
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.objectContaining({
+          generatedTestsCount: 1,
+          functionalBehaviorValidated: false,
+          resultSummary: expect.stringContaining(
+            '1 fallo(s) de plataforma sin veredicto (Thing.first)',
+          ),
+        }),
+      );
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol.mock.calls.map(
+          (call) => call[0].status,
+        ),
+      ).toEqual(['HELD', 'AVAILABLE']);
+      // La evidencia por ejecución del fallo de plataforma no cambia de valor (condición del usuario).
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-9',
+          outcome: 'TECHNICAL_GENERATION_FAILURE',
+        }),
+      );
+    });
+
+    it('keeps BEHAVIORAL_MISMATCH over a timeout platform failure on another symbol', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockResolvedValueOnce(
+          sandboxResult({ status: 'TIMED_OUT', facts: null, failure: null }),
+        )
+        .mockResolvedValueOnce(sandboxResult({ facts: mismatchFacts }));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'BEHAVIORAL_MISMATCH',
+        expect.objectContaining({
+          resultSummary: expect.stringContaining(
+            '1 fallo(s) de plataforma sin veredicto (Thing.first)',
+          ),
+        }),
+      );
+    });
+
+    it('completes INFRASTRUCTURE_FAILURE when a symbol fails with the INFRASTRUCTURE category', async () => {
+      const { handler, sandboxExecutionService, analysisRunsService } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'FAILED',
+          facts: null,
+          failure: { category: 'INFRASTRUCTURE', message: 'Docker no responde.' },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.objectContaining({ generatedTestsCount: 0 }),
+      );
+    });
+
+    it('keeps TECHNICAL_GENERATION_FAILURE over a platform failure when another symbol fails to compile', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(new SandboxUnavailableError('Sandbox no disponible.'))
+        .mockResolvedValueOnce(sandboxResult({ facts: compilationFacts }));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.objectContaining({
+          resultSummary: expect.stringContaining(
+            '1 fallo(s) de plataforma sin veredicto (Thing.first)',
+          ),
+        }),
+      );
+    });
+
+    it('keeps INFRASTRUCTURE_FAILURE over a symbol that already has a test when a platform failure is present', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        testTargetsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ id: 'symbol-1', qualifiedName: 'Thing.first' }),
+        buildSymbol({
+          id: 'symbol-2',
+          qualifiedName: 'Thing.skipped',
+          filePath: 'src/skipped.ts',
+        }),
+      ]);
+      testTargetsRepository.findByProjectVersion.mockResolvedValue([
+        {
+          id: 'target-2',
+          projectVersionId: 'version-1',
+          filePath: 'src/skipped.ts',
+          symbolName: 'Thing',
+          methodName: 'skipped',
+          targetType: 'METHOD',
+          hasTest: true,
+          testFilePaths: ['src/skipped.spec.ts'],
+        } as TestTarget,
+      ]);
+      sandboxExecutionService.execute.mockRejectedValueOnce(
+        new SandboxUnavailableError('Sandbox no disponible.'),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('keeps TECHNICAL_GENERATION_FAILURE for an UNKNOWN failure and a generic exception, with the previous summary text', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(new Error('fallo genérico del proveedor'))
+        .mockResolvedValueOnce(
+          sandboxResult({
+            status: 'FAILED',
+            facts: null,
+            failure: { category: 'UNKNOWN', message: 'Causa desconocida.' },
+          }),
+        );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.objectContaining({
+          resultSummary:
+            'TECHNICAL_GENERATION_FAILURE: 0 propuesta(s) disponible(s), 0 símbolo(s) ya cubiertos por tests existentes, 0 behavioral mismatch, 2 fallo(s) técnico(s) de generación.',
+        }),
+      );
     });
   });
 });
