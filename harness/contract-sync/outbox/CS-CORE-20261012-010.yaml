@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-010
+source: core
+sourceWorkItem: WI-CORE-049
+targets: [sandbox]
+scopePaths: [spec/contracts/system-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.11/INTEROP-2.11: DEC-INF-002 PROPOSED (sin efecto normativo) y correcciones editoriales de estado (DEC-VAL-002 implementada en WI-CORE-048; mensaje de OC11 implementado en WI-CORE-046). Sin cambios de rutas, campos, códigos ni transporte.
+requiredAction:
+  - Ninguna ahora; conserva SYSTEM-2.2; no implementar ni tocar firewall, proxy ni VM hasta la aprobacion del usuario y la autorizacion operativa explicita
+sourceRevision: b07d188a6ad60051e40e4d47ae44ec06aa0de50f
+status: C-PENDING

@@ -2750,7 +2750,7 @@
       "id": "WI-CORE-049",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "PHP E2E infrastructure",
       "title": "DEC-INF-002 (PROPOSED): exposición HTTPS del servicio de Sandbox para Core en Render",
@@ -2767,7 +2767,8 @@
       "contractImpact": true,
       "publishesContract": true,
       "syncScopePaths": [
-        "spec/contracts/system-contract.md"
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
       ],
       "scopeApprovalReport": "harness/reports/wi-core-049-scope-approval.md",
       "contractSyncReview": [
@@ -2797,7 +2798,16 @@
         "spec/features/018-php-laravel-support/tasks.md",
         "CHANGELOG.md",
         "harness/reports/wi-core-049-scope-approval.md",
-        "harness/reports/wi-core-049-contract-sync-scope-review.md"
+        "harness/reports/wi-core-049-contract-sync-scope-review.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-009.md",
+        "harness/reports/contract-sync-publish-cs-core-20261012-010.md",
+        "harness/contract-sync/outbox/CS-CORE-20261012-009.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-010.yaml",
+        "harness/reports/wi-core-049-contract-proposal.md",
+        "harness/reports/wi-core-049-contract-review.md",
+        "harness/reports/wi-core-049-technical-checks.md",
+        "harness/reports/wi-core-049-review-request.md",
+        "spec/contracts/interoperability-contract.md"
       ]
     }
   ]
