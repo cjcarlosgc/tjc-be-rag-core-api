@@ -2549,6 +2549,42 @@
         "harness/reports/contract-sync-publish-cs-core-20261012-006.md",
         "harness/reports/wi-core-045-technical-checks.md"
       ]
+    },
+    {
+      "id": "WI-CORE-046",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "OC11: resultSummary explícito y no relanzar el error cuando el compare del PR es UNVERIFIABLE",
+      "storyIds": [
+        "HU06",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-053"
+      ],
+      "caseIds": [
+        "OC11"
+      ],
+      "dependsOn": [
+        "WI-CORE-045"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Un compare UNVERIFIABLE completa el Run INFRASTRUCTURE_FAILURE con Check neutral y un resultSummary explícito que lo distingue de una caída de Core; el texto exacto lo aprueba el usuario (ver harness/reports/wi-core-046-preparation.md: UNVERIFIABLE no distingue el límite de 300 de otras causas).",
+        "El job no relanza el error en UNVERIFIABLE, de modo que no hay reintento ruidoso; los demás errores conservan su comportamiento actual.",
+        "Prueba roja-verde en snapshot-analysis-job.handler.spec.ts; vitest, lint y tsc contra la línea base (delta 0 por archivo).",
+        "Confinado al análisis de PR: no se modifican experimentos (008), OE2/OE5, evidencia, métricas ni sandbox/map-sandbox-result.ts; sin cambio de contrato, DTO ni migración."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "harness/reports/wi-core-046-preparation.md"
+      ]
     }
   ]
 }
