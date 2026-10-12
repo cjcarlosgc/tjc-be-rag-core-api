@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-001
+source: core
+sourceWorkItem: WI-CORE-043
+targets: [console, sandbox]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.9 approves reuse of the existing rag-test-execution-sandbox VM and records its pilot, network, retention and cost boundaries. User reports that the repository was cloned and deployed once before recent fixes; the deployed SHA and corrected rollout remain unverified. INTEROP-2.8 change is status-only; Sandbox retains SDD 2.1/SYSTEM-2.2 and no global homologation is implied.
+requiredAction:
+  - Console: import the event and register/attend a local mirror-only WI for SYSTEM-2.9 and the applicable status-only INTEROP-2.8 update; make no UI/product change. Sandbox: import through the local SDD-2.1 Harness compatibility workflow, register a local WI, apply only the DEC-INF-001 operational decision while preserving SDD 2.1/SYSTEM-2.2, and identify the deployed SHA before another remote run. ACK records receipt only. This event does not authorize firewall changes or deployment.
+sourceRevision: 76053463e1b073364861d417bc9c2217dccd11a2
+status: C-PENDING

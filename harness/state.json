@@ -11387,7 +11387,9 @@
       "harness/reports/wi-core-043-technical-checks.md",
       "harness/reports/wi-core-043-contract-sync-relevance.md",
       "harness/reports/contract-sync-resolution-cs-gh-20261011-003.md",
-      "harness/contract-sync/inbox/CS-GH-20261011-003.yaml"
+        "harness/contract-sync/inbox/CS-GH-20261011-003.yaml",
+        "harness/contract-sync/outbox/CS-CORE-20261012-001.yaml",
+        "harness/reports/contract-sync-publish-cs-core-20261012-001.md"
     ],
     "transversalPaths": [],
     "syncScopePaths": [
@@ -11542,7 +11544,7 @@
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-PASSED",
       "canonicalContractSynced": "G-PASSED",
-      "contractSyncPublished": "G-NOT_RUN",
+      "contractSyncPublished": "G-PASSED",
       "interopSyncChecked": "G-NOT_RUN",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-PASSED"
@@ -11565,6 +11567,9 @@
       "contractReviewed": [
         "harness/reports/wi-core-043-contract-review.md"
       ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20261012-001.md"
+      ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-043-sdd-verification.md"
       ]
@@ -11572,7 +11577,9 @@
     "coordination": {
       "contractImpact": true,
       "publishesContract": true,
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261012-001"
+      ],
       "pendingRelevantSyncIds": [],
       "pullCheckpoints": [
         {

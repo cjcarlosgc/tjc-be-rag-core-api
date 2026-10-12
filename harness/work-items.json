@@ -2368,7 +2368,9 @@
         "harness/reports/wi-core-043-technical-checks.md",
         "harness/reports/wi-core-043-contract-sync-relevance.md",
         "harness/reports/contract-sync-resolution-cs-gh-20261011-003.md",
-        "harness/contract-sync/inbox/CS-GH-20261011-003.yaml"
+            "harness/contract-sync/inbox/CS-GH-20261011-003.yaml",
+            "harness/contract-sync/outbox/CS-CORE-20261012-001.yaml",
+            "harness/reports/contract-sync-publish-cs-core-20261012-001.md"
       ]
     }
   ]

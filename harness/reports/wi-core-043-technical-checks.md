@@ -13,4 +13,6 @@ El corte no modifica `app/`, dependencias, migraciones ni configuración de GCE;
 
 La consulta GCE intentada en esta ejecución no pudo ejecutarse: `gcloud` no está instalado/disponible en el shell de esta sesión. La lectura de GCE registrada en `wi-core-043-decision-resolution.md` corresponde a una inspección previa, no a una verificación en vivo de este turno.
 
-El Contract Sync saliente de WI-CORE-043 aún no está publicado; su gate queda pendiente.
+Después de publicar `CS-CORE-20261012-001` y de importar únicamente ese evento en ambos consumidores, pasaron `node harness/validate-harness.mjs` en Console (Harness V3) y Sandbox (Harness V2), además de `git diff --check` en ambos worktrees. Sus estados locales siguen `C-PENDING` y `PENDING` respectivamente; no se confunden con resolución.
+
+El Contract Sync está publicado y su gate consta como `G-PASSED`; la atención local de los consumidores y el gate de sincronización/interop para el cierre de WI-CORE-043 permanecen pendientes.
