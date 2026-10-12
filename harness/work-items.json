@@ -2745,6 +2745,60 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-048-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-049",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "PHP E2E infrastructure",
+      "title": "DEC-INF-002 (PROPOSED): exposición HTTPS del servicio de Sandbox para Core en Render",
+      "storyIds": [
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-056"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-043"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md"
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-049-scope-approval.md",
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-049 solo documenta la exposición del servicio de Sandbox (DEC-INF-002 PROPOSED) y una corrección editorial, sin tocar binding ni auth de usuario.",
+          "report": "harness/reports/wi-core-049-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-049 solo documenta la exposición del servicio de Sandbox (DEC-INF-002 PROPOSED) y una corrección editorial, sin tocar binding ni auth de usuario.",
+          "report": "harness/reports/wi-core-049-contract-sync-scope-review.md"
+        }
+      ],
+      "acceptanceCriteria": [
+        "DEC-INF-002 queda registrada como PROPOSED en SYSTEM-2.11 y sustituye parcialmente solo el párrafo «Red» de DEC-INF-001 para el servicio del Sandbox; SSH/administración siguen IAP-only con OS Login y 2FA; el puerto del servicio nunca es público; el resto de DEC-INF-001 no cambia.",
+        "Documenta riesgos honestos (IP de salida compartidas por región, ejecución de código de terceros, rate limit, rotación del SANDBOX_SERVICE_TOKEN, monitoreo), criterio de reversión al túnel IAP, impacto nulo en validez y resultados de experimentos con duración que incorpora tiempo de red, cambios previstos y preguntas abiertas.",
+        "Corrige en el mismo bump la deuda editorial: DEC-VAL-002 «implementación pendiente» y estado de «Baseline» en SYSTEM; el §6.10 de OC11 solo si el contract-reviewer lo acepta con su versionado.",
+        "Sin cambios en app/, VM, firewall ni Render; contract-reviewer aprueba antes de editar; Contract Sync a console y github-integration solo si el reviewer lo exige."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-049-scope-approval.md",
+        "harness/reports/wi-core-049-contract-sync-scope-review.md"
+      ]
     }
   ]
 }
