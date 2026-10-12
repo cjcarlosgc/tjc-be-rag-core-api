@@ -2585,6 +2585,68 @@
         "spec/contracts/interoperability-contract.md",
         "harness/reports/wi-core-046-preparation.md"
       ]
+    },
+    {
+      "id": "WI-CORE-047",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-SELECTED",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Aprobar DEC-VAL-002 en SYSTEM-2.10: fallo de plataforma por símbolo y precedencia del Run",
+      "storyIds": [
+        "HU04",
+        "HU11",
+        "HU13",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-054"
+      ],
+      "caseIds": [
+        "OC08"
+      ],
+      "dependsOn": [
+        "WI-CORE-045"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md"
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-047-scope-approval.md",
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata binding y lifecycle de Project/RepositoryBinding; WI-CORE-047 solo aprueba una decisión de clasificación del Run en SYSTEM y corrige una cita, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-047-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "El evento trata autenticación GitHub y orden de despliegue; WI-CORE-047 solo aprueba una decisión de clasificación del Run en SYSTEM y corrige una cita, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-047-contract-sync-scope-review.md"
+        }
+      ],
+      "acceptanceCriteria": [
+        "DEC-VAL-002 queda APROBADA en SYSTEM-2.10 con la precedencia BEHAVIORAL_MISMATCH > TECHNICAL_GENERATION_FAILURE > INFRASTRUCTURE_FAILURE > SUCCESS > NO_ADDITIONAL_TESTS_REQUIRED/NO_TEST_RELEVANT_CHANGES, la definición de fallo de plataforma por símbolo y la razón; A2/A3 se retiran como no elegidas.",
+        "Se declaran las consecuencias: un Run con un símbolo sin veredicto por plataforma no es SUCCESS y su companion PR no es publicable hasta reintentar; los resultados por símbolo se conservan y siguen consultables.",
+        "Se escribe la condición del usuario: el cambio se confina al análisis de PR y no altera experimentos (008), OE2/OE5 ni evidencia/métricas existentes; map-sandbox-result.ts exige prueba de no regresión o no se toca; si afecta métricas, DECISION_REQUIRED.",
+        "Se actualiza la línea «Ver DEC-VAL-002» y se corrige la cita INTEROP-2.8 de system-contract.md l.68; INTEROP solo si el contract-reviewer lo exige.",
+        "Contract-reviewer aprueba antes de editar; Contract Sync a console y github-integration (Sandbox solo si aplica); sin cambios en app/."
+      ],
+      "specPaths": [
+        "spec/contracts/system-contract.md",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-047-scope-approval.md",
+        "harness/reports/wi-core-047-contract-sync-scope-review.md"
+      ]
     }
   ]
 }
