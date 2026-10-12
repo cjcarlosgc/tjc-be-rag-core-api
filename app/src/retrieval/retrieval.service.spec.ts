@@ -577,3 +577,110 @@ describe('RetrievalService PHP structural relations (WI-CORE-028, DEC-PHP-RET-00
     expect(result.candidates).toEqual([]);
   });
 });
+
+describe('RetrievalService: colisión METHOD/CONSTRUCTOR homónimos (WI-CORE-044 corte 3)', () => {
+  const methodTarget = {
+    filePath: 'src/box.ts',
+    symbolName: 'Box',
+    methodName: 'build',
+    targetType: 'METHOD' as const,
+  };
+
+  function serviceWith(findBySymbolResult: CodeChunk[]) {
+    const findBySymbol = vi.fn().mockResolvedValue(findBySymbolResult);
+    const service = new RetrievalService({
+      findBySymbol,
+      findSimilarByEmbedding: vi.fn().mockResolvedValue([]),
+      findByProjectVersion: vi.fn().mockResolvedValue([]),
+    } as never);
+    return { service, findBySymbol };
+  }
+
+  it('uses only the METHOD parts when METHOD and CONSTRUCTOR share name and parent', async () => {
+    const constructorPart = makeChunk({
+      id: 'ctor-1',
+      filePath: 'src/box.ts',
+      symbolKind: 'CONSTRUCTOR',
+      symbolName: 'build',
+      parentSymbolName: 'Box',
+      partIndex: 1,
+      partsTotal: 1,
+    });
+    const methodPart1 = makeChunk({
+      id: 'method-1',
+      filePath: 'src/box.ts',
+      symbolKind: 'METHOD',
+      symbolName: 'build',
+      parentSymbolName: 'Box',
+      partIndex: 1,
+      partsTotal: 2,
+    });
+    const methodPart2 = makeChunk({
+      id: 'method-2',
+      filePath: 'src/box.ts',
+      symbolKind: 'METHOD',
+      symbolName: 'build',
+      parentSymbolName: 'Box',
+      partIndex: 2,
+      partsTotal: 2,
+    });
+    // El repositorio ordena solo por partIndex: el CONSTRUCTOR puede aparecer primero.
+    const { service } = serviceWith([constructorPart, methodPart1, methodPart2]);
+
+    const result = await service.retrieve('version-1', methodTarget);
+
+    expect(result.targetChunks.map((chunk) => chunk.id)).toEqual(['method-1', 'method-2']);
+    expect(result.targetChunks.every((chunk) => chunk.symbolKind === 'METHOD')).toBe(true);
+    expect(result.targetChunks[0].partsTotal).toBe(2);
+  });
+
+  it('uses the CONSTRUCTOR parts when only CONSTRUCTOR is persisted (multi-part)', async () => {
+    const ctorPart1 = makeChunk({
+      id: 'ctor-1',
+      symbolKind: 'CONSTRUCTOR',
+      symbolName: 'build',
+      parentSymbolName: 'Box',
+      partIndex: 1,
+      partsTotal: 2,
+    });
+    const ctorPart2 = makeChunk({
+      id: 'ctor-2',
+      symbolKind: 'CONSTRUCTOR',
+      symbolName: 'build',
+      parentSymbolName: 'Box',
+      partIndex: 2,
+      partsTotal: 2,
+    });
+    const { service } = serviceWith([ctorPart1, ctorPart2]);
+
+    const result = await service.retrieve('version-1', methodTarget);
+
+    expect(result.targetChunks.map((chunk) => chunk.id)).toEqual(['ctor-1', 'ctor-2']);
+    expect(result.targetChunks.every((chunk) => chunk.symbolKind === 'CONSTRUCTOR')).toBe(true);
+  });
+
+  it('keeps the current behavior when only METHOD is persisted', async () => {
+    const methodPart1 = makeChunk({
+      id: 'method-1',
+      symbolKind: 'METHOD',
+      symbolName: 'build',
+      parentSymbolName: 'Box',
+      partIndex: 1,
+      partsTotal: 2,
+    });
+    const methodPart2 = makeChunk({
+      id: 'method-2',
+      symbolKind: 'METHOD',
+      symbolName: 'build',
+      parentSymbolName: 'Box',
+      partIndex: 2,
+      partsTotal: 2,
+    });
+    const { service, findBySymbol } = serviceWith([methodPart1, methodPart2]);
+
+    const result = await service.retrieve('version-1', methodTarget);
+
+    expect(findBySymbol).toHaveBeenCalledWith('version-1', 'src/box.ts', ['METHOD', 'CONSTRUCTOR'], 'build', 'Box');
+    expect(result.targetChunks.map((chunk) => chunk.id)).toEqual(['method-1', 'method-2']);
+  });
+});

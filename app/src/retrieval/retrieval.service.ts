@@ -82,6 +82,16 @@ function isSameSymbol(a: CodeChunk, b: CodeChunk): boolean {
   );
 }
 
+/**
+ * Elige UN symbolKind ganador entre los chunks de un mismo símbolo (WI-CORE-044 corte 3):
+ * METHOD si hay algún chunk METHOD; si no, el kind del primer chunk (CONSTRUCTOR, único otro kind buscado).
+ * Devuelve solo los chunks de ese kind, conservando el orden por partIndex.
+ */
+function selectWinningSymbolKindChunks(chunks: CodeChunk[]): CodeChunk[] {
+  const winningKind = chunks.some((chunk) => chunk.symbolKind === 'METHOD') ? 'METHOD' : chunks[0]?.symbolKind;
+  return chunks.filter((chunk) => chunk.symbolKind === winningKind).sort((a, b) => a.partIndex - b.partIndex);
+}
+
 @Injectable()
 export class RetrievalService {
   constructor(private readonly codeChunksRepository: CodeChunksRepository) {}
@@ -114,7 +124,10 @@ export class RetrievalService {
       );
     }
 
-    const anchor = targetChunks[0];
+    // Si METHOD y CONSTRUCTOR homónimos (mismo filePath/nombre/padre) coexisten, solo se usa un kind:
+    // METHOD si existe alguno; si no, el CONSTRUCTOR. Así no se mezclan partes de ambos.
+    const winningTargetChunks = selectWinningSymbolKindChunks(targetChunks);
+    const anchor = winningTargetChunks[0];
     const candidatesById = new Map<string, RetrievalCandidate>();
 
     if (mode === 'SEM') {
@@ -132,7 +145,7 @@ export class RetrievalService {
         candidatesById.set(chunk.id, { chunk, semanticScore: chunk.semanticScore, structuralMatch: null });
       }
 
-      return { targetChunks, candidates: [...candidatesById.values()] };
+      return { targetChunks: winningTargetChunks, candidates: [...candidatesById.values()] };
     }
 
     const [semanticCandidates, allChunks] = await Promise.all([
@@ -166,7 +179,7 @@ export class RetrievalService {
       }
     }
 
-    return { targetChunks, candidates: [...candidatesById.values()] };
+    return { targetChunks: winningTargetChunks, candidates: [...candidatesById.values()] };
   }
 
   /**
