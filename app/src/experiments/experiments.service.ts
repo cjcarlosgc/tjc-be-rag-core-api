@@ -356,6 +356,11 @@ export class ExperimentsService {
       compilationRate: rate(repetitions, (r) => r.compiled === true),
       executionRate: rate(repetitions, (r) => r.executed === true),
       passedRate: rate(repetitions, (r) => r.passed === true),
+      // INTEROP-2.13: diagnóstico técnico; compila y se ejecuta, y el único fallo posible es una aserción.
+      technicallyValidRate: rate(
+        repetitions,
+        (r) => r.compiled === true && r.executed === true && (r.failureType === 'NONE' || r.failureType === 'TEST_ASSERTION'),
+      ),
       generationDurationMs: roundOrNull(mean(repetitions.map((r) => r.generationDurationMs))),
       // Media de no nulos: null si ninguna evaluable invocó el Sandbox (interpretación aprobada, DEC-EVID-001).
       executionDurationMs: roundOrNull(mean(repetitions.map((r) => r.executionDurationMs))),
@@ -370,6 +375,7 @@ export class ExperimentsService {
       toolCalls: roundOrNull(mean(repetitions.map((r) => r.toolCalls))),
       filesInspected: roundOrNull(mean(repetitions.map((r) => r.filesInspected))),
       failures,
+      assertionFailureCount: repetitions.filter((r) => r.failureType === 'TEST_ASSERTION').length,
       modelVersion: model?.modelVersion ?? null,
       reasoningEffort: model?.reasoningEffort ?? null,
       temperature: model?.temperature ?? null,
