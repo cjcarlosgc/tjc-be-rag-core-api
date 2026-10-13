@@ -12,7 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
-- **WI-CORE-057 — INTEROP-2.14: dependencias PHP con FQCN en el contexto RAG (2026-10-13, en revisión):** el contexto de generación RAG de PHP incluye una sección con los nombres completos de las dependencias del target (tipos del constructor y de la firma del método, resueltos por `use`, literal o el namespace de la clase declarante verificado contra el índice; sin inventar), con tope de 300 tokens y fuera de `contextTokens`; se expone de forma aditiva en la traza (`dependencyContext`). No cambia el ranking, los pesos, `topK`, R-PHP1..5 ni las métricas; `DEC-RAG-001` sigue `PENDING`. Replay de los 9 casos del piloto V1: top-10 idéntico, 0 a 91 tokens extra.
+- **WI-CORE-057 — dependencias PHP con FQCN en el contexto RAG y la traza, INTEROP-2.14 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-002) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-056 — análisis del ruido del contexto RAG con simulación offline (informe; revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-053 — evidencia privada por repetición (tabla experiment_repetition_artifacts; migración 20261013100000 sin aplicar; revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-054 — INTEROP-2.13: technicallyValidRate y assertionFailureCount (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-001) (2026-10-13, W-DONE, revisión independiente delegada).**

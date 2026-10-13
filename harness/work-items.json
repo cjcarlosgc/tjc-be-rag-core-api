@@ -3220,7 +3220,7 @@
       "id": "WI-CORE-057",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Sección de dependencias con FQCN en el contexto RAG de PHP (sin cambiar el ranking)",
@@ -3263,7 +3263,9 @@
         "app/src/retrieval/php-dependency-context.service.ts",
         "app/src/retrieval/php-dependency-replay.spec.ts",
         "spec/README.md",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "harness/reports/wi-core-057-independent-review.md",
+        "harness/reports/wi-core-057-closure.md"
       ],
       "contractSyncReview": [
         {
