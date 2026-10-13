@@ -14098,182 +14098,227 @@
         ]
       },
       "closedAt": "2026-10-13T00:36:01.000Z"
+    },
+    {
+      "id": "WI-CORE-052",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "title": "Calcular behaviorConstructs también para símbolos PHP en el análisis de PR",
+      "approved": true,
+      "storyIds": [
+        "HU07",
+        "HU08",
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-059"
+      ],
+      "caseIds": [
+        "OC04"
+      ],
+      "sprint": "P2",
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-052-scope-approval.md",
+        "harness/reports/wi-core-052-contract-sync-scope-review.md",
+        "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
+        "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
+        "harness/reports/wi-core-052-technical-checks.md",
+        "app/src/functional-knowledge/symbol-behavior-constructs.service.spec.ts",
+        "harness/reports/wi-core-052-independent-review.md",
+        "harness/reports/wi-core-052-closure.md",
+        "spec/ideas.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-052 solo calcula construcciones de comportamiento PHP en el análisis de PR, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-052-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-052 solo calcula construcciones de comportamiento PHP en el análisis de PR, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-052-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-VAL-001"
+        ],
+        "checkedAt": "2026-10-13T00:36:41.000Z",
+        "note": "DEC-FK-003/004 aprobadas; POTENTIALLY_IMPACTED para PHP no aprobado y fuera de alcance."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "compute() se ejecuta tambien para PHP; behaviorConstructs persistido (incluido []); monorepo con projectRoot verificado; TypeScript sin cambio."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
+              "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
+              "app/src/functional-knowledge/symbol-behavior-constructs.service.spec.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-052-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: compute en PHP, monorepo con projectRoot, extractor con fuentes reales, 4 mutantes detectados; F1 low (constructor PHP), F2 low (CHANGELOG y ST) resuelto."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-052-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar WI-CORE-052 por el Modo fuera de casa.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-052",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-13T00:36:41.450Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-052",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-13T00:39:02.060Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-052",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-13T00:39:02.190Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-052",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-13T00:43:40.029Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-052-scope-approval.md",
+        "harness/reports/wi-core-052-technical-checks.md",
+        "harness/reports/wi-core-052-independent-review.md",
+        "harness/reports/wi-core-052-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-052-scope-approval.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-052-scope-approval.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-052-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-052-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-052-contract-sync-scope-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-052-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-052-independent-review.md",
+          "harness/reports/wi-core-052-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-13T00:43:42.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-052",
-    "component": "CORE",
-    "workItemType": "PRODUCT",
-    "status": "W-IN_REVIEW",
-    "priority": "P1",
-    "title": "Calcular behaviorConstructs también para símbolos PHP en el análisis de PR",
-    "approved": true,
-    "storyIds": [
-      "HU07",
-      "HU08",
-      "HU11"
-    ],
-    "taskIds": [
-      "ST-CORE-059"
-    ],
-    "caseIds": [
-      "OC04"
-    ],
-    "sprint": "P2",
-    "specPaths": [
-      "spec/features/013-pr-driven-analysis/spec.md",
-      "spec/features/013-pr-driven-analysis/tasks.md",
-      "harness/reports/wi-core-052-scope-approval.md",
-      "harness/reports/wi-core-052-contract-sync-scope-review.md",
-      "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
-      "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
-      "harness/reports/wi-core-052-technical-checks.md",
-      "app/src/functional-knowledge/symbol-behavior-constructs.service.spec.ts"
-    ],
-    "transversalPaths": [],
-    "deferredSyncIds": [],
-    "deferredSyncDigests": {},
-    "contractSyncReview": [
-      {
-        "eventId": "CS-20260920-001",
-        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
-        "disposition": "NOT_RELEVANT",
-        "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-052 solo calcula construcciones de comportamiento PHP en el análisis de PR, sin tocar binding, auth ni despliegue.",
-        "report": "harness/reports/wi-core-052-contract-sync-scope-review.md"
-      },
-      {
-        "eventId": "CS-20260921-003",
-        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
-        "disposition": "NOT_RELEVANT",
-        "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-052 solo calcula construcciones de comportamiento PHP en el análisis de PR, sin tocar binding, auth ni despliegue.",
-        "report": "harness/reports/wi-core-052-contract-sync-scope-review.md"
-      }
-    ],
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-VAL-001"
-      ],
-      "checkedAt": "2026-10-13T00:36:41.000Z",
-      "note": "DEC-FK-003/004 aprobadas; POTENTIALLY_IMPACTED para PHP no aprobado y fuera de alcance."
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer",
-      "contractReviewAgent": null,
-      "reviewAgent": "reviewer",
-      "handoffs": [
-        {
-          "agent": "implementer",
-          "status": "APPROVED",
-          "findings": [
-            "compute() se ejecuta tambien para PHP; behaviorConstructs persistido (incluido []); monorepo con projectRoot verificado; TypeScript sin cambio."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
-            "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
-            "app/src/functional-knowledge/symbol-behavior-constructs.service.spec.ts"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-052-technical-checks.md"
-          ],
-          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
-          "executedBy": {
-            "agent": "implementer",
-            "configuredModel": "claude-haiku-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        }
-      ],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-NOT_APPLICABLE",
-      "canonicalContractSynced": "G-NOT_APPLICABLE",
-      "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-PASSED",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-PASSED"
-    },
-    "coordination": {
-      "contractImpact": false,
-      "publishesContract": false,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-052",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-13T00:36:41.450Z"
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "workItem": "WI-CORE-052",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-13T00:39:02.060Z"
-        },
-        {
-          "checkpoint": "before-review",
-          "workItem": "WI-CORE-052",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-13T00:39:02.190Z"
-        }
-      ],
-      "publishedSyncIds": [],
-      "pendingRelevantSyncIds": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-052-scope-approval.md",
-      "harness/reports/wi-core-052-technical-checks.md"
-    ],
-    "blockedReason": null,
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-052-scope-approval.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-052-scope-approval.md"
-      ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-052-technical-checks.md"
-      ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-052-technical-checks.md"
-      ],
-      "interopSyncChecked": [
-        "harness/reports/wi-core-052-contract-sync-scope-review.md"
-      ],
-      "retryLimitRespected": [
-        "harness/reports/wi-core-052-technical-checks.md"
-      ]
-    }
-  },
+  "activeWorkItem": null,
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",
