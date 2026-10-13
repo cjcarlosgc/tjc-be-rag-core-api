@@ -163,7 +163,11 @@ function buildResolutionContext(input: ResolvePhpDependenciesInput): ResolutionC
 
 function resolveName(rawName: string, context: ResolutionContext): NameResolution {
   if (rawName.startsWith('\\')) {
-    return { kind: 'resolved', fqcn: rawName.slice(1), resolvedBy: 'LITERAL' };
+    const literal = rawName.slice(1);
+    const isGlobalInternalClass =
+      !literal.includes('\\') && GLOBAL_CLASSES_WITHOUT_IMPORT.has(literal.toLowerCase());
+    if (isGlobalInternalClass) return { kind: 'skip' };
+    return { kind: 'resolved', fqcn: literal, resolvedBy: 'LITERAL' };
   }
 
   if (SCALAR_OR_PSEUDO_TYPES.has(rawName.toLowerCase())) return { kind: 'skip' };

@@ -130,6 +130,31 @@ describe('resolvePhpDependencies', () => {
     expect(result).toEqual({ entries: [], unresolvedCount: 0, truncated: false });
   });
 
+  it('ignora literales de clases globales internas (\\DateTimeImmutable, \\InvalidArgumentException) sin contarlos', () => {
+    const result = resolvePhpDependencies(
+      input({
+        methodChunk: {
+          content: 'public function f(\\DateTimeImmutable $c, \\InvalidArgumentException $e): \\InvalidArgumentException {}',
+          importsUsed: [],
+        },
+      }),
+    );
+
+    expect(result).toEqual({ entries: [], unresolvedCount: 0, truncated: false });
+  });
+
+  it('mantiene como LITERAL un literal calificado aunque su último segmento coincida con una clase global', () => {
+    const result = resolvePhpDependencies(
+      input({
+        methodChunk: { content: 'public function f(\\Vendor\\Pkg\\Thing $t): void {}', importsUsed: [] },
+      }),
+    );
+
+    expect(result.entries).toEqual([
+      { typeName: 'Thing', fqcn: 'Vendor\\Pkg\\Thing', origin: 'METHOD_SIGNATURE', resolvedBy: 'LITERAL' },
+    ]);
+  });
+
   it('deduplica por FQCN dando prioridad al constructor', () => {
     const result = resolvePhpDependencies(
       input({

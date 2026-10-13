@@ -466,7 +466,7 @@ type RagDependencyResolvedBy = 'LITERAL' | 'IMPORT' | 'SAME_NAMESPACE'
 
 interface RagDependencyEntryResponse {
   typeName: string // nombre corto tal como aparece en el código
-  fqcn: string // nombre completo verificado contra el índice de la versión, sin '\' inicial
+  fqcn: string // nombre completo sin '\' inicial: tomado del `use` o de un literal con '\' del código, o del mismo namespace de la clase declarante solo si existe en el índice de la versión
   origin: RagDependencyOrigin // dónde se declaró el tipo; si aparece en ambos, CONSTRUCTOR
   resolvedBy: RagDependencyResolvedBy
 }
@@ -557,7 +557,7 @@ Reglas:
 
 - Una traza se vincula a una `ProjectVersion` inmutable. Los hashes, rangos y snippets son evidencia; las líneas circundantes pueden reconstruirse desde el snapshot congelado.
 - `RAG` conserva candidatos seleccionados y descartados. `discardReason` es `null` únicamente cuando `decision=SELECTED`; un score no se presenta como probabilidad.
-- `dependencyContext` (INTEROP-2.14) es contexto determinista no rankeado: no es un candidato, no participa en `minimumScore`, `topK`, `maxContextTokens` ni en `contextTokens`, y sus `tokenCount` (máximo 300) se suman al prompt aparte (el presupuesto efectivo del prompt es `maxContextTokens` más la sección). Solo lista FQCN verificados contra el índice de tipos de la versión; `unresolvedCount` cuenta los tipos no resueltos sin nombrarlos y el objeto se omite si no hay entradas ni no resueltos. Los consumidores deben tolerar su ausencia (trazas anteriores y TypeScript: «no calculado», no «sin dependencias»). La evidencia §6.16 no lo incluye (`schemaVersion '1'`) y la comparación OE2 SE vs SEM (§6.15) no lo usa. Como el resto de la traza, puede contener nombres de código confidencial.
+- `dependencyContext` (INTEROP-2.14) es contexto determinista no rankeado: no es un candidato, no participa en `minimumScore`, `topK`, `maxContextTokens` ni en `contextTokens`, y sus `tokenCount` (máximo 300) se suman al prompt aparte (el presupuesto efectivo del prompt es `maxContextTokens` más la sección). Solo lista nombres que el código declara (por `use` o literal con `\`) o que existen en el índice de tipos de la versión dentro del namespace de la clase declarante (`SAME_NAMESPACE`); no lista escalares ni clases globales internas de PHP; `unresolvedCount` cuenta los tipos no resueltos sin nombrarlos y el objeto se omite si no hay entradas ni no resueltos. Los consumidores deben tolerar su ausencia (trazas anteriores y TypeScript: «no calculado», no «sin dependencias»). La evidencia §6.16 no lo incluye (`schemaVersion '1'`) y la comparación OE2 SE vs SEM (§6.15) no lo usa. Como el resto de la traza, puede contener nombres de código confidencial.
 - `AGENT` conserva la secuencia observable de tool calls. No usa `SELECTED`/`DISCARDED`, no expone mensajes internos del modelo y no afirma qué contenido influyó en su respuesta.
 - `list_files` devuelve un nodo resumen; sus rutas completas se consultan paginadas. Un resultado vacío o un error permanece como paso atenuable mediante `status`.
 - El detalle de una traza o un listado de archivos antes del estado terminal de su run/experimento devuelve `409 CONTEXT_TRACE_NOT_FINISHED`. Un id inexistente o no autorizado devuelve `404 CONTEXT_TRACE_NOT_FOUND`.
