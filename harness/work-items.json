@@ -2934,7 +2934,7 @@
       "id": "WI-CORE-052",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Calcular behaviorConstructs también para símbolos PHP en el análisis de PR",
@@ -2984,7 +2984,9 @@
         "harness/reports/wi-core-052-scope-approval.md",
         "harness/reports/wi-core-052-contract-sync-scope-review.md",
         "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
-        "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts"
+        "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
+        "harness/reports/wi-core-052-technical-checks.md",
+        "app/src/functional-knowledge/symbol-behavior-constructs.service.spec.ts"
       ]
     }
   ]
