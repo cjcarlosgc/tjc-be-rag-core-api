@@ -2877,7 +2877,7 @@
       "id": "WI-CORE-051",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Persistir el snapshot de cada ProjectVersion y su snapshotKey en el análisis de PR",
@@ -2924,7 +2924,8 @@
         "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
         "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
         "app/src/project-versions/project-versions.repository.ts",
-        "app/src/project-versions/project-versions.repository.spec.ts"
+        "app/src/project-versions/project-versions.repository.spec.ts",
+        "harness/reports/wi-core-051-technical-checks.md"
       ]
     }
   ]

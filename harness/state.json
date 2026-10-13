@@ -13887,7 +13887,7 @@
     "id": "WI-CORE-051",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P1",
     "title": "Persistir el snapshot de cada ProjectVersion y su snapshotKey en el análisis de PR",
     "approved": true,
@@ -13908,7 +13908,8 @@
       "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
       "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
       "app/src/project-versions/project-versions.repository.ts",
-      "app/src/project-versions/project-versions.repository.spec.ts"
+      "app/src/project-versions/project-versions.repository.spec.ts",
+      "harness/reports/wi-core-051-technical-checks.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -13941,24 +13942,49 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "ZIP del workspace persistido en project-versions/<id>/snapshot.zip y snapshotKey guardado tras completeAndPromote; fallo de Storage no bloquea el Run; rojo-verde."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
+            "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
+            "app/src/project-versions/project-versions.repository.ts",
+            "app/src/project-versions/project-versions.repository.spec.ts"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-051-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -13973,13 +13999,40 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-13T00:29:47.784Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-051",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-13T00:32:01.721Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-051",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-13T00:32:01.855Z"
         }
       ],
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-051-scope-approval.md"
+      "harness/reports/wi-core-051-scope-approval.md",
+      "harness/reports/wi-core-051-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -13988,6 +14041,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-051-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-051-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-051-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-051-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-051-technical-checks.md"
       ]
     }
   },
