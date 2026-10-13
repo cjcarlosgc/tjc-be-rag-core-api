@@ -7,7 +7,7 @@
 - [x] **ST-CORE-042 · T-DONE · WI-CORE-035 · HU17:** adaptar `POST /experiments` al request OE5 V3 (`analysisRunId`, `symbolFilePath`, `symbolQualifiedName`), autorizar el Project desde el AnalysisRun y resolver el TestTarget heredado sobre la ProjectVersion congelada del Run; preservar `Idempotency-Key`, respuesta `202` y encolado. Sin cambios en Console ni en el contrato canónico.
 
 No se modifica almacenamiento persistido antes de inventario y revisión contractual.
-- [ ] **ST-CORE-060 · T-READY · WI-CORE-053 · HU17:** persistir evidencia privada por repetición: código exacto del test enviado y reporte del runner (hechos normalizados) con sha256, límites explícitos y migración nueva sin aplicar a la base real.
+- [ ] **ST-CORE-060 · T-IN_PROGRESS · WI-CORE-053 · HU17:** persistir evidencia privada por repetición: código exacto del test enviado y reporte del runner (hechos normalizados) con sha256, límites explícitos y migración nueva sin aplicar a la base real.
 - [x] **ST-CORE-061 · T-DONE · WI-CORE-054 · HU17:** `technicallyValidRate` y `assertionFailureCount` en `StrategyMetricsResponse`, aditivo y retrocompatible, con contract-reviewer.
 - [x] **ST-CORE-062 · T-DONE · WI-CORE-055 · HU17:** `inspect_symbol` del GENERALIST_AGENT con nombres PHP calificados con `\`.
 - [ ] **ST-CORE-063 · T-READY · WI-CORE-056 · HU15, HU17:** análisis offline para reducir el ruido del contexto RAG (informe; sin aplicar).
