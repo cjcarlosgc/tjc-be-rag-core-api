@@ -12,6 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **WI-CORE-053 — evidencia privada por repetición (tabla experiment_repetition_artifacts; migración 20261013100000 sin aplicar; revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-054 — INTEROP-2.13: technicallyValidRate y assertionFailureCount (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-001) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-055 — inspect_symbol con nombres PHP calificados (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-052 — `behaviorConstructs` también para PHP (2026-10-13, W-DONE, revisión independiente delegada por el Modo fuera de casa):** el job de snapshot calcula las construcciones de comportamiento de los símbolos PHP (antes la columna quedaba nula y PHP nunca llegaba a `ACTION_REQUIRED`), respetando `projectRoot`; los PRs PHP con construcciones nuevas sin regla `ACTIVE` pasan a `ACTION_REQUIRED` (`DEC-FK-003/004`). Una lectura adicional a GitHub por archivo PHP cambiado. `POTENTIALLY_IMPACTED` para PHP no aprobado; `IDEA-024` (constructor PHP).
