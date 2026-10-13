@@ -2991,6 +2991,126 @@
         "harness/reports/wi-core-052-closure.md",
         "spec/ideas.md"
       ]
+    },
+    {
+      "id": "WI-CORE-053",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-READY",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Persistir evidencia privada por repetición: código exacto del test y reporte del runner con sha256",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-060"
+      ],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Cada repetición que invoca al Sandbox persiste en una tabla privada nueva el contenido exacto del test enviado (con sha256 del contenido completo y marca de truncamiento) y el reporte del runner (testCases con mensaje saneado y recortado, hecho de fallo, duraciones por etapa).",
+        "Límites explícitos de tamaño y recorte con marca; sin secretos (sanitizeFailureMessage); idempotente por repetición e intento; sin exponer fuente ni logs en ExperimentRepetitionResponse ni §6.16.",
+        "Migración creada y probada en pruebas, sin aplicarla a la base real ni a Render; sin cambios de contrato; sin tocar ranking/contexto RAG ni la clasificación.",
+        "Pruebas roja-verde; vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "app/prisma/schema.prisma",
+        "app/src/experiments/experiment-job.handler.ts",
+        "app/src/experiments/experiment-job.handler.spec.ts",
+        "harness/reports/wi-core-053-056-plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-054",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-READY",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "technicallyValidRate y assertionFailureCount en StrategyMetricsResponse (aditivo)",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-061"
+      ],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "StrategyMetricsResponse agrega technicallyValidRate = tasa de evaluables con compiled ∧ executed ∧ failureType ∈ {NONE, TEST_ASSERTION}, null si no hay evaluables (DEC-EVID-001), y assertionFailureCount; valid, passed y demás métricas sin cambio.",
+        "Contract-reviewer aprueba antes de editar INTEROP/SYSTEM; versionado y Contract Sync a Console decididos con él; retrocompatible.",
+        "Pruebas roja-verde; vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "app/src/experiments/experiments.service.ts",
+        "app/src/experiments/dto/experiment.response.ts",
+        "spec/contracts/interoperability-contract.md",
+        "harness/reports/wi-core-053-056-plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-055",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-READY",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "inspect_symbol del GENERALIST_AGENT con nombres PHP calificados con barra invertida",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-062"
+      ],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "inspect_symbol resuelve nombres PHP calificados con \\ (p. ej. App\\Domain\\OrderLine\\hasStock y App\\Domain\\OrderLine) además de los simples; los nombres simples y TypeScript no cambian.",
+        "Pruebas roja-verde en workspace-agent-tools.spec.ts; sin cambiar el ranking ni el contexto RAG; vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "app/src/generation/agent/workspace-agent-tools.ts",
+        "app/src/generation/agent/workspace-agent-tools.spec.ts",
+        "harness/reports/wi-core-053-056-plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-056",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-READY",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Análisis: reducir el ruido del contexto RAG con simulación offline (experimentos 89a16229 y 800689b9)",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-063"
+      ],
+      "caseIds": [],
+      "dependsOn": [],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Informe en harness/reports con el diagnóstico del ruido (70% tests ajenos en exp.1; 9/10 vecinos en exp.2), una propuesta que priorice target y reglas sobre topK fijo y un antes/después simulado offline sobre las mismas entradas (solo SELECT, sin LLM, sin aplicar ni fusionar), con riesgos.",
+        "No cambia código de producto, ranking ni contexto RAG; cualquier cambio posterior requiere su WI y aprobación."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-053-056-plan.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
     }
   ]
 }
