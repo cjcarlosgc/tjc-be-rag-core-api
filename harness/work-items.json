@@ -3028,7 +3028,7 @@
       "id": "WI-CORE-054",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "technicallyValidRate y assertionFailureCount en StrategyMetricsResponse (aditivo)",
@@ -3061,7 +3061,9 @@
         "harness/contract-sync/outbox/CS-CORE-20261013-001.yaml",
         "harness/reports/wi-core-054-contract-proposal.md",
         "spec/README.md",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "harness/reports/wi-core-054-independent-review.md",
+        "harness/reports/wi-core-054-closure.md"
       ],
       "contractSyncReview": [
         {
