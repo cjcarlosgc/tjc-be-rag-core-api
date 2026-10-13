@@ -3059,7 +3059,7 @@
       "id": "WI-CORE-055",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "inspect_symbol del GENERALIST_AGENT con nombres PHP calificados con barra invertida",
@@ -3084,7 +3084,9 @@
         "spec/features/008-experimental-comparison/tasks.md",
         "harness/reports/wi-core-055-scope-approval.md",
         "harness/reports/wi-core-055-contract-sync-scope-review.md",
-        "harness/reports/wi-core-055-technical-checks.md"
+        "harness/reports/wi-core-055-technical-checks.md",
+        "harness/reports/wi-core-055-independent-review.md",
+        "harness/reports/wi-core-055-closure.md"
       ],
       "contractSyncReview": [
         {
