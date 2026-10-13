@@ -1,6 +1,6 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.13
+**Versión:** INTEROP-2.14
 **Compatible con:** SYSTEM-2.12
 **Fecha de corte:** 2026-10-13
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.13` es la versión documental vigente (`WI-CORE-054`, aditiva y retrocompatible): `StrategyMetricsResponse` (§6.5.1) agrega `technicallyValidRate` y `assertionFailureCount`; no cambia rutas ni campos existentes ni §6.16. `INTEROP-2.12` fue la versión documental vigente (`WI-CORE-049`, documental): solo alinea la cabecera con `SYSTEM-2.12`; no toca ninguna sección §6.x ni el transporte. `INTEROP-2.11` (`WI-CORE-049`, documental): corrige en §6.10 el estado del mensaje de un compare no verificable, ya implementado en `WI-CORE-046`, y alinea la cabecera con `SYSTEM-2.11`; no cambia rutas, campos, códigos, estados ni transporte. `INTEROP-2.10` (`WI-CORE-047`, aclaratoria): corrige el estado del mensaje de un PR cuyo compare no puede verificarse (§6.10) y alinea la cabecera con `SYSTEM-2.10`; no cambia rutas, campos, códigos ni estados. `INTEROP-2.9` (`WI-CORE-045`, aditiva y aclaratoria, sin cambio de rutas, campos ni códigos ya emitidos por Core): fija en §6.11 el `404 FUNCTIONAL_QUESTION_NOT_FOUND` de una respuesta a una pregunta no accionable y el orden de errores de `POST …/answers`, cuándo `continuationAttemptId` es `null` y su carácter opaco, y en §6.10/§6.11 la semántica de `functionalBehaviorValidated` y el `resultSummary` objetivo de un PR que excede el límite del compare. `INTEROP-2.8`, sobre la base de `INTEROP-2.7`, agrega `projectRoot`/`effectiveProjectRoot`, el aislamiento de paths al subproyecto y el transporte de la raíz efectiva en Core→Sandbox (§6.1, §6.2 y §7.2); la selección automática se limita a un único candidato PHP y conserva un repositorio por Project. El consumidor Sandbox debe importar y aceptar el campo antes de que Core lo envíe en ejecuciones PHP; omitirlo conserva el comportamiento legacy de raíz `.` durante la transición. `INTEROP-2.7` (preparado en `WI-CORE-017`) agregó el rol Writer (§6.13), `UNKNOWN` auditado y procedencia/escenarios de Functional Knowledge (§6.11), OE5 (§6.5.1), comparación de retrieval OE2 (§6.15) y trace/evidencia (§6.16). Cada sección indica su estado: las capacidades implementadas en Core incluyen `UNKNOWN`/Functional Knowledge (`WI-CORE-018`–`020`), OE5 (`WI-CORE-023`–`025`), retrieval (`WI-CORE-022`, `028`), trace/evidencia (`WI-CORE-026`, `027`), PHP/PHPUnit (`WI-CORE-013`, `029`) y el rol Writer (`WI-CORE-019`); el resto sigue pendiente del WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantuvo rutas Core→Console y Core↔Sandbox, agregó el límite directo de UI GitHub (§6.14) y declaró el lenguaje de `ProjectVersion` y framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
+- `INTEROP-2.14` es la versión documental vigente (`WI-CORE-057`, aditiva y retrocompatible): el detalle de traza RAG (§6.7) agrega el campo opcional `dependencyContext` (FQCN de las dependencias del target PHP); no cambia rutas, §6.16, `contextTokens` ni el ranking. `INTEROP-2.13` fue la versión documental vigente (`WI-CORE-054`, aditiva y retrocompatible): `StrategyMetricsResponse` (§6.5.1) agrega `technicallyValidRate` y `assertionFailureCount`; no cambia rutas ni campos existentes ni §6.16. `INTEROP-2.12` fue la versión documental vigente (`WI-CORE-049`, documental): solo alinea la cabecera con `SYSTEM-2.12`; no toca ninguna sección §6.x ni el transporte. `INTEROP-2.11` (`WI-CORE-049`, documental): corrige en §6.10 el estado del mensaje de un compare no verificable, ya implementado en `WI-CORE-046`, y alinea la cabecera con `SYSTEM-2.11`; no cambia rutas, campos, códigos, estados ni transporte. `INTEROP-2.10` (`WI-CORE-047`, aclaratoria): corrige el estado del mensaje de un PR cuyo compare no puede verificarse (§6.10) y alinea la cabecera con `SYSTEM-2.10`; no cambia rutas, campos, códigos ni estados. `INTEROP-2.9` (`WI-CORE-045`, aditiva y aclaratoria, sin cambio de rutas, campos ni códigos ya emitidos por Core): fija en §6.11 el `404 FUNCTIONAL_QUESTION_NOT_FOUND` de una respuesta a una pregunta no accionable y el orden de errores de `POST …/answers`, cuándo `continuationAttemptId` es `null` y su carácter opaco, y en §6.10/§6.11 la semántica de `functionalBehaviorValidated` y el `resultSummary` objetivo de un PR que excede el límite del compare. `INTEROP-2.8`, sobre la base de `INTEROP-2.7`, agrega `projectRoot`/`effectiveProjectRoot`, el aislamiento de paths al subproyecto y el transporte de la raíz efectiva en Core→Sandbox (§6.1, §6.2 y §7.2); la selección automática se limita a un único candidato PHP y conserva un repositorio por Project. El consumidor Sandbox debe importar y aceptar el campo antes de que Core lo envíe en ejecuciones PHP; omitirlo conserva el comportamiento legacy de raíz `.` durante la transición. `INTEROP-2.7` (preparado en `WI-CORE-017`) agregó el rol Writer (§6.13), `UNKNOWN` auditado y procedencia/escenarios de Functional Knowledge (§6.11), OE5 (§6.5.1), comparación de retrieval OE2 (§6.15) y trace/evidencia (§6.16). Cada sección indica su estado: las capacidades implementadas en Core incluyen `UNKNOWN`/Functional Knowledge (`WI-CORE-018`–`020`), OE5 (`WI-CORE-023`–`025`), retrieval (`WI-CORE-022`, `028`), trace/evidencia (`WI-CORE-026`, `027`), PHP/PHPUnit (`WI-CORE-013`, `029`) y el rol Writer (`WI-CORE-019`); el resto sigue pendiente del WI indicado en su sección. Nada se infiere implementado por el número de versión. Antes de `INTEROP-2.7` regía `INTEROP-2.6`, que mantuvo rutas Core→Console y Core↔Sandbox, agregó el límite directo de UI GitHub (§6.14) y declaró el lenguaje de `ProjectVersion` y framework PHPUNIT. La compatibilidad durante el cambio se valida antes de retirar rutas anteriores.
 - Las capacidades de experimento sobre `AnalysisRun`, historial de transiciones, listado transversal de Runs y conflicto de Functional Knowledge se especifican en §6.5, §6.10 y §6.11. Cada sección indica por separado si está implementada o pendiente; no se infiere de una nota histórica.
 - Los consumidores deben ignorar campos de respuesta desconocidos, pero los servidores rechazan campos de request no declarados.
 - Los DTO HTTP son explícitos y no exponen entidades ORM, tipos del SDK de Supabase ni modelos internos del LLM.
@@ -461,6 +461,23 @@ type RagMatchedVia = 'SEMANTIC' | 'IMPORTS' | 'IMPORTED_BY' | 'SAME_NAMESPACE' |
 type RagCandidateDecision = 'SELECTED' | 'DISCARDED'
 type RagDiscardReason = 'BELOW_MINIMUM_SCORE' | 'TOP_K_LIMIT' | 'TOKEN_BUDGET'
 
+type RagDependencyOrigin = 'CONSTRUCTOR' | 'METHOD_SIGNATURE'
+type RagDependencyResolvedBy = 'LITERAL' | 'IMPORT' | 'SAME_NAMESPACE'
+
+interface RagDependencyEntryResponse {
+  typeName: string // nombre corto tal como aparece en el código
+  fqcn: string // nombre completo verificado contra el índice de la versión, sin '\' inicial
+  origin: RagDependencyOrigin // dónde se declaró el tipo; si aparece en ambos, CONSTRUCTOR
+  resolvedBy: RagDependencyResolvedBy
+}
+
+interface RagDependencyContextResponse {
+  entries: RagDependencyEntryResponse[] // máximo 20; constructor primero, luego firma; sin duplicados por fqcn
+  unresolvedCount: number // tipos candidatos que no se resolvieron y no se listan (sin nombrarlos); no incluye los recortados
+  tokenCount: number // tokens del texto de la sección tal como entra al prompt, incluido el encabezado; máximo 300
+  truncated: boolean // true si se recortaron entradas por el máximo de 20 o de 300 tokens
+}
+
 interface RagTargetNodeResponse {
   chunkIds: Id[]
   excerpt: SourceExcerptResponse
@@ -494,6 +511,7 @@ interface RagContextTraceDetailResponse extends ContextTraceSummaryResponse {
     semanticWeight: number
     structuralWeight: number
   }
+  dependencyContext?: RagDependencyContextResponse // INTEROP-2.14; solo PHP; ausente en trazas anteriores y en TypeScript
 }
 
 type AgentToolName = 'list_files' | 'search_text' | 'inspect_symbol' | 'read_file'
@@ -539,6 +557,7 @@ Reglas:
 
 - Una traza se vincula a una `ProjectVersion` inmutable. Los hashes, rangos y snippets son evidencia; las líneas circundantes pueden reconstruirse desde el snapshot congelado.
 - `RAG` conserva candidatos seleccionados y descartados. `discardReason` es `null` únicamente cuando `decision=SELECTED`; un score no se presenta como probabilidad.
+- `dependencyContext` (INTEROP-2.14) es contexto determinista no rankeado: no es un candidato, no participa en `minimumScore`, `topK`, `maxContextTokens` ni en `contextTokens`, y sus `tokenCount` (máximo 300) se suman al prompt aparte (el presupuesto efectivo del prompt es `maxContextTokens` más la sección). Solo lista FQCN verificados contra el índice de tipos de la versión; `unresolvedCount` cuenta los tipos no resueltos sin nombrarlos y el objeto se omite si no hay entradas ni no resueltos. Los consumidores deben tolerar su ausencia (trazas anteriores y TypeScript: «no calculado», no «sin dependencias»). La evidencia §6.16 no lo incluye (`schemaVersion '1'`) y la comparación OE2 SE vs SEM (§6.15) no lo usa. Como el resto de la traza, puede contener nombres de código confidencial.
 - `AGENT` conserva la secuencia observable de tool calls. No usa `SELECTED`/`DISCARDED`, no expone mensajes internos del modelo y no afirma qué contenido influyó en su respuesta.
 - `list_files` devuelve un nodo resumen; sus rutas completas se consultan paginadas. Un resultado vacío o un error permanece como paso atenuable mediante `status`.
 - El detalle de una traza o un listado de archivos antes del estado terminal de su run/experimento devuelve `409 CONTEXT_TRACE_NOT_FINISHED`. Un id inexistente o no autorizado devuelve `404 CONTEXT_TRACE_NOT_FOUND`.
