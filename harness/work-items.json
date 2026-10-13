@@ -2996,7 +2996,7 @@
       "id": "WI-CORE-053",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Persistir evidencia privada por repetición: código exacto del test y reporte del runner con sha256",
@@ -3024,7 +3024,13 @@
         "spec/features/008-experimental-comparison/tasks.md",
         "harness/reports/wi-core-053-scope-approval.md",
         "harness/reports/wi-core-053-contract-sync-scope-review.md",
-        "app/src/experiments/persistence/experiment-runs.repository.ts"
+        "app/src/experiments/persistence/experiment-runs.repository.ts",
+        "harness/reports/wi-core-053-technical-checks.md",
+        "app/prisma/migrations/20261013100000_experiment_repetition_artifacts/migration.sql",
+        "app/src/experiments/repetition-artifact.ts",
+        "app/src/experiments/repetition-artifact.spec.ts",
+        "app/src/experiments/persistence/repetition-artifact-migration.spec.ts",
+        "app/src/experiments/persistence/experiment-runs.repository.spec.ts"
       ],
       "contractSyncReview": [
         {
