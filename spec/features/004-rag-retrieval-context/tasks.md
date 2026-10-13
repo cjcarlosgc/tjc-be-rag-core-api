@@ -6,3 +6,4 @@
 - [x] **ST-CORE-035 · T-DONE · WI-CORE-028 · HU05, HU17:** relaciones estructurales PHP R-PHP1–R-PHP5 en `SE`; diferida hasta cerrar `WI-CORE-013` y la coordinación con Sandbox.
 
 La investigación test-aware permanece como `IDEA-002` y `DEC-RAG-001`; no es parte de este WI.
+- [x] **ST-CORE-064 · T-DONE · WI-CORE-057 · HU05, HU15, HU17:** sección de dependencias con FQCN (tipos del constructor y de la firma del método, verificados contra el índice) en el contexto de generación RAG de PHP y en la traza, sin cambiar el ranking, `topK`, pesos, relaciones R-PHP1..5 ni métricas; `DEC-RAG-001` sigue `PENDING`.

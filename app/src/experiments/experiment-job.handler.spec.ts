@@ -183,6 +183,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     functionalRulesRetriever: {
       retrieve: vi.fn().mockResolvedValue([]),
     },
+    phpDependencyContextService: {
+      resolve: vi.fn().mockResolvedValue(null),
+    },
     contextBuilder: {
       build: vi
         .fn()
@@ -361,6 +364,7 @@ function makeHandler(
     deps.retrievalService as never,
     deps.contextBuilder as never,
     deps.functionalRulesRetriever as never,
+    deps.phpDependencyContextService as never,
     deps.promptBuilder as never,
     deps.generalistAgentService as never,
     deps.fileDiscoveryService as never,
@@ -3912,5 +3916,104 @@ describe('ExperimentJobHandler repetition artifact (WI-CORE-053, corte B)', () =
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('ExperimentJobHandler PHP dependency context (WI-CORE-057)', () => {
+  const chunk = {
+    id: 'target-chunk-1',
+    filePath: 'src/foo.ts',
+    symbolKind: 'FUNCTION',
+    symbolName: 'foo',
+    parentSymbolName: null,
+    startLine: 1,
+    endLine: 3,
+    content: 'target content',
+    tokenCount: 5,
+  };
+  const dependencyContext = {
+    entries: [
+      {
+        typeName: 'Policy',
+        fqcn: 'App\\Policy',
+        origin: 'CONSTRUCTOR',
+        resolvedBy: 'IMPORT',
+      },
+    ],
+    unresolvedCount: 1,
+    tokenCount: 14,
+    truncated: false,
+    text: 'SECCION_DEPENDENCIAS_TEXTO',
+  };
+
+  it('calls the dependency service after retrieval with the target chunks and passes its result to the RAG context builder', async () => {
+    const contextBuilder = new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never);
+    const buildSpy = vi.spyOn(contextBuilder, 'build');
+    const { deps } = makeDeps({
+      retrievalService: {
+        retrieve: vi.fn().mockResolvedValue({ targetChunks: [chunk], candidates: [] }),
+      },
+      contextBuilder,
+      promptBuilder: new PromptBuilder(),
+      phpDependencyContextService: { resolve: vi.fn().mockResolvedValue(dependencyContext) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    // Solo el brazo RAG (3 repeticiones); el agente generalista no llama al servicio.
+    expect(deps.phpDependencyContextService.resolve).toHaveBeenCalledTimes(3);
+    expect(deps.phpDependencyContextService.resolve).toHaveBeenCalledWith(
+      expect.any(String),
+      [chunk],
+      expect.any(String),
+    );
+    // initializeTraceDetail llama a build sin sección; las tres llamadas RAG reales la reciben.
+    const withDependency = buildSpy.mock.calls.filter((call) => call[5] !== undefined);
+    expect(withDependency).toHaveLength(3);
+    for (const call of withDependency) {
+      expect(call[5]).toEqual(dependencyContext);
+    }
+  });
+
+  it('persists the dependency evidence in the RAG detail without its text', async () => {
+    const { deps } = makeDeps({
+      retrievalService: {
+        retrieve: vi.fn().mockResolvedValue({ targetChunks: [chunk], candidates: [] }),
+      },
+      contextBuilder: new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never),
+      promptBuilder: new PromptBuilder(),
+      phpDependencyContextService: { resolve: vi.fn().mockResolvedValue(dependencyContext) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    const serialized = deps.contextTracesRepository.updateDetail.mock.calls
+      .map((call: unknown[]) => JSON.stringify(call[1]))
+      .filter((value: string) => value.includes('"candidates"'));
+    expect(serialized.some((value: string) => value.includes('"dependencyContext":{"entries"'))).toBe(true);
+    for (const value of serialized) {
+      expect(value).not.toContain('SECCION_DEPENDENCIAS_TEXTO');
+    }
+    const finalDetail = serialized.at(-1) as string;
+    expect(finalDetail).toContain('"unresolvedCount":1');
+    expect(finalDetail).toContain('"tokenCount":14');
+  });
+
+  it('keeps the RAG detail without dependencyContext when the service returns null', async () => {
+    const { deps } = makeDeps({
+      retrievalService: {
+        retrieve: vi.fn().mockResolvedValue({ targetChunks: [chunk], candidates: [] }),
+      },
+      contextBuilder: new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never),
+      promptBuilder: new PromptBuilder(),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    const serialized = deps.contextTracesRepository.updateDetail.mock.calls.map((call: unknown[]) =>
+      JSON.stringify(call[1]),
+    );
+    expect(serialized.some((value: string) => value.includes('"candidates"'))).toBe(true);
+    expect(serialized.every((value: string) => !value.includes('"dependencyContext"'))).toBe(true);
   });
 });

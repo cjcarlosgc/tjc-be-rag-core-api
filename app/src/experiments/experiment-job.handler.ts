@@ -17,6 +17,7 @@ import {
 import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
+import { PhpDependencyContextService } from '../retrieval/php-dependency-context.service.js';
 import type { RetrievalTarget } from '../retrieval/generation-context.js';
 import {
   PromptBuilder,
@@ -359,6 +360,7 @@ export class ExperimentJobHandler
     private readonly retrievalService: RetrievalService,
     private readonly contextBuilder: ContextBuilder,
     private readonly functionalRulesRetriever: FunctionalRulesRetriever,
+    private readonly phpDependencyContextService: PhpDependencyContextService,
     private readonly promptBuilder: PromptBuilder,
     private readonly generalistAgentService: GeneralistAgentService,
     private readonly fileDiscoveryService: FileDiscoveryService,
@@ -1123,12 +1125,19 @@ export class ExperimentJobHandler
       projectId,
       retrievalTarget,
     );
+    // WI-CORE-057: dependencias FQCN del target PHP; null fuera de PHP o sin entradas.
+    const dependencyContext = await this.phpDependencyContextService.resolve(
+      projectVersionId,
+      retrieval.targetChunks,
+      language,
+    );
     const generationContext = this.contextBuilder.build(
       retrieval,
       retrievalTarget,
       { framework, language },
       { maxContextTokens: budget.contextTokenBudget },
       functionalRules,
+      dependencyContext,
     );
     await this.contextTracesRepository.updateDetail(
       traceId,
@@ -1391,12 +1400,32 @@ export class ExperimentJobHandler
           },
     );
 
+    const dependency = generationContext.dependencyContext;
+    const dependencyEvidence =
+      dependency && (dependency.entries.length > 0 || dependency.unresolvedCount > 0)
+        ? {
+            // WI-CORE-057 (INTEROP-2.14): sin `text`; el texto solo viaja al prompt.
+            dependencyContext: {
+              entries: dependency.entries.map((entry) => ({
+                typeName: entry.typeName,
+                fqcn: entry.fqcn,
+                origin: entry.origin,
+                resolvedBy: entry.resolvedBy,
+              })),
+              unresolvedCount: dependency.unresolvedCount,
+              tokenCount: dependency.tokenCount,
+              truncated: dependency.truncated,
+            },
+          }
+        : {};
+
     return {
       target: {
         chunkIds: audit.target.chunkIds,
         excerpt: targetExcerpt,
         tokenCount: audit.target.tokenCount,
       },
+      ...dependencyEvidence,
       candidates: audit.candidates.map((candidate) => ({
         chunkId: candidate.chunkId,
         rank: candidate.rank,

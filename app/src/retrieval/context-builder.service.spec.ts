@@ -510,3 +510,50 @@ describe('ContextBuilder scoring API (WI-CORE-022)', () => {
   });
 });
 
+
+describe('ContextBuilder dependencyContext (WI-CORE-057)', () => {
+  it('copies dependencyContext without changing selection, order, audit or counters', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ id: 'target', symbolName: 'foo', content: 'target body', tokenCount: 4 })],
+      candidates: [
+        makeCandidate({ chunk: makeChunk({ id: 'c1', filePath: 'src/a.ts', tokenCount: 10 }), semanticScore: 0.9 }),
+        makeCandidate({
+          chunk: makeChunk({ id: 'c2', filePath: 'src/b.ts', tokenCount: 10 }),
+          semanticScore: 0.5,
+          structuralMatch: 'IMPORTS',
+        }),
+      ],
+    };
+    const dependencyContext = {
+      entries: [
+        {
+          typeName: 'Policy',
+          fqcn: 'App\\Policy',
+          origin: 'CONSTRUCTOR' as const,
+          resolvedBy: 'IMPORT' as const,
+        },
+      ],
+      unresolvedCount: 1,
+      tokenCount: 12,
+      truncated: false,
+      text: 'Dependencias del código objetivo: App\\Policy',
+    };
+    const metadata = { framework: null, language: 'php' as const };
+    const options = { maxContextTokens: 25 };
+
+    const without = builder.build(result, target, metadata, options, []);
+    const withDependencies = builder.build(result, target, metadata, options, [], dependencyContext);
+
+    expect(without.dependencyContext).toBeUndefined();
+    expect(withDependencies.dependencyContext).toEqual(dependencyContext);
+    const copy = { ...withDependencies };
+    delete copy.dependencyContext;
+    expect(copy).toEqual(without);
+    expect(withDependencies.contextTokens).toBe(without.contextTokens);
+    expect(withDependencies.selectedChunks).toBe(without.selectedChunks);
+    expect(withDependencies.retrievedChunks).toBe(without.retrievedChunks);
+    expect(withDependencies.relatedChunks).toEqual(without.relatedChunks);
+    expect(withDependencies.audit).toEqual(without.audit);
+  });
+});

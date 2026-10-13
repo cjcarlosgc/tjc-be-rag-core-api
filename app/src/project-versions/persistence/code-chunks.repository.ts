@@ -12,6 +12,14 @@ export interface SimilarChunk extends CodeChunk {
   semanticScore: number;
 }
 
+/** Campos mínimos para resolver dependencias PHP sin cargar embeddings. */
+export type CodeChunkDependencyFields = Pick<
+  CodeChunk,
+  'filePath' | 'symbolKind' | 'symbolName' | 'parentSymbolName' | 'importsUsed' | 'content'
+>;
+
+const PHP_TYPE_SYMBOL_KINDS = ['CLASS', 'INTERFACE', 'TRAIT', 'ENUM'];
+
 function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.map((value) => value.toFixed(8)).join(',')}]`;
 }
@@ -55,6 +63,38 @@ export class CodeChunksRepository {
       where: { projectVersionId, filePath, symbolKind: kindFilter, symbolName, parentSymbolName },
       orderBy: { partIndex: 'asc' },
     });
+  }
+
+  findByFile(projectVersionId: string, filePath: string): Promise<CodeChunkDependencyFields[]> {
+    return this.prisma.codeChunk.findMany({
+      where: { projectVersionId, filePath },
+      select: {
+        filePath: true,
+        symbolKind: true,
+        symbolName: true,
+        parentSymbolName: true,
+        importsUsed: true,
+        content: true,
+      },
+      orderBy: { partIndex: 'asc' },
+    });
+  }
+
+  /** Nombres (FQCN) únicos de los tipos PHP de la versión. */
+  async findPhpTypeSymbolNames(projectVersionId: string): Promise<string[]> {
+    const rows = await this.prisma.codeChunk.findMany({
+      where: {
+        projectVersionId,
+        symbolKind: { in: PHP_TYPE_SYMBOL_KINDS },
+        filePath: { endsWith: '.php' },
+      },
+      select: { symbolName: true },
+    });
+    const names = new Set<string>();
+    for (const row of rows) {
+      if (row.symbolName !== null) names.add(row.symbolName);
+    }
+    return [...names];
   }
 
   /**

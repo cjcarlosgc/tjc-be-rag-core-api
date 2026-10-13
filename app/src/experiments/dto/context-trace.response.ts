@@ -60,6 +60,25 @@ export interface RagCandidateNodeResponse {
   discardReason: RagDiscardReason | null;
 }
 
+export type RagDependencyOrigin = 'CONSTRUCTOR' | 'METHOD_SIGNATURE';
+export type RagDependencyResolvedBy = 'LITERAL' | 'IMPORT' | 'SAME_NAMESPACE';
+
+/** INTEROP-2.14 (WI-CORE-057): FQCN verificado contra el índice de la versión, sin '\' inicial. */
+export interface RagDependencyEntryResponse {
+  typeName: string;
+  fqcn: string;
+  origin: RagDependencyOrigin;
+  resolvedBy: RagDependencyResolvedBy;
+}
+
+/** INTEROP-2.14 (WI-CORE-057): contexto no rankeado; no cuenta en contextTokens. */
+export interface RagDependencyContextResponse {
+  entries: RagDependencyEntryResponse[];
+  unresolvedCount: number;
+  tokenCount: number;
+  truncated: boolean;
+}
+
 export interface RagContextTraceDetailResponse extends ContextTraceSummaryResponse {
   kind: 'RAG';
   target: RagTargetNodeResponse;
@@ -74,6 +93,8 @@ export interface RagContextTraceDetailResponse extends ContextTraceSummaryRespon
     semanticWeight: number;
     structuralWeight: number;
   };
+  /** INTEROP-2.14; solo PHP; ausente en trazas anteriores y en TypeScript. */
+  dependencyContext?: RagDependencyContextResponse;
 }
 
 export type AgentToolName =

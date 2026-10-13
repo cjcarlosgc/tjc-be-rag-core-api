@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261013-002
+source: core
+sourceWorkItem: WI-CORE-057
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.14: RagContextTraceDetailResponse (§6.7) agrega dependencyContext? {entries[{typeName,fqcn,origin,resolvedBy}], unresolvedCount, tokenCount, truncated}, solo trazas RAG de proyectos PHP generadas tras el cambio; aditivo; contextTokens, selectedChunks y la evidencia §6.16 (schemaVersion 1) sin cambio
+requiredAction:
+  - Sincronizar el espejo INTEROP-2.14 byte a byte; opcionalmente mostrar las dependencias resueltas en el detalle de traza RAG, tolerando su ausencia (trazas anteriores y TypeScript) y sin sumarlas a contextTokens
+sourceRevision: dcfee56f3baf5997ac8674115df77cf84a14fdd3
+status: C-PENDING

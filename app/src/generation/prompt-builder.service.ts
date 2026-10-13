@@ -65,6 +65,7 @@ export class PromptBuilder {
 
     const relatedSections = this.renderRelatedSections(context);
     const functionalRulesSection = this.renderFunctionalRulesSection(context);
+    const dependencySection = this.renderDependencySection(context);
 
     const locationLine =
       options.testNamespace && options.testPath
@@ -83,6 +84,7 @@ export class PromptBuilder {
       '```php',
       context.target.content,
       '```',
+      dependencySection,
       functionalRulesSection,
       relatedSections.length > 0 ? `Contexto relacionado del mismo proyecto:\n${relatedSections}` : null,
       'Responde ÚNICAMENTE con código PHP válido, empezando por `<?php`. No incluyas explicaciones ni comentarios de proceso. No envuelvas la respuesta en fences de markdown.',
@@ -101,6 +103,12 @@ export class PromptBuilder {
         return `--- ${chunk.filePath} (${chunk.symbolKind} ${label}) ---\n${chunk.content}`;
       })
       .join('\n\n');
+  }
+
+  // WI-CORE-057: texto ya renderizado por PhpDependencyContextService; solo PHP (buildPhp lo llama).
+  private renderDependencySection(context: GenerationContext): string | null {
+    const text = context.dependencyContext?.text;
+    return text && text.trim() !== '' ? text : null;
   }
 
   // Bloque separado del código: son decisiones funcionales aprobadas, no fragmentos del repositorio.

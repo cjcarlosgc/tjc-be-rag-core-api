@@ -70,6 +70,24 @@ export interface GenerationContextTarget {
   content: string;
 }
 
+/**
+ * Dependencias PHP del target (WI-CORE-057, INTEROP-2.14). Contexto determinista no rankeado: no cuenta
+ * en `contextTokens`, no desplaza chunks y PromptBuilder renderiza `text`; el audit/ContextTrace lo
+ * serializa sin `text`.
+ */
+export interface GenerationContextDependencyContext {
+  entries: Array<{
+    typeName: string;
+    fqcn: string;
+    origin: 'CONSTRUCTOR' | 'METHOD_SIGNATURE';
+    resolvedBy: 'LITERAL' | 'IMPORT' | 'SAME_NAMESPACE';
+  }>;
+  unresolvedCount: number;
+  tokenCount: number;
+  truncated: boolean;
+  text: string;
+}
+
 export interface GenerationContext {
   target: GenerationContextTarget;
   relatedChunks: ContextChunk[];
@@ -79,6 +97,8 @@ export interface GenerationContext {
   retrievedChunks: number;
   selectedChunks: number;
   contextTokens: number;
+  /** Dependencias PHP del target; ausente si no aplica o no hay entradas ni no resueltos. */
+  dependencyContext?: GenerationContextDependencyContext;
   /** Evidence about retrieval and selection. PromptBuilder intentionally ignores this field. */
   audit?: GenerationContextAudit;
 }
