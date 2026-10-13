@@ -2929,6 +2929,63 @@
         "harness/reports/wi-core-051-independent-review.md",
         "harness/reports/wi-core-051-closure.md"
       ]
+    },
+    {
+      "id": "WI-CORE-052",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Calcular behaviorConstructs también para símbolos PHP en el análisis de PR",
+      "storyIds": [
+        "HU07",
+        "HU08",
+        "HU11"
+      ],
+      "taskIds": [
+        "ST-CORE-059"
+      ],
+      "caseIds": [
+        "OC04"
+      ],
+      "dependsOn": [
+        "WI-CORE-032"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "scopeApprovalReport": "harness/reports/wi-core-052-scope-approval.md",
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-052 solo calcula construcciones de comportamiento PHP en el análisis de PR, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-052-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-052 solo calcula construcciones de comportamiento PHP en el análisis de PR, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-052-contract-sync-scope-review.md"
+        }
+      ],
+      "acceptanceCriteria": [
+        "El job de snapshot ejecuta symbolBehaviorConstructsService.compute también para PHP (sin el condicional !isPhp): los símbolos PHP DIRECTLY_CHANGED METHOD/FUNCTION persisten behaviorConstructs no nulo (arreglo, posiblemente vacío).",
+        "Con projectRoot (monorepo, p. ej. backend) el filePath prefijado resuelve el archivo del workspace y su base; archivo added sin base; base no encontrada → [] según el servicio; los fallos de GitHub al leer la base siguen como hoy.",
+        "PHP con BOUNDARY/EXCEPTION nuevos y sin regla ACTIVE pasa a ACTION_REQUIRED con el evaluador (prueba integrada); PHP sin construcciones nuevas persiste [] y el Run sigue; TypeScript sin cambio.",
+        "Sin cambios en extractor ni evaluador salvo lo imprescindible, ni en experimentos, OE2/OE5, evidencia, métricas, contratos o migraciones; OC04 documenta que PHP queda cubierto; riesgos declarados (llamadas a GitHub, cambio de comportamiento en producción).",
+        "Pruebas roja-verde; vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-052-scope-approval.md",
+        "harness/reports/wi-core-052-contract-sync-scope-review.md",
+        "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
+        "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts"
+      ]
     }
   ]
 }
