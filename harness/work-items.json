@@ -3059,7 +3059,7 @@
       "id": "WI-CORE-055",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-READY",
+      "status": "W-IN_PROGRESS",
       "priority": "P1",
       "sprint": "P2",
       "title": "inspect_symbol del GENERALIST_AGENT con nombres PHP calificados con barra invertida",
@@ -3081,8 +3081,27 @@
         "app/src/generation/agent/workspace-agent-tools.ts",
         "app/src/generation/agent/workspace-agent-tools.spec.ts",
         "harness/reports/wi-core-053-056-plan.md",
-        "spec/features/008-experimental-comparison/tasks.md"
-      ]
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-055-scope-approval.md",
+        "harness/reports/wi-core-055-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-055 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-055-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-055 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-055-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-055-scope-approval.md"
     },
     {
       "id": "WI-CORE-056",
