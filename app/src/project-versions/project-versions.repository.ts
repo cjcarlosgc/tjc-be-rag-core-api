@@ -82,6 +82,11 @@ export class ProjectVersionsRepository {
     });
   }
 
+  /** Enlaza el snapshot ZIP persistido en Storage con la versión (solo escribe `snapshotKey`). */
+  async setSnapshotKey(id: string, snapshotKey: string): Promise<void> {
+    await this.prisma.projectVersion.update({ where: { id }, data: { snapshotKey } });
+  }
+
   async setStatus(id: string, status: ProjectVersionStatus): Promise<void> {
     await this.prisma.projectVersion.update({ where: { id }, data: { status } });
   }

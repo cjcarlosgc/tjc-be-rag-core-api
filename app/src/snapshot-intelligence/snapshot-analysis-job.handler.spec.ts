@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -94,7 +95,9 @@ describe('SnapshotAnalysisJobHandler', () => {
       createPending: vi.fn().mockResolvedValue({ id: 'version-1' } as ProjectVersion),
       markStarted: vi.fn().mockResolvedValue(undefined),
       completeAndPromote: vi.fn().mockResolvedValue(undefined),
+      setSnapshotKey: vi.fn().mockResolvedValue(undefined),
     };
+    const objectStorageService = { put: vi.fn().mockResolvedValue(undefined) };
     const codeChunksRepository = {
       insertMany: vi.fn().mockResolvedValue(undefined),
       findByProjectVersion: vi.fn().mockResolvedValue([]),
@@ -160,10 +163,12 @@ describe('SnapshotAnalysisJobHandler', () => {
       functionalContextEvaluatorService as never,
       analysisRunChecksService as never,
       embeddingProvider as never,
+      objectStorageService as never,
     );
 
     return {
       handler,
+      objectStorageService,
       jobsService,
       analysisRunsRepository,
       analysisRunsService,
@@ -730,5 +735,80 @@ describe('SnapshotAnalysisJobHandler', () => {
     await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('db unavailable');
 
     expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  describe('snapshot persistence', () => {
+    it('stores the zipped workspace under a version-scoped key and links it to the ProjectVersion', async () => {
+      const { handler, objectStorageService, projectVersionsRepository } = setup();
+
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      const expectedKey = 'project-versions/version-1/snapshot.zip';
+      expect(objectStorageService.put).toHaveBeenCalledWith(
+        expectedKey,
+        expect.any(Buffer),
+        'application/zip',
+      );
+      expect(projectVersionsRepository.setSnapshotKey).toHaveBeenCalledWith('version-1', expectedKey);
+    });
+
+    it('persists the snapshot after completeAndPromote and before symbol persistence', async () => {
+      const { handler, objectStorageService, projectVersionsRepository, analysisSymbolsRepository } = setup();
+
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      const promoteOrder = projectVersionsRepository.completeAndPromote.mock.invocationCallOrder[0];
+      const putOrder = objectStorageService.put.mock.invocationCallOrder[0];
+      const linkOrder = projectVersionsRepository.setSnapshotKey.mock.invocationCallOrder[0];
+      const symbolsOrder = analysisSymbolsRepository.insertMany.mock.invocationCallOrder[0];
+      expect(promoteOrder).toBeLessThan(putOrder);
+      expect(putOrder).toBeLessThan(linkOrder);
+      expect(linkOrder).toBeLessThan(symbolsOrder);
+    });
+
+    it('keeps the run completing and the check queued when the storage put rejects, without linking or leaking the error', async () => {
+      const { handler, objectStorageService, projectVersionsRepository, jobsService, analysisRunsService } = setup();
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      objectStorageService.put.mockRejectedValue(new Error('https://signed.example/secret?token=abc'));
+
+      await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+      expect(projectVersionsRepository.setSnapshotKey).not.toHaveBeenCalled();
+      expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+      expect(jobsService.enqueue).toHaveBeenCalledWith(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: 'run-1' });
+      expect(warn).toHaveBeenCalledWith(
+        'ProjectVersion version-1: no se pudo persistir el snapshot (Error); snapshotKey queda sin definir.',
+      );
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('signed.example');
+      warn.mockRestore();
+    });
+
+    it('keeps the run completing when setSnapshotKey rejects, without leaking the error', async () => {
+      const { handler, projectVersionsRepository, objectStorageService, analysisSymbolsRepository } = setup();
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      projectVersionsRepository.setSnapshotKey.mockRejectedValue(new TypeError('db secret detail'));
+
+      await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+      expect(objectStorageService.put).toHaveBeenCalled();
+      expect(analysisSymbolsRepository.insertMany).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        'ProjectVersion version-1: no se pudo persistir el snapshot (TypeError); snapshotKey queda sin definir.',
+      );
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('db secret detail');
+      warn.mockRestore();
+    });
+
+    it('uses the same key when the same version is persisted again', async () => {
+      const { handler, objectStorageService, projectVersionsRepository } = setup();
+
+      await handler.handle({ analysisRunId: 'run-1' });
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      const keys = objectStorageService.put.mock.calls.map((call) => call[0]);
+      expect(keys).toHaveLength(2);
+      expect(new Set(keys).size).toBe(1);
+      expect(projectVersionsRepository.setSnapshotKey.mock.calls.map((call) => call[1])).toEqual([keys[0], keys[0]]);
+    });
   });
 });

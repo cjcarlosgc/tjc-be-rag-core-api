@@ -43,6 +43,8 @@ import type { AnalysisIndexMode, CodeChunk } from '../generated/prisma/client.js
 import { ProjectLanguage, type TestFramework } from '../generated/prisma/enums.js';
 import type { ResolvedTestTarget } from '../project-versions/inventory/existing-test-resolver.service.js';
 import { resolveUniqueComposerRoot, validateProjectRoot } from '../project-versions/project-root.util.js';
+import { ObjectStorageService } from '../object-storage/object-storage.service.js';
+import { zipDirectory } from '../project-versions/zip/zip-directory.util.js';
 
 export interface SnapshotAnalysisJobPayload {
   analysisRunId: string;
@@ -169,6 +171,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
     private readonly functionalContextEvaluatorService: FunctionalContextEvaluatorService,
     private readonly analysisRunChecksService: AnalysisRunChecksService,
     @Inject(EMBEDDING_PROVIDER) private readonly embeddingProvider: EmbeddingProvider,
+    private readonly objectStorageService: ObjectStorageService,
   ) {}
 
   onModuleInit(): void {
@@ -342,6 +345,8 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         projectRoot: selectedProjectRoot,
       });
 
+      await this.persistSnapshot(version.id, workspace.dir);
+
       let symbols = await this.detectSymbols(
         chunksToPersist,
         changesetFiles,
@@ -435,6 +440,25 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
       this.logger.debug(`Se omite el fallo tardío del AnalysisRun ${run.id}: el Run ya no admite esa transición.`);
     } finally {
       await workspace?.cleanup();
+    }
+  }
+
+  /**
+   * Persiste el snapshot del workspace y lo enlaza a la ProjectVersion. Un fallo
+   * no bloquea el Run: se registra solo el nombre del error (sin mensaje, que
+   * puede traer URLs firmadas) y `snapshotKey` queda sin definir.
+   */
+  private async persistSnapshot(versionId: string, workspaceDir: string): Promise<void> {
+    try {
+      const snapshotBuffer = zipDirectory(workspaceDir);
+      const snapshotKey = `project-versions/${versionId}/snapshot.zip`;
+      await this.objectStorageService.put(snapshotKey, snapshotBuffer, 'application/zip');
+      await this.projectVersionsRepository.setSnapshotKey(versionId, snapshotKey);
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'desconocido';
+      this.logger.warn(
+        `ProjectVersion ${versionId}: no se pudo persistir el snapshot (${errorName}); snapshotKey queda sin definir.`,
+      );
     }
   }
 
