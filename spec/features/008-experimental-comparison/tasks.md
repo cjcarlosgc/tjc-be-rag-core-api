@@ -8,6 +8,6 @@
 
 No se modifica almacenamiento persistido antes de inventario y revisión contractual.
 - [ ] **ST-CORE-060 · T-READY · WI-CORE-053 · HU17:** persistir evidencia privada por repetición: código exacto del test enviado y reporte del runner (hechos normalizados) con sha256, límites explícitos y migración nueva sin aplicar a la base real.
-- [ ] **ST-CORE-061 · T-READY · WI-CORE-054 · HU17:** `technicallyValidRate` y `assertionFailureCount` en `StrategyMetricsResponse`, aditivo y retrocompatible, con contract-reviewer.
+- [ ] **ST-CORE-061 · T-IN_PROGRESS · WI-CORE-054 · HU17:** `technicallyValidRate` y `assertionFailureCount` en `StrategyMetricsResponse`, aditivo y retrocompatible, con contract-reviewer.
 - [x] **ST-CORE-062 · T-DONE · WI-CORE-055 · HU17:** `inspect_symbol` del GENERALIST_AGENT con nombres PHP calificados con `\`.
 - [ ] **ST-CORE-063 · T-READY · WI-CORE-056 · HU15, HU17:** análisis offline para reducir el ruido del contexto RAG (informe; sin aplicar).
