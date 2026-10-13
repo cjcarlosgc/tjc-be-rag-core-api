@@ -3169,7 +3169,7 @@
       "id": "WI-CORE-056",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Análisis: reducir el ruido del contexto RAG con simulación offline (experimentos 89a16229 y 800689b9)",
@@ -3194,7 +3194,9 @@
         "harness/reports/wi-core-056-scope-approval.md",
         "harness/reports/wi-core-056-contract-sync-scope-review.md",
         "harness/reports/wi-core-056-rag-context-noise-analysis.md",
-        "harness/reports/wi-core-056-technical-checks.md"
+        "harness/reports/wi-core-056-technical-checks.md",
+        "harness/reports/wi-core-056-independent-review.md",
+        "harness/reports/wi-core-056-closure.md"
       ],
       "contractSyncReview": [
         {

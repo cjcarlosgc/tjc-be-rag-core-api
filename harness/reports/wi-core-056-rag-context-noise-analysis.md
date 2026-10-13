@@ -49,7 +49,7 @@ Lectura: P1 elimina las 7 pruebas ajenas del exp. 1 y 5 de los 9 vecinos del exp
 - **Muestra mínima:** 2 experimentos de juguete, un target cada uno, repeticiones con contexto idéntico; el proxy se ajusta a ellos (riesgo de sobreajuste).
 - **Pool limitado:** solo los 20–23 candidatos conservados; el índice completo tiene 46 y 52 chunks (13 de pruebas): el análisis no cubre candidatos nunca recuperados.
 - **Valor de estilo de las pruebas:** quitar pruebas de la clase puede perjudicar el estilo y las convenciones PHPUnit que hoy ayudan al modelo (no evaluado).
-- **Decisión pendiente que bloquea la parte test-aware:** `DEC-RAG-001` (retrieval test-aware) sigue `PENDING` y define hoy la selección como los 10 primeros por puntaje; aplicar P1 la contradice y exige su resolución antes de cualquier cambio de producto.
+- **Decisión pendiente que bloquea la parte test-aware:** `DEC-RAG-001` (retrieval test-aware) sigue `PENDING` y bloquea los pasos test-aware de la propuesta; además, la selección vigente (los 10 primeros por puntaje, spec 004/OE2) se contradice con P1, lo que exige resolver ambas antes de cualquier cambio de producto.
 - **Comparabilidad experimental:** cambiar ranking/contexto altera la línea base de OE2/OE5, `DEC-RAG-001` (retrieval test-aware) y las métricas comparadas con el agente; exige versionar la configuración (`configuration` ya se persiste) y no mezclar corridas.
 - **Cambio mayor en retrieval:** la relación `IMPORTED_BY` y los pesos son de clase; refinarlos al método exige relaciones nuevas (`TEST_OF_TARGET` por mención o llamada) y pruebas por lenguaje (PHP/TypeScript).
 - **Determinismo y trazabilidad:** el presupuesto y los umbrales deben registrarse por traza; los vecinos con empates de puntaje requieren orden estable.

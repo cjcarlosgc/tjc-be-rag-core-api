@@ -46,3 +46,25 @@ Verificadas sin discrepancia:
 
 ## Resumen
 status: CHANGES_REQUESTED · blockers: ninguno · filesAffected: `harness/reports/wi-core-056-rag-context-noise-analysis.md` (F1-F5) · recommendedNextStep: el leader corrige F1 y F2 (y F3-F5 si es barato) en el informe y solicita el ciclo 2 de revisión; no se requiere decisión del usuario para estas correcciones.
+
+---
+
+# Ciclo 2 de 2 (Modo fuera de casa) — revisión de la corrección e1be98b
+
+Modelo: reviewer · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium. Sin acceso a la base de datos; solo `rag_traces.json` extraído y código/spec del repositorio.
+
+**Veredicto final: APPROVED** (una observación menor no bloqueante).
+
+| Hallazgo | Estado | Evidencia |
+|---|---|---|
+| F1 `maxContextTokens` | Resuelto | §1 y §3 lo describen como `TOKEN_BUDGET` posterior al `topK`, no vinculante en estas corridas (569/756 < 8000); coincide con `context-builder.service.ts` (líneas 151 y 170). |
+| F2 simulación reproducible | Resuelto | Reimplementé P1-P3 solo con la definición del informe (presupuesto incluye target; umbral sobre `semanticScore`; pruebas admitidas exentas del umbral; clase declarante, constructor y evidencia entran primero) y reproduje las 6 celdas: P1 8/497/2 (375) y 7/215/2 (62); P2 2/375/2 y 3/85/2; P3 11/555/2 y 11/352/2. Nota: el constructor figura como símbolo `constructor` en las trazas. |
+| F3 rango 0.50–0.71 | Resuelto | Vecinos seleccionados exp. 2: 0,497–0,706; 0,77 es la clase `Voucher`. |
+| F4 ~185 tokens de reglas | Resuelto | 569 − 36 − 348 = 185; 2 reglas seleccionadas en la traza (atribución a reglas inferida pero consistente). |
+| F5 DEC-RAG-001 | Resuelto | Listado en §5 como decisión PENDING bloqueante; coincide con `spec/features/004.../spec.md` (`Blocks`: WI futuro test-aware). |
+
+## Observación menor (no bloqueante, sin ciclo adicional)
+- §5 dice que `DEC-RAG-001` «define hoy la selección como los 10 primeros por puntaje»: impreciso; esa definición viene de spec 004/OE2, y `DEC-RAG-001` es la decisión pendiente sobre una señal test-aware. Sugerencia de redacción: «la selección vigente (spec 004: los 10 primeros por puntaje) se contradiría al aplicar P1, y la parte test-aware exige resolver `DEC-RAG-001`». Tampoco se repite en §3/§6; basta con §5.
+
+## Pendiente
+- Nada bloqueante. `node harness/validate-harness.mjs` pasa; sin cambios en `app/`. El leader puede corregir la frase anterior si quiere, sin nueva revisión.
