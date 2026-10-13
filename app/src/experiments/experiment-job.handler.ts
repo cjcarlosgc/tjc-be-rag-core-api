@@ -57,6 +57,10 @@ import {
 } from '../sandbox/map-sandbox-result.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
 import {
+  buildRepetitionArtifact,
+  type RepetitionArtifact,
+} from './repetition-artifact.js';
+import {
   DEFAULT_MAX_POLL_ATTEMPTS,
   DEFAULT_REQUEST_TIMEOUT_MS,
 } from '../sandbox/sandbox-execution.service.js';
@@ -325,6 +329,8 @@ interface RepetitionEvidence {
   sandbox: SandboxExecutionEvidence | null;
   /** SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación. */
   artifactHash: string | null;
+  /** WI-CORE-053: artefacto interno (contenido y hechos del Sandbox); null si no hubo contenido enviado. */
+  artifact: RepetitionArtifact | null;
 }
 
 /** Target de recuperación a partir de la fila persistida (misma forma que usa el brazo RAG). */
@@ -790,6 +796,8 @@ export class ExperimentJobHandler
     // WI-CORE-027: evidencia del Sandbox y hash del contenido enviado; null mientras no haya invocación.
     let sandboxEvidence: SandboxExecutionEvidence | null = null;
     let artifactHash: string | null = null;
+    // WI-CORE-053: artefacto interno de la repetición; null salvo en los caminos que enviaron contenido.
+    let artifact: RepetitionArtifact | null = null;
 
     try {
       await this.initializeTraceDetail(begun.trace.id, context);
@@ -964,6 +972,10 @@ export class ExperimentJobHandler
         });
         executionDurationMs = Date.now() - executionStart;
         const outcome = mapSandboxResult(sandboxResult);
+        artifact =
+          generation.content.trim().length > 0
+            ? this.safeBuildArtifact(mergedContent, sandboxResult, context)
+            : null;
         sandboxEvidence = toSandboxExecutionEvidence(
           sandboxResult,
           outcome.failureType,
@@ -1004,6 +1016,10 @@ export class ExperimentJobHandler
         if (error instanceof SandboxAcceptedExecutionError) {
           sandboxEvidence = toAcceptedSandboxEvidence(error);
         }
+        // WI-CORE-053: el contenido ya se envió (artifactHash calculado): se persiste sin informe del Sandbox.
+        if (artifactHash !== null) {
+          artifact = this.safeBuildArtifact(mergedContent, null, context);
+        }
         const sandboxErrorSummary =
           error instanceof SandboxUnavailableError
             ? 'Sandbox no disponible.'
@@ -1033,7 +1049,7 @@ export class ExperimentJobHandler
         externalFailure,
         sandboxTimedOut,
         sandboxFailure,
-        { sandbox: sandboxEvidence, artifactHash },
+        { sandbox: sandboxEvidence, artifactHash, artifact },
       );
       finalized = true;
       return externalFailure;
@@ -1067,7 +1083,7 @@ export class ExperimentJobHandler
           externalFailure,
           false,
           null,
-          { sandbox: sandboxEvidence, artifactHash },
+          { sandbox: sandboxEvidence, artifactHash, artifact },
         );
         finalized = true;
       }
@@ -1569,8 +1585,9 @@ export class ExperimentJobHandler
       artifactHash: evidence.artifactHash,
     };
 
+    let written: boolean;
     try {
-      return await this.experimentRunsRepository.updateRepetitionById(
+      written = await this.experimentRunsRepository.updateRepetitionById(
         repetitionId,
         { ...input, ...evidenceColumns },
         state,
@@ -1580,10 +1597,57 @@ export class ExperimentJobHandler
       this.logger.warn(
         `No se pudo registrar la evidencia de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se escribe sin ella.`,
       );
-      return this.experimentRunsRepository.updateRepetitionById(
+      written = await this.experimentRunsRepository.updateRepetitionById(
         repetitionId,
         input,
         state,
+      );
+    }
+    if (written && evidence.artifact !== null) {
+      await this.writeRepetitionArtifact(repetitionId, context, evidence.artifact);
+    }
+    return written;
+  }
+
+  /**
+   * WI-CORE-053: best-effort. Construir el artefacto se hace dentro del try del cliente de Sandbox; si lanzara,
+   * la repetición se clasificaría como fallo de infraestructura y se reintentaría. Por eso se aísla aquí: ante
+   * error devuelve null y solo se registra el nombre del error, nunca su mensaje.
+   */
+  private safeBuildArtifact(
+    content: string,
+    result: Parameters<typeof buildRepetitionArtifact>[1],
+    context: { strategy: Strategy; repetition: number },
+  ): RepetitionArtifact | null {
+    try {
+      return buildRepetitionArtifact(content, result);
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo construir el artefacto de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se conserva.`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * WI-CORE-053: best-effort. Un fallo al guardar el artefacto no cambia el resultado de la repetición; solo
+   * se registra el nombre del error, nunca su mensaje.
+   */
+  private async writeRepetitionArtifact(
+    repetitionId: string,
+    context: { strategy: Strategy; repetition: number },
+    artifact: RepetitionArtifact,
+  ): Promise<void> {
+    try {
+      await this.experimentRunsRepository.upsertRepetitionArtifact(
+        repetitionId,
+        artifact,
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo guardar el artefacto de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se conserva.`,
       );
     }
   }
@@ -1611,7 +1675,11 @@ export class ExperimentJobHandler
     externalFailure: boolean,
     sandboxTimedOut = false,
     failure: ExperimentRepetitionFailure | null = null,
-    evidence: RepetitionEvidence = { sandbox: null, artifactHash: null },
+    evidence: RepetitionEvidence = {
+      sandbox: null,
+      artifactHash: null,
+      artifact: null,
+    },
   ): Promise<void> {
     const totalTokens =
       generation.inputTokens !== null && generation.outputTokens !== null

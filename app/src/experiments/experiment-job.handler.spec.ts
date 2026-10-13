@@ -47,6 +47,7 @@ function successfulSandboxResult() {
       testCasesTruncated: false,
     },
     failure: null,
+    stageDurations: [],
   };
 }
 
@@ -142,6 +143,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       complete: vi.fn(),
       markFailed: vi.fn(),
       updateRepetitionById: vi.fn().mockResolvedValue(true),
+      upsertRepetitionArtifact: vi.fn().mockResolvedValue(undefined),
       refreshCompletedRepetitions: vi.fn(),
       findRepetitions: vi.fn().mockResolvedValue([]),
     },
@@ -3643,6 +3645,272 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
       expect(write).toMatchObject({ failureType: 'CONFIGURATION' });
       expect(String(write.errorSummary)).toContain('PHPUnit');
       expect(String(write.errorSummary)).not.toContain('Jest');
+    }
+  });
+});
+
+describe('ExperimentJobHandler repetition artifact (WI-CORE-053, corte B)', () => {
+  const TEST_CONTENT = 'export function test() {}';
+  const CONTENT_SHA = createHash('sha256')
+    .update(TEST_CONTENT, 'utf8')
+    .digest('hex');
+
+  function identified() {
+    return {
+      ...successfulSandboxResult(),
+      executionId: 'exec-1',
+      executionProfile: 'NODE_TYPESCRIPT',
+      requestId: 'req-1',
+      correlationId: 'corr-1',
+      durationMs: 9,
+    };
+  }
+
+  function upsertsOf(deps: ReturnType<typeof makeDeps>['deps']) {
+    return (
+      deps.experimentRunsRepository.upsertRepetitionArtifact as ReturnType<
+        typeof vi.fn
+      >
+    ).mock.calls as Array<[string, Record<string, unknown>]>;
+  }
+
+  function writeIdsOf(deps: ReturnType<typeof makeDeps>['deps']) {
+    return (
+      deps.experimentRunsRepository.updateRepetitionById as ReturnType<
+        typeof vi.fn
+      >
+    ).mock.calls.map((call: unknown[]) => call[0] as string);
+  }
+
+  it('stores the artifact of an executed repetition under its own id, with the same hash as the artifact hash', async () => {
+    const withCase = {
+      ...successfulSandboxResult(),
+      executionId: 'exec-1',
+      executionProfile: 'NODE_TYPESCRIPT',
+      requestId: 'req-1',
+      correlationId: 'corr-1',
+      durationMs: 9,
+      facts: {
+        ...successfulSandboxResult().facts,
+        testCases: [
+          {
+            suitePath: 'suite',
+            name: 'caso uno',
+            status: 'PASSED',
+            durationMs: 3,
+            errorMessage: null,
+          },
+        ],
+      },
+    };
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(withCase),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-art-1');
+
+    const writes = writesOf(deps);
+    const upserts = upsertsOf(deps);
+    expect(upserts).toHaveLength(writes.length);
+    expect(new Set(upserts.map(([id]) => id))).toEqual(
+      new Set(writeIdsOf(deps)),
+    );
+    for (const [, artifact] of upserts) {
+      expect(artifact).toMatchObject({
+        testContent: TEST_CONTENT,
+        testContentSha256: CONTENT_SHA,
+        testContentTruncated: false,
+        runnerReport: {
+          status: 'COMPLETED',
+          testCases: [
+            expect.objectContaining({ name: 'caso uno', status: 'PASSED' }),
+          ],
+        },
+      });
+    }
+    expect(writes.every((write) => write.artifactHash === CONTENT_SHA)).toBe(
+      true,
+    );
+  });
+
+  it('stores the artifact for a non-COMPLETED Sandbox result too', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue({
+          ...successfulSandboxResult(),
+          status: 'FAILED',
+          facts: null,
+          failure: {
+            stage: 'COMPILING',
+            category: 'COMPILATION',
+            code: 'TS2304',
+            message: 'Cannot find name',
+          },
+        }),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-art-2');
+
+    const upserts = upsertsOf(deps);
+    expect(upserts.length).toBeGreaterThan(0);
+    for (const [, artifact] of upserts) {
+      expect(artifact).toMatchObject({
+        testContentSha256: CONTENT_SHA,
+        runnerReport: {
+          status: 'FAILED',
+          failure: expect.objectContaining({ stage: 'COMPILING' }),
+        },
+      });
+    }
+  });
+
+  it('stores the content with a null runner report when the Sandbox client throws after the content was sent', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockRejectedValue(new Error('red caída')),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-art-3');
+
+    const upserts = upsertsOf(deps);
+    expect(upserts.length).toBeGreaterThan(0);
+    for (const [, artifact] of upserts) {
+      expect(artifact).toMatchObject({
+        testContent: TEST_CONTENT,
+        testContentSha256: CONTENT_SHA,
+        runnerReport: null,
+        runnerReportSha256: null,
+      });
+    }
+  });
+
+  it('does not store an artifact when the generated content is empty or generation fails', async () => {
+    const empty = makeDeps({
+      llmProvider: {
+        generate: vi.fn().mockResolvedValue({
+          content: '   ',
+          inputTokens: 1,
+          outputTokens: 1,
+        }),
+        resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
+      },
+    });
+    await makeHandler(empty.deps).handle(payload, 'job-art-4');
+    const ragIds = writesOf(empty.deps)
+      .map((write, index) => ({ strategy: write.strategy, id: writeIdsOf(empty.deps)[index] }))
+      .filter((row) => row.strategy === 'RAG')
+      .map((row) => row.id);
+    expect(ragIds.length).toBeGreaterThan(0);
+    const upsertedIds = upsertsOf(empty.deps).map(([id]) => id);
+    expect(upsertedIds.filter((id) => ragIds.includes(id))).toHaveLength(0);
+
+    const generationError = new Error('generation exploded');
+    const failed = makeDeps({
+      generalistAgentService: {
+        generate: vi.fn().mockRejectedValue(generationError),
+      },
+      llmProvider: {
+        generate: vi.fn().mockRejectedValue(generationError),
+        resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
+      },
+    });
+    await makeHandler(failed.deps).handle(payload, 'job-art-5');
+    expect(upsertsOf(failed.deps)).toHaveLength(0);
+  });
+
+  it('keeps the result and only warns, without the error message, when the artifact write rejects', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    try {
+      const { deps } = makeDeps({
+        sandboxExecutionService: {
+          execute: vi.fn().mockResolvedValue(identified()),
+        },
+      });
+      (
+        deps.experimentRunsRepository.upsertRepetitionArtifact as ReturnType<
+          typeof vi.fn
+        >
+      ).mockRejectedValue(new TypeError('secreto-xyz-987'));
+
+      await expect(makeHandler(deps).handle(payload, 'job-art-6')).resolves.toBeUndefined();
+
+      const writes = writesOf(deps);
+      expect(writes).toHaveLength(6);
+      expect(writes.every((write) => write.artifactHash === CONTENT_SHA)).toBe(
+        true,
+      );
+      expect(deps.contextTracesRepository.finishTrace).toHaveBeenCalled();
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith(
+        'exp-1',
+      );
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).toContain('TypeError');
+      expect(logged).not.toContain('secreto-xyz-987');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('writes a separate artifact row for the second attempt of an external failure', async () => {
+    const execute = vi
+      .fn()
+      .mockRejectedValue(new SandboxUnavailableError('down'));
+    const { deps } = makeDeps({ sandboxExecutionService: { execute } });
+    (
+      deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(seededRun());
+
+    await makeHandler(deps).handle(payload, 'job-art-7');
+
+    const upserts = upsertsOf(deps);
+    expect(upserts).toHaveLength(12);
+    expect(new Set(upserts.map(([id]) => id)).size).toBe(12);
+    expect(new Set(upserts.map(([id]) => id))).toEqual(
+      new Set(writeIdsOf(deps)),
+    );
+  });
+
+  it('keeps the public write input free of test content and runner report', async () => {
+    const { deps } = makeDeps({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue(identified()),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-art-8');
+
+    const serialized = JSON.stringify(writesOf(deps));
+    expect(serialized).not.toContain('testContent');
+    expect(serialized).not.toContain('runnerReport');
+    expect(serialized).not.toContain(TEST_CONTENT);
+  });
+
+  it('keeps the normal result, without retry or infrastructure failure, when building the artifact throws on an unexpected Sandbox result shape', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    try {
+      const malformed = { ...identified() } as unknown as Record<string, unknown>;
+      delete malformed.stageDurations;
+      const execute = vi.fn().mockResolvedValue(malformed);
+      const { deps } = makeDeps({ sandboxExecutionService: { execute } });
+
+      await expect(makeHandler(deps).handle(payload, 'job-art-9')).resolves.toBeUndefined();
+
+      const writes = writesOf(deps);
+      expect(writes).toHaveLength(6);
+      expect(execute).toHaveBeenCalledTimes(6);
+      expect(writes.some((write) => write.failureType === 'INFRASTRUCTURE')).toBe(false);
+      expect(upsertsOf(deps)).toHaveLength(0);
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).toContain('TypeError');
+      expect(logged).not.toContain("reading 'map'");
+      expect(logged).not.toContain('Cannot read');
+    } finally {
+      warn.mockRestore();
     }
   });
 });
