@@ -13883,7 +13883,114 @@
       "closedAt": "2026-10-12T23:11:29.000Z"
     }
   ],
-  "activeWorkItem": null,
+  "activeWorkItem": {
+    "id": "WI-CORE-051",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-IN_PROGRESS",
+    "priority": "P1",
+    "title": "Persistir el snapshot de cada ProjectVersion y su snapshotKey en el análisis de PR",
+    "approved": true,
+    "storyIds": [
+      "HU15",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-058"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "spec/features/013-pr-driven-analysis/spec.md",
+      "spec/features/013-pr-driven-analysis/tasks.md",
+      "harness/reports/wi-core-051-scope-approval.md",
+      "harness/reports/wi-core-051-contract-sync-scope-review.md",
+      "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
+      "app/src/snapshot-intelligence/snapshot-analysis-job.handler.spec.ts",
+      "app/src/project-versions/project-versions.repository.ts",
+      "app/src/project-versions/project-versions.repository.spec.ts"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-051 solo persiste el snapshot de la versión, sin tocar binding, auth ni despliegue.",
+        "report": "harness/reports/wi-core-051-contract-sync-scope-review.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-051 solo persiste el snapshot de la versión, sin tocar binding, auth ni despliegue.",
+        "report": "harness/reports/wi-core-051-contract-sync-scope-review.md"
+      }
+    ],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-VAL-001"
+      ],
+      "checkedAt": "2026-10-13T00:29:47.000Z",
+      "note": "DEC-VAL-001 no bloquea (sin código empresarial)."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": null,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-051",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-13T00:29:47.784Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-051-scope-approval.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-051-scope-approval.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-051-scope-approval.md"
+      ]
+    }
+  },
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",
