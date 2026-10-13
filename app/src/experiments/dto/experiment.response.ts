@@ -70,6 +70,8 @@ export interface StrategyMetricsResponse {
   compilationRate: number | null;
   executionRate: number | null;
   passedRate: number | null;
+  /** INTEROP-2.13: evaluables con compiled ∧ executed ∧ failureType ∈ {NONE, TEST_ASSERTION}; null si evaluableRepetitions = 0. */
+  technicallyValidRate: number | null;
   generationDurationMs: number | null;
   /** Media de los valores no nulos de las repeticiones evaluables; null si ninguna invocó el Sandbox. */
   executionDurationMs: number | null;
@@ -84,6 +86,8 @@ export interface StrategyMetricsResponse {
   toolCalls: number | null;
   filesInspected: number | null;
   failures: Partial<Record<FailureType, number>>;
+  /** INTEROP-2.13: evaluables con failureType = TEST_ASSERTION; 0 sin evaluables; coincide con failures.TEST_ASSERTION. */
+  assertionFailureCount: number;
   /** Campos de modelo desde modelConfig del experimento; null en corridas previas. */
   modelVersion: string | null;
   reasoningEffort: string | null;

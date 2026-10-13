@@ -17,6 +17,7 @@ import {
   type ExperimentRepetitionFailure,
 } from '../experiment-failure-fact.js';
 import type { SandboxEvidenceFacts } from '../../sandbox/sandbox-evidence-facts.js';
+import type { RepetitionArtifact } from '../repetition-artifact.js';
 
 /**
  * WI-CORE-027 (DEC-EVID-004): guarda del límite de escritura para el hecho de fallo. Lo vuelve a normalizar
@@ -395,5 +396,27 @@ export class ExperimentRunsRepository {
 
         return [...latestByRepetition.values()];
       });
+  }
+
+  /**
+   * WI-CORE-053: escribe la evidencia interna de una repetición. Idempotente por repetición (upsert sobre
+   * `repetitionId`). Un `runnerReport` ausente se escribe como DbNull: una columna Json no admite null literal.
+   */
+  async upsertRepetitionArtifact(repetitionId: string, artifact: RepetitionArtifact): Promise<void> {
+    const data = {
+      testContent: artifact.testContent,
+      testContentSha256: artifact.testContentSha256,
+      testContentTruncated: artifact.testContentTruncated,
+      runnerReport:
+        artifact.runnerReport === null
+          ? Prisma.DbNull
+          : (artifact.runnerReport as unknown as Prisma.InputJsonObject),
+      runnerReportSha256: artifact.runnerReportSha256,
+    };
+    await this.prisma.experimentRepetitionArtifact.upsert({
+      where: { repetitionId },
+      create: { repetitionId, ...data },
+      update: data,
+    });
   }
 }

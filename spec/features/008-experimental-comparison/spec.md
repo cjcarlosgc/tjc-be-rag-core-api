@@ -82,6 +82,10 @@ Este piloto complementa, pero no sustituye ni renumera, los casos operativos `OC
 
 Plan de medición: 3 repeticiones por target y estrategia (`RAG` y `GENERALIST_AGENT`), en sesiones frescas y con las condiciones pareadas de esta especificación: **9 targets, 27 pares y 54 ejecuciones**. Antes de la primera corrida se congela y registra el `repositoryId`, commit SHA y `effectiveProjectRoot` de cada repo; cada ejecución posterior usa el mismo snapshot del par. Se registran CF primaria, CO secundaria y VT guardrail, más métricas técnicas/costo ya definidas; ninguna se interpreta como oráculo ni produce un ganador automático. No se modifica ningún repo piloto ni se hace E2E hasta verificar acceso y congelar sus revisiones.
 
+## Evidencia privada por repetición (`WI-CORE-053`, 2026-10-13)
+
+Cada repetición que invoca al Sandbox persiste, en la tabla privada `experiment_repetition_artifacts` (1:1, `ON DELETE CASCADE`, RLS sin acceso para `anon`/`authenticated`), el contenido exacto de la prueba enviada (hasta 256 KiB UTF-8, con `testContentSha256` del contenido completo y marca de recorte) y un reporte con los hechos normalizados del runner (hasta 200 casos con `errorMessage` saneado de hasta 500 caracteres, hecho de fallo y duraciones por etapa) con su sha256. El Sandbox no devuelve stdout/stderr: la salida en bruto es un pedido aparte que requeriría extender el contrato del Sandbox. La escritura es best-effort y no altera el resultado, el estado ni el reintento de la repetición; no se expone en `ExperimentRepetitionResponse`, trace ni §6.16 (solo `artifactHash` ya definido). No hay purga: `DEC-VAL-001` sigue `PENDING`, por lo que solo aplica a repositorios de piloto; el contenido del código de terceros se guarda tal como se envió al Sandbox. La migración `20261013100000_experiment_repetition_artifacts` es aditiva y se aplica con autorización explícita.
+
 ## Fuera de alcance
 
 - No ampliar a capacidades no mencionadas en esta spec.

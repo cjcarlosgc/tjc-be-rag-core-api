@@ -423,6 +423,162 @@ describe('WorkspaceAgentTools', () => {
     });
   });
 
+  describe('inspect_symbol con nombres PHP calificados', () => {
+    beforeEach(async () => {
+      await writeFile(
+        join(dir, 'src/OrderLine.php'),
+        [
+          '<?php',
+          'namespace App\\Domain;',
+          '',
+          'class OrderLine {',
+          '    public function hasStock(int $q): bool { return $q > 0; }',
+          '    public function __construct() {}',
+          '}',
+        ].join('\n'),
+      );
+      await writeFile(
+        join(dir, 'src/Usage.php'),
+        [
+          '<?php',
+          'namespace App;',
+          '',
+          'use App\\Domain\\OrderLine;',
+          '',
+          'function place(): void {',
+          '    $line = new OrderLine();',
+          '}',
+        ].join('\n'),
+      );
+      await writeFile(join(dir, 'src/helpers.php'), '<?php\nfunction helper() {}\n');
+      await writeFile(
+        join(dir, 'src/Braced.php'),
+        [
+          '<?php',
+          'namespace App\\Braced {',
+          '    class Box {',
+          '        public function open() {}',
+          '    }',
+          '}',
+        ].join('\n'),
+      );
+    });
+
+    function makeQualifiedTools() {
+      return new WorkspaceAgentTools(dir, [
+        'src/OrderLine.php',
+        'src/Usage.php',
+        'src/helpers.php',
+        'src/Braced.php',
+      ]);
+    }
+
+    it('resolves a fully qualified class name with its references', async () => {
+      const result = await makeQualifiedTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'App\\Domain\\OrderLine' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain('Declarado en src/OrderLine.php:');
+      expect(result.result).toContain('class OrderLine {');
+      expect(result.result).toContain('Referenciado también en: src/Usage.php');
+      expect(result.observations[0]?.excerpt).toMatchObject({
+        startLine: 4,
+        endLine: 7,
+      });
+    });
+
+    it('resolves a fully qualified method name to the method node', async () => {
+      const result = await makeQualifiedTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'App\\Domain\\OrderLine\\hasStock' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain('Declarado en src/OrderLine.php:');
+      expect(result.result).toContain(
+        'public function hasStock(int $q): bool { return $q > 0; }',
+      );
+      expect(result.result).not.toContain('__construct');
+      expect(result.observations[0]?.excerpt).toMatchObject({
+        startLine: 5,
+        endLine: 5,
+      });
+    });
+
+    it('accepts a leading backslash on a qualified method name', async () => {
+      const result = await makeQualifiedTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: '\\App\\Domain\\OrderLine\\hasStock' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain('public function hasStock');
+    });
+
+    it('resolves Class::method, Class.method and qualified Class::method', async () => {
+      const tools = makeQualifiedTools();
+
+      for (const symbolName of [
+        'OrderLine::hasStock',
+        'OrderLine.hasStock',
+        'App\\Domain\\OrderLine::hasStock',
+      ]) {
+        const result = await tools.dispatchWithObservations('inspect_symbol', {
+          symbolName,
+        });
+
+        expect(result.status).toBe('SUCCEEDED');
+        expect(result.result).toContain('public function hasStock');
+      }
+    });
+
+    it('keeps resolving simple class and function names', async () => {
+      const tools = makeQualifiedTools();
+
+      const cls = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'OrderLine',
+      });
+      const fn = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'helper',
+      });
+
+      expect(cls.status).toBe('SUCCEEDED');
+      expect(cls.result).toContain('Declarado en src/OrderLine.php:');
+      expect(fn.status).toBe('SUCCEEDED');
+      expect(fn.result).toContain('Declarado en src/helpers.php:');
+    });
+
+    it('resolves a method inside a braced namespace', async () => {
+      const result = await makeQualifiedTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'App\\Braced\\Box\\open' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain('Declarado en src/Braced.php:');
+      expect(result.result).toContain('public function open() {}');
+    });
+
+    it('returns EMPTY for unknown qualified names without throwing', async () => {
+      const tools = makeQualifiedTools();
+
+      const wrongNamespace = await tools.dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'App\\Other\\OrderLine' },
+      );
+      const unknownMethod = await tools.dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'App\\Domain\\OrderLine\\noExiste' },
+      );
+
+      expect(wrongNamespace).toMatchObject({ status: 'EMPTY', observations: [] });
+      expect(unknownMethod).toMatchObject({ status: 'EMPTY', observations: [] });
+      expect(unknownMethod.result).toContain('No se encontró una declaración');
+    });
+  });
+
   it('dispatch returns a message for an unknown tool name', async () => {
     const tools = makeTools();
 

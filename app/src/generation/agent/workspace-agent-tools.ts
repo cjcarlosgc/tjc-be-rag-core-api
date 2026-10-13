@@ -204,29 +204,105 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
   },
 ];
 
+const PHP_TYPE_WITH_METHODS_TYPES = new Set([
+  'class_declaration',
+  'interface_declaration',
+  'trait_declaration',
+  'enum_declaration',
+]);
+
+function namedChildrenOf(node: SyntaxNode): SyntaxNode[] {
+  return (node.namedChildren ?? []).filter(
+    (child): child is SyntaxNode => child !== null,
+  );
+}
+
+/**
+ * Devuelve el nodo que coincide con `target` dentro de una declaración PHP:
+ * la propia declaración (nombre simple o calificado) o, para tipos con cuerpo,
+ * uno de sus métodos (`<calificado>\m`, `<calificado>::m`, `<n>::m`, etc.).
+ */
+function matchPhpDeclaration(
+  node: SyntaxNode,
+  namespaceName: string,
+  target: string,
+): SyntaxNode | undefined {
+  const simpleName = node.childForFieldName('name')?.text;
+  if (!simpleName) {
+    return undefined;
+  }
+  const qualifiedName = namespaceName
+    ? `${namespaceName}\\${simpleName}`
+    : simpleName;
+  if (target === simpleName || target === qualifiedName) {
+    return node;
+  }
+  if (!PHP_TYPE_WITH_METHODS_TYPES.has(node.type)) {
+    return undefined;
+  }
+  const body = node.childForFieldName('body');
+  if (!body) {
+    return undefined;
+  }
+  return namedChildrenOf(body).find((member) => {
+    if (member.type !== 'method_declaration') {
+      return false;
+    }
+    const methodName = member.childForFieldName('name')?.text;
+    if (!methodName) {
+      return false;
+    }
+    return [
+      `${qualifiedName}\\${methodName}`,
+      `${qualifiedName}::${methodName}`,
+      `${qualifiedName}.${methodName}`,
+      `${simpleName}::${methodName}`,
+      `${simpleName}.${methodName}`,
+    ].includes(target);
+  });
+}
+
 function findPhpDeclarationNode(
   root: SyntaxNode,
-  symbolName: string,
+  target: string,
 ): SyntaxNode | undefined {
-  const namedChildrenOf = (node: SyntaxNode): SyntaxNode[] =>
-    (node.namedChildren ?? []).filter((child): child is SyntaxNode => child !== null);
-
-  for (const topLevel of namedChildrenOf(root)) {
-    const body = topLevel.childForFieldName('body');
-    const candidates =
-      topLevel.type === 'namespace_definition'
-        ? (body ? namedChildrenOf(body) : [])
-        : [topLevel];
-    const found = candidates.find(
-      (node) =>
-        PHP_DECLARATION_TYPES.has(node.type) &&
-        node.childForFieldName('name')?.text === symbolName,
-    );
-    if (found) {
-      return found;
+  const visit = (
+    nodes: SyntaxNode[],
+    initialNamespace: string,
+  ): SyntaxNode | undefined => {
+    // Un `namespace X;` sin cuerpo aplica a los hermanos siguientes.
+    let currentNamespace = initialNamespace;
+    for (const node of nodes) {
+      if (node.type === 'namespace_definition') {
+        const name = node.childForFieldName('name')?.text ?? '';
+        const body = node.childForFieldName('body');
+        if (body) {
+          const inner = visit(namedChildrenOf(body), name);
+          if (inner) {
+            return inner;
+          }
+        } else {
+          currentNamespace = name;
+        }
+        continue;
+      }
+      if (PHP_DECLARATION_TYPES.has(node.type)) {
+        const match = matchPhpDeclaration(node, currentNamespace, target);
+        if (match) {
+          return match;
+        }
+      }
     }
-  }
-  return undefined;
+    return undefined;
+  };
+
+  return visit(namedChildrenOf(root), '');
+}
+
+/** Último segmento de un nombre calificado (`\`, `::` o `.`). */
+function lastSymbolSegment(symbolName: string): string {
+  const segments = symbolName.split(/\\|::|\./).filter(Boolean);
+  return segments[segments.length - 1] ?? symbolName;
 }
 
 /**
@@ -423,7 +499,12 @@ export class WorkspaceAgentTools {
     } | null = null;
     const referencedIn = new Set<string>();
     let readFailures = 0;
-    const escapedSymbolName = symbolName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Nombres PHP calificados (`App\Domain\OrderLine`) se normalizan sin `\` inicial.
+    const phpSymbolName = symbolName.replace(/^\\/, '');
+    const escapedSymbolName = lastSymbolSegment(phpSymbolName).replace(
+      /[.*+?^${}()|[\]\\]/g,
+      '\\$&',
+    );
     const referencePattern = new RegExp(`\\b${escapedSymbolName}\\b`);
 
     for (const filePath of [...this.allowedFiles].sort()) {
@@ -446,7 +527,10 @@ export class WorkspaceAgentTools {
       }
 
       if (!declaration && isPhp) {
-        const phpDeclaration = await this.findPhpDeclaration(content, symbolName);
+        const phpDeclaration = await this.findPhpDeclaration(
+          content,
+          phpSymbolName,
+        );
         if (phpDeclaration) {
           declaration = { filePath, ...phpDeclaration };
         }

@@ -962,4 +962,86 @@ describe('ExperimentsService', () => {
       ]);
     });
   });
+
+  describe('getResults INTEROP-2.13 technicallyValidRate / assertionFailureCount', () => {
+    const row = (over: Record<string, unknown>) => ({
+      repetition: 1, strategy: 'RAG', attempt: 1, valid: false, failureType: 'NONE', errorSummary: null,
+      generationDurationMs: 100, executionDurationMs: null, totalDurationMs: 100, inputTokens: null,
+      outputTokens: null, totalTokens: null, estimatedCost: null, compiled: null, executed: null, passed: null,
+      retrievedChunks: null, selectedChunks: null, contextTokens: null, toolCalls: null, filesInspected: null,
+      pairId: null, pairPosition: null, technicallyEvaluable: true, ...over,
+    });
+
+    async function ragMetricsFor(rows: Record<string, unknown>[]) {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1', projectVersionId: 'version-1', targetId: 'target-1', status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue(rows);
+      const results = await makeService(deps).getResults('exp-1', OWNER_USER_ID);
+      return results.strategies.find((s) => s.strategy === 'RAG')!;
+    }
+
+    it('counts compiled, executed, NONE or TEST_ASSERTION as technically valid and TEST_ASSERTION as assertion failures, leaving validRate unchanged', async () => {
+      const rag = await ragMetricsFor([
+        row({ repetition: 1, valid: true, passed: true, failureType: 'NONE', compiled: true, executed: true }),
+        row({ repetition: 2, valid: false, passed: false, failureType: 'TEST_ASSERTION', compiled: true, executed: true }),
+        row({ repetition: 3, valid: false, failureType: 'COMPILATION', compiled: false, executed: false }),
+      ]);
+
+      expect(rag.technicallyValidRate).toBeCloseTo(2 / 3, 6);
+      expect(rag.assertionFailureCount).toBe(1);
+      expect(rag.validRate).toBeCloseTo(1 / 3, 6);
+    });
+
+    it('answers null technicallyValidRate and 0 assertionFailureCount when there are no evaluable repetitions', async () => {
+      const rag = await ragMetricsFor([
+        row({ repetition: 1, technicallyEvaluable: false, compiled: true, executed: true, failureType: 'TEST_ASSERTION' }),
+        row({ repetition: 2, technicallyEvaluable: false, compiled: true, executed: true, failureType: 'NONE' }),
+        row({ repetition: 3, technicallyEvaluable: false, failureType: 'INFRASTRUCTURE' }),
+      ]);
+
+      expect(rag.evaluableRepetitions).toBe(0);
+      expect(rag.technicallyValidRate).toBeNull();
+      expect(rag.assertionFailureCount).toBe(0);
+    });
+
+    it('does not count TEST_RUNTIME, CONFIGURATION without Sandbox flags, or legacy NONE rows with null flags', async () => {
+      const rag = await ragMetricsFor([
+        row({ repetition: 1, failureType: 'TEST_RUNTIME', compiled: true, executed: true }),
+        row({ repetition: 2, failureType: 'CONFIGURATION', compiled: null, executed: null }),
+        row({ repetition: 3, failureType: 'NONE', compiled: null, executed: null }),
+      ]);
+
+      expect(rag.evaluableRepetitions).toBe(3);
+      expect(rag.technicallyValidRate).toBe(0);
+      expect(rag.assertionFailureCount).toBe(0);
+    });
+
+    it('keeps validRate less than or equal to technicallyValidRate in a mixed case', async () => {
+      const rag = await ragMetricsFor([
+        row({ repetition: 1, valid: true, passed: true, failureType: 'NONE', compiled: true, executed: true }),
+        row({ repetition: 2, valid: false, passed: false, failureType: 'TEST_ASSERTION', compiled: true, executed: true }),
+        row({ repetition: 3, valid: false, failureType: 'TEST_RUNTIME', compiled: true, executed: true }),
+      ]);
+
+      expect(rag.validRate).not.toBeNull();
+      expect(rag.technicallyValidRate).not.toBeNull();
+      expect(rag.validRate!).toBeLessThanOrEqual(rag.technicallyValidRate!);
+    });
+
+    it('excludes technically non-evaluable slots from the denominator and from assertionFailureCount', async () => {
+      const rag = await ragMetricsFor([
+        row({ repetition: 1, valid: true, failureType: 'NONE', compiled: true, executed: true }),
+        row({ repetition: 2, valid: false, failureType: 'TEST_ASSERTION', compiled: true, executed: true }),
+        row({ repetition: 3, technicallyEvaluable: false, failureType: 'TEST_ASSERTION', compiled: true, executed: true }),
+      ]);
+
+      expect(rag.evaluableRepetitions).toBe(2);
+      expect(rag.technicallyValidRate).toBe(1);
+      expect(rag.assertionFailureCount).toBe(1);
+      expect(rag.assertionFailureCount).toBe(rag.failures.TEST_ASSERTION ?? 0);
+    });
+  });
 });

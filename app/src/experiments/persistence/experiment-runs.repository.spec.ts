@@ -907,3 +907,57 @@ describe('ExperimentRunsRepository evidence columns (WI-CORE-027, DEC-EVID-003)'
     expect(data).not.toHaveProperty('sandboxRequestId');
   });
 });
+
+describe('ExperimentRunsRepository.upsertRepetitionArtifact', () => {
+  it('hace upsert por repetitionId con el artefacto normalizado (WI-CORE-053)', async () => {
+    const upsertMock = vi.fn().mockResolvedValue({ id: 'artifact-1' });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetitionArtifact: { upsert: upsertMock },
+    } as never);
+
+    await repository.upsertRepetitionArtifact('rep-1', {
+      testContent: 'test code',
+      testContentSha256: 'a'.repeat(64),
+      testContentTruncated: false,
+      runnerReport: { status: 'FAILED' } as never,
+      runnerReportSha256: 'b'.repeat(64),
+    });
+
+    expect(upsertMock).toHaveBeenCalledTimes(1);
+    const args = upsertMock.mock.calls[0][0];
+    expect(args.where).toEqual({ repetitionId: 'rep-1' });
+    expect(args.create).toEqual({
+      repetitionId: 'rep-1',
+      testContent: 'test code',
+      testContentSha256: 'a'.repeat(64),
+      testContentTruncated: false,
+      runnerReport: { status: 'FAILED' },
+      runnerReportSha256: 'b'.repeat(64),
+    });
+    expect(args.update).toEqual({
+      testContent: 'test code',
+      testContentSha256: 'a'.repeat(64),
+      testContentTruncated: false,
+      runnerReport: { status: 'FAILED' },
+      runnerReportSha256: 'b'.repeat(64),
+    });
+  });
+
+  it('escribe DbNull cuando no hay reporte del Sandbox', async () => {
+    const upsertMock = vi.fn().mockResolvedValue({ id: 'artifact-2' });
+    const repository = new ExperimentRunsRepository({
+      experimentRepetitionArtifact: { upsert: upsertMock },
+    } as never);
+
+    await repository.upsertRepetitionArtifact('rep-2', {
+      testContent: 'code',
+      testContentSha256: 'c'.repeat(64),
+      testContentTruncated: false,
+      runnerReport: null,
+      runnerReportSha256: null,
+    });
+
+    expect(upsertMock.mock.calls[0][0].create.runnerReport).toBe(Prisma.DbNull);
+    expect(upsertMock.mock.calls[0][0].update.runnerReport).toBe(Prisma.DbNull);
+  });
+});
