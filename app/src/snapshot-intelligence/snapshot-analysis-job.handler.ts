@@ -355,21 +355,19 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         language,
       );
 
-      // WI-CORE-018 (DEC-FK-003): construcciones nuevas o modificadas, calculadas con el HEAD del
-      // workspace y la base del Run. PHP queda diferido: su columna se queda nula.
-      if (!isPhp) {
-        const behaviorConstructs = await this.symbolBehaviorConstructsService.compute(
-          {
-            workspaceDir: workspace.dir,
-            installationId: binding.installationId,
-            repositoryName: binding.repositoryName,
-            baseSha: run.baseSha,
-            changesetFiles,
-          },
-          symbols,
-        );
-        symbols = symbols.map((symbol, index) => ({ ...symbol, behaviorConstructs: behaviorConstructs[index] }));
-      }
+      // WI-CORE-018 (DEC-FK-003) y WI-CORE-052: construcciones nuevas o modificadas, calculadas con el
+      // HEAD del workspace y la base del Run. PHP ya participa; el servicio despacha por lenguaje.
+      const behaviorConstructs = await this.symbolBehaviorConstructsService.compute(
+        {
+          workspaceDir: workspace.dir,
+          installationId: binding.installationId,
+          repositoryName: binding.repositoryName,
+          baseSha: run.baseSha,
+          changesetFiles,
+        },
+        symbols,
+      );
+      symbols = symbols.map((symbol, index) => ({ ...symbol, behaviorConstructs: behaviorConstructs[index] }));
 
       await this.analysisSymbolsRepository.insertMany(run.id, symbols);
 

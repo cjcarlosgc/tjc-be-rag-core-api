@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { tmpdir } from 'node:os';
 import { SymbolBehaviorConstructsService, type BehaviorSymbolCandidate } from './symbol-behavior-constructs.service.js';
 import type { CompareFile, GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
 
@@ -313,5 +314,126 @@ export function parse(value: number) {
 
     expect(results[0]).toBeNull();
     expect(results[1]).toHaveLength(2);
+  });
+});
+
+describe('SymbolBehaviorConstructsService con PHP en monorepo (WI-CORE-052)', () => {
+  const MONOREPO_PATH = 'backend/src/OrderLine.php';
+  const MONOREPO_QUALIFIED_NAME = 'App\\OrderLine.discount';
+  const BASE_PHP = `<?php
+namespace App;
+class OrderLine {
+  public function discount(int $qty): string {
+    return 'none';
+  }
+}
+`;
+  const HEAD_PHP = `<?php
+namespace App;
+class OrderLine {
+  public function discount(int $qty): string {
+    if ($qty >= 10) {
+      return 'bulk';
+    }
+    return 'none';
+  }
+}
+`;
+  let actualFs: typeof import('node:fs/promises');
+  let workspace: string;
+  let getFileContent: ReturnType<typeof vi.fn>;
+  let service: SymbolBehaviorConstructsService;
+
+  beforeAll(async () => {
+    actualFs = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    workspace = await actualFs.mkdtemp(join(tmpdir(), 'behavior-constructs-monorepo-'));
+    await actualFs.mkdir(join(workspace, 'backend/src'), { recursive: true });
+    await actualFs.writeFile(join(workspace, MONOREPO_PATH), HEAD_PHP, 'utf8');
+  });
+
+  afterAll(async () => {
+    await actualFs.rm(workspace, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(readFile).mockImplementation(((path: unknown, encoding: unknown) =>
+      actualFs.readFile(String(path), encoding as BufferEncoding)) as never);
+    getFileContent = vi.fn().mockResolvedValue(BASE_PHP);
+    service = new SymbolBehaviorConstructsService({
+      getFileContent,
+    } as unknown as GithubRepositoryContentService);
+  });
+
+  function phpSymbol(): BehaviorSymbolCandidate {
+    return {
+      language: 'PHP',
+      kind: 'METHOD',
+      changeKind: 'DIRECTLY_CHANGED',
+      filePath: MONOREPO_PATH,
+      qualifiedName: MONOREPO_QUALIFIED_NAME,
+    };
+  }
+
+  const modified: CompareFile[] = [{ filename: MONOREPO_PATH, status: 'modified' }];
+
+  it('lee el archivo del HEAD bajo projectRoot, pide la base con esa ruta y devuelve la construccion nueva', async () => {
+    const [constructs] = await service.compute(
+      { workspaceDir: workspace, installationId: INSTALLATION_ID, repositoryName: REPOSITORY, baseSha: BASE_SHA, changesetFiles: modified },
+      [phpSymbol()],
+    );
+
+    expect(getFileContent).toHaveBeenCalledWith(INSTALLATION_ID, REPOSITORY, MONOREPO_PATH, BASE_SHA);
+    expect(constructs).toEqual([
+      {
+        scenarioKind: 'BOUNDARY',
+        scenarioKey: expect.stringMatching(/^BOUNDARY:[0-9a-f]{16}$/),
+        order: 0,
+        snippet: 'if ($qty >= 10)',
+      },
+    ]);
+  });
+
+  it('devuelve [] cuando la base ya tiene las mismas construcciones', async () => {
+    getFileContent.mockResolvedValue(HEAD_PHP);
+
+    const [constructs] = await service.compute(
+      { workspaceDir: workspace, installationId: INSTALLATION_ID, repositoryName: REPOSITORY, baseSha: BASE_SHA, changesetFiles: modified },
+      [phpSymbol()],
+    );
+
+    expect(constructs).toEqual([]);
+  });
+
+  it('trata todo el cuerpo como nuevo cuando la base no se encuentra (getFileContent null)', async () => {
+    getFileContent.mockResolvedValue(null);
+
+    const [constructs] = await service.compute(
+      { workspaceDir: workspace, installationId: INSTALLATION_ID, repositoryName: REPOSITORY, baseSha: BASE_SHA, changesetFiles: modified },
+      [phpSymbol()],
+    );
+
+    expect(constructs).toEqual([expect.objectContaining({ scenarioKind: 'BOUNDARY', snippet: 'if ($qty >= 10)' })]);
+  });
+
+  it('un archivo added no consulta GitHub y todo el cuerpo cuenta como nuevo', async () => {
+    const [constructs] = await service.compute(
+      { workspaceDir: workspace, installationId: INSTALLATION_ID, repositoryName: REPOSITORY, baseSha: BASE_SHA, changesetFiles: [{ filename: MONOREPO_PATH, status: 'added' }] },
+      [phpSymbol()],
+    );
+
+    expect(getFileContent).not.toHaveBeenCalled();
+    expect(constructs).toEqual([expect.objectContaining({ scenarioKind: 'BOUNDARY' })]);
+  });
+
+  it('propaga el error de getFileContent como hoy', async () => {
+    getFileContent.mockRejectedValue(new Error('GitHub Integration no está disponible.'));
+
+    await expect(
+      service.compute(
+        { workspaceDir: workspace, installationId: INSTALLATION_ID, repositoryName: REPOSITORY, baseSha: BASE_SHA, changesetFiles: modified },
+        [phpSymbol()],
+      ),
+    ).rejects.toThrow('GitHub Integration no está disponible.');
   });
 });

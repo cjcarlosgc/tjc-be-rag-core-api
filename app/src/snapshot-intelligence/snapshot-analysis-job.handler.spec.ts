@@ -309,7 +309,49 @@ describe('SnapshotAnalysisJobHandler', () => {
     expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith(
       'run-1', [expect.objectContaining({ language: 'PHP', kind: 'CLASS' })],
     );
-    expect(symbolBehaviorConstructsService.compute).not.toHaveBeenCalled();
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists behavior constructs for PHP symbols (WI-CORE-052), including an empty list', async () => {
+    const {
+      handler,
+      fileDiscoveryService,
+      phpParserService,
+      phpExistingTestResolverService,
+      githubRepositoryContentService,
+      analysisSymbolsRepository,
+      symbolBehaviorConstructsService,
+      workspaceCleanup,
+    } = setup();
+    const phpChunk = buildChunk({ filePath: 'app/Service.php', symbolKind: 'CLASS', symbolName: 'App\\Service' });
+    fileDiscoveryService.discover.mockResolvedValue([
+      'composer.json', 'phpunit.xml', 'app/Service.php', 'tests/ServiceTest.php',
+    ]);
+    githubRepositoryContentService.compare.mockResolvedValue([
+      { filename: 'app/Service.php', status: 'modified' },
+    ]);
+    phpParserService.analyze.mockResolvedValue({ chunks: [phpChunk], candidates: [] });
+    phpExistingTestResolverService.resolve.mockResolvedValue([]);
+    symbolBehaviorConstructsService.compute.mockImplementation(async (_request: unknown, symbols: unknown[]) =>
+      symbols.map(() => []),
+    );
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledWith(
+      {
+        workspaceDir: expect.stringContaining('snapshot-handler-test-'),
+        installationId: '999',
+        repositoryName: 'org/repo',
+        baseSha: 'base-sha',
+        changesetFiles: [{ filename: 'app/Service.php', status: 'modified' }],
+      },
+      [expect.objectContaining({ language: 'PHP', kind: 'CLASS', filePath: 'app/Service.php' })],
+    );
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith('run-1', [
+      expect.objectContaining({ language: 'PHP', kind: 'CLASS', behaviorConstructs: [] }),
+    ]);
+    expect(workspaceCleanup).toHaveBeenCalled();
   });
 
   it('selects a unique nested Composer root and isolates PHP indexing while preserving repository-relative paths', async () => {
