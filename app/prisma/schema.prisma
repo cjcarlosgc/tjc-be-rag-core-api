@@ -892,6 +892,9 @@ model ExperimentRepetition {
   sandboxFacts         Json?
   /// WI-CORE-027: SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación.
   artifactHash         String?
+  /// WI-CORE-053: interno y privado, no expuesto en DTO ni INTEROP. Evidencia persistida de la repetición
+  /// (contenido de prueba y hechos normalizados del Sandbox); null si no se escribió.
+  artifact             ExperimentRepetitionArtifact?
   contextTraces        ContextTrace[]
   createdAt            DateTime                  @default(now())
 
@@ -899,6 +902,26 @@ model ExperimentRepetition {
   @@unique([id, experimentId, strategy, repetition, attempt])
   @@index([experimentId])
   @@map("experiment_repetitions")
+}
+
+/// WI-CORE-053: evidencia interna 1:1 de una repetición. Interna y privada: no se expone en
+/// `ExperimentRepetitionResponse` ni en §6.16. Sin purga (DEC-VAL-001 PENDING). Sin salida cruda del Sandbox.
+model ExperimentRepetitionArtifact {
+  id                   String               @id @default(uuid())
+  repetitionId         String               @unique
+  repetition           ExperimentRepetition @relation(fields: [repetitionId], references: [id], onDelete: Cascade)
+  /// Contenido de la prueba; acotado a 256 KiB UTF-8 (`testContentTruncated` indica el recorte).
+  testContent          String?
+  /// SHA-256 hex del contenido completo (antes de truncar).
+  testContentSha256    String?
+  testContentTruncated Boolean              @default(false)
+  /// Hechos normalizados del runner (casos, fallo y duraciones) con mensajes saneados; null sin resultado del Sandbox.
+  runnerReport         Json?
+  /// SHA-256 hex del JSON canónico de `runnerReport`.
+  runnerReportSha256   String?
+  createdAt            DateTime             @default(now())
+
+  @@map("experiment_repetition_artifacts")
 }
 
 /// HU27/HU28: cabecera de evidencia observable de una repetición experimental. `detail` es
