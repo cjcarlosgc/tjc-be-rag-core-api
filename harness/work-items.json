@@ -3192,7 +3192,8 @@
         "harness/reports/wi-core-053-056-plan.md",
         "spec/features/008-experimental-comparison/tasks.md",
         "harness/reports/wi-core-056-scope-approval.md",
-        "harness/reports/wi-core-056-contract-sync-scope-review.md"
+        "harness/reports/wi-core-056-contract-sync-scope-review.md",
+        "harness/reports/wi-core-056-rag-context-noise-analysis.md"
       ],
       "contractSyncReview": [
         {
