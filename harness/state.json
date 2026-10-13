@@ -15054,7 +15054,7 @@
     "id": "WI-CORE-056",
     "component": "CORE",
     "workItemType": "HARNESS",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P1",
     "title": "Análisis: reducir el ruido del contexto RAG con simulación offline (experimentos 89a16229 y 800689b9)",
     "approved": true,
@@ -15071,7 +15071,9 @@
       "harness/reports/wi-core-053-056-plan.md",
       "spec/features/008-experimental-comparison/tasks.md",
       "harness/reports/wi-core-056-scope-approval.md",
-      "harness/reports/wi-core-056-contract-sync-scope-review.md"
+      "harness/reports/wi-core-056-contract-sync-scope-review.md",
+      "harness/reports/wi-core-056-rag-context-noise-analysis.md",
+      "harness/reports/wi-core-056-technical-checks.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -15104,24 +15106,46 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "leader",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "leader",
+          "status": "APPROVED",
+          "findings": [
+            "Informe de analisis del ruido del contexto RAG con simulacion offline; sin cambios de producto."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-056-rag-context-noise-analysis.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-056-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "leader",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -15168,7 +15192,8 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-056-scope-approval.md"
+      "harness/reports/wi-core-056-scope-approval.md",
+      "harness/reports/wi-core-056-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -15177,6 +15202,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-056-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-056-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-056-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-056-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-056-technical-checks.md"
       ]
     }
   },
