@@ -15262,7 +15262,7 @@
     "id": "WI-CORE-057",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P1",
     "title": "Sección de dependencias con FQCN en el contexto RAG de PHP (sin cambiar el ranking)",
     "approved": true,
@@ -15282,7 +15282,18 @@
       "spec/contracts/interoperability-contract.md",
       "harness/reports/wi-core-057-scope-approval.md",
       "harness/reports/fase2-01-recuperacion-colaboradores-diagnostico.md",
-      "harness/reports/wi-core-057-contract-sync-scope-review.md"
+      "harness/reports/wi-core-057-contract-sync-scope-review.md",
+      "harness/reports/wi-core-057-technical-checks.md",
+      "harness/reports/wi-core-057-contract-proposal.md",
+      "harness/reports/wi-core-057-contract-review.md",
+      "harness/reports/wi-core-057-replay-y-verificacion.md",
+      "harness/reports/contract-sync-publish-cs-core-20261013-002.md",
+      "harness/contract-sync/outbox/CS-CORE-20261013-002.yaml",
+      "app/src/retrieval/php-dependency-context.ts",
+      "app/src/retrieval/php-dependency-context.service.ts",
+      "app/src/retrieval/php-dependency-replay.spec.ts",
+      "spec/README.md",
+      "CHANGELOG.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -15315,24 +15326,74 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": "contract-reviewer",
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "contract-reviewer",
+          "status": "APPROVED",
+          "findings": [
+            "Aditivo y retrocompatible; INTEROP-2.14; SYSTEM sin cambio; Contract Sync a console; cambios de texto aplicados por el leader (tipos nombrados, regla de contexto no rankeado, DEC-PHP-RET-001 aprobada)."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "spec/contracts/interoperability-contract.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-057-contract-review.md"
+          ],
+          "recommendedNextStep": "Publicar Contract Sync a console.",
+          "executedBy": {
+            "agent": "contract-reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        },
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Seccion de dependencias PHP con FQCN en prompt y traza, sin alterar el ranking; replay 9/9 con top-10 identico."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/retrieval/php-dependency-context.ts",
+            "app/src/retrieval/php-dependency-context.service.ts",
+            "app/src/retrieval/context-builder.service.ts",
+            "app/src/generation/prompt-builder.service.ts",
+            "app/src/experiments/experiment-job.handler.ts",
+            "app/src/validation/analysis-run-validation-job.handler.ts",
+            "app/src/context-traces/context-traces.service.ts",
+            "spec/contracts/interoperability-contract.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-057-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
-      "interopSyncChecked": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-PASSED",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-PASSED",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": true,
@@ -15359,13 +15420,70 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-13T19:32:03.946Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-057",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-13T19:45:21.878Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-057",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-13T19:45:21.986Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261013-002"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-057-scope-approval.md"
+      "harness/reports/wi-core-057-scope-approval.md",
+      "harness/reports/wi-core-057-contract-review.md",
+      "harness/reports/contract-sync-publish-cs-core-20261013-002.md",
+      "harness/reports/wi-core-057-contract-proposal.md",
+      "harness/reports/wi-core-057-replay-y-verificacion.md",
+      "harness/reports/wi-core-057-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -15374,6 +15492,27 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-057-scope-approval.md"
+      ],
+      "contractReviewed": [
+        "harness/reports/wi-core-057-contract-review.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-057-contract-review.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/contract-sync-publish-cs-core-20261013-002.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-057-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-057-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-057-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-057-technical-checks.md"
       ]
     },
     "syncScopePaths": [

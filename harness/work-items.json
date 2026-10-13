@@ -3220,7 +3220,7 @@
       "id": "WI-CORE-057",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Sección de dependencias con FQCN en el contexto RAG de PHP (sin cambiar el ranking)",
@@ -3252,7 +3252,18 @@
         "spec/contracts/interoperability-contract.md",
         "harness/reports/wi-core-057-scope-approval.md",
         "harness/reports/fase2-01-recuperacion-colaboradores-diagnostico.md",
-        "harness/reports/wi-core-057-contract-sync-scope-review.md"
+        "harness/reports/wi-core-057-contract-sync-scope-review.md",
+        "harness/reports/wi-core-057-technical-checks.md",
+        "harness/reports/wi-core-057-contract-proposal.md",
+        "harness/reports/wi-core-057-contract-review.md",
+        "harness/reports/wi-core-057-replay-y-verificacion.md",
+        "harness/reports/contract-sync-publish-cs-core-20261013-002.md",
+        "harness/contract-sync/outbox/CS-CORE-20261013-002.yaml",
+        "app/src/retrieval/php-dependency-context.ts",
+        "app/src/retrieval/php-dependency-context.service.ts",
+        "app/src/retrieval/php-dependency-replay.spec.ts",
+        "spec/README.md",
+        "CHANGELOG.md"
       ],
       "contractSyncReview": [
         {
