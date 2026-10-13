@@ -24,6 +24,7 @@ import {
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import type { GenerationContext } from '../retrieval/generation-context.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
+import { PhpDependencyContextService } from '../retrieval/php-dependency-context.service.js';
 import {
   PromptBuilder,
   sanitizeGeneratedPhp,
@@ -175,6 +176,7 @@ export class AnalysisRunValidationJobHandler
     private readonly retrievalService: RetrievalService,
     private readonly contextBuilder: ContextBuilder,
     private readonly functionalRulesRetriever: FunctionalRulesRetriever,
+    private readonly phpDependencyContextService: PhpDependencyContextService,
     private readonly promptBuilder: PromptBuilder,
     private readonly testFileMergeService: TestFileMergeService,
     private readonly sandboxExecutionService: SandboxExecutionService,
@@ -424,12 +426,19 @@ export class AnalysisRunValidationJobHandler
         run.projectId,
         retrievalTarget,
       );
+      // WI-CORE-057: dependencias FQCN del target PHP; null fuera de PHP o sin entradas.
+      const dependencyContext = await this.phpDependencyContextService.resolve(
+        run.projectVersionId!,
+        retrieval.targetChunks,
+        language,
+      );
       const generationContext = this.contextBuilder.build(
         retrieval,
         retrievalTarget,
         { framework, language },
         {},
         functionalRules,
+        dependencyContext,
       );
       contextId = await this.persistTraceEvidence(
         run,

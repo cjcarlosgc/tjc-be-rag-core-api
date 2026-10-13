@@ -16,6 +16,8 @@ import type {
   DiscoveredFileResponse,
   RagCandidateNodeResponse,
   RagContextTraceDetailResponse,
+  RagDependencyContextResponse,
+  RagDependencyEntryResponse,
   RagDiscardReason,
   RagMatchedVia,
   RagStructuralMatch,
@@ -230,6 +232,9 @@ export class ContextTracesService {
       const candidates = Array.isArray(stored.candidates)
         ? stored.candidates
         : [];
+      const dependencyContext = this.mapDependencyContext(
+        stored.dependencyContext,
+      );
       const detail: RagContextTraceDetailResponse = {
         ...base,
         kind: 'RAG',
@@ -241,6 +246,7 @@ export class ContextTracesService {
         selectedChunks: this.requireNonNegativeInteger(stored.selectedChunks),
         contextTokens: this.requireNonNegativeInteger(stored.contextTokens),
         configuration: this.mapConfiguration(stored.configuration),
+        ...(dependencyContext ? { dependencyContext } : {}),
       };
       return detail;
     }
@@ -590,6 +596,56 @@ export class ContextTracesService {
         observation.discoveredFilesCount,
       ),
     };
+  }
+
+  /**
+   * INTEROP-2.14 (WI-CORE-057). Ausente o con forma inválida devuelve `undefined` (trazas anteriores o
+   * TypeScript): nunca lanza. Descarta entradas inválidas y nunca expone texto de la sección.
+   */
+  private mapDependencyContext(
+    value: unknown,
+  ): RagDependencyContextResponse | undefined {
+    if (!isRecord(value)) return undefined;
+    const { unresolvedCount, tokenCount, truncated } = value;
+    if (
+      !Number.isSafeInteger(unresolvedCount) ||
+      (unresolvedCount as number) < 0 ||
+      !Number.isSafeInteger(tokenCount) ||
+      (tokenCount as number) < 0 ||
+      typeof truncated !== 'boolean' ||
+      !Array.isArray(value.entries)
+    ) {
+      return undefined;
+    }
+    const entries = value.entries
+      .map((entry) => this.mapDependencyEntry(entry))
+      .filter(
+        (entry): entry is RagDependencyEntryResponse => entry !== null,
+      );
+    return {
+      entries,
+      unresolvedCount: unresolvedCount as number,
+      tokenCount: tokenCount as number,
+      truncated,
+    };
+  }
+
+  private mapDependencyEntry(value: unknown): RagDependencyEntryResponse | null {
+    if (!isRecord(value)) return null;
+    const { typeName, fqcn, origin, resolvedBy } = value;
+    if (
+      typeof typeName !== 'string' ||
+      typeof fqcn !== 'string' ||
+      fqcn.startsWith('\\') ||
+      fqcn.trim() === '' ||
+      (origin !== 'CONSTRUCTOR' && origin !== 'METHOD_SIGNATURE') ||
+      (resolvedBy !== 'LITERAL' &&
+        resolvedBy !== 'IMPORT' &&
+        resolvedBy !== 'SAME_NAMESPACE')
+    ) {
+      return null;
+    }
+    return { typeName, fqcn, origin, resolvedBy };
   }
 
   private mapConfiguration(

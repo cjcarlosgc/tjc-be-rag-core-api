@@ -4,6 +4,7 @@ import type { RetrievalResult } from './retrieval.service.js';
 import type {
   ContextChunk,
   FunctionalRule,
+  GenerationContextDependencyContext,
   GenerationContextAuditCandidate,
   GenerationContextAuditFunctionalRuleOmission,
   GenerationContext,
@@ -53,6 +54,7 @@ export class ContextBuilder {
     },
     options: ContextBuilderOptions = {},
     functionalRules: FunctionalRule[] = [],
+    dependencyContext?: GenerationContextDependencyContext | null,
   ): GenerationContext {
     const config = this.resolveConfig(options);
     const targetContent = result.targetChunks
@@ -201,6 +203,8 @@ export class ContextBuilder {
       retrievedChunks: result.candidates.length,
       selectedChunks: relatedChunks.length,
       contextTokens,
+      // No rankeado ni presupuestado: se copia tal cual, sin alterar selección ni contadores.
+      ...(dependencyContext ? { dependencyContext } : {}),
       audit: {
         functionalRules: {
           retrieved: functionalRules.length,

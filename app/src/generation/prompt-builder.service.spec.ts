@@ -232,3 +232,85 @@ describe('sanitizeGeneratedPhp', () => {
     expect(sanitizeGeneratedPhp('```php\n```')).toBeNull();
   });
 });
+
+describe('PromptBuilder PHP dependency context (WI-CORE-057)', () => {
+  const sectionText = [
+    'Dependencias del código objetivo (nombres completos de clase; usa exactamente estos nombres en los `use`):',
+    '- RenewalDatePolicy → Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy (constructor)',
+  ].join('\n');
+  const rule: FunctionalRule = {
+    knowledgeId: 'rule-1',
+    scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+    normalizedRule: 'Regla de prueba PHP.',
+    scope: 'METHOD',
+    targetRef: 'src/Services/RenewalService.php::renew',
+    source: 'HUMAN_ANSWER',
+    provenance: { confirmedByUserId: null, confirmedRole: null, originHeadSha: null, sourceRef: null },
+  };
+  const phpContext = (overrides: Partial<GenerationContext> = {}): GenerationContext =>
+    makeContext({
+      target: {
+        filePath: 'src/Services/RenewalService.php',
+        symbolName: 'RenewalService',
+        methodName: 'renew',
+        targetType: 'METHOD',
+        content: 'public function renew(): void {}',
+      },
+      metadata: { language: 'php', framework: 'PHPUNIT' },
+      relatedChunks: [
+        {
+          filePath: 'src/Other.php',
+          symbolKind: 'CLASS',
+          symbolName: 'Other',
+          parentSymbolName: null,
+          content: 'class Other {}',
+          score: 0.9,
+          matchedVia: ['SEMANTIC'],
+        },
+      ],
+      functionalRules: [rule],
+      ...overrides,
+    });
+  const dependencyContext = (text: string) => ({
+    entries: [
+      {
+        typeName: 'RenewalDatePolicy',
+        fqcn: 'Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy',
+        origin: 'CONSTRUCTOR' as const,
+        resolvedBy: 'SAME_NAMESPACE' as const,
+      },
+    ],
+    unresolvedCount: 0,
+    tokenCount: 30,
+    truncated: false,
+    text,
+  });
+
+  it('inserts the section after the target code and before the functional rules and related context', () => {
+    const prompt = new PromptBuilder().build(phpContext({ dependencyContext: dependencyContext(sectionText) }));
+
+    expect(prompt).toContain(sectionText);
+    const targetAt = prompt.indexOf('public function renew(): void {}');
+    const sectionAt = prompt.indexOf(sectionText);
+    const rulesAt = prompt.indexOf('Reglas funcionales');
+    const relatedAt = prompt.indexOf('Contexto relacionado del mismo proyecto');
+    expect(targetAt).toBeLessThan(sectionAt);
+    expect(sectionAt).toBeLessThan(rulesAt);
+    expect(sectionAt).toBeLessThan(relatedAt);
+  });
+
+  it('renders no header and no section when dependency context is absent or has empty text', () => {
+    const header = 'Dependencias del código objetivo';
+    expect(new PromptBuilder().build(phpContext())).not.toContain(header);
+    expect(new PromptBuilder().build(phpContext({ dependencyContext: dependencyContext('') }))).not.toContain(header);
+  });
+
+  it('never renders the section for TypeScript even when the field is present', () => {
+    const context = makeContext({
+      metadata: { language: 'typescript', framework: 'VITEST' },
+      dependencyContext: dependencyContext(sectionText),
+    });
+
+    expect(new PromptBuilder().build(context)).not.toContain('Dependencias del código objetivo');
+  });
+});

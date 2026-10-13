@@ -741,3 +741,102 @@ function makeRagTrace(candidates: unknown[]) {
     },
   });
 }
+
+describe('ContextTracesService dependencyContext (WI-CORE-057, INTEROP-2.14)', () => {
+  const validDependencyContext = {
+    entries: [
+      {
+        typeName: 'RenewalDatePolicy',
+        fqcn: 'Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy',
+        origin: 'CONSTRUCTOR',
+        resolvedBy: 'SAME_NAMESPACE',
+      },
+    ],
+    unresolvedCount: 2,
+    tokenCount: 42,
+    truncated: false,
+    text: 'TEXTO_NO_DEBE_EXPONERSE',
+  };
+
+  // Excerpts sin líneas: no se reconstruye contexto desde el snapshot.
+  function ragWith(dependencyContext: unknown) {
+    return makeTrace('RAG', {
+      detail: {
+        target: { chunkIds: ['target-chunk'], excerpt: makeNullLineExcerpt(), tokenCount: 12 },
+        candidates: [],
+        retrievedChunks: 0,
+        selectedChunks: 0,
+        contextTokens: 20,
+        configuration: {
+          minimumScore: 0.1,
+          topK: 5,
+          maxContextTokens: 100,
+          semanticWeight: 0.7,
+          structuralWeight: 0.3,
+        },
+        dependencyContext,
+      },
+    });
+  }
+
+  it('exposes a valid dependencyContext on a PHP RAG detail without the text', async () => {
+    const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(ragWith(validDependencyContext)) } });
+
+    const detail = (await service.getContextTraceDetail('trace-1', USER_ID)) as unknown as Record<string, unknown>;
+
+    expect(detail.dependencyContext).toEqual({
+      entries: validDependencyContext.entries,
+      unresolvedCount: 2,
+      tokenCount: 42,
+      truncated: false,
+    });
+    expect(JSON.stringify(detail)).not.toContain('TEXTO_NO_DEBE_EXPONERSE');
+  });
+
+  it('omits dependencyContext when a previous trace does not carry it', async () => {
+    const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(ragWith(undefined)) } });
+
+    const detail = (await service.getContextTraceDetail('trace-1', USER_ID)) as unknown as Record<string, unknown>;
+
+    expect(detail).not.toHaveProperty('dependencyContext');
+  });
+
+  it('drops invalid entries and omits the object when its shape is invalid', async () => {
+    const { service: withInvalidEntries } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(
+          ragWith({
+            ...validDependencyContext,
+            entries: [
+              validDependencyContext.entries[0],
+              { typeName: 'X', fqcn: 'App\\X', origin: 'FOO', resolvedBy: 'IMPORT' },
+              { typeName: 'Y', fqcn: 'App\\Y', origin: 'CONSTRUCTOR', resolvedBy: 'GUESS' },
+            ],
+          }),
+        ),
+      },
+    });
+    const kept = (await withInvalidEntries.getContextTraceDetail('trace-1', USER_ID)) as unknown as Record<string, unknown>;
+    expect((kept.dependencyContext as { entries: unknown[] }).entries).toHaveLength(1);
+
+    for (const invalid of [
+      { ...validDependencyContext, unresolvedCount: -1 },
+      { ...validDependencyContext, tokenCount: 1.5 },
+      { ...validDependencyContext, truncated: 'no' },
+      'no-object',
+    ]) {
+      const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(ragWith(invalid)) } });
+      const detail = (await service.getContextTraceDetail('trace-1', USER_ID)) as unknown as Record<string, unknown>;
+      expect(detail).not.toHaveProperty('dependencyContext');
+    }
+  });
+
+  it('keeps contextTokens unchanged when the dependency section is present', async () => {
+    const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(ragWith(validDependencyContext)) } });
+
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+
+    expect(detail.kind).toBe('RAG');
+    expect((detail as { contextTokens: number }).contextTokens).toBe(20);
+  });
+});

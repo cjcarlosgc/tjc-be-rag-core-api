@@ -235,6 +235,9 @@ describe('AnalysisRunValidationJobHandler', () => {
     const functionalRulesRetriever = {
       retrieve: vi.fn().mockResolvedValue([]),
     };
+    const phpDependencyContextService = {
+      resolve: vi.fn().mockResolvedValue(null),
+    };
     const promptBuilder = { build: vi.fn().mockReturnValue('prompt') };
     const testFileMergeService = {
       applyCreate: vi.fn((content: string) => `created:${content}`),
@@ -277,6 +280,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       retrievalService as never,
       contextBuilder as never,
       functionalRulesRetriever as never,
+      phpDependencyContextService as never,
       promptBuilder as never,
       testFileMergeService as never,
       sandboxExecutionService as never,
@@ -302,6 +306,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       retrievalService,
       contextBuilder,
       functionalRulesRetriever,
+      phpDependencyContextService,
       promptBuilder,
       testFileMergeService,
       sandboxExecutionService,
@@ -361,6 +366,36 @@ describe('AnalysisRunValidationJobHandler', () => {
       return context;
     }
 
+    it('calls the PHP dependency service with the target chunks and passes its result as the sixth build argument (WI-CORE-057)', async () => {
+      const context = await setupPhp();
+      const chunk = { id: 'target-chunk-1', content: 'target', tokenCount: 3 };
+      const dependencyContext = {
+        entries: [],
+        unresolvedCount: 1,
+        tokenCount: 9,
+        truncated: false,
+        text: 'SECCION_DEPENDENCIAS',
+      };
+      context.retrievalService.retrieve.mockResolvedValue({ targetChunks: [chunk], candidates: [] });
+      context.phpDependencyContextService.resolve.mockResolvedValue(dependencyContext);
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.phpDependencyContextService.resolve).toHaveBeenCalledWith(
+        expect.any(String),
+        [chunk],
+        'php',
+      );
+      expect(context.contextBuilder.build).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        { framework: 'PHPUNIT', language: 'php' },
+        {},
+        [],
+        dependencyContext,
+      );
+    });
+
     it('generates a new PHPUnit file under tests/Unit and sends runnerHint PHPUNIT with the PHP context and prompt', async () => {
       const context = await setupPhp();
       context.llmProvider.generate.mockResolvedValue({
@@ -377,6 +412,7 @@ describe('AnalysisRunValidationJobHandler', () => {
         { framework: 'PHPUNIT', language: 'php' },
         {},
         [],
+        null,
       );
       expect(context.promptBuilder.build).toHaveBeenCalledWith(
         expect.anything(),
@@ -604,6 +640,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       { framework: 'JEST', language: 'typescript' },
       {},
       [],
+      null,
     );
     expect(promptBuilder.build).toHaveBeenCalledWith(expect.anything());
     expect(sandboxExecutionService.execute).toHaveBeenCalledWith(
@@ -1180,6 +1217,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       expect.anything(),
       {},
       [rule],
+      null,
     );
   });
 
