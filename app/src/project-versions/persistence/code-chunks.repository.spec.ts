@@ -37,3 +37,40 @@ describe('CodeChunksRepository.findBySymbol', () => {
     });
   });
 });
+
+describe('CodeChunksRepository.findByFile', () => {
+  it('selects the minimal fields for one file ordered by partIndex', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const repository = new CodeChunksRepository({ codeChunk: { findMany } } as unknown as PrismaService);
+
+    await repository.findByFile('version-1', 'src/Services/RenewalService.php');
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { projectVersionId: 'version-1', filePath: 'src/Services/RenewalService.php' },
+      select: { filePath: true, symbolKind: true, symbolName: true, parentSymbolName: true, importsUsed: true, content: true },
+      orderBy: { partIndex: 'asc' },
+    });
+  });
+});
+
+describe('CodeChunksRepository.findPhpTypeSymbolNames', () => {
+  it('returns unique PHP type symbol names', async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      { symbolName: 'Pilot\\A' },
+      { symbolName: 'Pilot\\A' },
+      { symbolName: null },
+      { symbolName: 'Pilot\\B' },
+    ]);
+    const repository = new CodeChunksRepository({ codeChunk: { findMany } } as unknown as PrismaService);
+
+    await expect(repository.findPhpTypeSymbolNames('version-1')).resolves.toEqual(['Pilot\\A', 'Pilot\\B']);
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        projectVersionId: 'version-1',
+        symbolKind: { in: ['CLASS', 'INTERFACE', 'TRAIT', 'ENUM'] },
+        filePath: { endsWith: '.php' },
+      },
+      select: { symbolName: true },
+    });
+  });
+});
