@@ -940,3 +940,95 @@ describe('SandboxExecutionService', () => {
     });
   });
 });
+
+describe('SandboxExecutionService stage timestamps (WI-CORE-061)', () => {
+  const storage = {
+    put: vi.fn().mockResolvedValue(undefined),
+    presignGet: vi.fn().mockResolvedValue('https://signed.example/download'),
+  };
+
+  async function runWithStages(stageDurations: unknown) {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-ts', pollAfterMs: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'COMPLETED', facts: null, failure: null, stageDurations }),
+      );
+    const service = new SandboxExecutionService(makeConfigService(), storage as never);
+    return service.execute({
+      requestId: 'request-ts',
+      testRunId: 'run-ts',
+      projectVersionId: 'version-ts',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip-bytes'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'VITEST',
+    });
+  }
+
+  it('conserva startedAt/completedAt ISO-8601 UTC válidos por etapa', async () => {
+    const result = await runWithStages([
+      { stage: 'COMPILING', durationMs: 120, startedAt: '2026-10-14T06:30:33.225Z', completedAt: '2026-10-14T06:30:33.345Z' },
+      { stage: 'RUNNING_TESTS', durationMs: 340, startedAt: '2026-10-14T06:30:34.000Z', completedAt: '2026-10-14T06:30:34.340Z' },
+    ]);
+    expect(result.stageDurations).toStrictEqual([
+      { stage: 'COMPILING', durationMs: 120, startedAt: '2026-10-14T06:30:33.225Z', completedAt: '2026-10-14T06:30:33.345Z' },
+      { stage: 'RUNNING_TESTS', durationMs: 340, startedAt: '2026-10-14T06:30:34.000Z', completedAt: '2026-10-14T06:30:34.340Z' },
+    ]);
+  });
+
+  it('omite startedAt/completedAt inválidos conservando la etapa y durationMs', async () => {
+    const result = await runWithStages([
+      {
+        stage: 'COMPILING',
+        durationMs: 120,
+        startedAt: '14/10/2026 06:30',
+        completedAt: '2026-10-14T06:30:33.345',
+      },
+      { stage: 'RUNNING_TESTS', durationMs: 340, startedAt: 1789388400000, completedAt: '' },
+      { stage: 'FINALIZING', durationMs: 5, startedAt: null, completedAt: '2026-10-14T06:30:35.000Z' },
+    ]);
+    expect(result.stageDurations).toStrictEqual([
+      { stage: 'COMPILING', durationMs: 120 },
+      { stage: 'RUNNING_TESTS', durationMs: 340 },
+      { stage: 'FINALIZING', durationMs: 5, completedAt: '2026-10-14T06:30:35.000Z' },
+    ]);
+  });
+
+  it('un Sandbox sin los campos devuelve las etapas exactamente como antes', async () => {
+    const result = await runWithStages([
+      { stage: 'COMPILING', durationMs: 120 },
+      { stage: 'RUNNING_TESTS', durationMs: 340 },
+    ]);
+    expect(result.stageDurations).toStrictEqual([
+      { stage: 'COMPILING', durationMs: 120 },
+      { stage: 'RUNNING_TESTS', durationMs: 340 },
+    ]);
+  });
+
+  it('stageDurations ausente sigue dando []', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-none', pollAfterMs: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED', facts: null, failure: null }));
+    const service = new SandboxExecutionService(makeConfigService(), storage as never);
+    const result = await service.execute({
+      requestId: 'request-none',
+      testRunId: 'run-none',
+      projectVersionId: 'version-none',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip-bytes'),
+      artifacts: [],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'VITEST',
+    });
+    expect(result.stageDurations).toStrictEqual([]);
+  });
+});

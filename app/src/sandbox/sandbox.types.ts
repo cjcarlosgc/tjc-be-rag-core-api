@@ -50,6 +50,10 @@ export interface SandboxFailureFact {
 export interface StageDuration {
   stage: SandboxStage;
   durationMs: number;
+  /** WI-CORE-061: inicio de la etapa en el Sandbox (ISO-8601 UTC); ausente en Sandboxes anteriores. */
+  startedAt?: string;
+  /** WI-CORE-061: fin de la etapa en el Sandbox (ISO-8601 UTC); ausente en Sandboxes anteriores. */
+  completedAt?: string;
 }
 
 /** Tipo de evidencia acotada que devuelve el Sandbox (contrato: `ExecutionEvidenceKind`). */

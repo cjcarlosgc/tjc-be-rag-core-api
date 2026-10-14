@@ -45,6 +45,33 @@ export function parseSandboxEvidence(raw: unknown): SandboxExecutionEvidenceFact
   return facts;
 }
 
+/**
+ * WI-CORE-061: acepta solo una cadena ISO-8601 en UTC (termina en `Z`) que Date pueda parsear.
+ * Cualquier otro valor se trata como ausente.
+ */
+function isUtcIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && value.endsWith('Z') && !Number.isNaN(Date.parse(value));
+}
+
+/**
+ * WI-CORE-061: conserva `stage` y `durationMs` tal como los devuelve el Sandbox y añade `startedAt`/`completedAt`
+ * solo cuando son ISO-8601 UTC válidos. Una entrada que no es objeto se pasa sin cambios.
+ */
+function normalizeStageDurations(raw: unknown): SandboxExecutionResult['stageDurations'] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((entry: unknown) => {
+    if (entry === null || typeof entry !== 'object') return entry as SandboxExecutionResult['stageDurations'][number];
+    const candidate = entry as Record<string, unknown>;
+    const stage: SandboxExecutionResult['stageDurations'][number] = {
+      stage: candidate.stage as SandboxExecutionResult['stageDurations'][number]['stage'],
+      durationMs: candidate.durationMs as number,
+    };
+    if (isUtcIsoTimestamp(candidate.startedAt)) stage.startedAt = candidate.startedAt;
+    if (isUtcIsoTimestamp(candidate.completedAt)) stage.completedAt = candidate.completedAt;
+    return stage;
+  });
+}
+
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
@@ -303,7 +330,7 @@ export class SandboxExecutionService {
       status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
       facts: SandboxExecutionResult['facts'];
       failure: SandboxFailureFact | null;
-      stageDurations?: SandboxExecutionResult['stageDurations'];
+      stageDurations?: unknown;
       evidence?: unknown;
       startedAt?: unknown;
       completedAt?: unknown;
@@ -313,7 +340,7 @@ export class SandboxExecutionService {
       serviceToken,
     );
 
-    const stageDurations = result.stageDurations ?? [];
+    const stageDurations = normalizeStageDurations(result.stageDurations);
 
     if (stageDurations.length > 0) {
       this.logger.debug(

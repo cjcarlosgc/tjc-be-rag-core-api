@@ -47,7 +47,7 @@ export interface RepetitionArtifactRunnerReport {
     code: string;
     message: string;
   } | null;
-  stageDurations: Array<{ stage: string; durationMs: number }>;
+  stageDurations: Array<{ stage: string; durationMs: number; startedAt?: string; completedAt?: string }>;
 }
 
 export interface RepetitionArtifact {
@@ -242,6 +242,9 @@ function buildRunnerReport(result: SandboxExecutionResult): RepetitionArtifactRu
     stageDurations: result.stageDurations.map((stage) => ({
       stage: stage.stage,
       durationMs: stage.durationMs,
+      // WI-CORE-061: claves solo cuando existen, para que los reportes sin tiempos no cambien de hash.
+      ...(stage.startedAt !== undefined ? { startedAt: stage.startedAt } : {}),
+      ...(stage.completedAt !== undefined ? { completedAt: stage.completedAt } : {}),
     })),
   };
 }
