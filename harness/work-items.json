@@ -3844,7 +3844,7 @@
       "id": "WI-CORE-067",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Reforzar convenciones PHPUnit sobre clases final y enums y extender R-ANON-FINAL a implements",
@@ -3875,7 +3875,9 @@
         "app/src/generation/php-phpunit-conventions.ts",
         "harness/calibration/lib.mjs",
         "harness/calibration/README.md",
-        "harness/reports/wi-core-067-contract-sync-scope-review.md"
+        "harness/reports/wi-core-067-contract-sync-scope-review.md",
+        "harness/reports/wi-core-067-technical-checks.md",
+        "harness/reports/wi-core-067-replay-y-verificacion.md"
       ],
       "contractSyncReview": [
         {

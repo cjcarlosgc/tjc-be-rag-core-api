@@ -17695,7 +17695,7 @@
     "id": "WI-CORE-067",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P2",
     "title": "Reforzar convenciones PHPUnit sobre clases final y enums y extender R-ANON-FINAL a implements",
     "approved": true,
@@ -17716,7 +17716,9 @@
       "app/src/generation/php-phpunit-conventions.ts",
       "harness/calibration/lib.mjs",
       "harness/calibration/README.md",
-      "harness/reports/wi-core-067-contract-sync-scope-review.md"
+      "harness/reports/wi-core-067-contract-sync-scope-review.md",
+      "harness/reports/wi-core-067-technical-checks.md",
+      "harness/reports/wi-core-067-replay-y-verificacion.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -17749,24 +17751,50 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Convenciones final/enum reforzadas (misma redaccion en ambos brazos), R-ANON-FINAL a implements y R-NEW-ENUM; prompt .6; M5 10/10 en 31 casos."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/generation/php-phpunit-conventions.ts",
+            "harness/calibration/lib.mjs",
+            "harness/calibration/calibrate.mjs",
+            "harness/calibration/README.md",
+            "spec/features/004-rag-retrieval-context/spec.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-067-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -17781,13 +17809,40 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-14T16:14:10.236Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-067",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-14T16:19:10.121Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-067",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-14T16:19:10.252Z"
         }
       ],
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-067-scope-approval.md"
+      "harness/reports/wi-core-067-scope-approval.md",
+      "harness/reports/wi-core-067-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -17796,6 +17851,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-067-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-067-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-067-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-067-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-067-technical-checks.md"
       ]
     }
   },
