@@ -3719,6 +3719,61 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-064-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-065",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Firma del constructor en la sección de dependencias (RAG) y convenciones sobre clases final y closures",
+      "storyIds": [
+        "HU05",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-072"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-064"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "La sección de dependencias del brazo RAG agrega, por tipo resuelto con constructor en el índice, la firma del constructor (parámetros con tipo, nombre y valor por defecto, sin cuerpo), con tope total de tokens explícito (la sección sigue ≤ 300 tokens) y marca de truncado; sin inventar cuando no se encuentra o es ambiguo; el agente no la recibe.",
+        "Las convenciones PHPUnit de RAG y agente ganan dos líneas con la MISMA redacción: no extender clases final (tampoco con clases anónimas) y no declarar static los closures que usan $this->assert…; versión del prompt php-prompt-2026-10-14.4.",
+        "Sin cambios en ranking, pesos, topK, R-PHP, contextTokens, prompt TypeScript, herramientas del agente ni migraciones; la traza dependencyContext no cambia (sin campo nuevo salvo necesidad con contract-reviewer).",
+        "Pruebas roja-verde; medición en harness/calibration (M5 top-10 idéntico, M4 tokens extra por caso en los 9 V1 y verificaciones, M6 con R-ANON-FINAL, R-STATIC-THIS y R-SIG con precisión y sensibilidad); revisión independiente; criterio de verificación para un experimento no oficial."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-065-scope-approval.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "app/src/retrieval/php-dependency-context.ts",
+        "app/src/retrieval/php-dependency-context.service.ts",
+        "app/src/generation/php-phpunit-conventions.ts",
+        "harness/calibration/lib.mjs",
+        "harness/reports/wi-core-065-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-065 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-065-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-065 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-065-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-065-scope-approval.md"
     }
   ]
 }
