@@ -3783,7 +3783,7 @@
       "id": "WI-CORE-066",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Firma del constructor de dependencias de profundidad 2 en la sección de dependencias (RAG)",
@@ -3816,7 +3816,9 @@
         "app/src/project-versions/persistence/code-chunks.repository.ts",
         "app/src/generation/php-phpunit-conventions.ts",
         "harness/calibration/lib.mjs",
-        "harness/reports/wi-core-066-contract-sync-scope-review.md"
+        "harness/reports/wi-core-066-contract-sync-scope-review.md",
+        "harness/reports/wi-core-066-technical-checks.md",
+        "harness/reports/wi-core-066-replay-y-verificacion.md"
       ],
       "contractSyncReview": [
         {
