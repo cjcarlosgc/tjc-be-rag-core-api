@@ -17258,7 +17258,7 @@
     "id": "WI-CORE-065",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P2",
     "title": "Firma del constructor en la sección de dependencias (RAG) y convenciones sobre clases final y closures",
     "approved": true,
@@ -17279,7 +17279,9 @@
       "app/src/retrieval/php-dependency-context.service.ts",
       "app/src/generation/php-phpunit-conventions.ts",
       "harness/calibration/lib.mjs",
-      "harness/reports/wi-core-065-contract-sync-scope-review.md"
+      "harness/reports/wi-core-065-contract-sync-scope-review.md",
+      "harness/reports/wi-core-065-replay-y-verificacion.md",
+      "harness/reports/wi-core-065-technical-checks.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -17312,24 +17314,52 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Firma del constructor (RAG) y convenciones 4-5 en ambos brazos; prompt .4; M5 identico; reglas R-ANON-FINAL/R-STATIC-THIS/R-SIG en el banco."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/src/retrieval/php-dependency-context.ts",
+            "app/src/retrieval/php-dependency-context.service.ts",
+            "app/src/project-versions/persistence/code-chunks.repository.ts",
+            "app/src/generation/php-phpunit-conventions.ts",
+            "harness/calibration/lib.mjs",
+            "harness/calibration/calibrate.mjs",
+            "spec/features/004-rag-retrieval-context/spec.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-065-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -17350,7 +17380,8 @@
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-065-scope-approval.md"
+      "harness/reports/wi-core-065-scope-approval.md",
+      "harness/reports/wi-core-065-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -17359,6 +17390,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-065-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-065-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-065-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-065-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-065-technical-checks.md"
       ]
     }
   },

@@ -3724,7 +3724,7 @@
       "id": "WI-CORE-065",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Firma del constructor en la sección de dependencias (RAG) y convenciones sobre clases final y closures",
@@ -3755,7 +3755,9 @@
         "app/src/retrieval/php-dependency-context.service.ts",
         "app/src/generation/php-phpunit-conventions.ts",
         "harness/calibration/lib.mjs",
-        "harness/reports/wi-core-065-contract-sync-scope-review.md"
+        "harness/reports/wi-core-065-contract-sync-scope-review.md",
+        "harness/reports/wi-core-065-replay-y-verificacion.md",
+        "harness/reports/wi-core-065-technical-checks.md"
       ],
       "contractSyncReview": [
         {
