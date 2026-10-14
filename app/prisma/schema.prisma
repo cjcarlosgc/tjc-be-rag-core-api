@@ -829,6 +829,10 @@ model ExperimentRun {
   executionProfile     String?
   /// WI-CORE-025: runner detectado (JEST|VITEST) persistido al crear; null en corridas previas.
   runnerHint           String?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. Identificador del análisis asociado; sin FK (referencia lógica). Null en corridas previas.
+  analysisRunId        String?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. commitSha de la versión del proyecto copiado al crear; null en corridas previas.
+  commitSha            String?
   repetitions          ExperimentRepetition[]
   contextTraces        ContextTrace[]
   createdAt            DateTime               @default(now())
@@ -892,6 +896,12 @@ model ExperimentRepetition {
   sandboxFacts         Json?
   /// WI-CORE-027: SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación.
   artifactHash         String?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. Inicio del intento (escritura de inserción o terminal); null en filas previas.
+  startedAt            DateTime?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. Fin del intento (escritura terminal); null en filas previas o intento abierto.
+  finishedAt           DateTime?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. SHA-256 del prompt (solo el hash; el texto no se persiste, DEC-VAL-001 PENDING). Null en filas previas.
+  promptSha256         String?
   /// WI-CORE-053: interno y privado, no expuesto en DTO ni INTEROP. Evidencia persistida de la repetición
   /// (contenido de prueba y hechos normalizados del Sandbox); null si no se escribió.
   artifact             ExperimentRepetitionArtifact?
@@ -919,6 +929,16 @@ model ExperimentRepetitionArtifact {
   runnerReport         Json?
   /// SHA-256 hex del JSON canónico de `runnerReport`.
   runnerReportSha256   String?
+  /// WI-CORE-060: interno y privado, no expuesto en DTO ni INTEROP. Evidencia acotada y saneada del Sandbox (stdout/stderr del compilador y de pruebas, RUNNER_REPORT) con tope total; null sin evidencia.
+  sandboxEvidence      Json?
+  /// WI-CORE-060: SHA-256 hex del JSON canónico de `sandboxEvidence` ya saneado; null sin evidencia.
+  sandboxEvidenceSha256 String?
+  /// WI-CORE-060: true si se recortó algún contenido o se omitieron entradas por el tope total; null sin evidencia.
+  sandboxEvidenceTruncated Boolean?
+  /// WI-CORE-060: inicio de la ejecución en el Sandbox (startedAt del resultado); null si no se informó.
+  sandboxStartedAt     DateTime?
+  /// WI-CORE-060: fin de la ejecución en el Sandbox (completedAt del resultado); null si no se informó.
+  sandboxCompletedAt   DateTime?
   createdAt            DateTime             @default(now())
 
   @@map("experiment_repetition_artifacts")

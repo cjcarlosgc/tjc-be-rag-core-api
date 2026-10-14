@@ -3355,6 +3355,123 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-058-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-059",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "inspect_symbol del agente resuelve métodos PHP por nombre simple",
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-066"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-055"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Cuando no hay tipo ni función PHP con el nombre simple pedido, inspect_symbol busca métodos con ese nombre en el pool: una coincidencia se devuelve como declaración; varias devuelven la primera por orden de ruta e indican «ambiguo: N coincidencias» con las rutas; ninguna sigue EMPTY.",
+        "Tipos, funciones y nombres calificados (WI-CORE-055) se resuelven igual que antes; TypeScript y las otras tres herramientas no cambian; la descripción del esquema de la herramienta deja de decir «Nombre exacto» y describe los nombres admitidos.",
+        "Pruebas roja-verde: método único (SUB-3 applyPendingPlan, SAL-3 total), ambiguo, inexistente, calificados sin cambio, y un fixture que distingue referencias por último segmento (IDEA-029).",
+        "Spec 018 §5 enmendada; sin cambios de ranking, R-PHP, métricas, contrato público ni migraciones; vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "spec/features/018-php-laravel-support/spec.md",
+        "spec/features/018-php-laravel-support/tasks.md",
+        "harness/reports/wi-core-059-scope-approval.md",
+        "harness/reports/fase2-diagnostico-items-4-5-6.md",
+        "app/src/generation/agent/workspace-agent-tools.ts",
+        "app/src/generation/agent/workspace-agent-tools.spec.ts",
+        "harness/reports/wi-core-059-contract-sync-scope-review.md",
+        "harness/reports/wi-core-059-technical-checks.md",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-059-independent-review.md",
+        "harness/reports/wi-core-059-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-059 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-059-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-059 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-059-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-059-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-060",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Persistir de forma interna lo necesario para reconstruir un trial (analysisRunId, commitSha, tiempos, hash del prompt y evidencia del Sandbox)",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-067"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-053"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Core lee y conserva evidence[], startedAt y completedAt que el Sandbox ya devuelve (tipo y fetchResult ampliados sin romper mapSandboxResult ni las pruebas existentes) y los persiste, saneados y con tope total explícito, en experiment_repetition_artifacts.",
+        "ExperimentRun guarda analysisRunId y commitSha; ExperimentRepetition guarda inicio y fin por intento y promptSha256 (solo el hash; nunca el texto del prompt).",
+        "Migración aditiva y nullable (ADD COLUMN) creada y probada en local, no aplicada a la base real; filas previas sin dato; sin NUL en el texto persistido; un fallo de persistencia no altera el resultado de la repetición.",
+        "Sin DTO público, §6.16, contrato ni cambios en el Sandbox; sin tocar ranking, R-PHP, métricas ni agente más allá de calcular el hash del prompt; vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-060-scope-approval.md",
+        "harness/reports/fase2-diagnostico-items-4-5-6.md",
+        "harness/reports/fase2-correccion-evidencia-sandbox.md",
+        "app/prisma/schema.prisma",
+        "harness/reports/wi-core-060-contract-sync-scope-review.md",
+        "harness/reports/wi-core-060-technical-checks.md",
+        "app/prisma/migrations/20261013110000_experiment_trial_reconstruction/migration.sql",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-060-independent-review.md",
+        "harness/reports/wi-core-060-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-060 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-060-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-060 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-060-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-060-scope-approval.md"
     }
   ]
 }

@@ -155,10 +155,20 @@ function redactUrlToken(token: string): string {
  * Un mensaje sin secretos, sin caracteres de control y de hasta 500 caracteres vuelve idéntico.
  */
 export function sanitizeFailureMessage(message: string): string {
-  const scanned = normalizeControlCharacters(message).replace(/\S+/g, redactUrlToken);
-  const redacted = REDACTION_RULES.reduce(
-    (text, [pattern, replacement]) => text.replace(pattern, replacement),
+  const redacted = redactSecretsInText(normalizeControlCharacters(message));
+  return Array.from(redacted).slice(0, FAILURE_MESSAGE_MAX_LENGTH).join('');
+}
+
+/**
+ * WI-CORE-060: redacción de secretos sobre un texto libre (p. ej. stdout/stderr del Sandbox) SIN normalizar
+ * saltos de línea ni truncar. Aplica las mismas familias y el mismo orden que `sanitizeFailureMessage`.
+ * Idempotente. Un texto sin secretos vuelve idéntico. Nota: `COOKIE_HEADER` consume hasta el final del texto
+ * recibido (conservador); por eso el caller debe aplicarla por entrada, no sobre un volcado concatenado.
+ */
+export function redactSecretsInText(text: string): string {
+  const scanned = text.replace(/\S+/g, redactUrlToken);
+  return REDACTION_RULES.reduce(
+    (current, [pattern, replacement]) => current.replace(pattern, replacement),
     scanned,
   );
-  return Array.from(redacted).slice(0, FAILURE_MESSAGE_MAX_LENGTH).join('');
 }

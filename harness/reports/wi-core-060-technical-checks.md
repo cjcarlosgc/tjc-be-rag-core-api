@@ -1,0 +1,10 @@
+# WI-CORE-060 — comprobaciones técnicas
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Implementación por `implementer` (claude-haiku-5-5, esfuerzo low) en dos cortes; verificación del leader.
+- Corte A `70b772f168f171066d7a56129ecb0701befd50f4` (lectura de `evidence`/`startedAt`/`completedAt`, esquema, migración `20261013110000_experiment_trial_reconstruction`, `buildSandboxEvidenceArtifact`, `redactSecretsInText`, NUL eliminado de `testContent`/`runnerReport` por `IDEA-030`, repositorio). Corte B `9917a3faa6b2dca202848b5d7dd96ed8e2be9959` (cableado: creación del experimento, tiempos por intento, `promptSha256`, evidencia best-effort).
+- Rojo → verde: lectura del Sandbox (4 pruebas), upsert del artefacto, creación con `analysisRunId`/`commitSha`, tiempos en éxito/fallo, `promptSha256` RAG y agente sin el texto en ninguna escritura, evidencia saneada y acotada, fallo de construcción sin alterar el resultado; guardas de DTO público sin campos nuevos. Algunas pruebas de repositorio y de helpers puras se escribieron junto con la implementación (sin captura roja previa): la revisión independiente aporta la evidencia por mutación.
+- Migración: solo `ALTER TABLE … ADD COLUMN` nullables sobre `experiment_runs`, `experiment_repetitions` y `experiment_repetition_artifacts`; idéntica a `prisma migrate diff`; probada en un Postgres 14 desechable local (puerto 54399, socket Unix; tablas mínimas con filas previas: sin pérdida, columnas NULL), instancia detenida y borrada. **No aplicada a ninguna base real.**
+- `npx vitest run` (app): 145 archivos pasan, 7 omitidos; 2370 pruebas pasan, 104 omitidas. `oxlint src` sin hallazgos. `tsc --noEmit`: 45 errores (igual que la base). `validate-harness` y `node --test harness/*.test.mjs` pasan. Sin build.
+- Alcance: sin DTO público, §6.16, contrato, Sandbox, ranking, R-PHP ni métricas.
+- Riesgos: `startedAt` se captura antes de `beginAttempt` (incluye la creación de la traza); `testContentSha256` ahora es del contenido sin NUL; el redactor de cookies consume hasta el final de la entrada (conservador).

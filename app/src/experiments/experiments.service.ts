@@ -208,6 +208,9 @@ export class ExperimentsService {
             budget: this.resolveBudget(),
             executionProfile: EXECUTION_PROFILE_BY_RUNNER[runnerHint],
             runnerHint,
+            // WI-CORE-060: interno (no expuesto). Análisis asociado y commitSha de la versión congelada.
+            analysisRunId: analysisRun.id,
+            commitSha: version.commitSha ?? null,
           },
           tx,
         );

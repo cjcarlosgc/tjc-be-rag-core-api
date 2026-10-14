@@ -59,7 +59,9 @@ import {
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
 import {
   buildRepetitionArtifact,
+  buildSandboxEvidenceArtifact,
   type RepetitionArtifact,
+  type SandboxEvidenceArtifact,
 } from './repetition-artifact.js';
 import {
   DEFAULT_MAX_POLL_ATTEMPTS,
@@ -313,8 +315,18 @@ function parseExecutionProfile(
   throw new Error('executionProfile del experimento no es válido.');
 }
 
+/** WI-CORE-060: artefacto interno con la evidencia del Sandbox ya saneada (campos opcionales). */
+type RepetitionArtifactRecord = RepetitionArtifact & Partial<SandboxEvidenceArtifact>;
+
+/** SHA-256 hex (utf8) de un prompt. Solo se persiste el hash, nunca el texto (DEC-VAL-001 PENDING). */
+function promptDigest(prompt: string): string {
+  return createHash('sha256').update(prompt, 'utf8').digest('hex');
+}
+
 interface GenerationOutcome {
   content: string;
+  /** WI-CORE-060: hash del prompt final enviado al LLM (o instrucciones del agente); null si no hubo prompt. */
+  promptSha256: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   retrievedChunks: number | null;
@@ -331,7 +343,9 @@ interface RepetitionEvidence {
   /** SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación. */
   artifactHash: string | null;
   /** WI-CORE-053: artefacto interno (contenido y hechos del Sandbox); null si no hubo contenido enviado. */
-  artifact: RepetitionArtifact | null;
+  artifact: RepetitionArtifactRecord | null;
+  /** WI-CORE-060: inicio del intento; la escritura terminal guarda este valor como startedAt. */
+  startedAt: Date;
 }
 
 /** Target de recuperación a partir de la fila persistida (misma forma que usa el brazo RAG). */
@@ -766,6 +780,8 @@ export class ExperimentJobHandler
 
   /** Devuelve true si el intento terminó en fallo externo (plan punto 6). */
   private async runAttempt(context: AttemptContext): Promise<boolean> {
+    // WI-CORE-060: inicio del intento, antes de generar; se persiste como startedAt de la escritura terminal.
+    const attemptStartedAt = new Date();
     const begun = await this.contextTracesRepository.beginAttempt({
       experimentId: context.experimentId,
       projectId: context.projectId,
@@ -784,6 +800,7 @@ export class ExperimentJobHandler
     let generationDurationMs = 0;
     let generation: GenerationOutcome = {
       content: '',
+      promptSha256: null,
       inputTokens: null,
       outputTokens: null,
       retrievedChunks: null,
@@ -799,7 +816,7 @@ export class ExperimentJobHandler
     let sandboxEvidence: SandboxExecutionEvidence | null = null;
     let artifactHash: string | null = null;
     // WI-CORE-053: artefacto interno de la repetición; null salvo en los caminos que enviaron contenido.
-    let artifact: RepetitionArtifact | null = null;
+    let artifact: RepetitionArtifactRecord | null = null;
 
     try {
       await this.initializeTraceDetail(begun.trace.id, context);
@@ -882,6 +899,9 @@ export class ExperimentJobHandler
                 : 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
           },
           false,
+          false,
+          null,
+          { sandbox: null, artifactHash: null, artifact: null, startedAt: attemptStartedAt },
         );
         finalized = true;
         return false;
@@ -909,6 +929,9 @@ export class ExperimentJobHandler
                 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
             },
             false,
+            false,
+            null,
+            { sandbox: null, artifactHash: null, artifact: null, startedAt: attemptStartedAt },
           );
           finalized = true;
           return false;
@@ -1051,7 +1074,7 @@ export class ExperimentJobHandler
         externalFailure,
         sandboxTimedOut,
         sandboxFailure,
-        { sandbox: sandboxEvidence, artifactHash, artifact },
+        { sandbox: sandboxEvidence, artifactHash, artifact, startedAt: attemptStartedAt },
       );
       finalized = true;
       return externalFailure;
@@ -1085,7 +1108,7 @@ export class ExperimentJobHandler
           externalFailure,
           false,
           null,
-          { sandbox: sandboxEvidence, artifactHash, artifact },
+          { sandbox: sandboxEvidence, artifactHash, artifact, startedAt: attemptStartedAt },
         );
         finalized = true;
       }
@@ -1153,6 +1176,7 @@ export class ExperimentJobHandler
 
     return {
       content: generation.content,
+      promptSha256: promptDigest(prompt),
       inputTokens: generation.inputTokens,
       outputTokens: generation.outputTokens,
       retrievedChunks: generationContext.retrievedChunks,
@@ -1295,6 +1319,7 @@ export class ExperimentJobHandler
 
     return {
       content: result.content,
+      promptSha256: promptDigest(instructions),
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
       retrievedChunks: null,
@@ -1608,7 +1633,13 @@ export class ExperimentJobHandler
     evidence: RepetitionEvidence,
     state: 'COMPLETED' | 'FAILED',
   ): Promise<boolean> {
+    // WI-CORE-060: startedAt del intento y finishedAt en el momento de escribir el resultado terminal.
+    const timing: Pick<ExperimentRepetitionInput, 'startedAt' | 'finishedAt'> = {
+      startedAt: evidence.startedAt,
+      finishedAt: new Date(),
+    };
     const evidenceColumns: Partial<ExperimentRepetitionInput> = {
+      ...timing,
       sandboxExecutionId: evidence.sandbox?.executionId ?? null,
       sandboxRequestId: evidence.sandbox?.requestId ?? null,
       sandboxCorrelationId: evidence.sandbox?.correlationId ?? null,
@@ -1630,7 +1661,7 @@ export class ExperimentJobHandler
       );
       written = await this.experimentRunsRepository.updateRepetitionById(
         repetitionId,
-        input,
+        { ...input, ...timing },
         state,
       );
     }
@@ -1649,15 +1680,32 @@ export class ExperimentJobHandler
     content: string,
     result: Parameters<typeof buildRepetitionArtifact>[1],
     context: { strategy: Strategy; repetition: number },
-  ): RepetitionArtifact | null {
+  ): RepetitionArtifactRecord | null {
+    let artifact: RepetitionArtifact | null;
     try {
-      return buildRepetitionArtifact(content, result);
+      artifact = buildRepetitionArtifact(content, result);
     } catch (error) {
       const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
       this.logger.warn(
         `No se pudo construir el artefacto de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se conserva.`,
       );
       return null;
+    }
+    if (artifact === null || result === null) return artifact;
+    // WI-CORE-060: evidencia del Sandbox saneada y acotada; un fallo aquí solo omite esa evidencia.
+    try {
+      const evidence = buildSandboxEvidenceArtifact(
+        result.evidence,
+        result.startedAt,
+        result.completedAt,
+      );
+      return evidence === null ? artifact : { ...artifact, ...evidence };
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.warn(
+        `No se pudo construir la evidencia del Sandbox de la repetición ${context.repetition} (${context.strategy}) (${reason}); el resultado se conserva.`,
+      );
+      return artifact;
     }
   }
 
@@ -1668,7 +1716,7 @@ export class ExperimentJobHandler
   private async writeRepetitionArtifact(
     repetitionId: string,
     context: { strategy: Strategy; repetition: number },
-    artifact: RepetitionArtifact,
+    artifact: RepetitionArtifactRecord,
   ): Promise<void> {
     try {
       await this.experimentRunsRepository.upsertRepetitionArtifact(
@@ -1706,11 +1754,7 @@ export class ExperimentJobHandler
     externalFailure: boolean,
     sandboxTimedOut = false,
     failure: ExperimentRepetitionFailure | null = null,
-    evidence: RepetitionEvidence = {
-      sandbox: null,
-      artifactHash: null,
-      artifact: null,
-    },
+    evidence: RepetitionEvidence,
   ): Promise<void> {
     const totalTokens =
       generation.inputTokens !== null && generation.outputTokens !== null
@@ -1753,6 +1797,8 @@ export class ExperimentJobHandler
       toolCalls: generation.toolCalls,
       filesInspected: generation.filesInspected,
       trajectory: undefined,
+      // WI-CORE-060: solo el hash del prompt; el texto nunca se persiste ni se registra.
+      promptSha256: generation.promptSha256,
       // Segundo fallo externo: la repetición no es evaluable técnicamente (plan punto 7).
       ...(context.attempt === 2 && externalFailure
         ? { technicallyEvaluable: false }

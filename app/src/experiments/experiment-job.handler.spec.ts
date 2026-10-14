@@ -1,3 +1,8 @@
+vi.mock('./repetition-artifact.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./repetition-artifact.js')>();
+  return { ...actual, buildSandboxEvidenceArtifact: vi.fn(actual.buildSandboxEvidenceArtifact) };
+});
+import { buildSandboxEvidenceArtifact } from './repetition-artifact.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import { createHash } from 'node:crypto';
@@ -4080,3 +4085,208 @@ describe('ExperimentJobHandler RAG detail final mark (WI-CORE-058, INTEROP-2.15)
     }
   });
 });
+
+describe('ExperimentJobHandler WI-CORE-060: trazabilidad interna de la repetición', () => {
+  const PROMPT_RAG = 'PROMPT-SECRETO-RAG-XYZ';
+  const SANDBOX_STARTED = '2026-10-13T10:00:00.000Z';
+  const SANDBOX_COMPLETED = '2026-10-13T10:00:02.000Z';
+
+  function sha256Hex(text: string): string {
+    return createHash('sha256').update(text, 'utf8').digest('hex');
+  }
+
+  function strategyWrites(deps: ReturnType<typeof makeDeps>['deps'], strategy: string) {
+    return writesOf(deps).filter((write) => write.strategy === strategy);
+  }
+
+  function artifactUpserts(deps: ReturnType<typeof makeDeps>['deps']) {
+    return repoOf(deps).upsertRepetitionArtifact.mock.calls.map(
+      (call: unknown[]) => call[1] as Record<string, unknown>,
+    );
+  }
+
+  function allPersisted(deps: ReturnType<typeof makeDeps>['deps']): string {
+    return JSON.stringify([...writesOf(deps), ...artifactUpserts(deps)]);
+  }
+
+  async function runWith(overrides: Record<string, unknown> = {}) {
+    const { deps } = makeDeps(overrides);
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+      seededRun(),
+    );
+    await makeHandler(deps).handle(payload, 'job-1');
+    return deps;
+  }
+
+  it('escribe startedAt y finishedAt con startedAt <= finishedAt en el éxito', async () => {
+    const deps = await runWith();
+
+    const writes = writesOf(deps);
+    expect(writes.length).toBeGreaterThan(0);
+    for (const write of writes) {
+      expect(write.startedAt).toBeInstanceOf(Date);
+      expect(write.finishedAt).toBeInstanceOf(Date);
+      expect((write.startedAt as Date).getTime()).toBeLessThanOrEqual((write.finishedAt as Date).getTime());
+    }
+  });
+
+  it('escribe startedAt y finishedAt cuando falla la generación', async () => {
+    const deps = await runWith({
+      llmProvider: {
+        generate: vi.fn().mockRejectedValue(new Error('boom')),
+        resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
+      },
+    });
+
+    const writes = writesOf(deps);
+    expect(writes.length).toBeGreaterThan(0);
+    for (const write of writes) {
+      expect(write.startedAt).toBeInstanceOf(Date);
+      expect(write.finishedAt).toBeInstanceOf(Date);
+      expect((write.startedAt as Date).getTime()).toBeLessThanOrEqual((write.finishedAt as Date).getTime());
+    }
+  });
+
+  it('escribe startedAt y finishedAt cuando el Sandbox lanza excepción', async () => {
+    const deps = await runWith({
+      sandboxExecutionService: {
+        execute: vi.fn().mockRejectedValue(new Error('socket hang up')),
+      },
+    });
+
+    const writes = writesOf(deps);
+    expect(writes.length).toBeGreaterThan(0);
+    for (const write of writes) {
+      expect(write.startedAt).toBeInstanceOf(Date);
+      expect(write.finishedAt).toBeInstanceOf(Date);
+    }
+  });
+
+  it('promptSha256 del brazo RAG es el SHA-256 del prompt y el texto del prompt no se persiste', async () => {
+    const deps = await runWith({
+      promptBuilder: { build: vi.fn().mockReturnValue(PROMPT_RAG) },
+    });
+
+    const rag = strategyWrites(deps, 'RAG');
+    expect(rag.length).toBeGreaterThan(0);
+    for (const write of rag) {
+      expect(write.promptSha256).toBe(sha256Hex(PROMPT_RAG));
+    }
+    expect(allPersisted(deps)).not.toContain(PROMPT_RAG);
+  });
+
+  it('promptSha256 del agente generalista es el SHA-256 de las instrucciones entregadas y el texto no se persiste', async () => {
+    const deps = await runWith();
+
+    const instructions = (
+      deps.generalistAgentService.generate as ReturnType<typeof vi.fn>
+    ).mock.calls[0][0] as string;
+    expect(instructions.length).toBeGreaterThan(0);
+    const agent = strategyWrites(deps, 'GENERALIST_AGENT');
+    expect(agent.length).toBeGreaterThan(0);
+    for (const write of agent) {
+      expect(write.promptSha256).toBe(sha256Hex(instructions));
+    }
+    expect(allPersisted(deps)).not.toContain(JSON.stringify(instructions).slice(1, -1));
+  });
+
+  it('persiste la evidencia del Sandbox saneada y acotada junto al artefacto', async () => {
+    const secretLine = 'password=hunter2';
+    const deps = await runWith({
+      sandboxExecutionService: {
+        execute: vi.fn().mockResolvedValue({
+          ...successfulSandboxResult(),
+          evidence: [
+            {
+              kind: 'TEST_STDERR',
+              stage: 'RUNNING_TESTS',
+              content: `${secretLine}
+${'x'.repeat(9000)}`,
+              truncated: true,
+              originalBytes: 12_000,
+            },
+          ],
+          startedAt: SANDBOX_STARTED,
+          completedAt: SANDBOX_COMPLETED,
+        }),
+      },
+    });
+
+    const upserts = artifactUpserts(deps).filter((artifact) => artifact.sandboxEvidence !== undefined);
+    expect(upserts.length).toBeGreaterThan(0);
+    const artifact = upserts[0];
+    const payloadEvidence = artifact.sandboxEvidence as {
+      entries: Array<{ kind: string; content: string; contentTruncated: boolean }>;
+    };
+    expect(payloadEvidence.entries[0].kind).toBe('TEST_STDERR');
+    expect(payloadEvidence.entries[0].content).not.toContain('hunter2');
+    expect(Buffer.byteLength(payloadEvidence.entries[0].content, 'utf8')).toBeLessThanOrEqual(8_192);
+    expect(payloadEvidence.entries[0].contentTruncated).toBe(true);
+    expect(artifact.sandboxEvidenceSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(artifact.sandboxEvidenceTruncated).toBe(true);
+    expect((artifact.sandboxStartedAt as Date).toISOString()).toBe(SANDBOX_STARTED);
+    expect((artifact.sandboxCompletedAt as Date).toISOString()).toBe(SANDBOX_COMPLETED);
+  });
+
+  it('no escribe columnas de evidencia del Sandbox cuando el Sandbox no devuelve evidencia', async () => {
+    const deps = await runWith();
+
+    const upserts = artifactUpserts(deps);
+    expect(upserts.length).toBeGreaterThan(0);
+    for (const artifact of upserts) {
+      expect(Object.prototype.hasOwnProperty.call(artifact, 'sandboxEvidence')).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(artifact, 'sandboxEvidenceSha256')).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(artifact, 'sandboxStartedAt')).toBe(false);
+    }
+  });
+
+  it('un fallo del upsert del artefacto no altera el resultado terminal de la repetición', async () => {
+    const { deps } = makeDeps();
+    repoOf(deps).upsertRepetitionArtifact = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('db down'), { name: 'PrismaClientKnownRequestError' }));
+    (deps.experimentRunsRepository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(seededRun());
+
+    await expect(makeHandler(deps).handle(payload, 'job-1')).resolves.toBeUndefined();
+
+    const states = (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[2],
+    );
+    expect(states.length).toBeGreaterThan(0);
+    expect(states.every((state) => state === 'COMPLETED')).toBe(true);
+    expect(execIsRetried(deps)).toBe(false);
+  });
+
+  it('un fallo de buildSandboxEvidenceArtifact no cambia el resultado ni reintenta, y solo registra el nombre del error', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    try {
+      (buildSandboxEvidenceArtifact as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+        throw Object.assign(new Error('secret-internal-detail'), { name: 'EvidenceBuildError' });
+      });
+      const deps = await runWith({
+        sandboxExecutionService: {
+          execute: vi.fn().mockResolvedValue({
+            ...successfulSandboxResult(),
+            evidence: [{ kind: 'TEST_STDOUT', stage: null, content: 'ok', truncated: false, originalBytes: 2 }],
+            startedAt: SANDBOX_STARTED,
+            completedAt: SANDBOX_COMPLETED,
+          }),
+        },
+      });
+
+      expect(buildSandboxEvidenceArtifact).toHaveBeenCalled();
+      expect(deps.sandboxExecutionService.execute).toHaveBeenCalledTimes(6);
+      const updates = (deps.experimentRunsRepository.updateRepetitionById as ReturnType<typeof vi.fn>).mock.calls;
+      expect(updates.every((call: unknown[]) => call[2] === 'COMPLETED')).toBe(true);
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).toContain('EvidenceBuildError');
+      expect(logged).not.toContain('secret-internal-detail');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+function execIsRetried(deps: ReturnType<typeof makeDeps>['deps']): boolean {
+  return (deps.sandboxExecutionService.execute as ReturnType<typeof vi.fn>).mock.calls.length > 6;
+}
