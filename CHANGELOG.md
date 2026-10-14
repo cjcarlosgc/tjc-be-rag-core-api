@@ -12,6 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **WI-CORE-061 — tiempos por etapa del Sandbox (2026-10-14, en revisión):** Core conserva `startedAt`/`completedAt` opcionales por etapa de `stageDurations[]` (Sandbox `WI-SANDBOX-007`, `CS-SANDBOX-20261014-001`) y los persiste de forma interna en `runnerReport.stageDurations` del artefacto de la repetición, tolerando Sandboxes sin los campos; sin migración, DTO público, contrato ni cambios en el Sandbox. El evento no se pudo importar (JSON sin `sourceWorkItem`): decisión pendiente.
 - **WI-CORE-060 — reconstrucción interna de un trial: analysisRunId, commitSha, tiempos, hash del prompt y evidencia del Sandbox; migración 20261013110000 sin aplicar (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-059 — inspect_symbol resuelve métodos PHP por nombre simple (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-058 — marca final en las dependencias PHP del contexto RAG, INTEROP-2.15 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-003) (2026-10-13, W-DONE, revisión independiente delegada).**

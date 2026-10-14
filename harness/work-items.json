@@ -3477,7 +3477,7 @@
       "id": "WI-CORE-061",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Leer y persistir internamente startedAt/completedAt por etapa del Sandbox",
@@ -3506,7 +3506,9 @@
         "app/src/sandbox/sandbox.types.ts",
         "app/src/sandbox/sandbox-execution.service.ts",
         "app/src/experiments/repetition-artifact.ts",
-        "harness/reports/wi-core-061-contract-sync-scope-review.md"
+        "harness/reports/wi-core-061-contract-sync-scope-review.md",
+        "harness/reports/wi-core-061-technical-checks.md",
+        "CHANGELOG.md"
       ],
       "contractSyncReview": [
         {
