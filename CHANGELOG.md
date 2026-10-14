@@ -12,6 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **WI-CORE-062 — INTEROP-2.16 documental y aditiva (2026-10-14, en revisión):** `StageDuration` (§7.3) agrega `startedAt?` y `completedAt?` opcionales (ISO-8601 UTC) por etapa, emitidos por el Sandbox desde `WI-SANDBOX-007` (`CS-SANDBOX-20261014-001`, transcrito al inbox de Core con `originalPath` y `originalSha256` por estar en JSON sin `sourceWorkItem`); `durationMs` y los tipos existentes no cambian; Core los conserva solo internamente (`WI-CORE-061`). Contract Sync `CS-CORE-20261014-001` a Console. Sin cambios en `app/`.
 - **WI-CORE-061 — tiempos por etapa del Sandbox conservados y persistidos internamente (revisión independiente delegada por el Modo fuera de casa; CS-SANDBOX-20261014-001 sin importar) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-060 — reconstrucción interna de un trial: analysisRunId, commitSha, tiempos, hash del prompt y evidencia del Sandbox; migración 20261013110000 sin aplicar (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-059 — inspect_symbol resuelve métodos PHP por nombre simple (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
