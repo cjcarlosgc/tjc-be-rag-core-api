@@ -3903,7 +3903,7 @@
       "id": "WI-CORE-068",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Marca de enum en la sección de dependencias: usa un caso, nunca new",
@@ -3934,7 +3934,9 @@
         "app/src/retrieval/php-dependency-context.ts",
         "app/src/retrieval/php-dependency-context.service.ts",
         "app/src/generation/php-phpunit-conventions.ts",
-        "harness/reports/wi-core-068-contract-sync-scope-review.md"
+        "harness/reports/wi-core-068-contract-sync-scope-review.md",
+        "harness/reports/wi-core-068-technical-checks.md",
+        "harness/reports/wi-core-068-replay-y-verificacion.md"
       ],
       "contractSyncReview": [
         {
