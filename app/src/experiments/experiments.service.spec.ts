@@ -37,7 +37,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     },
     projectVersionsRepository: {
       hasActiveVersion: vi.fn().mockResolvedValue(false),
-      findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED', detectedFramework: 'VITEST' }),
+      findById: vi.fn().mockResolvedValue({ id: 'version-1', status: 'COMPLETED', detectedFramework: 'VITEST', commitSha: 'c0ffee' }),
     },
     testTargetsRepository: {
       findTestableTargets: vi.fn().mockResolvedValue([
@@ -210,6 +210,8 @@ describe('ExperimentsService', () => {
           budget: { toolCallCap: 20, contextTokenBudget: 8000, maxDurationMs: 120_000 },
           executionProfile: 'NODE_TYPESCRIPT',
           runnerHint: 'VITEST',
+          analysisRunId: 'run-1',
+          commitSha: 'c0ffee',
         },
         undefined,
       );
@@ -553,6 +555,37 @@ describe('ExperimentsService', () => {
   });
 
   describe('getResults', () => {
+    it('WI-CORE-060: el DTO público de repeticiones no expone los campos internos nuevos', async () => {
+      const deps = makeDeps();
+      deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
+        id: 'exp-1',
+        projectVersionId: 'version-1',
+        targetId: 'target-1',
+        status: 'COMPLETED',
+        completedAt: new Date('2026-01-01T00:00:00.000Z'),
+        modelConfig: { provider: 'openai', model: 'gpt-6-luna', modelVersion: 'v-2026', reasoningEffort: 'xhigh', temperature: 0.2, maxOutputTokens: null },
+      });
+      deps.experimentRunsRepository.findRepetitions = vi.fn().mockResolvedValue([
+        {
+          attempt: 1, valid: true, failureType: null, generationDurationMs: 10, executionDurationMs: 5,
+          totalDurationMs: 15, inputTokens: null, outputTokens: null, totalTokens: null, estimatedCost: null,
+          compiled: true, executed: true, passed: true, retrievedChunks: null, selectedChunks: null,
+          contextTokens: null, toolCalls: null, filesInspected: null, pairId: null, pairPosition: null,
+          technicallyEvaluable: true, repetition: 1, strategy: 'RAG', errorSummary: null,
+          startedAt: new Date('2026-01-01T00:00:00.000Z'), finishedAt: new Date('2026-01-01T00:00:01.000Z'),
+          promptSha256: 'a'.repeat(64), sandboxFacts: { runner: 'VITEST' },
+        },
+      ]);
+
+      const results = await makeService(deps).getResults('exp-1', OWNER_USER_ID);
+
+      const keys = Object.keys(results.repetitions[0]);
+      for (const internal of ['startedAt', 'finishedAt', 'promptSha256', 'sandboxFacts', 'artifactHash']) {
+        expect(keys).not.toContain(internal);
+      }
+      expect(JSON.stringify(results)).not.toContain('a'.repeat(64));
+    });
+
     it('sanitizes errorSummary idempotently when mapping, without changing the repetition keys (WI-CORE-027, IDEA-015)', async () => {
       const deps = makeDeps();
       deps.experimentRunsRepository.findByIdForOwner = vi.fn().mockResolvedValue({
