@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { GenerationContext } from '../retrieval/generation-context.js';
 import { renderFunctionalRule } from '../retrieval/functional-rule-format.js';
+import { PHP_PHPUNIT_CONVENTION_LINES } from './php-phpunit-conventions.js';
 
 /** Datos de ubicación del test PHP, presentes solo para `language: 'php'`. */
 export interface PromptBuildOptions {
@@ -79,6 +80,7 @@ export class PromptBuilder {
       `Objetivo: escribir una prueba unitaria para ${targetKind} "${targetLabel}" en ${context.target.filePath}.`,
       'Usa PHPUnit 11 como framework de pruebas. Escribe un archivo PHP completo: debe empezar con `<?php`, puede declarar `declare(strict_types=1);`, declarar el namespace del test y usar `use` con el namespace completo de cada clase del proyecto que necesites.',
       'Extiende `Tests\\TestCase` solo si el código objetivo usa el contenedor de Laravel (helpers como `config()` o `app()`, o facades `Illuminate\\Support\\Facades\\...`). Si no lo usa, extiende `PHPUnit\\Framework\\TestCase`.',
+      ...PHP_PHPUNIT_CONVENTION_LINES,
       locationLine,
       'Código objetivo:',
       '```php',
