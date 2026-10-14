@@ -98,3 +98,79 @@ describe('PhpDependencyContextService.resolve', () => {
     await expect(service.resolve('version-1', [methodChunk], 'php')).resolves.toBeNull();
   });
 });
+
+describe('PhpDependencyContextService final marks (WI-CORE-058)', () => {
+  const POLICY = `${NS}\\RenewalDatePolicy`;
+  const GATEWAY = `${CONTRACTS}\\PaymentGateway`;
+  const REPOSITORY = `${CONTRACTS}\\SubscriptionRepository`;
+  const finalFileChunks = [
+    {
+      filePath: FILE,
+      symbolKind: 'CLASS',
+      symbolName: DECLARING,
+      parentSymbolName: null,
+      importsUsed: [GATEWAY, `${CONTRACTS}\\SubscriptionRepository`, `${DOMAIN}\\Subscription`],
+      content: 'class RenewalService {}',
+    },
+    {
+      filePath: FILE,
+      symbolKind: 'CONSTRUCTOR',
+      symbolName: '__construct',
+      parentSymbolName: DECLARING,
+      importsUsed: [GATEWAY, REPOSITORY],
+      content: 'public function __construct(private PaymentGateway $payments, private SubscriptionRepository $subscriptions, private RenewalDatePolicy $dates) {}',
+    },
+  ];
+  const declarations = [
+    { symbolName: POLICY, symbolKind: 'CLASS', content: '#[Policy]\nfinal class RenewalDatePolicy {}' },
+    { symbolName: GATEWAY, symbolKind: 'INTERFACE', content: 'interface PaymentGateway {}' },
+    { symbolName: REPOSITORY, symbolKind: 'INTERFACE', content: 'interface SubscriptionRepository {}' },
+  ];
+
+  function makeFinalRepository(options: { declarations?: unknown; declarationsError?: Error } = {}) {
+    const findPhpTypeDeclarations = options.declarationsError
+      ? vi.fn().mockRejectedValue(options.declarationsError)
+      : vi.fn().mockResolvedValue(options.declarations ?? declarations);
+    const repository = {
+      findByFile: vi.fn().mockResolvedValue(finalFileChunks),
+      findPhpTypeSymbolNames: vi.fn().mockResolvedValue([POLICY, GATEWAY, REPOSITORY, `${DOMAIN}\\Subscription`]),
+      findPhpTypeDeclarations,
+    } as unknown as CodeChunksRepository;
+    return { findPhpTypeDeclarations, service: new PhpDependencyContextService(repository) };
+  }
+
+  it('marca como final solo el tipo final, sin marcar interfaces ni tipos fuera del índice', async () => {
+    const { service, findPhpTypeDeclarations } = makeFinalRepository();
+
+    const result = await service.resolve('version-1', [methodChunk], 'php');
+
+    expect(findPhpTypeDeclarations).toHaveBeenCalledWith('version-1', expect.arrayContaining([POLICY, GATEWAY, REPOSITORY]));
+    const byFqcn = new Map(result?.entries.map((entry) => [entry.fqcn, entry]));
+    expect(byFqcn.get(POLICY)?.final).toBe(true);
+    expect(byFqcn.get(GATEWAY)).not.toHaveProperty('final');
+    expect(byFqcn.get(REPOSITORY)).not.toHaveProperty('final');
+    expect(result?.text).toContain(`- RenewalDatePolicy → ${POLICY} (constructor) — final: no se puede mockear`);
+    expect(result?.text).not.toContain('- PaymentGateway → ' + GATEWAY + ' (constructor) —');
+    expect(result?.tokenCount).toBeLessThanOrEqual(300);
+  });
+
+  it('no marca un tipo que no está en el índice de declaraciones', async () => {
+    const { service } = makeFinalRepository({ declarations: [] });
+
+    const result = await service.resolve('version-1', [methodChunk], 'php');
+
+    expect(result?.entries.some((entry) => 'final' in entry)).toBe(false);
+    expect(result?.text).not.toContain('no se puede mockear');
+  });
+
+  it('si la consulta de declaraciones falla no afirma nada y mantiene las entradas', async () => {
+    const { service } = makeFinalRepository({ declarationsError: new TypeError('db down') });
+
+    const result = await service.resolve('version-1', [methodChunk], 'php');
+
+    expect(result).not.toBeNull();
+    expect(result?.entries.length).toBeGreaterThan(0);
+    expect(result?.entries.some((entry) => 'final' in entry)).toBe(false);
+    expect(result?.text).not.toContain('no se puede mockear');
+  });
+});

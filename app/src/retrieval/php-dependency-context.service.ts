@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CodeChunksRepository, type CodeChunkDependencyFields } from '../project-versions/persistence/code-chunks.repository.js';
 import {
   applyDependencyTokenCap,
+  isFinalPhpDeclaration,
   MAX_PHP_DEPENDENCY_TOKENS,
   renderPhpDependencySection,
   resolvePhpDependencies,
@@ -17,6 +18,7 @@ export interface PhpDependencyContext {
 }
 
 const METHOD_KINDS = new Set(['METHOD', 'CONSTRUCTOR', 'FUNCTION']);
+const MAX_FINAL_LOOKUPS = 20;
 
 /**
  * Sección best-effort de dependencias PHP del código objetivo. Un fallo del repositorio no se
@@ -46,13 +48,16 @@ export class PhpDependencyContextService {
       );
       const knownTypes = new Set(await this.codeChunks.findPhpTypeSymbolNames(projectVersionId));
 
-      const resolved = resolvePhpDependencies({
+      const input = {
         declaringClass,
         classImports: classChunk?.importsUsed ?? [],
         constructorChunk: constructorChunk ? { content: constructorChunk.content, importsUsed: constructorChunk.importsUsed } : null,
         methodChunk: { content: methodChunk.content, importsUsed: methodChunk.importsUsed },
         knownTypes,
-      });
+      };
+      const firstPass = resolvePhpDependencies(input);
+      const finalTypes = await this.resolveFinalTypes(projectVersionId, firstPass.entries.map((entry) => entry.fqcn));
+      const resolved = finalTypes.size > 0 ? resolvePhpDependencies({ ...input, finalTypes }) : firstPass;
       const capped = applyDependencyTokenCap(resolved.entries, MAX_PHP_DEPENDENCY_TOKENS);
 
       if (capped.entries.length === 0 && resolved.unresolvedCount === 0) return null;
@@ -69,5 +74,26 @@ export class PhpDependencyContextService {
       this.logger.warn(`Sección de dependencias PHP omitida por error de repositorio: ${errorName}`);
       return null;
     }
+  }
+
+  /**
+   * WI-CORE-058: FQCN resueltos cuya declaración del índice es final o enum. Best-effort: si la consulta
+   * falla no se afirma nada (conjunto vacío) y la sección se renderiza sin marcas.
+   */
+  private async resolveFinalTypes(projectVersionId: string, fqcns: string[]): Promise<Set<string>> {
+    const finalTypes = new Set<string>();
+    const lookup = [...new Set(fqcns)].slice(0, MAX_FINAL_LOOKUPS);
+    if (lookup.length === 0) return finalTypes;
+    try {
+      const declarations = await this.codeChunks.findPhpTypeDeclarations(projectVersionId, lookup);
+      for (const declaration of declarations) {
+        if (isFinalPhpDeclaration(declaration.content, declaration.symbolKind)) finalTypes.add(declaration.symbolName);
+      }
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.warn(`Marcas final de dependencias PHP omitidas por error de repositorio: ${errorName}`);
+      return new Set<string>();
+    }
+    return finalTypes;
   }
 }

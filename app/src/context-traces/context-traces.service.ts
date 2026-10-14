@@ -645,7 +645,14 @@ export class ContextTracesService {
     ) {
       return null;
     }
-    return { typeName, fqcn, origin, resolvedBy };
+    // WI-CORE-058 (INTEROP-2.15): solo `true` se expone; otros valores se omiten sin invalidar la entrada.
+    return {
+      typeName,
+      fqcn,
+      origin,
+      resolvedBy,
+      ...(value.final === true ? { final: true as const } : {}),
+    };
   }
 
   private mapConfiguration(

@@ -57,9 +57,13 @@ interface ReplayCase {
 interface CaseRow {
   caso: string;
   target: string;
-  entries: Array<{ typeName: string; fqcn: string; origin: string; resolvedBy: string }>;
+  entries: Array<{ typeName: string; fqcn: string; origin: string; resolvedBy: string; final: boolean }>;
+  finalCount: number;
+  finalEntries: string[];
   unresolvedCount: number;
   sectionTokens: number;
+  sectionTokensSinMarcas: number;
+  finalExtraTokens: number;
   baselineContextTokens: number;
   extraPercent: number;
 }
@@ -118,22 +122,45 @@ function buildRetrievalResult(replay: ReplayCase, anchor: ReplayChunk): Retrieva
   };
 }
 
-/** Repositorio falso: sirve los chunks del caso al servicio real de dependencias. */
-function fakeRepository(replay: ReplayCase) {
+/**
+ * Repositorio falso: sirve los chunks del caso al servicio real de dependencias. Con `withDeclarations`
+ * false, `findPhpTypeDeclarations` devuelve vacío (línea base sin marcas final).
+ */
+function fakeRepository(replay: ReplayCase, withDeclarations = true) {
   const typeNames = replay.chunks
     .filter((chunk) => chunk.filePath.endsWith('.php') && TYPE_KINDS.has(chunk.symbolKind))
     .map((chunk) => chunk.symbolName);
   return {
     findByFile: async (_pv: string, filePath: string) => replay.chunks.filter((chunk) => chunk.filePath === filePath),
     findPhpTypeSymbolNames: async () => typeNames,
+    // Misma semántica que el repositorio real: una fila por symbolName, preferir CLASS/ENUM.
+    findPhpTypeDeclarations: async (_pv: string, symbolNames: string[]) => {
+      if (!withDeclarations || symbolNames.length === 0) return [];
+      const wanted = new Set(symbolNames);
+      const rank = (kind: string): number => (kind === 'CLASS' || kind === 'ENUM' ? 0 : 1);
+      const rows = replay.chunks
+        .filter(
+          (chunk) =>
+            chunk.filePath.endsWith('.php') && TYPE_KINDS.has(chunk.symbolKind) && wanted.has(chunk.symbolName),
+        )
+        .sort((a, b) => rank(a.symbolKind) - rank(b.symbolKind));
+      const bySymbol = new Map<string, { symbolName: string; symbolKind: string; content: string }>();
+      for (const row of rows) {
+        if (!bySymbol.has(row.symbolName)) {
+          bySymbol.set(row.symbolName, { symbolName: row.symbolName, symbolKind: row.symbolKind, content: row.content });
+        }
+      }
+      return [...bySymbol.values()];
+    },
   } as never;
 }
 
 async function resolveDependencies(
   replay: ReplayCase,
   anchor: ReplayChunk,
+  withDeclarations = true,
 ): Promise<GenerationContextDependencyContext | undefined> {
-  const service = new PhpDependencyContextService(fakeRepository(replay));
+  const service = new PhpDependencyContextService(fakeRepository(replay, withDeclarations));
   const resolved = await service.resolve(replay.meta.pv, [anchor as never], 'php');
   if (resolved === null) return undefined;
   return {
@@ -175,9 +202,12 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
     if (rows.length === 0) return;
     const lines = rows.map(
       (row) =>
-        `${row.caso} | ${row.target} | entradas=${row.entries.length} | sinResolver=${row.unresolvedCount} | ` +
-        `tokensSeccion=${row.sectionTokens} | contextTokensBase=${row.baselineContextTokens} | extra=${row.extraPercent.toFixed(2)}%` +
-        row.entries.map((e) => `\n    - ${e.typeName} → ${e.fqcn} [${e.origin}, ${e.resolvedBy}]`).join(''),
+        `${row.caso} | ${row.target} | entradas=${row.entries.length} | final=${row.finalCount} | sinResolver=${row.unresolvedCount} | ` +
+        `tokensSeccion=${row.sectionTokens} | tokensSinMarcas=${row.sectionTokensSinMarcas} | finalExtra=${row.finalExtraTokens} | ` +
+        `contextTokensBase=${row.baselineContextTokens} | extra=${row.extraPercent.toFixed(2)}%` +
+        row.entries
+          .map((e) => `\n    - ${e.typeName} → ${e.fqcn} [${e.origin}, ${e.resolvedBy}]${e.final ? ' FINAL' : ''}`)
+          .join(''),
     );
     console.info(`\nReplay WI-CORE-057 (${rows.length} casos)\n${lines.join('\n')}`);
     if (OUT_FILE) writeFileSync(OUT_FILE, JSON.stringify(rows, null, 2));
@@ -212,15 +242,40 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
     const entries = dependencyContext?.entries ?? [];
     const baseCtx = baseline.contextTokens;
     const sectionTokens = dependencyContext?.tokenCount ?? 0;
+    // Línea base sin marcas final: mismo servicio, sin declaraciones del índice.
+    const sinMarcas = await resolveDependencies(replay, anchor, false);
+    const sectionTokensSinMarcas = sinMarcas?.tokenCount ?? 0;
+    const finalEntries = entries.filter((e) => e.final === true).map((e) => e.typeName);
     rows.push({
       caso: name,
       target: `${replay.meta.symbolName.split('\\').pop()}::${replay.meta.methodName}`,
-      entries: entries.map((e) => ({ typeName: e.typeName, fqcn: e.fqcn, origin: e.origin, resolvedBy: e.resolvedBy })),
+      entries: entries.map((e) => ({
+        typeName: e.typeName,
+        fqcn: e.fqcn,
+        origin: e.origin,
+        resolvedBy: e.resolvedBy,
+        final: e.final === true,
+      })),
+      finalCount: finalEntries.length,
+      finalEntries,
       unresolvedCount: dependencyContext?.unresolvedCount ?? 0,
       sectionTokens,
+      sectionTokensSinMarcas,
+      finalExtraTokens: sectionTokens - sectionTokensSinMarcas,
       baselineContextTokens: baseCtx,
       extraPercent: baseCtx > 0 ? (sectionTokens / baseCtx) * 100 : 0,
     });
+
+    // WI-CORE-058: tope de tokens y texto de marca con marcas activas.
+    expect(sectionTokens).toBeLessThanOrEqual(300);
+    if (finalEntries.length > 0) expect(dependencyContext?.text).toContain('final: no se puede mockear');
+
+    // Helper: entrada presente por typeName; `final` según lo esperado.
+    const expectMark = (typeName: string, isFinal: boolean) => {
+      const entry = entries.find((e) => e.typeName === typeName);
+      expect(entry, `${name}: ${typeName} ausente`).toBeDefined();
+      expect(entry?.final === true, `${name}: marca final de ${typeName}`).toBe(isFinal);
+    };
 
     // Afirmaciones específicas de los casos de la aprobación (Fase 2 #1).
     if (name === 'SUB-1' || name === 'SUB-2') {
@@ -233,6 +288,26 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
       );
       expect(entries.some((e) => e.fqcn === 'Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy')).toBe(false);
       expect(dependencyContext?.text).toContain('RenewalDatePolicy → Pilot\\Subscriptions\\Services\\RenewalDatePolicy');
+      expectMark('RenewalDatePolicy', true);
+      expectMark('Subscription', true);
+      expectMark('PaymentGateway', false);
+      expectMark('SubscriptionRepository', false);
+    }
+
+    if (name === 'SUB-3') {
+      expectMark('SubscriptionStatus', true);
+      expectMark('Plan', true);
+    }
+
+    if (name === 'SAL-1') {
+      expectMark('Customer', true);
+      expectMark('Promotion', true);
+    }
+
+    if (name === 'RES-1' || name === 'RES-2') {
+      expectMark('Resource', true);
+      expectMark('ReservationPeriod', true);
+      expectMark('ReservationRepository', false);
     }
 
     if (name === 'SAL-2' || name === 'SAL-3' || name === 'RES-3') {

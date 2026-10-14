@@ -98,6 +98,35 @@ export class CodeChunksRepository {
   }
 
   /**
+   * WI-CORE-058: declaración PHP (CLASS, ENUM, INTERFACE, TRAIT) de cada FQCN pedido, una por símbolo.
+   * Si hay varias, prefiere CLASS/ENUM y la primera parte del chunk.
+   */
+  async findPhpTypeDeclarations(
+    projectVersionId: string,
+    symbolNames: string[],
+  ): Promise<Array<{ symbolName: string; symbolKind: string; content: string }>> {
+    if (symbolNames.length === 0) return [];
+    const rows = await this.prisma.codeChunk.findMany({
+      where: {
+        projectVersionId,
+        symbolKind: { in: PHP_TYPE_SYMBOL_KINDS },
+        symbolName: { in: [...new Set(symbolNames)] },
+        filePath: { endsWith: '.php' },
+      },
+      select: { symbolName: true, symbolKind: true, content: true, partIndex: true },
+      orderBy: { partIndex: 'asc' },
+    });
+    const rank = (kind: string): number => (kind === 'CLASS' || kind === 'ENUM' ? 0 : 1);
+    const sorted = [...rows].sort((a, b) => rank(a.symbolKind) - rank(b.symbolKind));
+    const bySymbol = new Map<string, { symbolName: string; symbolKind: string; content: string }>();
+    for (const row of sorted) {
+      if (row.symbolName === null || bySymbol.has(row.symbolName)) continue;
+      bySymbol.set(row.symbolName, { symbolName: row.symbolName, symbolKind: row.symbolKind, content: row.content });
+    }
+    return [...bySymbol.values()];
+  }
+
+  /**
    * Similitud coseno de pgvector (`<=>`) contra el embedding de un chunk ancla,
    * excluyendo ese mismo chunk y cualquier parte hermana de un mismo símbolo
    * oversized (mismo filePath/symbolKind/symbolName/parentSymbolName).

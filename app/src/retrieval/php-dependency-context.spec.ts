@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyDependencyTokenCap,
   countPhpDependencyTokens,
+  isFinalPhpDeclaration,
   renderPhpDependencySection,
   resolvePhpDependencies,
   type PhpDependencyEntry,
@@ -236,5 +237,110 @@ describe('applyDependencyTokenCap', () => {
 
     expect(applyDependencyTokenCap(entries, 300)).toMatchObject({ entries, truncated: false });
     expect(applyDependencyTokenCap([], 300)).toEqual({ entries: [], truncated: false, tokenCount: 0 });
+  });
+});
+
+describe('isFinalPhpDeclaration (WI-CORE-058, INTEROP-2.15)', () => {
+  it.each([
+    ['final class Policy {}'],
+    ['final readonly class Policy {}'],
+    ['readonly final class Policy {}'],
+    ['#[Attribute]\nfinal class Policy {}'],
+    ['#[Config(options: [1, [2, 3]], name: "x]")]\nfinal class Policy {}'],
+    ['/** Docblock de la clase. */\nfinal class Policy {}'],
+    ['// comentario\n# comentario\n/* bloque */\nfinal class Policy {}'],
+    ['  \n\t final   class Policy {}'],
+  ])('marca como final la declaración %j', (content) => {
+    expect(isFinalPhpDeclaration(content, 'CLASS')).toBe(true);
+  });
+
+  it('marca como final una enumeración por symbolKind, aunque el contenido no lo muestre', () => {
+    expect(isFinalPhpDeclaration('enum Status: string { case Open = "o"; }', 'ENUM')).toBe(true);
+  });
+
+  it.each([
+    ['abstract class Policy {}'],
+    ['abstract readonly class Policy {}'],
+    ['readonly class Policy {}'],
+    ['class Policy {}'],
+    ['#[Attribute]\nclass Policy {}'],
+    ['interface Policy {}'],
+    ['trait Policy {}'],
+    ['/** final class en un comentario */\nclass Policy {}'],
+  ])('no marca %j', (content) => {
+    expect(isFinalPhpDeclaration(content, 'CLASS')).toBe(false);
+  });
+
+  it('no marca interface ni trait aunque el symbolKind lo indique', () => {
+    expect(isFinalPhpDeclaration('interface PaymentGateway {}', 'INTERFACE')).toBe(false);
+    expect(isFinalPhpDeclaration('trait Audits {}', 'TRAIT')).toBe(false);
+  });
+
+  it('devuelve false sin lanzar para texto vacío, basura o entradas incompletas', () => {
+    expect(isFinalPhpDeclaration('', 'CLASS')).toBe(false);
+    expect(isFinalPhpDeclaration('final', 'CLASS')).toBe(false);
+    expect(isFinalPhpDeclaration('#[Unclosed(', 'CLASS')).toBe(false);
+    expect(isFinalPhpDeclaration('/* sin cerrar final class X {}', 'CLASS')).toBe(false);
+    expect(isFinalPhpDeclaration('@@@ ### %%%', 'CLASS')).toBe(false);
+    expect(() => isFinalPhpDeclaration('\u0000￿', 'CLASS')).not.toThrow();
+    expect(isFinalPhpDeclaration(undefined as unknown as string, 'CLASS')).toBe(false);
+  });
+});
+
+describe('resolvePhpDependencies finalTypes (WI-CORE-058)', () => {
+  it('marca final solo las entradas cuyo FQCN está en finalTypes', () => {
+    const result = resolvePhpDependencies(
+      RENEWAL_FIXTURE_WITH_FINALS(),
+    );
+
+    expect(result.entries.map((entry) => [entry.typeName, entry.final])).toEqual([
+      ['PaymentGateway', undefined],
+      ['SubscriptionRepository', undefined],
+      ['RenewalDatePolicy', true],
+      ['Subscription', undefined],
+    ]);
+    // La clave `final` solo existe cuando es true.
+    expect('final' in result.entries[0]).toBe(false);
+    expect(result.entries[2].final).toBe(true);
+  });
+
+  it('no marca nada sin finalTypes', () => {
+    const result = resolvePhpDependencies(RENEWAL_FIXTURE());
+    expect(result.entries.some((entry) => 'final' in entry)).toBe(false);
+  });
+});
+
+function RENEWAL_FIXTURE_WITH_FINALS() {
+  return { ...RENEWAL_FIXTURE(), finalTypes: new Set([`${NS}\\RenewalDatePolicy`]) };
+}
+
+describe('renderPhpDependencySection final mark (WI-CORE-058)', () => {
+  const finalSuffix = ' — final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)';
+
+  it('agrega la marca solo a las entradas finales', () => {
+    const text = renderPhpDependencySection([
+      { typeName: 'Policy', fqcn: 'App\\Policy', origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', final: true },
+      { typeName: 'Gateway', fqcn: 'App\\Gateway', origin: 'METHOD_SIGNATURE', resolvedBy: 'IMPORT' },
+    ]);
+
+    expect(text).toContain(`- Policy → App\\Policy (constructor)${finalSuffix}`);
+    expect(text.split('\n').at(-1)).toBe('- Gateway → App\\Gateway (firma del método)');
+  });
+
+  it('mantiene tokens ≤ 300 con marcas al recortar y refleja tokenCount del texto marcado', () => {
+    const entries = Array.from({ length: 20 }, (_, index) => ({
+      typeName: `VeryLongDependencyTypeName${index}`,
+      fqcn: `Pilot\\Subscriptions\\Domain\\Contracts\\VeryLongDependencyTypeName${index}`,
+      origin: 'METHOD_SIGNATURE' as const,
+      resolvedBy: 'IMPORT' as const,
+      final: true as const,
+    }));
+
+    const capped = applyDependencyTokenCap(entries, 300);
+
+    expect(capped.truncated).toBe(true);
+    expect(capped.tokenCount).toBeLessThanOrEqual(300);
+    expect(capped.tokenCount).toBe(countPhpDependencyTokens(renderPhpDependencySection(capped.entries)));
+    expect(renderPhpDependencySection(capped.entries)).toContain('no se puede mockear');
   });
 });

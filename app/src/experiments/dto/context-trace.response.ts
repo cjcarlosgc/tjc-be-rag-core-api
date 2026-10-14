@@ -69,6 +69,8 @@ export interface RagDependencyEntryResponse {
   fqcn: string;
   origin: RagDependencyOrigin;
   resolvedBy: RagDependencyResolvedBy;
+  /** INTEROP-2.15 (WI-CORE-058): presente solo cuando el tipo es final o enum según el índice; ausente = no determinado o no final. */
+  final?: true;
 }
 
 /** INTEROP-2.14 (WI-CORE-057): contexto no rankeado; no cuenta en contextTokens. */

@@ -14,6 +14,8 @@ export interface PhpDependencyEntry {
   fqcn: string;
   origin: PhpDependencyOrigin;
   resolvedBy: PhpDependencyResolvedBy;
+  /** WI-CORE-058 (INTEROP-2.15): presente solo cuando es true; el tipo es final o enum según el índice. */
+  final?: true;
 }
 
 export interface PhpDependencySourceChunk {
@@ -29,6 +31,8 @@ export interface ResolvePhpDependenciesInput {
   methodChunk: PhpDependencySourceChunk;
   /** FQCN de los tipos CLASS/INTERFACE/TRAIT/ENUM PHP de la versión, sin barra inicial. */
   knownTypes: ReadonlySet<string>;
+  /** WI-CORE-058: FQCN determinados como final (o enum) desde el índice; el resolutor no consulta repositorios. */
+  finalTypes?: ReadonlySet<string>;
 }
 
 export interface ResolvePhpDependenciesResult {
@@ -48,6 +52,9 @@ export const MAX_PHP_DEPENDENCY_TOKENS = 300;
 
 const SECTION_HEADER =
   'Dependencias del código objetivo (nombres completos de clase; usa exactamente estos nombres en los `use`):';
+
+const FINAL_MARK =
+  ' — final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)';
 
 const SCALAR_OR_PSEUDO_TYPES = new Set([
   'int', 'float', 'string', 'bool', 'array', 'callable', 'iterable', 'mixed', 'object', 'void', 'never',
@@ -98,6 +105,7 @@ export function resolvePhpDependencies(input: ResolvePhpDependenciesInput): Reso
       fqcn: resolution.fqcn,
       origin: candidate.origin,
       resolvedBy: resolution.resolvedBy,
+      ...(input.finalTypes?.has(resolution.fqcn) ? { final: true as const } : {}),
     });
   }
 
@@ -114,9 +122,80 @@ export function resolvePhpDependencies(input: ResolvePhpDependenciesInput): Reso
 export function renderPhpDependencySection(entries: readonly PhpDependencyEntry[]): string {
   if (entries.length === 0) return '';
   const lines = entries.map(
-    (entry) => `- ${entry.typeName} → ${entry.fqcn} (${entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'})`,
+    (entry) =>
+      `- ${entry.typeName} → ${entry.fqcn} (${entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'})` +
+      (entry.final === true ? FINAL_MARK : ''),
   );
   return [SECTION_HEADER, ...lines].join('\n');
+}
+
+/**
+ * WI-CORE-058 (INTEROP-2.15): true solo si la declaración es un enum (`symbolKind` ENUM) o si, tras
+ * espacios, comentarios y atributos `#[...]`, empieza con modificadores que incluyen `final` y luego
+ * `class` (`final class`, `final readonly class`, `readonly final class`). `abstract`, `readonly` sin
+ * `final`, `class`, `interface` y `trait` dan false. Nunca lanza.
+ */
+export function isFinalPhpDeclaration(content: string, symbolKind: string): boolean {
+  try {
+    if (symbolKind === 'ENUM') return true;
+    if (typeof content !== 'string') return false;
+    const declaration = stripLeadingPhpNoise(content);
+    const match = /^((?:(?:final|readonly|abstract)\s+)+)class\s/i.exec(declaration);
+    if (!match) return false;
+    const modifiers = match[1].toLowerCase().split(/\s+/).filter((word) => word !== '');
+    return modifiers.includes('final') && !modifiers.includes('abstract');
+  } catch {
+    return false;
+  }
+}
+
+// Quita espacios, comentarios de línea (// y # sin [), de bloque y docblocks, y atributos #[...] iniciales.
+function stripLeadingPhpNoise(content: string): string {
+  let rest = content;
+  for (let guard = 0; guard < 10_000; guard += 1) {
+    rest = rest.replace(/^\s+/, '');
+    if (rest.startsWith('//') || (rest.startsWith('#') && !rest.startsWith('#['))) {
+      const newline = rest.indexOf('\n');
+      if (newline < 0) return '';
+      rest = rest.slice(newline + 1);
+      continue;
+    }
+    if (rest.startsWith('/*')) {
+      const end = rest.indexOf('*/', 2);
+      if (end < 0) return '';
+      rest = rest.slice(end + 2);
+      continue;
+    }
+    if (rest.startsWith('#[')) {
+      const end = findAttributeEnd(rest);
+      if (end < 0) return '';
+      rest = rest.slice(end + 1);
+      continue;
+    }
+    return rest;
+  }
+  return '';
+}
+
+/** Índice del `]` que cierra el `#[` inicial, con corchetes anidados y cadenas entre comillas. */
+function findAttributeEnd(text: string): number {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = 1; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote !== null) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '[') depth += 1;
+    else if (char === ']') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
 }
 
 /** Tokens de la sección con el mismo tokenizador que los chunks (`cl100k_base`). */

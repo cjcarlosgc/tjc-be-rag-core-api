@@ -840,3 +840,60 @@ describe('ContextTracesService dependencyContext (WI-CORE-057, INTEROP-2.14)', (
     expect((detail as { contextTokens: number }).contextTokens).toBe(20);
   });
 });
+
+describe('ContextTracesService dependencyContext final (WI-CORE-058, INTEROP-2.15)', () => {
+  const baseEntry = {
+    typeName: 'RenewalDatePolicy',
+    fqcn: 'Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy',
+    origin: 'CONSTRUCTOR',
+    resolvedBy: 'SAME_NAMESPACE',
+  };
+
+  function ragWithEntry(entry: unknown) {
+    return makeTrace('RAG', {
+      detail: {
+        target: { chunkIds: ['target-chunk'], excerpt: makeNullLineExcerpt(), tokenCount: 12 },
+        candidates: [],
+        retrievedChunks: 0,
+        selectedChunks: 0,
+        contextTokens: 20,
+        configuration: {
+          minimumScore: 0.1,
+          topK: 5,
+          maxContextTokens: 100,
+          semanticWeight: 0.7,
+          structuralWeight: 0.3,
+        },
+        dependencyContext: { entries: [entry], unresolvedCount: 0, tokenCount: 42, truncated: false },
+      },
+    });
+  }
+
+  async function detailEntry(entry: unknown): Promise<Record<string, unknown>> {
+    const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(ragWithEntry(entry)) } });
+    const detail = (await service.getContextTraceDetail('trace-1', USER_ID)) as unknown as {
+      dependencyContext: { entries: Record<string, unknown>[] };
+    };
+    return detail.dependencyContext.entries[0];
+  }
+
+  it('keeps a previous trace without final as it was, with no final key', async () => {
+    const entry = await detailEntry(baseEntry);
+
+    expect(entry).toEqual(baseEntry);
+    expect(entry).not.toHaveProperty('final');
+  });
+
+  it('exposes final true when the stored entry carries it', async () => {
+    const entry = await detailEntry({ ...baseEntry, final: true });
+
+    expect(entry).toEqual({ ...baseEntry, final: true });
+  });
+
+  it.each([[false], [null], ['yes'], [1]])('omits final for the stored value %j without invalidating the entry', async (value) => {
+    const entry = await detailEntry({ ...baseEntry, final: value });
+
+    expect(entry).toEqual(baseEntry);
+    expect(entry).not.toHaveProperty('final');
+  });
+});

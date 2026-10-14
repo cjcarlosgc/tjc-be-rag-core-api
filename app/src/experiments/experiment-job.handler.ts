@@ -1411,6 +1411,8 @@ export class ExperimentJobHandler
                 fqcn: entry.fqcn,
                 origin: entry.origin,
                 resolvedBy: entry.resolvedBy,
+                // WI-CORE-058 (INTEROP-2.15): solo se persiste `true`; nunca `final: false`.
+                ...(entry.final === true ? { final: true as const } : {}),
               })),
               unresolvedCount: dependency.unresolvedCount,
               tokenCount: dependency.tokenCount,
