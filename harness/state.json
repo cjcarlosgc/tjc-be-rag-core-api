@@ -16814,187 +16814,229 @@
         "spec/contracts/interoperability-contract.md"
       ],
       "closedAt": "2026-10-14T06:52:24.000Z"
+    },
+    {
+      "id": "WI-CORE-063",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "priority": "P2",
+      "title": "Replay de calibración offline del RAG (métricas M1–M6) en harness/",
+      "approved": true,
+      "storyIds": [
+        "HU05",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-070"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-063-scope-approval.md",
+        "harness/reports/fase3-calibracion-rag-diagnostico.md",
+        "harness/reports/fase2-01-replay-colaboradores.py",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "harness/reports/wi-core-063-contract-sync-scope-review.md",
+        "harness/reports/wi-core-063-technical-checks.md",
+        "harness/reports/wi-core-063-calibracion-baseline.md",
+        "harness/calibration/lib.mjs",
+        "harness/calibration/calibrate.mjs",
+        "harness/calibration/extract-experiments.sh",
+        "harness/calibration/README.md",
+        "harness/calibration/calibration.test.mjs",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-063-independent-review.md",
+        "harness/reports/wi-core-063-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-063 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-063-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-063 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-063-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-VAL-001"
+        ],
+        "checkedAt": "2026-10-14T07:22:14.000Z",
+        "note": "Alcance aprobado por el usuario; DEC-VAL-001 no bloquea (sin código empresarial)."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Replay de calibracion offline M1-M6 en harness/calibration; linea base 10/10; M6 con precision observada."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/calibration/lib.mjs",
+              "harness/calibration/calibrate.mjs",
+              "harness/calibration/extract-experiments.sh",
+              "harness/calibration/README.md",
+              "harness/calibration/calibration.test.mjs"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-063-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: revision independiente delegada aprobada sin blockers; ver informe."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-063-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar por el Modo fuera de casa.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-063",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-14T07:22:14.547Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-063",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-14T07:35:08.771Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-063",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-14T07:35:08.897Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-063",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-14T07:38:37.796Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-063-scope-approval.md",
+        "harness/reports/wi-core-063-technical-checks.md",
+        "harness/reports/wi-core-063-independent-review.md",
+        "harness/reports/wi-core-063-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-063-scope-approval.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-063-scope-approval.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-063-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-063-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-063-contract-sync-scope-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-063-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-063-independent-review.md",
+          "harness/reports/wi-core-063-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-14T07:38:39.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-063",
-    "component": "CORE",
-    "workItemType": "HARNESS",
-    "status": "W-IN_REVIEW",
-    "priority": "P2",
-    "title": "Replay de calibración offline del RAG (métricas M1–M6) en harness/",
-    "approved": true,
-    "storyIds": [
-      "HU05",
-      "HU15",
-      "HU17"
-    ],
-    "taskIds": [
-      "ST-CORE-070"
-    ],
-    "caseIds": [],
-    "sprint": "P2",
-    "specPaths": [
-      "harness/reports/wi-core-063-scope-approval.md",
-      "harness/reports/fase3-calibracion-rag-diagnostico.md",
-      "harness/reports/fase2-01-replay-colaboradores.py",
-      "spec/features/004-rag-retrieval-context/tasks.md",
-      "harness/reports/wi-core-063-contract-sync-scope-review.md",
-      "harness/reports/wi-core-063-technical-checks.md",
-      "harness/reports/wi-core-063-calibracion-baseline.md",
-      "harness/calibration/lib.mjs",
-      "harness/calibration/calibrate.mjs",
-      "harness/calibration/extract-experiments.sh",
-      "harness/calibration/README.md",
-      "harness/calibration/calibration.test.mjs",
-      "CHANGELOG.md"
-    ],
-    "transversalPaths": [],
-    "deferredSyncIds": [],
-    "deferredSyncDigests": {},
-    "contractSyncReview": [
-      {
-        "eventId": "CS-20260920-001",
-        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
-        "disposition": "NOT_RELEVANT",
-        "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-063 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
-        "report": "harness/reports/wi-core-063-contract-sync-scope-review.md"
-      },
-      {
-        "eventId": "CS-20260921-003",
-        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
-        "disposition": "NOT_RELEVANT",
-        "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-063 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
-        "report": "harness/reports/wi-core-063-contract-sync-scope-review.md"
-      }
-    ],
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [
-        "DEC-VAL-001"
-      ],
-      "checkedAt": "2026-10-14T07:22:14.000Z",
-      "note": "Alcance aprobado por el usuario; DEC-VAL-001 no bloquea (sin código empresarial)."
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer",
-      "contractReviewAgent": null,
-      "reviewAgent": "reviewer",
-      "handoffs": [
-        {
-          "agent": "implementer",
-          "status": "APPROVED",
-          "findings": [
-            "Replay de calibracion offline M1-M6 en harness/calibration; linea base 10/10; M6 con precision observada."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "harness/calibration/lib.mjs",
-            "harness/calibration/calibrate.mjs",
-            "harness/calibration/extract-experiments.sh",
-            "harness/calibration/README.md",
-            "harness/calibration/calibration.test.mjs"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-063-technical-checks.md"
-          ],
-          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
-          "executedBy": {
-            "agent": "implementer",
-            "configuredModel": "claude-haiku-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        }
-      ],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-NOT_APPLICABLE",
-      "canonicalContractSynced": "G-NOT_APPLICABLE",
-      "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-PASSED",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-PASSED"
-    },
-    "coordination": {
-      "contractImpact": false,
-      "publishesContract": false,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-063",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-14T07:22:14.547Z"
-        },
-        {
-          "checkpoint": "implementation-delivery",
-          "workItem": "WI-CORE-063",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-14T07:35:08.771Z"
-        },
-        {
-          "checkpoint": "before-review",
-          "workItem": "WI-CORE-063",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "checkedAt": "2026-10-14T07:35:08.897Z"
-        }
-      ],
-      "publishedSyncIds": [],
-      "pendingRelevantSyncIds": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-063-scope-approval.md",
-      "harness/reports/wi-core-063-technical-checks.md"
-    ],
-    "blockedReason": null,
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-063-scope-approval.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-063-scope-approval.md"
-      ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-063-technical-checks.md"
-      ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-063-technical-checks.md"
-      ],
-      "interopSyncChecked": [
-        "harness/reports/wi-core-063-contract-sync-scope-review.md"
-      ],
-      "retryLimitRespected": [
-        "harness/reports/wi-core-063-technical-checks.md"
-      ]
-    }
-  },
+  "activeWorkItem": null,
   "awayMode": {
     "enabled": true,
     "activatedBy": "user",

@@ -3599,7 +3599,7 @@
       "id": "WI-CORE-063",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Replay de calibración offline del RAG (métricas M1–M6) en harness/",
@@ -3636,7 +3636,9 @@
         "harness/calibration/extract-experiments.sh",
         "harness/calibration/README.md",
         "harness/calibration/calibration.test.mjs",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "harness/reports/wi-core-063-independent-review.md",
+        "harness/reports/wi-core-063-closure.md"
       ],
       "contractSyncReview": [
         {
