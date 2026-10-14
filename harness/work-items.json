@@ -3360,7 +3360,7 @@
       "id": "WI-CORE-059",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "inspect_symbol del agente resuelve métodos PHP por nombre simple",
@@ -3392,7 +3392,9 @@
         "app/src/generation/agent/workspace-agent-tools.spec.ts",
         "harness/reports/wi-core-059-contract-sync-scope-review.md",
         "harness/reports/wi-core-059-technical-checks.md",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "harness/reports/wi-core-059-independent-review.md",
+        "harness/reports/wi-core-059-closure.md"
       ],
       "contractSyncReview": [
         {

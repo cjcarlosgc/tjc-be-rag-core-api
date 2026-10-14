@@ -12,7 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
-- **WI-CORE-059 — `inspect_symbol` resuelve métodos PHP por nombre simple (2026-10-13, en revisión):** cuando no hay tipo ni función con ese nombre, el agente generalista encuentra el método (`applyPendingPlan`, `total`); con varios, devuelve el primero por ruta e indica «Ambiguo: N coincidencias» con las rutas; nombres calificados, TypeScript y las demás herramientas sin cambio; descripción del esquema actualizada; spec 018 §5 enmendada. Sin cambios de ranking, R-PHP, métricas ni contrato.
+- **WI-CORE-059 — inspect_symbol resuelve métodos PHP por nombre simple (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-058 — marca final en las dependencias PHP del contexto RAG, INTEROP-2.15 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-003) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-057 — dependencias PHP con FQCN en el contexto RAG y la traza, INTEROP-2.14 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-002) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-056 — análisis del ruido del contexto RAG con simulación offline (informe; revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
