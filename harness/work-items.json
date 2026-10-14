@@ -3594,6 +3594,91 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-062-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-063",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Replay de calibración offline del RAG (métricas M1–M6) en harness/",
+      "storyIds": [
+        "HU05",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-070"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-058"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/calibration/ con scripts que, sin LLM y sin tocar app/, calculan M1 a M6 sobre los 9 casos V1 y las 6 verificaciones no oficiales a partir de datos externos al repositorio (volcados fuera del repo o reducidos a hashes y metadatos) y comparan una configuración candidata con la línea base persistida.",
+        "M2 se entrega como plantilla manual R1–R5 (no automática); M5 reproduce el top-10 persistido de la línea base en los 9 casos V1 (10/10); M6 aplica reglas estáticas explícitas y documentadas.",
+        "Pruebas del harness con fixtures sintéticos (node --test harness/*.test.mjs sigue verde); informe con cómo ejecutarlo y los resultados de línea base; extracción de la base solo SELECT sin imprimir secretos.",
+        "Sin cambios en app/, ranking, R-PHP, pesos, contratos, migraciones; DEC-RAG-001 PENDING; #4 intacto."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-063-scope-approval.md",
+        "harness/reports/fase3-calibracion-rag-diagnostico.md",
+        "harness/reports/fase2-01-replay-colaboradores.py",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "harness/reports/wi-core-063-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-063 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-063-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-063 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-063-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-063-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-064",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Convenciones PHPUnit en el prompt de generación PHP (RAG y agente, misma redacción)",
+      "storyIds": [
+        "HU05",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-071"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-063"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "El prompt de generación PHP del brazo RAG (buildPhp) y las instrucciones iniciales del agente generalista incluyen, con la MISMA redacción, instrucciones de convención PHPUnit: comparar objetos de valor (DateTimeImmutable, VO) con assertEquals y assertSame solo para escalares o identidad; no crear dobles (createMock/getMockBuilder) de clases final (instanciarlas con new); usar solo FQCN que aparezcan en el contexto y en la sección de dependencias.",
+        "Sin modificar ranking, R-PHP, pesos, topK ni herramientas del agente; la sección de dependencias y su marca final no cambian; el prompt TypeScript no cambia.",
+        "Prueba roja-verde; replay offline con el harness de WI-CORE-063 (M5 top-10 idéntico, M4 tokens extra del prompt, M6); versión del prompt declarada; revisión independiente."
+      ],
+      "specPaths": [
+        "harness/reports/fase3-calibracion-rag-diagnostico.md",
+        "app/src/generation/prompt-builder.service.ts",
+        "spec/features/004-rag-retrieval-context/tasks.md"
+      ]
     }
   ]
 }
