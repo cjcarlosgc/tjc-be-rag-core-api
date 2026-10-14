@@ -12,7 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
-- **WI-CORE-058 — INTEROP-2.15: marca `final` en las dependencias PHP del contexto RAG (2026-10-13, en revisión):** la sección de dependencias indica si el tipo resuelto es `final class`/`final readonly class` o una enumeración (no se puede mockear), determinado desde el chunk de declaración del índice (si no se puede determinar no se afirma); traza aditiva `final?: true`. Motivo: `ClassIsFinalException` causó 3 de 5 fallos RAG en la verificación posterior a `WI-CORE-057`. No cambia el ranking, `topK`, R-PHP1..5, `contextTokens` ni el agente; +24 tokens por marca (tope 300).
+- **WI-CORE-058 — marca final en las dependencias PHP del contexto RAG, INTEROP-2.15 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-003) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-057 — dependencias PHP con FQCN en el contexto RAG y la traza, INTEROP-2.14 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-002) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-056 — análisis del ruido del contexto RAG con simulación offline (informe; revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-053 — evidencia privada por repetición (tabla experiment_repetition_artifacts; migración 20261013100000 sin aplicar; revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**

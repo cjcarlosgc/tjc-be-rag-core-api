@@ -7,4 +7,4 @@
 
 La investigación test-aware permanece como `IDEA-002` y `DEC-RAG-001`; no es parte de este WI.
 - [x] **ST-CORE-064 · T-DONE · WI-CORE-057 · HU05, HU15, HU17:** sección de dependencias con FQCN (tipos del constructor y de la firma del método, verificados contra el índice) en el contexto de generación RAG de PHP y en la traza, sin cambiar el ranking, `topK`, pesos, relaciones R-PHP1..5 ni métricas; `DEC-RAG-001` sigue `PENDING`.
-- [ ] **ST-CORE-065 · T-IN_PROGRESS · WI-CORE-058 · HU05, HU15, HU17:** marcar `final` (clases `final`/`final readonly` y enumeraciones) en las entradas de la sección de dependencias PHP, desde el chunk de declaración del índice, sin cambiar el ranking ni R-PHP; si no se puede determinar no se afirma.
+- [x] **ST-CORE-065 · T-DONE · WI-CORE-058 · HU05, HU15, HU17:** marcar `final` (clases `final`/`final readonly` y enumeraciones) en las entradas de la sección de dependencias PHP, desde el chunk de declaración del índice, sin cambiar el ranking ni R-PHP; si no se puede determinar no se afirma.

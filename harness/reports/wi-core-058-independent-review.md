@@ -27,3 +27,25 @@ Rango: contrato `4b0f34a^..4b0f34a`, código `334708c^..334708c`. Independiente 
 ## Estado y siguiente paso
 - `status`: CHANGES_REQUESTED · `blockers`: ninguno externo · `filesAffected`: `app/src/project-versions/persistence/code-chunks.repository.ts`, `app/src/retrieval/php-dependency-context.service.ts`, specs correspondientes.
 - **recommendedNextStep:** implementer corrige F1 (el repositorio devuelve todas las filas y el servicio no marca un FQCN con más de una declaración de tipo, o devuelve un indicador de ambigüedad; sin cambiar contrato ni spec salvo aclarar «declaración única» en 004 si el leader lo aprueba) y agrega pruebas F2/F3 (duplicado → no marcado, repositorio con prisma simulado, `final function`, >20 FQCN); luego ciclo 2 de revisión. Sin push.
+
+---
+
+# Ciclo 2 de 2 (Modo fuera de casa) — rango `334708c..3d209a4`
+
+**Veredicto final: APPROVED** (con observaciones no bloqueantes). Independiente del implementer. Sin acceso a DB real; sin edición de código ni commit.
+
+## Verificación de F1-F4
+- **F1 corregido.** `findPhpTypeDeclarations` filtra `partIndex: 1`, ordena por `(symbolName, filePath, partIndex)`, agrupa por `symbolName` y omite todo FQCN con más de una declaración (mismo nombre en archivos distintos, o CLASS junto a INTERFACE/TRAIT/ENUM). La ambigüedad vive en el repositorio; el servicio solo consume lo devuelto. Los parsers PHP y TS numeran las partes desde 1 (`partIndex: index + 1`; columna `@default(1)`), por lo que `partIndex = 1` no pierde declaraciones legítimas; una declaración troceada devuelve su parte 1 (donde están los modificadores) y las partes 2+ no cuentan como otra declaración.
+- **F2 cubierto.** El spec con prisma simulado cubre: sin consulta con lista vacía, `where` exacto (versión, kinds, nombres únicos, `.php`, `partIndex: 1`), `select`, `orderBy`, mapeo, omisión por duplicado entre archivos, omisión CLASS+INTERFACE y descarte de partes no iniciales.
+- **F3 aceptado.** Casos de servicio agregados (clase no final con método `final public function` no se marca; >20 FQCN envía 20 únicos). El mutante «quitar `.slice(0, 20)`» del servicio sobrevive: se acepta como equivalente porque el resolutor ya limita a 20 aguas arriba. Sigue sin sonda unitaria de `isFinalPhpDeclaration('final function …', 'CLASS')` (el mutante `class|function` sobrevive); inalcanzable en producción porque el `symbolKind` proviene de tipos, no bloquea.
+- **F4** sin impacto (la consulta ahora solo trae la parte 1).
+
+## Mutantes del repositorio (todos muertos por los specs)
+Sin filtro `partIndex` en `where`; sin descarte de partes no iniciales en el bucle; sin omisión de duplicados (`>= 1`); sin `projectVersionId` (mezcla de versiones/proyectos); sin `endsWith('.php')`; sin `orderBy` determinista. Base 20/20 pasan; cada mutante falla al menos 1 prueba.
+
+## Gates
+`vitest` completo: 144 archivos / 2320 pruebas pasan (104 omitidas); `oxlint src` limpio (exit 0); `tsc --noEmit` delta 0 por archivo contra `334708c` (17 archivos con errores previos idénticos, worktrees desechables con `prisma generate`); `validate-harness` pasa; `node --test harness/*.test.mjs` 31/31. Sin build (por instrucción). Worktrees propios eliminados (queda un worktree ajeno `wt-php` en el scratchpad).
+
+## Pendiente
+- Nada bloqueante. Opcional: sonda unitaria `final function` y retirar o documentar el `slice` redundante del servicio.
+- Aprobación humana de alcance/arquitectura y push siguen reservados al usuario; el Modo fuera de casa no los sustituye.

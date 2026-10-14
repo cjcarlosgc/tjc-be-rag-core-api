@@ -3289,7 +3289,7 @@
       "id": "WI-CORE-058",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Marcar tipos final en la sección de dependencias PHP del contexto RAG",
@@ -3334,7 +3334,9 @@
         "app/src/retrieval/php-dependency-context.service.ts",
         "app/src/retrieval/php-dependency-replay.spec.ts",
         "spec/README.md",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "harness/reports/wi-core-058-independent-review.md",
+        "harness/reports/wi-core-058-closure.md"
       ],
       "contractSyncReview": [
         {
