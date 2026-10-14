@@ -12,6 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **WI-CORE-066 — firma del constructor de dependencias de profundidad 2 en la sección de dependencias del brazo RAG, prompt php-prompt-2026-10-14.5 (revisión independiente delegada por el Modo fuera de casa) (2026-10-14, W-DONE, revisión independiente delegada).**
 - **WI-CORE-065 — firma del constructor en la sección de dependencias del brazo RAG y convenciones PHPUnit sobre final/static en ambos brazos, prompt php-prompt-2026-10-14.4 (revisión independiente delegada por el Modo fuera de casa) (2026-10-14, W-DONE, revisión independiente delegada).**
 - **WI-CORE-064 — convenciones PHPUnit con la misma redacción en el prompt PHP de RAG y del agente, versión php-prompt-2026-10-14.3 (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-063 — replay de calibración offline del RAG en harness/calibration con métricas M1–M6 (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**

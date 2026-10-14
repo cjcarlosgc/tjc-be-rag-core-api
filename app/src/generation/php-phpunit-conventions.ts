@@ -5,7 +5,7 @@
  */
 
 /** Versión declarada de la plantilla del prompt PHP con estas convenciones. */
-export const PHP_PROMPT_CONVENTIONS_VERSION = 'php-prompt-2026-10-14.4';
+export const PHP_PROMPT_CONVENTIONS_VERSION = 'php-prompt-2026-10-14.5';
 
 /** Líneas de convención; cada una es una sección propia del prompt. */
 export const PHP_PHPUNIT_CONVENTION_LINES: readonly string[] = [

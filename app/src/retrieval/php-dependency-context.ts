@@ -18,6 +18,15 @@ export interface PhpDependencyEntry {
   final?: true;
   /** WI-CORE-065: firma del constructor `(…)` sin cuerpo; presente solo si se determinó sin ambigüedad. */
   signature?: string;
+  /** WI-CORE-066: typeName de la dependencia directa de origen; presente solo en profundidad 2. Interno, no va a la traza. */
+  via?: string;
+}
+
+/** WI-CORE-066: FQCN resuelto desde el constructor de una dependencia directa (profundidad 2). */
+export interface PhpConstructorTypeReference {
+  typeName: string;
+  fqcn: string;
+  resolvedBy: PhpDependencyResolvedBy;
 }
 
 export interface PhpDependencySourceChunk {
@@ -44,6 +53,7 @@ export interface ResolvePhpDependenciesResult {
 }
 
 export interface CappedPhpDependencies {
+  /** Directas y de profundidad 2 (`via` definido) que sobreviven al tope, en su orden. */
   entries: PhpDependencyEntry[];
   truncated: boolean;
   tokenCount: number;
@@ -123,13 +133,46 @@ export function resolvePhpDependencies(input: ResolvePhpDependenciesInput): Reso
 /** Texto de la sección; vacío si no hay entradas. */
 export function renderPhpDependencySection(entries: readonly PhpDependencyEntry[]): string {
   if (entries.length === 0) return '';
-  const lines = entries.map(
-    (entry) =>
-      `- ${entry.typeName} → ${entry.fqcn} (${entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'})` +
-      (entry.final === true ? FINAL_MARK : '') +
-      (entry.signature !== undefined ? ` — constructor${entry.signature}` : ''),
-  );
-  return [SECTION_HEADER, ...lines].join('\n');
+  const direct = entries.filter((entry) => entry.via === undefined);
+  const transitive = entries.filter((entry) => entry.via !== undefined);
+  const renderLine = (entry: PhpDependencyEntry): string =>
+    `- ${entry.typeName} → ${entry.fqcn} (${
+      entry.via !== undefined
+        ? `vía ${entry.via}`
+        : entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'
+    })` +
+    (entry.final === true ? FINAL_MARK : '') +
+    (entry.signature !== undefined ? ` — constructor${entry.signature}` : '');
+  return [SECTION_HEADER, ...direct.map(renderLine), ...transitive.map(renderLine)].join('\n');
+}
+
+/**
+ * WI-CORE-066: FQCN de los tipos del constructor de una dependencia directa, con las mismas reglas que
+ * `resolvePhpDependencies` (literal, IMPORT, SAME_NAMESPACE solo si está en `knownTypes`). Sin inventar
+ * nombres, sin duplicados. Nunca lanza.
+ */
+export function resolvePhpConstructorTypes(input: {
+  declaringClass: string;
+  content: string;
+  importsUsed: readonly string[];
+  knownTypes: ReadonlySet<string>;
+}): PhpConstructorTypeReference[] {
+  try {
+    const context = buildContextFromImports(input.declaringClass, input.importsUsed, input.knownTypes);
+    const seen = new Map<string, PhpConstructorTypeReference>();
+    for (const candidate of extractTypeNames(input.content, 'CONSTRUCTOR')) {
+      const resolution = resolveName(candidate.rawName, context);
+      if (resolution.kind !== 'resolved' || seen.has(resolution.fqcn)) continue;
+      seen.set(resolution.fqcn, {
+        typeName: candidate.shortName,
+        fqcn: resolution.fqcn,
+        resolvedBy: resolution.resolvedBy,
+      });
+    }
+    return [...seen.values()];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -308,6 +351,14 @@ export function applyDependencyTokenCap(
   let truncated = false;
   const exceeds = (): boolean => countPhpDependencyTokens(renderPhpDependencySection(kept)) > maxTokens;
 
+  // WI-CORE-066: primero se retiran las de profundidad 2, de la última hacia la primera.
+  for (let index = kept.length - 1; index >= 0 && exceeds(); index -= 1) {
+    if (kept[index].via !== undefined) {
+      kept.splice(index, 1);
+      truncated = true;
+    }
+  }
+  // Después, la política vigente sobre las directas: firmas de atrás hacia adelante, luego entradas.
   for (let index = kept.length - 1; index >= 0 && exceeds(); index -= 1) {
     if (kept[index].signature !== undefined) {
       delete kept[index].signature;
@@ -326,21 +377,32 @@ export function applyDependencyTokenCap(
 }
 
 function buildResolutionContext(input: ResolvePhpDependenciesInput): ResolutionContext {
+  return buildContextFromImports(
+    input.declaringClass,
+    [
+      ...input.classImports,
+      ...(input.constructorChunk?.importsUsed ?? []),
+      ...input.methodChunk.importsUsed,
+    ],
+    input.knownTypes,
+  );
+}
+
+function buildContextFromImports(
+  declaringClass: string,
+  allImports: readonly string[],
+  knownTypes: ReadonlySet<string>,
+): ResolutionContext {
   const importByShortName = new Map<string, string>();
-  const allImports = [
-    ...input.classImports,
-    ...(input.constructorChunk?.importsUsed ?? []),
-    ...input.methodChunk.importsUsed,
-  ];
   for (const rawImport of allImports) {
     const fqcn = rawImport.replace(/^\\/, '');
     const shortName = fqcn.slice(fqcn.lastIndexOf('\\') + 1);
     if (!importByShortName.has(shortName)) importByShortName.set(shortName, fqcn);
   }
 
-  const separator = input.declaringClass.lastIndexOf('\\');
-  const declaringNamespacePrefix = separator >= 0 ? `${input.declaringClass.slice(0, separator)}\\` : '';
-  return { declaringNamespacePrefix, importByShortName, knownTypes: input.knownTypes };
+  const separator = declaringClass.lastIndexOf('\\');
+  const declaringNamespacePrefix = separator >= 0 ? `${declaringClass.slice(0, separator)}\\` : '';
+  return { declaringNamespacePrefix, importByShortName, knownTypes };
 }
 
 function resolveName(rawName: string, context: ResolutionContext): NameResolution {

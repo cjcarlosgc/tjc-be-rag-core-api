@@ -83,6 +83,18 @@ export interface GenerationContextDependencyContext {
     resolvedBy: 'LITERAL' | 'IMPORT' | 'SAME_NAMESPACE';
     /** WI-CORE-058 (INTEROP-2.15): solo `true` cuando el índice lo determina como final o enum. */
     final?: true;
+    /** WI-CORE-065: firma del constructor, solo si se determinó sin ambigüedad. */
+    signature?: string;
+  }>;
+  /** WI-CORE-066: profundidad 2 (tipos del constructor de una directa), interna; no va a la traza. */
+  transitiveEntries?: Array<{
+    typeName: string;
+    fqcn: string;
+    origin: 'CONSTRUCTOR' | 'METHOD_SIGNATURE';
+    resolvedBy: 'LITERAL' | 'IMPORT' | 'SAME_NAMESPACE';
+    final?: true;
+    signature?: string;
+    via?: string;
   }>;
   unresolvedCount: number;
   tokenCount: number;
