@@ -16,5 +16,6 @@ originalPath: tjc-be-test-execution-sandbox/harness/contract-sync/outbox/CS-SAND
 originalSha256: eb0c8a255cc4e5daed4c6105a733bde5bf2d3e1f0b7c98bcd5082575c41ecf8e
 transcription: transcrito por Core con autorizacion del usuario (2026-10-14) desde el JSON original; scopePaths derivado del texto «INTEROP section 7.3»; ver harness/reports/wi-core-062-transcription-cs-sandbox-20261014-001.md
 consumerImportedAt: 2026-10-14T06:49:01.000Z
-status: C-ACKNOWLEDGED
+status: C-RESOLVED
 acknowledgementEvidence: harness/reports/wi-core-062-transcription-cs-sandbox-20261014-001.md
+resolutionEvidence: harness/reports/wi-core-062-technical-checks.md

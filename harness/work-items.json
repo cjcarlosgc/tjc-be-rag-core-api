@@ -3534,7 +3534,7 @@
       "id": "WI-CORE-062",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Transcribir CS-SANDBOX-20261014-001 e incorporar los tiempos por etapa a INTEROP-2.16",
@@ -3567,7 +3567,13 @@
         "harness/reports/wi-core-062-scope-approval.md",
         "harness/reports/wi-core-062-transcription-cs-sandbox-20261014-001.md",
         "harness/contract-sync/inbox/CS-SANDBOX-20261014-001.yaml",
-        "harness/reports/wi-core-062-contract-sync-scope-review.md"
+        "harness/reports/wi-core-062-contract-sync-scope-review.md",
+        "harness/reports/wi-core-062-contract-review.md",
+        "harness/reports/contract-sync-publish-cs-core-20261014-001.md",
+        "harness/reports/wi-core-062-technical-checks.md",
+        "harness/reports/wi-core-062-contract-proposal.md",
+        "harness/contract-sync/outbox/CS-CORE-20261014-001.yaml",
+        "spec/features/013-pr-driven-analysis/spec.md"
       ],
       "contractSyncReview": [
         {
