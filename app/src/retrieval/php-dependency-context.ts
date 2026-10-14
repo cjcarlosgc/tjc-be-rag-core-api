@@ -16,6 +16,8 @@ export interface PhpDependencyEntry {
   resolvedBy: PhpDependencyResolvedBy;
   /** WI-CORE-058 (INTEROP-2.15): presente solo cuando es true; el tipo es final o enum según el índice. */
   final?: true;
+  /** WI-CORE-068: interno, no va a la traza; presente solo si el índice declara el tipo como ENUM (con `final: true`). */
+  enum?: true;
   /** WI-CORE-065: firma del constructor `(…)` sin cuerpo; presente solo si se determinó sin ambigüedad. */
   signature?: string;
   /** WI-CORE-066: typeName de la dependencia directa de origen; presente solo en profundidad 2. Interno, no va a la traza. */
@@ -44,6 +46,8 @@ export interface ResolvePhpDependenciesInput {
   knownTypes: ReadonlySet<string>;
   /** WI-CORE-058: FQCN determinados como final (o enum) desde el índice; el resolutor no consulta repositorios. */
   finalTypes?: ReadonlySet<string>;
+  /** WI-CORE-068: FQCN declarados como ENUM en el índice (subconjunto de finalTypes); el resolutor no consulta repositorios. */
+  enumTypes?: ReadonlySet<string>;
 }
 
 export interface ResolvePhpDependenciesResult {
@@ -65,8 +69,9 @@ export const MAX_PHP_DEPENDENCY_TOKENS = 300;
 const SECTION_HEADER =
   'Dependencias del código objetivo (nombres completos de clase; usa exactamente estos nombres en los `use`):';
 
-const FINAL_MARK =
-  ' — final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)';
+const FINAL_MARK = ' — final: no se puede mockear; usa una instancia real con new';
+
+const ENUM_MARK = ' — enum: no se puede mockear ni instanciar con new; usa un caso (Enum::Caso)';
 
 const SCALAR_OR_PSEUDO_TYPES = new Set([
   'int', 'float', 'string', 'bool', 'array', 'callable', 'iterable', 'mixed', 'object', 'void', 'never',
@@ -118,6 +123,7 @@ export function resolvePhpDependencies(input: ResolvePhpDependenciesInput): Reso
       origin: candidate.origin,
       resolvedBy: resolution.resolvedBy,
       ...(input.finalTypes?.has(resolution.fqcn) ? { final: true as const } : {}),
+      ...(input.enumTypes?.has(resolution.fqcn) ? { enum: true as const } : {}),
     });
   }
 
@@ -141,7 +147,7 @@ export function renderPhpDependencySection(entries: readonly PhpDependencyEntry[
         ? `vía ${entry.via}`
         : entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'
     })` +
-    (entry.final === true ? FINAL_MARK : '') +
+    (entry.enum === true ? ENUM_MARK : entry.final === true ? FINAL_MARK : '') +
     (entry.signature !== undefined ? ` — constructor${entry.signature}` : '');
   return [SECTION_HEADER, ...direct.map(renderLine), ...transitive.map(renderLine)].join('\n');
 }

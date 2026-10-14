@@ -941,3 +941,43 @@ describe('ContextTracesService dependencyContext signature (WI-CORE-065)', () =>
     });
   });
 });
+
+describe('ContextTracesService dependencyContext enum (WI-CORE-068)', () => {
+  const baseEntry = {
+    typeName: 'SubscriptionStatus',
+    fqcn: 'Pilot\\Subscriptions\\Domain\\SubscriptionStatus',
+    origin: 'CONSTRUCTOR',
+    resolvedBy: 'IMPORT',
+  };
+
+  it('expone final true para un enum y no expone la marca interna enum', async () => {
+    const { service } = makeService({
+      reads: {
+        findForOwner: vi.fn().mockResolvedValue(
+          makeTrace('RAG', {
+            detail: {
+              target: { chunkIds: ['target-chunk'], excerpt: makeNullLineExcerpt(), tokenCount: 12 },
+              candidates: [],
+              retrievedChunks: 0,
+              selectedChunks: 0,
+              contextTokens: 20,
+              configuration: { minimumScore: 0.1, topK: 5, maxContextTokens: 100, semanticWeight: 0.7, structuralWeight: 0.3 },
+              dependencyContext: {
+                entries: [{ ...baseEntry, final: true, enum: true }],
+                unresolvedCount: 0,
+                tokenCount: 42,
+                truncated: false,
+              },
+            },
+          }),
+        ),
+      },
+    });
+    const detail = (await service.getContextTraceDetail('trace-1', USER_ID)) as unknown as {
+      dependencyContext: { entries: Record<string, unknown>[] };
+    };
+
+    expect(detail.dependencyContext.entries[0]).toEqual({ ...baseEntry, final: true });
+    expect(detail.dependencyContext.entries[0]).not.toHaveProperty('enum');
+  });
+});

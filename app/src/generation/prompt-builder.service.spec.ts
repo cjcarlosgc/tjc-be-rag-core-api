@@ -321,7 +321,7 @@ describe('PromptBuilder PHP final mark (WI-CORE-058)', () => {
   it('includes the final mark produced by the dependency section in the PHP prompt', () => {
     const text = [
       'Dependencias del código objetivo (nombres completos de clase; usa exactamente estos nombres en los `use`):',
-      '- RenewalDatePolicy → Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy (constructor) — final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)',
+      '- RenewalDatePolicy → Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy (constructor) — final: no se puede mockear; usa una instancia real con new',
     ].join('\n');
     const context = makeContext({
       target: {
@@ -351,7 +351,7 @@ describe('PromptBuilder PHP final mark (WI-CORE-058)', () => {
 
     const prompt = new PromptBuilder().build(context);
 
-    expect(prompt).toContain('— final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)');
+    expect(prompt).toContain('— final: no se puede mockear; usa una instancia real con new');
   });
 });
 
@@ -376,7 +376,7 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
   };
 
   it('exports the prompt version constant (i)', () => {
-    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.6');
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.7');
   });
 
   it('exports exactly the five convention lines in the agreed wording (v)', () => {
@@ -407,7 +407,7 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
   });
 
   it('la versión .6 se refleja en el prompt de ambos brazos con la misma redacción (WI-CORE-067)', () => {
-    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.6');
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.7');
     const prompt = new PromptBuilder().build(phpBase(), options);
     expect(prompt).toContain(LINES[1]);
     expect(prompt).toContain(LINES[3]);

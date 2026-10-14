@@ -3898,6 +3898,65 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-067-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-068",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Marca de enum en la sección de dependencias: usa un caso, nunca new",
+      "storyIds": [
+        "HU05",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-075"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-067"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "La sección de dependencias del brazo RAG renderiza, para los tipos ENUM (según symbolKind del chunk de declaración), «— enum: no se puede mockear ni instanciar con new; usa un caso (Enum::Caso)»; las final class mantienen su texto sin mención a enums.",
+        "La traza sigue exponiendo final: true como hoy; sin campo nuevo, DTO ni contrato; sin cambios en recuperación, ranking, pesos, R-PHP, targets, convenciones ni agente.",
+        "Versión del prompt php-prompt-2026-10-14.7 en constante y spec 004; tokens extra por caso informados (≈ 0); tope de 300 tokens vigente.",
+        "Pruebas rojo-verde (SubscriptionStatus enum, final class, enum+clase, tope, traza sin cambios); medición en harness/calibration (M5 idéntico, M4 por caso, sin regresión de reglas); revisión independiente; criterio de verificación para un experimento no oficial."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-068-scope-approval.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "app/src/retrieval/php-dependency-context.ts",
+        "app/src/retrieval/php-dependency-context.service.ts",
+        "app/src/generation/php-phpunit-conventions.ts",
+        "harness/reports/wi-core-068-contract-sync-scope-review.md",
+        "harness/reports/wi-core-068-technical-checks.md",
+        "harness/reports/wi-core-068-replay-y-verificacion.md",
+        "harness/reports/wi-core-068-independent-review.md",
+        "harness/reports/wi-core-068-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-068 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-068-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-068 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-068-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-068-scope-approval.md"
     }
   ]
 }
