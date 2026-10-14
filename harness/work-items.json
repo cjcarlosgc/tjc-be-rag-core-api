@@ -3289,7 +3289,7 @@
       "id": "WI-CORE-058",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Marcar tipos final en la sección de dependencias PHP del contexto RAG",
@@ -3323,7 +3323,18 @@
         "spec/contracts/interoperability-contract.md",
         "harness/reports/wi-core-058-scope-approval.md",
         "harness/reports/wi-core-057-closure.md",
-        "harness/reports/wi-core-058-contract-sync-scope-review.md"
+        "harness/reports/wi-core-058-contract-sync-scope-review.md",
+        "harness/reports/wi-core-058-technical-checks.md",
+        "harness/reports/wi-core-058-contract-proposal.md",
+        "harness/reports/wi-core-058-contract-review.md",
+        "harness/reports/wi-core-058-replay-y-verificacion.md",
+        "harness/reports/contract-sync-publish-cs-core-20261013-003.md",
+        "harness/contract-sync/outbox/CS-CORE-20261013-003.yaml",
+        "app/src/retrieval/php-dependency-context.ts",
+        "app/src/retrieval/php-dependency-context.service.ts",
+        "app/src/retrieval/php-dependency-replay.spec.ts",
+        "spec/README.md",
+        "CHANGELOG.md"
       ],
       "contractSyncReview": [
         {
