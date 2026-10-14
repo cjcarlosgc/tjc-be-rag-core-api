@@ -13,10 +13,10 @@ Replay real V1 9/9 idéntico; `calibrate.mjs` sobre V1 (9 casos) y 22 experiment
 ## M4 (tokens de la sección; el prompt RAG varía lo mismo)
 | Caso | Sección .6 | Sección .7 | Delta | Marcas afectadas |
 |---|---|---|---|---|
-| SAL-1 | 123 | 105 | −18 | 2 final (Customer, Promotion) |
+| SAL-1 | 123 | 105 | −18 | 2 `final` |
 | RES-1 / RES-2 | 145 | 127 | −18 | 2 final |
-| SUB-1 / SUB-2 | 228 | 202 | −26 | RenewalDatePolicy, Subscription, + `Plan` (profundidad 2) |
-| SUB-3 | 114 | 105 | −9 | Plan (final), SubscriptionStatus (enum, mismo tamaño) |
+| SUB-1 / SUB-2 | 228 | 202 | −26 | entradas `final` de la sección |
+| SUB-3 | 114 | 105 | −9 | entradas `final` y `SubscriptionStatus` (enum, mismo tamaño) |
 | SAL-2/3, RES-3 | 0 | 0 | 0 | — |
 Sin truncado en ningún caso; el máximo es 202 ≤ 300. El prompt RAG completo baja entre 9 y 26 tokens en los casos con sección.
 
