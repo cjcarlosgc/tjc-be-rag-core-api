@@ -376,7 +376,7 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
   };
 
   it('exports the prompt version constant (i)', () => {
-    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.4');
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.5');
   });
 
   it('exports exactly the five convention lines in the agreed wording (v)', () => {

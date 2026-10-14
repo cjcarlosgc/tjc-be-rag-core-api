@@ -140,7 +140,7 @@ export class CodeChunksRepository {
   async findPhpConstructorDeclarations(
     projectVersionId: string,
     parentSymbolNames: string[],
-  ): Promise<Array<{ parentSymbolName: string; content: string }>> {
+  ): Promise<Array<{ parentSymbolName: string; content: string; importsUsed: string[] }>> {
     const names = [...new Set(parentSymbolNames)];
     if (names.length === 0) return [];
     const rows = await this.prisma.codeChunk.findMany({
@@ -151,17 +151,17 @@ export class CodeChunksRepository {
         filePath: { endsWith: '.php' },
         partIndex: 1,
       },
-      select: { parentSymbolName: true, filePath: true, content: true, partIndex: true },
+      select: { parentSymbolName: true, filePath: true, content: true, importsUsed: true, partIndex: true },
       orderBy: [{ parentSymbolName: 'asc' }, { filePath: 'asc' }, { partIndex: 'asc' }],
     });
-    const byParent = new Map<string, Array<{ parentSymbolName: string; content: string }>>();
+    const byParent = new Map<string, Array<{ parentSymbolName: string; content: string; importsUsed: string[] }>>();
     for (const row of rows) {
       if (row.parentSymbolName === null || row.partIndex !== 1) continue;
       const list = byParent.get(row.parentSymbolName) ?? [];
-      list.push({ parentSymbolName: row.parentSymbolName, content: row.content });
+      list.push({ parentSymbolName: row.parentSymbolName, content: row.content, importsUsed: row.importsUsed });
       byParent.set(row.parentSymbolName, list);
     }
-    const unique: Array<{ parentSymbolName: string; content: string }> = [];
+    const unique: Array<{ parentSymbolName: string; content: string; importsUsed: string[] }> = [];
     for (const constructors of byParent.values()) {
       if (constructors.length === 1) unique.push(constructors[0]);
     }

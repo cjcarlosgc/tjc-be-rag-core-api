@@ -178,6 +178,7 @@ describe('CodeChunksRepository.findPhpConstructorDeclarations (WI-CORE-065)', ()
       filePath: { endsWith: '.php' },
       partIndex: 1,
     });
+    expect(findMany.mock.calls[0][0].select).toMatchObject({ content: true, importsUsed: true });
     expect(findMany.mock.calls[0][0].orderBy).toEqual([
       { parentSymbolName: 'asc' },
       { filePath: 'asc' },
@@ -187,24 +188,24 @@ describe('CodeChunksRepository.findPhpConstructorDeclarations (WI-CORE-065)', ()
 
   it('returns one constructor per parent and omits parents declared in different files (ambiguous)', async () => {
     const { repository } = makeRepository([
-      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: 'public function __construct(int $a) {}', partIndex: 1 },
-      { parentSymbolName: 'Pilot\\A', filePath: 'src/Other/A.php', content: 'public function __construct() {}', partIndex: 1 },
-      { parentSymbolName: 'Pilot\\B', filePath: 'src/B.php', content: 'public function __construct(string $b) {}', partIndex: 1 },
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: 'public function __construct(int $a) {}', importsUsed: [], partIndex: 1 },
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/Other/A.php', content: 'public function __construct() {}', importsUsed: [], partIndex: 1 },
+      { parentSymbolName: 'Pilot\\B', filePath: 'src/B.php', content: 'public function __construct(string $b) {}', importsUsed: [], partIndex: 1 },
     ]);
 
     await expect(repository.findPhpConstructorDeclarations('version-1', ['Pilot\\A', 'Pilot\\B'])).resolves.toEqual([
-      { parentSymbolName: 'Pilot\\B', content: 'public function __construct(string $b) {}' },
+      { parentSymbolName: 'Pilot\\B', content: 'public function __construct(string $b) {}', importsUsed: [] },
     ]);
   });
 
   it('ignores non-first parts so they do not count as another constructor', async () => {
     const { repository } = makeRepository([
-      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: 'public function __construct(int $a', partIndex: 1 },
-      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: '{}) {}', partIndex: 2 },
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: 'public function __construct(int $a', importsUsed: [], partIndex: 1 },
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: '{}) {}', importsUsed: [], partIndex: 2 },
     ]);
 
     await expect(repository.findPhpConstructorDeclarations('version-1', ['Pilot\\A'])).resolves.toEqual([
-      { parentSymbolName: 'Pilot\\A', content: 'public function __construct(int $a' },
+      { parentSymbolName: 'Pilot\\A', content: 'public function __construct(int $a', importsUsed: [] },
     ]);
   });
 });

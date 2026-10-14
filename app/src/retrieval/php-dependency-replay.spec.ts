@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it, afterAll } from 'vitest';
 import { ContextBuilder } from './context-builder.service.js';
 import { PhpDependencyContextService } from './php-dependency-context.service.js';
+import { countPhpDependencyTokens, renderPhpDependencySection } from './php-dependency-context.js';
 import type { GenerationContextDependencyContext, StructuralMatch } from './generation-context.js';
 import type { RetrievalResult } from './retrieval.service.js';
 import type { CodeChunk } from '../generated/prisma/client.js';
@@ -58,6 +59,9 @@ interface CaseRow {
   caso: string;
   target: string;
   entries: Array<{ typeName: string; fqcn: string; origin: string; resolvedBy: string; final: boolean }>;
+  /** WI-CORE-066: firmas de profundidad 2 (`Tipo vía Directa`) y tokens que añaden sobre las directas. */
+  depth2Signatures: string[];
+  depth2ExtraTokens: number;
   finalCount: number;
   finalEntries: string[];
   unresolvedCount: number;
@@ -143,12 +147,12 @@ function fakeRepository(replay: ReplayCase, withDeclarations = true, withConstru
     findPhpConstructorDeclarations: async (_pv: string, parentSymbolNames: string[]) => {
       if (!withConstructors || parentSymbolNames.length === 0) return [];
       const wanted = new Set(parentSymbolNames);
-      const byParent = new Map<string, Array<{ parentSymbolName: string; content: string }>>();
+      const byParent = new Map<string, Array<{ parentSymbolName: string; content: string; importsUsed: string[] }>>();
       for (const chunk of replay.chunks) {
         if (chunk.symbolKind !== 'CONSTRUCTOR' || !chunk.filePath.endsWith('.php')) continue;
         if (chunk.parentSymbolName === null || !wanted.has(chunk.parentSymbolName)) continue;
         const list = byParent.get(chunk.parentSymbolName) ?? [];
-        list.push({ parentSymbolName: chunk.parentSymbolName, content: chunk.content });
+        list.push({ parentSymbolName: chunk.parentSymbolName, content: chunk.content, importsUsed: chunk.importsUsed });
         byParent.set(chunk.parentSymbolName, list);
       }
       return [...byParent.values()].filter((list) => list.length === 1).map((list) => list[0]);
@@ -190,6 +194,7 @@ async function resolveDependencies(
     tokenCount: resolved.tokenCount,
     truncated: resolved.truncated,
     text: resolved.text,
+    transitiveEntries: resolved.transitiveEntries,
   };
 }
 
@@ -218,6 +223,13 @@ function buildContext(
 
 const replayCases = REPLAY_DIR ? loadCases(REPLAY_DIR) : [];
 
+/** Tokens que aporta la profundidad 2: sección completa menos la sección solo con directas. */
+function depth2ExtraTokensOf(context: GenerationContextDependencyContext | undefined): number {
+  if (!context || (context.transitiveEntries ?? []).length === 0) return 0;
+  const directsOnly = countPhpDependencyTokens(renderPhpDependencySection(context.entries as never));
+  return context.tokenCount - directsOnly;
+}
+
 describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuera del repo)', () => {
   afterAll(() => {
     if (rows.length === 0) return;
@@ -225,7 +237,8 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
       (row) =>
         `${row.caso} | ${row.target} | entradas=${row.entries.length} | final=${row.finalCount} | sinResolver=${row.unresolvedCount} | ` +
         `tokensSeccion=${row.sectionTokens} | sinFirmas=${row.sectionTokensSinFirmas} | firmaExtra=${row.signatureExtraTokens} | ` +
-        `tokensSinMarcas=${row.sectionTokensSinMarcas} | finalExtra=${row.finalExtraTokens} | truncated=${row.truncated} | ` +
+        `tokensSinMarcas=${row.sectionTokensSinMarcas} | finalExtra=${row.finalExtraTokens} | depth2=${row.depth2Signatures.length} | ` +
+        `depth2ExtraTokens=${row.depth2ExtraTokens} | truncated=${row.truncated} | ` +
         `contextTokensBase=${row.baselineContextTokens} | extra=${row.extraPercent.toFixed(2)}%` +
         row.entries
           .map((e) => `\n    - ${e.typeName} → ${e.fqcn} [${e.origin}, ${e.resolvedBy}]${e.final ? ' FINAL' : ''}`)
@@ -285,6 +298,8 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
         resolvedBy: e.resolvedBy,
         final: e.final === true,
       })),
+      depth2Signatures: (dependencyContext?.transitiveEntries ?? []).map((e) => `${e.typeName} vía ${e.via}: ${e.signature}`),
+      depth2ExtraTokens: depth2ExtraTokensOf(dependencyContext),
       finalCount: finalEntries.length,
       finalEntries,
       unresolvedCount: dependencyContext?.unresolvedCount ?? 0,
@@ -302,6 +317,8 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
     // WI-CORE-058: tope de tokens y texto de marca con marcas activas.
     expect(sectionTokens).toBeLessThanOrEqual(300);
     expect(sectionTokens).toBeGreaterThanOrEqual(sectionTokensSinFirmas);
+    // WI-CORE-066: la traza (entries) solo contiene directas; la profundidad 2 va aparte (transitiveEntries).
+    expect(dependencyContext?.entries.every((e) => (e as { via?: string }).via === undefined) ?? true).toBe(true);
     if (finalEntries.length > 0) expect(dependencyContext?.text).toContain('final: no se puede mockear');
 
     // Helper: entrada presente por typeName; `final` según lo esperado.
