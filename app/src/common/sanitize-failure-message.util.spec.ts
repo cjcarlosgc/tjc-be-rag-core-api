@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FAILURE_MESSAGE_MAX_LENGTH,
   FAILURE_MESSAGE_SCAN_MAX_LENGTH,
+  redactSecretsInText,
   sanitizeFailureMessage,
 } from './sanitize-failure-message.util.js';
 
@@ -457,5 +458,28 @@ describe('sanitizeFailureMessage familias de WI-CORE-027 (DEC-EVID-004)', () => 
       expect(elapsedMs).toBeLessThan(250);
       expect(output.length).toBeLessThanOrEqual(FAILURE_MESSAGE_MAX_LENGTH);
     });
+  });
+});
+
+describe('redactSecretsInText (WI-CORE-060)', () => {
+  it('redacta secretos conservando saltos de línea y sin truncar', () => {
+    const text = 'linea uno\npassword=hunter2\nlinea tres ' + 'x'.repeat(600);
+    const out = redactSecretsInText(text);
+    expect(out).not.toContain('hunter2');
+    expect(out.split('\n')).toHaveLength(3);
+    expect(out.length).toBeGreaterThan(500);
+  });
+
+  it('es idempotente y deja intacto un texto sin secretos', () => {
+    const plain = 'salida normal\nTests: 2 passed';
+    expect(redactSecretsInText(plain)).toBe(plain);
+    const once = redactSecretsInText('token=abcdef123456');
+    expect(redactSecretsInText(once)).toBe(once);
+  });
+
+  it('sanitizeFailureMessage sigue normalizando saltos y truncando a 500', () => {
+    const out = sanitizeFailureMessage('a\nb ' + 'c'.repeat(600));
+    expect(out).not.toContain('\n');
+    expect(Array.from(out)).toHaveLength(500);
   });
 });

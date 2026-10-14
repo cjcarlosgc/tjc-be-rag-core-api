@@ -2,8 +2,11 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   buildRepetitionArtifact,
+  buildSandboxEvidenceArtifact,
   REPETITION_TEST_CASES_MAX,
   REPETITION_TEST_CONTENT_MAX_BYTES,
+  SANDBOX_EVIDENCE_CONTENT_MAX_BYTES,
+  SANDBOX_EVIDENCE_TOTAL_MAX_BYTES,
 } from './repetition-artifact.js';
 import type { SandboxExecutionResult, TestCaseFact } from '../sandbox/sandbox.types.js';
 
@@ -182,5 +185,154 @@ describe('buildRepetitionArtifact', () => {
     expect(artifact?.testContent).toBeNull();
     expect(artifact?.testContentSha256).toBeNull();
     expect(artifact?.runnerReport).not.toBeNull();
+  });
+});
+
+describe('IDEA-030 (WI-CORE-060): sin NUL en testContent ni en el reporte', () => {
+  it('elimina los NUL del contenido de prueba antes de guardarlo y de calcular su hash', () => {
+    const artifact = buildRepetitionArtifact('a\u0000b', null);
+    expect(artifact?.testContent).toBe('ab');
+    expect(artifact?.testContentSha256).toBe(sha256('ab'));
+    expect(artifact?.testContent).not.toContain('\u0000');
+  });
+
+  it('elimina los NUL de los nombres y rutas de casos del reporte', () => {
+    const result = makeResult();
+    result.facts!.testCases[0] = { ...result.facts!.testCases[0], name: 'na\u0000me', suitePath: 'su\u0000ite' };
+    const artifact = buildRepetitionArtifact(null, result);
+    expect(artifact?.runnerReport?.testCases[0].name).toBe('name');
+    expect(artifact?.runnerReport?.testCases[0].suitePath).toBe('suite');
+    expect(JSON.stringify(artifact?.runnerReport)).not.toContain('\\u0000');
+  });
+});
+
+describe('buildSandboxEvidenceArtifact (WI-CORE-060)', () => {
+  const at = '2026-10-13T10:00:00.000Z';
+  const later = '2026-10-13T10:00:05.000Z';
+  const fact = (kind: 'TEST_STDOUT' | 'COMPILER_STDERR' | 'TEST_STDERR' | 'RUNNER_REPORT', content: string, truncated = false) => ({
+    kind,
+    stage: 'RUNNING_TESTS',
+    content,
+    truncated,
+    originalBytes: Buffer.byteLength(content, 'utf8'),
+  });
+
+  it('devuelve null sin evidencia ni fechas', () => {
+    expect(buildSandboxEvidenceArtifact([], null, null)).toBeNull();
+    expect(buildSandboxEvidenceArtifact(undefined, undefined, undefined)).toBeNull();
+  });
+
+  it('conserva kind, stage, truncated y originalBytes de cada entrada y parsea las fechas', () => {
+    const artifact = buildSandboxEvidenceArtifact([fact('TEST_STDOUT', 'hola\nmundo')], at, later);
+    expect(artifact?.sandboxEvidence).toEqual({
+      entries: [
+        {
+          kind: 'TEST_STDOUT',
+          stage: 'RUNNING_TESTS',
+          truncated: false,
+          originalBytes: 10,
+          content: 'hola\nmundo',
+          contentTruncated: false,
+        },
+      ],
+      omitted: 0,
+    });
+    expect(artifact?.sandboxEvidenceTruncated).toBe(false);
+    expect(artifact?.sandboxStartedAt).toEqual(new Date(at));
+    expect(artifact?.sandboxCompletedAt).toEqual(new Date(later));
+  });
+
+  it('convierte fechas inválidas en null sin descartar la evidencia', () => {
+    const artifact = buildSandboxEvidenceArtifact([fact('TEST_STDERR', 'x')], 'no-es-fecha', undefined);
+    expect(artifact?.sandboxStartedAt).toBeNull();
+    expect(artifact?.sandboxCompletedAt).toBeNull();
+    expect(artifact?.sandboxEvidence?.entries).toHaveLength(1);
+  });
+
+  it('devuelve solo fechas cuando no hay evidencia', () => {
+    const artifact = buildSandboxEvidenceArtifact([], at, later);
+    expect(artifact).toEqual({
+      sandboxEvidence: null,
+      sandboxEvidenceSha256: null,
+      sandboxEvidenceTruncated: null,
+      sandboxStartedAt: new Date(at),
+      sandboxCompletedAt: new Date(later),
+    });
+  });
+
+  it('redacta secretos sin normalizar saltos de línea ni truncar', () => {
+    const content = 'linea 1\nAuthorization: Bearer abc.def.ghi\npassword=hunter2\nlinea 3';
+    const artifact = buildSandboxEvidenceArtifact([fact('TEST_STDERR', content)], null, null);
+    const text = artifact?.sandboxEvidence?.entries[0].content ?? '';
+    expect(text).not.toContain('hunter2');
+    expect(text).not.toContain('abc.def.ghi');
+    expect(text.split('\n')).toHaveLength(4);
+  });
+
+  it('elimina NUL del contenido de evidencia', () => {
+    const artifact = buildSandboxEvidenceArtifact([fact('COMPILER_STDERR', 'a\u0000b\u0000')], null, null);
+    expect(artifact?.sandboxEvidence?.entries[0].content).toBe('ab');
+  });
+
+  it('recorta cada entrada a 8 KiB sin cortar caracteres multibyte y marca contentTruncated', () => {
+    const content = 'ñ'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES); // 2 bytes por carácter: 16 KiB
+    const artifact = buildSandboxEvidenceArtifact([fact('TEST_STDOUT', content)], null, null);
+    const entry = artifact?.sandboxEvidence?.entries[0];
+    expect(entry?.contentTruncated).toBe(true);
+    expect(Buffer.byteLength(entry?.content ?? '', 'utf8')).toBeLessThanOrEqual(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES);
+    expect(entry?.content).toBe('ñ'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES / 2));
+    expect(artifact?.sandboxEvidenceTruncated).toBe(true);
+  });
+
+  it('aplica un tope total de 40 KiB y registra las entradas omitidas', () => {
+    const big = 'x'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES);
+    const facts = Array.from({ length: 7 }, () => fact('TEST_STDOUT', big));
+    const artifact = buildSandboxEvidenceArtifact(facts, null, null);
+    const payload = artifact?.sandboxEvidence;
+    const total = payload?.entries.reduce((sum, entry) => sum + Buffer.byteLength(entry.content, 'utf8'), 0) ?? 0;
+    expect(total).toBe(SANDBOX_EVIDENCE_TOTAL_MAX_BYTES);
+    expect(payload?.entries).toHaveLength(5);
+    expect(payload?.omitted).toBe(2);
+    expect(artifact?.sandboxEvidenceTruncated).toBe(true);
+  });
+
+  it('recorta la última entrada que cabe en el tope total', () => {
+    const facts = [
+      fact('TEST_STDOUT', 'a'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES)),
+      fact('TEST_STDOUT', 'a'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES)),
+      fact('TEST_STDOUT', 'a'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES)),
+      fact('TEST_STDOUT', 'a'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES)),
+      fact('TEST_STDOUT', 'a'.repeat(SANDBOX_EVIDENCE_CONTENT_MAX_BYTES)),
+      fact('TEST_STDOUT', 'abc'),
+    ];
+    const payload = buildSandboxEvidenceArtifact(facts, null, null)?.sandboxEvidence;
+    expect(payload?.entries).toHaveLength(5);
+    expect(payload?.omitted).toBe(1);
+  });
+
+  it('marca sandboxEvidenceTruncated cuando el Sandbox ya recortó una entrada', () => {
+    const artifact = buildSandboxEvidenceArtifact([fact('TEST_STDERR', 'corto', true)], null, null);
+    expect(artifact?.sandboxEvidenceTruncated).toBe(true);
+    expect(artifact?.sandboxEvidence?.entries[0].truncated).toBe(true);
+  });
+
+  it('el hash es determinista y coincide con el JSON canónico del payload saneado', () => {
+    const facts = [fact('TEST_STDOUT', 'uno'), fact('RUNNER_REPORT', 'dos')];
+    const first = buildSandboxEvidenceArtifact(facts, null, null);
+    const second = buildSandboxEvidenceArtifact(facts, null, null);
+    expect(first?.sandboxEvidenceSha256).toBe(second?.sandboxEvidenceSha256);
+    expect(first?.sandboxEvidenceSha256).toMatch(/^[0-9a-f]{64}$/);
+    const canonical = JSON.stringify({
+      entries: first?.sandboxEvidence?.entries.map((entry) => ({
+        content: entry.content,
+        contentTruncated: entry.contentTruncated,
+        kind: entry.kind,
+        originalBytes: entry.originalBytes,
+        stage: entry.stage,
+        truncated: entry.truncated,
+      })),
+      omitted: 0,
+    });
+    expect(first?.sandboxEvidenceSha256).toBe(sha256(canonical));
   });
 });

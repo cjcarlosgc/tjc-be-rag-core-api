@@ -830,4 +830,113 @@ describe('SandboxExecutionService', () => {
       expect(failure).not.toHaveProperty('durationMs');
     });
   });
+
+  describe('evidencia acotada y tiempos del Sandbox (WI-CORE-060)', () => {
+    const baseFacts = {
+      runner: 'VITEST',
+      compiled: true,
+      executed: true,
+      passed: true,
+      totalTests: 1,
+      passedTests: 1,
+      failedTests: 0,
+      skippedTests: 0,
+      testCases: [],
+      testCasesTruncated: false,
+    };
+
+    async function runWithResult(resultBody: Record<string, unknown>) {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ executionId: 'exec-ev', pollAfterMs: 1 }))
+        .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+        .mockResolvedValueOnce(jsonResponse(resultBody));
+      const service = new SandboxExecutionService(makeConfigService(), objectStorageService as never);
+      return service.execute({
+        requestId: 'request-ev',
+        testRunId: 'run-ev',
+        projectVersionId: 'version-ev',
+        snapshotKey: 'snapshot-key',
+        snapshotBuffer: Buffer.from('zip-bytes'),
+        artifacts: [],
+        scope: 'TARGET',
+        targetIds: ['target-1'],
+        runnerHint: 'VITEST',
+      });
+    }
+
+    it('conserva evidence, startedAt y completedAt cuando el Sandbox los devuelve', async () => {
+      const evidence = [
+        { kind: 'TEST_STDERR', stage: 'RUNNING_TESTS', content: 'boom', truncated: false, originalBytes: 4 },
+      ];
+      const result = await runWithResult({
+        status: 'COMPLETED',
+        facts: baseFacts,
+        failure: null,
+        stageDurations: [],
+        evidence,
+        startedAt: '2026-10-13T10:00:00.000Z',
+        completedAt: '2026-10-13T10:00:05.000Z',
+      });
+
+      expect(result.evidence).toEqual(evidence);
+      expect(result.startedAt).toBe('2026-10-13T10:00:00.000Z');
+      expect(result.completedAt).toBe('2026-10-13T10:00:05.000Z');
+      expect(result.status).toBe('COMPLETED');
+      expect(result.facts?.passed).toBe(true);
+    });
+
+    it('devuelve evidence vacio y startedAt/completedAt en null cuando el Sandbox no los envia', async () => {
+      const result = await runWithResult({
+        status: 'COMPLETED',
+        facts: baseFacts,
+        failure: null,
+        stageDurations: [],
+      });
+
+      expect(result.evidence).toEqual([]);
+      expect(result.startedAt).toBeNull();
+      expect(result.completedAt).toBeNull();
+    });
+
+    it('descarta entradas de evidencia malformadas sin romper el resultado', async () => {
+      const result = await runWithResult({
+        status: 'FAILED',
+        facts: null,
+        failure: { stage: 'COMPILING', category: 'COMPILATION', code: 'X', message: 'm' },
+        stageDurations: [],
+        evidence: [
+          { kind: 'COMPILER_STDERR', stage: 'COMPILING', content: 'ok', truncated: false, originalBytes: 2 },
+          { kind: 'UNKNOWN_KIND', stage: null, content: 'x', truncated: false, originalBytes: 1 },
+          { kind: 'TEST_STDOUT', stage: null, content: 42, truncated: false, originalBytes: 2 },
+          { kind: 'TEST_STDOUT', stage: null, content: 'y', truncated: 'si', originalBytes: 1 },
+          null,
+          'basura',
+        ],
+        startedAt: 12345,
+        completedAt: undefined,
+      });
+
+      expect(result.evidence).toEqual([
+        { kind: 'COMPILER_STDERR', stage: 'COMPILING', content: 'ok', truncated: false, originalBytes: 2 },
+      ]);
+      expect(result.startedAt).toBeNull();
+      expect(result.completedAt).toBeNull();
+      expect(result.status).toBe('FAILED');
+      expect(result.failure?.code).toBe('X');
+    });
+
+    it('trata evidence que no es arreglo como ausente', async () => {
+      const result = await runWithResult({
+        status: 'COMPLETED',
+        facts: baseFacts,
+        failure: null,
+        stageDurations: [],
+        evidence: { kind: 'TEST_STDOUT' },
+      });
+
+      expect(result.evidence).toEqual([]);
+    });
+  });
 });

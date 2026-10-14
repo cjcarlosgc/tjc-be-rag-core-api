@@ -52,11 +52,34 @@ export interface StageDuration {
   durationMs: number;
 }
 
+/** Tipo de evidencia acotada que devuelve el Sandbox (contrato: `ExecutionEvidenceKind`). */
+export type SandboxExecutionEvidenceKind =
+  | 'COMPILER_STDOUT'
+  | 'COMPILER_STDERR'
+  | 'TEST_STDOUT'
+  | 'TEST_STDERR'
+  | 'RUNNER_REPORT';
+
+/** Hecho de evidencia acotada (contrato: `ExecutionEvidenceFact`). Interno: no se expone en DTO ni INTEROP. */
+export interface SandboxExecutionEvidenceFact {
+  kind: SandboxExecutionEvidenceKind;
+  stage: string | null;
+  content: string;
+  truncated: boolean;
+  originalBytes: number | null;
+}
+
 export interface SandboxExecutionResult {
   status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
   facts: RunnerFacts | null;
   failure: SandboxFailureFact | null;
   stageDurations: StageDuration[];
+  /** WI-CORE-060: evidencia acotada del Sandbox; opcional para mocks y Sandboxes anteriores. */
+  evidence?: SandboxExecutionEvidenceFact[];
+  /** WI-CORE-060: inicio del procesamiento en el Sandbox (ISO 8601), o null si no se informa. */
+  startedAt?: string | null;
+  /** WI-CORE-060: fin del procesamiento en el Sandbox (ISO 8601), o null si no se informa. */
+  completedAt?: string | null;
   /** WI-CORE-026: identificador que devolvió el Sandbox al aceptar la ejecución (`POST /executions`). */
   executionId: string;
   /** Perfil con el que se ejecutó: el persistido en la petición o el derivado de `runnerHint`. */

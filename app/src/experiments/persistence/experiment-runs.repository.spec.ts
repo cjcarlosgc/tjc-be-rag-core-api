@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ExperimentRunsRepository } from './experiment-runs.repository.js';
+import { ExperimentRunsRepository, type CreateExperimentRunInput } from './experiment-runs.repository.js';
 import { Prisma } from '../../generated/prisma/client.js';
 
 describe('ExperimentRunsRepository.create', () => {
@@ -959,5 +959,156 @@ describe('ExperimentRunsRepository.upsertRepetitionArtifact', () => {
 
     expect(upsertMock.mock.calls[0][0].create.runnerReport).toBe(Prisma.DbNull);
     expect(upsertMock.mock.calls[0][0].update.runnerReport).toBe(Prisma.DbNull);
+  });
+});
+
+describe('ExperimentRunsRepository trial reconstruction (WI-CORE-060)', () => {
+  const baseRun = {
+    projectId: 'project-1',
+    projectVersionId: 'version-1',
+    targetId: 'target-1',
+    totalRepetitions: 6,
+    randomizationSeed: 'seed',
+    executionProfile: 'NODE_TYPESCRIPT',
+    runnerHint: 'VITEST',
+    modelConfig: {
+      provider: 'OPENAI',
+      model: 'm',
+      modelVersion: 'v',
+      reasoningEffort: 'low',
+      temperature: 0,
+      maxOutputTokens: 100,
+    },
+    budget: { toolCallCap: 1, contextTokenBudget: 1, maxDurationMs: 1 },
+  } as unknown as CreateExperimentRunInput;
+
+  it('create escribe analysisRunId y commitSha cuando se pasan', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'exp-1' });
+    const repository = new ExperimentRunsRepository({ experimentRun: { create: createMock } } as never);
+
+    await repository.create({ ...baseRun, analysisRunId: 'analysis-1', commitSha: 'abc123' });
+
+    const data = createMock.mock.calls[0][0].data;
+    expect(data.analysisRunId).toBe('analysis-1');
+    expect(data.commitSha).toBe('abc123');
+  });
+
+  it('create escribe null explícito y omite las claves no pasadas', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'exp-2' });
+    const repository = new ExperimentRunsRepository({ experimentRun: { create: createMock } } as never);
+
+    await repository.create({ ...baseRun, analysisRunId: null, commitSha: null });
+    expect(createMock.mock.calls[0][0].data).toMatchObject({ analysisRunId: null, commitSha: null });
+
+    await repository.create(baseRun);
+    expect(createMock.mock.calls[1][0].data).not.toHaveProperty('analysisRunId');
+    expect(createMock.mock.calls[1][0].data).not.toHaveProperty('commitSha');
+  });
+
+  it('insertRepetition escribe startedAt, finishedAt y promptSha256 en la inserción', async () => {
+    const createMock = vi.fn().mockResolvedValue({ id: 'rep-1' });
+    const repository = new ExperimentRunsRepository({ experimentRepetition: { create: createMock } } as never);
+    const startedAt = new Date('2026-10-13T10:00:00.000Z');
+    const finishedAt = new Date('2026-10-13T10:00:09.000Z');
+
+    await repository.insertRepetition('exp-1', {
+      repetition: 1,
+      strategy: 'RAG',
+      startedAt,
+      finishedAt,
+      promptSha256: 'f'.repeat(64),
+    } as never);
+
+    const data = createMock.mock.calls[0][0].data;
+    expect(data.startedAt).toBe(startedAt);
+    expect(data.finishedAt).toBe(finishedAt);
+    expect(data.promptSha256).toBe('f'.repeat(64));
+  });
+
+  it('updateRepetitionById escribe startedAt, finishedAt y promptSha256 dentro del guardia RUNNING', async () => {
+    const updateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new ExperimentRunsRepository({ experimentRepetition: { updateMany: updateManyMock } } as never);
+    const startedAt = new Date('2026-10-13T10:00:00.000Z');
+    const finishedAt = new Date('2026-10-13T10:00:09.000Z');
+
+    await repository.updateRepetitionById('rep-1', { repetition: 1, strategy: 'RAG', startedAt, finishedAt, promptSha256: 'e'.repeat(64) } as never, 'COMPLETED');
+
+    const args = updateManyMock.mock.calls[0][0];
+    expect(args.where).toEqual({ id: 'rep-1', state: 'RUNNING' });
+    expect(args.data.startedAt).toBe(startedAt);
+    expect(args.data.finishedAt).toBe(finishedAt);
+    expect(args.data.promptSha256).toBe('e'.repeat(64));
+  });
+
+  it('updateRepetitionById no toca las columnas nuevas cuando el caller no las pasa', async () => {
+    const updateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new ExperimentRunsRepository({ experimentRepetition: { updateMany: updateManyMock } } as never);
+
+    await repository.updateRepetitionById('rep-2', { repetition: 1, strategy: 'RAG' } as never, 'FAILED');
+
+    const data = updateManyMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty('startedAt');
+    expect(data).not.toHaveProperty('finishedAt');
+    expect(data).not.toHaveProperty('promptSha256');
+  });
+
+  it('upsertRepetitionArtifact escribe la evidencia del Sandbox en create y update', async () => {
+    const upsertMock = vi.fn().mockResolvedValue({ id: 'artifact-3' });
+    const repository = new ExperimentRunsRepository({ experimentRepetitionArtifact: { upsert: upsertMock } } as never);
+    const sandboxEvidence = { entries: [], omitted: 0 };
+    const sandboxStartedAt = new Date('2026-10-13T10:00:00.000Z');
+
+    await repository.upsertRepetitionArtifact('rep-3', {
+      testContent: null,
+      testContentSha256: null,
+      testContentTruncated: false,
+      runnerReport: null,
+      runnerReportSha256: null,
+      sandboxEvidence,
+      sandboxEvidenceSha256: 'd'.repeat(64),
+      sandboxEvidenceTruncated: true,
+      sandboxStartedAt,
+      sandboxCompletedAt: null,
+    } as never);
+
+    const args = upsertMock.mock.calls[0][0];
+    expect(args.create).toMatchObject({
+      sandboxEvidence,
+      sandboxEvidenceSha256: 'd'.repeat(64),
+      sandboxEvidenceTruncated: true,
+      sandboxStartedAt,
+      sandboxCompletedAt: null,
+    });
+    expect(args.update).toMatchObject({ sandboxEvidence, sandboxEvidenceSha256: 'd'.repeat(64), sandboxEvidenceTruncated: true });
+  });
+
+  it('upsertRepetitionArtifact escribe DbNull en sandboxEvidence nulo y deja intactas las columnas de evidencia si no se pasan', async () => {
+    const upsertMock = vi.fn().mockResolvedValue({ id: 'artifact-4' });
+    const repository = new ExperimentRunsRepository({ experimentRepetitionArtifact: { upsert: upsertMock } } as never);
+
+    await repository.upsertRepetitionArtifact('rep-4', {
+      testContent: 'code',
+      testContentSha256: 'c'.repeat(64),
+      testContentTruncated: false,
+      runnerReport: null,
+      runnerReportSha256: null,
+      sandboxEvidence: null,
+      sandboxEvidenceSha256: null,
+      sandboxEvidenceTruncated: null,
+      sandboxStartedAt: null,
+      sandboxCompletedAt: null,
+    } as never);
+    expect(upsertMock.mock.calls[0][0].create.sandboxEvidence).toBe(Prisma.DbNull);
+    expect(upsertMock.mock.calls[0][0].update.sandboxEvidence).toBe(Prisma.DbNull);
+
+    await repository.upsertRepetitionArtifact('rep-5', {
+      testContent: 'code',
+      testContentSha256: 'c'.repeat(64),
+      testContentTruncated: false,
+      runnerReport: null,
+      runnerReportSha256: null,
+    });
+    expect(upsertMock.mock.calls[1][0].update).not.toHaveProperty('sandboxEvidence');
+    expect(upsertMock.mock.calls[1][0].update).not.toHaveProperty('sandboxStartedAt');
   });
 });

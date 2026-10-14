@@ -5,10 +5,45 @@ import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
   ExecutionProfile,
+  SandboxExecutionEvidenceFact,
+  SandboxExecutionEvidenceKind,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFailureFact,
 } from './sandbox.types.js';
+
+const EVIDENCE_KINDS: ReadonlySet<string> = new Set<SandboxExecutionEvidenceKind>([
+  'COMPILER_STDOUT',
+  'COMPILER_STDERR',
+  'TEST_STDOUT',
+  'TEST_STDERR',
+  'RUNNER_REPORT',
+]);
+
+/**
+ * WI-CORE-060: lee la evidencia acotada del Sandbox sin confiar en su forma. Un campo ausente o que no es
+ * arreglo da []; una entrada sin un `kind` conocido, con `content` no string o con `truncated` no booleano
+ * se descarta. Nunca lanza.
+ */
+export function parseSandboxEvidence(raw: unknown): SandboxExecutionEvidenceFact[] {
+  if (!Array.isArray(raw)) return [];
+  const facts: SandboxExecutionEvidenceFact[] = [];
+  for (const entry of raw) {
+    if (entry === null || typeof entry !== 'object') continue;
+    const candidate = entry as Record<string, unknown>;
+    if (typeof candidate.kind !== 'string' || !EVIDENCE_KINDS.has(candidate.kind)) continue;
+    if (typeof candidate.content !== 'string') continue;
+    if (typeof candidate.truncated !== 'boolean') continue;
+    facts.push({
+      kind: candidate.kind as SandboxExecutionEvidenceKind,
+      stage: typeof candidate.stage === 'string' ? candidate.stage : null,
+      content: candidate.content,
+      truncated: candidate.truncated,
+      originalBytes: typeof candidate.originalBytes === 'number' ? candidate.originalBytes : null,
+    });
+  }
+  return facts;
+}
 
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
@@ -269,6 +304,9 @@ export class SandboxExecutionService {
       facts: SandboxExecutionResult['facts'];
       failure: SandboxFailureFact | null;
       stageDurations?: SandboxExecutionResult['stageDurations'];
+      evidence?: unknown;
+      startedAt?: unknown;
+      completedAt?: unknown;
     }>(
       `${baseUrl}/executions/${executionId}/result`,
       correlationId,
@@ -301,6 +339,9 @@ export class SandboxExecutionService {
       facts: result.facts,
       failure: result.failure,
       stageDurations,
+      evidence: parseSandboxEvidence(result.evidence),
+      startedAt: typeof result.startedAt === 'string' ? result.startedAt : null,
+      completedAt: typeof result.completedAt === 'string' ? result.completedAt : null,
     };
   }
 

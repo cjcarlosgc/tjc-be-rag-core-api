@@ -17,7 +17,10 @@ import {
   type ExperimentRepetitionFailure,
 } from '../experiment-failure-fact.js';
 import type { SandboxEvidenceFacts } from '../../sandbox/sandbox-evidence-facts.js';
-import type { RepetitionArtifact } from '../repetition-artifact.js';
+import type {
+  RepetitionArtifact,
+  SandboxEvidenceArtifact,
+} from '../repetition-artifact.js';
 
 /**
  * WI-CORE-027 (DEC-EVID-004): guarda del límite de escritura para el hecho de fallo. Lo vuelve a normalizar
@@ -53,6 +56,10 @@ export interface CreateExperimentRunInput {
   executionProfile: string;
   /** Runner detectado en la versión al crear (WI-CORE-025). */
   runnerHint: 'JEST' | 'VITEST' | 'PHPUNIT';
+  /** WI-CORE-060: interno (no expuesto). Identificador del análisis asociado, sin FK; omitido o null si no aplica. */
+  analysisRunId?: string | null;
+  /** WI-CORE-060: interno (no expuesto). commitSha de la versión del proyecto copiado al crear. */
+  commitSha?: string | null;
 }
 
 export interface ExperimentRepetitionInput {
@@ -104,6 +111,11 @@ export interface ExperimentRepetitionInput {
   sandboxCorrelationId?: string | null;
   sandboxFacts?: SandboxEvidenceFacts | null;
   artifactHash?: string | null;
+  /** WI-CORE-060: interno. Inicio y fin del intento; omitidos no tocan la columna. */
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
+  /** WI-CORE-060: interno. SHA-256 del prompt (solo el hash, DEC-VAL-001 PENDING). */
+  promptSha256?: string | null;
 }
 
 /**
@@ -402,7 +414,33 @@ export class ExperimentRunsRepository {
    * WI-CORE-053: escribe la evidencia interna de una repetición. Idempotente por repetición (upsert sobre
    * `repetitionId`). Un `runnerReport` ausente se escribe como DbNull: una columna Json no admite null literal.
    */
-  async upsertRepetitionArtifact(repetitionId: string, artifact: RepetitionArtifact): Promise<void> {
+  async upsertRepetitionArtifact(
+    repetitionId: string,
+    artifact: RepetitionArtifact & Partial<SandboxEvidenceArtifact>,
+  ): Promise<void> {
+    // WI-CORE-060: las columnas de evidencia del Sandbox solo se escriben si el caller las pasa (undefined = no tocar).
+    const sandboxColumns = {
+      ...(artifact.sandboxEvidence === undefined
+        ? {}
+        : {
+            sandboxEvidence:
+              artifact.sandboxEvidence === null
+                ? Prisma.DbNull
+                : (artifact.sandboxEvidence as unknown as Prisma.InputJsonObject),
+          }),
+      ...(artifact.sandboxEvidenceSha256 === undefined
+        ? {}
+        : { sandboxEvidenceSha256: artifact.sandboxEvidenceSha256 }),
+      ...(artifact.sandboxEvidenceTruncated === undefined
+        ? {}
+        : { sandboxEvidenceTruncated: artifact.sandboxEvidenceTruncated }),
+      ...(artifact.sandboxStartedAt === undefined
+        ? {}
+        : { sandboxStartedAt: artifact.sandboxStartedAt }),
+      ...(artifact.sandboxCompletedAt === undefined
+        ? {}
+        : { sandboxCompletedAt: artifact.sandboxCompletedAt }),
+    };
     const data = {
       testContent: artifact.testContent,
       testContentSha256: artifact.testContentSha256,
@@ -412,6 +450,7 @@ export class ExperimentRunsRepository {
           ? Prisma.DbNull
           : (artifact.runnerReport as unknown as Prisma.InputJsonObject),
       runnerReportSha256: artifact.runnerReportSha256,
+      ...sandboxColumns,
     };
     await this.prisma.experimentRepetitionArtifact.upsert({
       where: { repetitionId },
