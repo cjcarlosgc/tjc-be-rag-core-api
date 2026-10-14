@@ -16101,7 +16101,7 @@
     "id": "WI-CORE-060",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P2",
     "title": "Persistir de forma interna lo necesario para reconstruir un trial (analysisRunId, commitSha, tiempos, hash del prompt y evidencia del Sandbox)",
     "approved": true,
@@ -16121,7 +16121,10 @@
       "harness/reports/fase2-diagnostico-items-4-5-6.md",
       "harness/reports/fase2-correccion-evidencia-sandbox.md",
       "app/prisma/schema.prisma",
-      "harness/reports/wi-core-060-contract-sync-scope-review.md"
+      "harness/reports/wi-core-060-contract-sync-scope-review.md",
+      "harness/reports/wi-core-060-technical-checks.md",
+      "app/prisma/migrations/20261013110000_experiment_trial_reconstruction/migration.sql",
+      "CHANGELOG.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -16154,24 +16157,52 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Persistencia interna aditiva para reconstruir un trial; migracion nullable sin aplicar; best-effort."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "app/prisma/schema.prisma",
+            "app/prisma/migrations/20261013110000_experiment_trial_reconstruction/migration.sql",
+            "app/src/sandbox/sandbox-execution.service.ts",
+            "app/src/experiments/repetition-artifact.ts",
+            "app/src/experiments/experiment-job.handler.ts",
+            "app/src/experiments/experiments.service.ts",
+            "app/src/common/sanitize-failure-message.util.ts"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-060-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -16186,13 +16217,40 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-14T02:36:42.931Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-060",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-14T02:48:38.158Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-060",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-14T02:48:38.265Z"
         }
       ],
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-060-scope-approval.md"
+      "harness/reports/wi-core-060-scope-approval.md",
+      "harness/reports/wi-core-060-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -16201,6 +16259,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-060-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-060-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-060-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-060-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-060-technical-checks.md"
       ]
     }
   },
