@@ -98,8 +98,10 @@ export class CodeChunksRepository {
   }
 
   /**
-   * WI-CORE-058: declaración PHP (CLASS, ENUM, INTERFACE, TRAIT) de cada FQCN pedido, una por símbolo.
-   * Si hay varias, prefiere CLASS/ENUM y la primera parte del chunk.
+   * WI-CORE-058: declaración PHP (CLASS, ENUM, INTERFACE, TRAIT) de cada FQCN pedido, solo si es única.
+   * Solo se consulta la parte 1 de cada chunk (contiene los modificadores de la declaración). Un FQCN con
+   * más de una declaración (mismo nombre en archivos distintos, o CLASS e INTERFACE/TRAIT del mismo nombre)
+   * es ambiguo y se omite: no se devuelve. Orden determinista (symbolName, filePath, partIndex).
    */
   async findPhpTypeDeclarations(
     projectVersionId: string,
@@ -112,18 +114,23 @@ export class CodeChunksRepository {
         symbolKind: { in: PHP_TYPE_SYMBOL_KINDS },
         symbolName: { in: [...new Set(symbolNames)] },
         filePath: { endsWith: '.php' },
+        partIndex: 1,
       },
       select: { symbolName: true, symbolKind: true, content: true, partIndex: true },
-      orderBy: { partIndex: 'asc' },
+      orderBy: [{ symbolName: 'asc' }, { filePath: 'asc' }, { partIndex: 'asc' }],
     });
-    const rank = (kind: string): number => (kind === 'CLASS' || kind === 'ENUM' ? 0 : 1);
-    const sorted = [...rows].sort((a, b) => rank(a.symbolKind) - rank(b.symbolKind));
-    const bySymbol = new Map<string, { symbolName: string; symbolKind: string; content: string }>();
-    for (const row of sorted) {
-      if (row.symbolName === null || bySymbol.has(row.symbolName)) continue;
-      bySymbol.set(row.symbolName, { symbolName: row.symbolName, symbolKind: row.symbolKind, content: row.content });
+    const bySymbol = new Map<string, Array<{ symbolName: string; symbolKind: string; content: string }>>();
+    for (const row of rows) {
+      if (row.symbolName === null || row.partIndex !== 1) continue;
+      const list = bySymbol.get(row.symbolName) ?? [];
+      list.push({ symbolName: row.symbolName, symbolKind: row.symbolKind, content: row.content });
+      bySymbol.set(row.symbolName, list);
     }
-    return [...bySymbol.values()];
+    const unique: Array<{ symbolName: string; symbolKind: string; content: string }> = [];
+    for (const declarations of bySymbol.values()) {
+      if (declarations.length === 1) unique.push(declarations[0]);
+    }
+    return unique;
   }
 
   /**

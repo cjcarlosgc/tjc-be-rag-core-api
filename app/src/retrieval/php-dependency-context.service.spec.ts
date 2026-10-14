@@ -174,3 +174,70 @@ describe('PhpDependencyContextService final marks (WI-CORE-058)', () => {
     expect(result?.text).not.toContain('no se puede mockear');
   });
 });
+
+describe('PhpDependencyContextService final lookups edge cases (WI-CORE-058)', () => {
+  it('does not mark a non-final class that only contains a final method', async () => {
+    const POLICY = `${NS}\\RenewalDatePolicy`;
+    const repository = {
+      findByFile: vi.fn().mockResolvedValue([
+        {
+          filePath: FILE,
+          symbolKind: 'CLASS',
+          symbolName: DECLARING,
+          parentSymbolName: null,
+          importsUsed: [`${DOMAIN}\\Subscription`],
+          content: 'class RenewalService {}',
+        },
+        {
+          filePath: FILE,
+          symbolKind: 'CONSTRUCTOR',
+          symbolName: '__construct',
+          parentSymbolName: DECLARING,
+          importsUsed: [],
+          content: 'public function __construct(private RenewalDatePolicy $dates) {}',
+        },
+      ]),
+      findPhpTypeSymbolNames: vi.fn().mockResolvedValue([POLICY]),
+      findPhpTypeDeclarations: vi.fn().mockResolvedValue([
+        {
+          symbolName: POLICY,
+          symbolKind: 'CLASS',
+          content: 'class RenewalDatePolicy { final public function evaluate(): void {} }',
+        },
+      ]),
+    } as unknown as CodeChunksRepository;
+    const service = new PhpDependencyContextService(repository);
+
+    const result = await service.resolve('version-1', [methodChunk], 'php');
+
+    const entry = result?.entries.find((item) => item.fqcn === POLICY);
+    expect(entry).toBeDefined();
+    expect(entry).not.toHaveProperty('final');
+    expect(result?.text).not.toContain('no se puede mockear');
+  });
+
+  it('sends at most 20 FQCN to the declarations query when more than 20 are resolved', async () => {
+    const types = Array.from({ length: 25 }, (_, index) => `T${index}`);
+    const imports = types.map((name) => `${DOMAIN}\\${name}`);
+    const bigMethod = {
+      ...methodChunk,
+      importsUsed: imports,
+      content: `public function renew(${types.map((name, index) => `${name} $a${index}`).join(', ')}): void {}`,
+    };
+    const findPhpTypeDeclarations = vi.fn().mockResolvedValue([]);
+    const repository = {
+      findByFile: vi.fn().mockResolvedValue([]),
+      findPhpTypeSymbolNames: vi.fn().mockResolvedValue(imports),
+      findPhpTypeDeclarations,
+    } as unknown as CodeChunksRepository;
+    const service = new PhpDependencyContextService(repository);
+
+    await service.resolve('version-1', [bigMethod], 'php');
+
+    expect(findPhpTypeDeclarations).toHaveBeenCalledTimes(1);
+    const requested = findPhpTypeDeclarations.mock.calls[0][1] as string[];
+    expect(requested).toHaveLength(20);
+    expect(new Set(requested).size).toBe(20);
+    for (const name of requested) expect(imports).toContain(name);
+  });
+});
