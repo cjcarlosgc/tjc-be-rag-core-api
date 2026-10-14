@@ -90,6 +90,10 @@ Cada repetición que invoca al Sandbox persiste, en la tabla privada `experiment
 
 De forma aditiva e interna (sin DTO público ni §6.16, sin cambiar el Sandbox), Core persiste lo necesario para reconstruir un trial sin cruzar tablas: `ExperimentRun.analysisRunId` y `commitSha`; por intento, `startedAt`/`finishedAt` y `promptSha256` (solo el hash del prompt enviado: del prompt RAG o de las instrucciones iniciales del agente; el texto no se guarda mientras `DEC-VAL-001` esté `PENDING`); y, en `experiment_repetition_artifacts`, la evidencia acotada que el Sandbox ya devuelve (`evidence[]`: salida del compilador, de las pruebas y reporte del runner, con `truncated`/`originalBytes`), saneada (secretos redactados, sin NUL) con tope de 8 KiB por entrada y 40 KiB en total, y `startedAt`/`completedAt` del Sandbox. Core ya no descarta esos campos en `fetchResult`. La escritura es best-effort y no altera el resultado, el estado ni el reintento de la repetición. Migración `20261013110000_experiment_trial_reconstruction` aditiva y nullable (no aplicada hasta orden); las filas anteriores quedan sin dato (sin backfill: los trials del piloto V1 no tienen salida del Sandbox). Sin purga; stdout/stderr puede contener código de terceros (solo repositorios de piloto).
 
+## Tiempos por etapa del Sandbox (`WI-CORE-061`, 2026-10-14)
+
+El Sandbox (`WI-SANDBOX-007`, `CS-SANDBOX-20261014-001`) agrega a cada etapa de `stageDurations[]` las marcas ISO-8601 UTC opcionales `startedAt` y `completedAt` junto a `durationMs`. Core las conserva por etapa cuando son válidas (se omiten sin error si faltan o son inválidas) y las persiste de forma interna dentro de `runnerReport.stageDurations` del artefacto de la repetición (sin migración, sin DTO público ni §6.16); un Sandbox anterior sigue funcionando y sus reportes no cambian. Con ellas se puede medir la espera antes de `PREPARING` (frente al inicio del intento de Core) y entre etapas. La incorporación documental de los campos a INTEROP §7.3 queda pendiente de una decisión aparte.
+
 ## Fuera de alcance
 
 - No ampliar a capacidades no mencionadas en esta spec.

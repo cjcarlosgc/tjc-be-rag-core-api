@@ -336,3 +336,65 @@ describe('buildSandboxEvidenceArtifact (WI-CORE-060)', () => {
     expect(first?.sandboxEvidenceSha256).toBe(sha256(canonical));
   });
 });
+
+describe('buildRepetitionArtifact stage timestamps (WI-CORE-061)', () => {
+  const stagesWithTimes = (): SandboxExecutionResult['stageDurations'] => [
+    { stage: 'COMPILING', durationMs: 120, startedAt: '2026-10-14T06:30:33.225Z', completedAt: '2026-10-14T06:30:33.345Z' },
+    { stage: 'INSTALLING_DEPENDENCIES', durationMs: 900, startedAt: '2026-10-14T06:30:33.500Z', completedAt: '2026-10-14T06:30:34.400Z' },
+    { stage: 'RUNNING_TESTS', durationMs: 340, startedAt: '2026-10-14T06:30:34.650Z', completedAt: '2026-10-14T06:30:34.990Z' },
+  ];
+
+  it('incluye startedAt/completedAt por etapa en runnerReport.stageDurations cuando existen', () => {
+    const artifact = buildRepetitionArtifact('code', makeResult({ stageDurations: stagesWithTimes() }));
+    expect(artifact?.runnerReport?.stageDurations).toStrictEqual([
+      { stage: 'COMPILING', durationMs: 120, startedAt: '2026-10-14T06:30:33.225Z', completedAt: '2026-10-14T06:30:33.345Z' },
+      { stage: 'INSTALLING_DEPENDENCIES', durationMs: 900, startedAt: '2026-10-14T06:30:33.500Z', completedAt: '2026-10-14T06:30:34.400Z' },
+      { stage: 'RUNNING_TESTS', durationMs: 340, startedAt: '2026-10-14T06:30:34.650Z', completedAt: '2026-10-14T06:30:34.990Z' },
+    ]);
+  });
+
+  it('el hash cambia solo cuando hay tiempos por etapa', () => {
+    const withoutTimes = buildRepetitionArtifact('code', makeResult());
+    const withTimes = buildRepetitionArtifact('code', makeResult({ stageDurations: stagesWithTimes() }));
+    expect(withTimes?.runnerReportSha256).not.toBe(withoutTimes?.runnerReportSha256);
+    const again = buildRepetitionArtifact('code', makeResult({ stageDurations: stagesWithTimes() }));
+    expect(again?.runnerReportSha256).toBe(withTimes?.runnerReportSha256);
+  });
+
+  it('sin tiempos, el reporte no tiene claves nuevas y el hash coincide con la versión previa', () => {
+    const baseline: SandboxExecutionResult = {
+      status: 'COMPLETED',
+      facts: {
+        runner: 'VITEST', compiled: true, executed: true, passed: true, totalTests: 1, passedTests: 1,
+        failedTests: 0, skippedTests: 0,
+        testCases: [{ suitePath: 'suite', name: 'a', status: 'PASSED', durationMs: 3, errorMessage: null, failureKind: null }],
+        testCasesTruncated: false,
+      },
+      failure: null,
+      stageDurations: [
+        { stage: 'COMPILING', durationMs: 120 },
+        { stage: 'RUNNING_TESTS', durationMs: 340 },
+      ],
+      executionId: 'exec-1', executionProfile: 'NODE_TYPESCRIPT', requestId: 'req-1', correlationId: 'corr-1', durationMs: 200,
+    };
+    const artifact = buildRepetitionArtifact('code', baseline);
+    expect(artifact?.runnerReport?.stageDurations).toStrictEqual([
+      { stage: 'COMPILING', durationMs: 120 },
+      { stage: 'RUNNING_TESTS', durationMs: 340 },
+    ]);
+    expect(artifact?.runnerReportSha256).toBe(
+      '289806bff9245d1b486783f84acaa455f6fd75d7d81a7e68818c1b3727d97909',
+    );
+  });
+
+  it('con tiempos de 3 etapas, la espera entre etapas se calcula leyendo solo el reporte persistido', () => {
+    const artifact = buildRepetitionArtifact('code', makeResult({ stageDurations: stagesWithTimes() }));
+    const persisted = JSON.parse(JSON.stringify(artifact?.runnerReport)) as {
+      stageDurations: Array<{ stage: string; startedAt: string; completedAt: string }>;
+    };
+    const gaps = persisted.stageDurations.slice(1).map((stage, index) =>
+      Date.parse(stage.startedAt) - Date.parse(persisted.stageDurations[index].completedAt),
+    );
+    expect(gaps).toStrictEqual([155, 250]);
+  });
+});

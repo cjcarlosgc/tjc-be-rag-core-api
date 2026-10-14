@@ -3472,6 +3472,63 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-060-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-061",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Leer y persistir internamente startedAt/completedAt por etapa del Sandbox",
+      "storyIds": [
+        "HU12",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-068"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-060"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "StageDuration del cliente del Sandbox admite startedAt y completedAt opcionales; fetchResult los conserva por etapa cuando son cadenas ISO-8601 UTC válidas y los omite (sin lanzar ni cambiar durationMs) si faltan o son inválidos, de modo que un Sandbox anterior sigue funcionando.",
+        "runnerReport.stageDurations del artefacto de la repetición incluye startedAt/completedAt por etapa cuando existen; sin migración (JSON existente); sin DTO público, §6.16, contrato canónico ni cambios en el Sandbox.",
+        "Pruebas roja-verde; replay/consulta de criterio de verificación post-despliegue (espera antes de PREPARING y entre etapas); vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-061-scope-approval.md",
+        "app/src/sandbox/sandbox.types.ts",
+        "app/src/sandbox/sandbox-execution.service.ts",
+        "app/src/experiments/repetition-artifact.ts",
+        "harness/reports/wi-core-061-contract-sync-scope-review.md",
+        "harness/reports/wi-core-061-technical-checks.md",
+        "CHANGELOG.md",
+        "harness/reports/wi-core-061-independent-review.md",
+        "harness/reports/wi-core-061-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-061 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-061-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-061 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-061-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-061-scope-approval.md"
     }
   ]
 }
