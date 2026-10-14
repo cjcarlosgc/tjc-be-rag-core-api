@@ -3529,6 +3529,63 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-061-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-062",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Transcribir CS-SANDBOX-20261014-001 e incorporar los tiempos por etapa a INTEROP-2.16",
+      "storyIds": [
+        "HU12",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-069"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-061"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "CS-SANDBOX-20261014-001 queda transcrito en el inbox de Core en YAML aceptado por contract-sync.mjs, con originalPath y originalSha256 del JSON del Sandbox, sin campos fabricados (scopePaths derivado del texto y declarado) y con el estado de ciclo de vida correcto (C-ACKNOWLEDGED y luego C-RESOLVED con evidencia).",
+        "INTEROP-2.16 documental y aditiva: StageDuration (§7.3) con startedAt?/completedAt? opcionales (ISO UTC; ausentes en Sandboxes anteriores) sin cambiar tipos existentes; cabecera, §1, CHANGELOG y spec/README.md actualizados; contract-reviewer aprueba antes de editar.",
+        "Contract Sync CS-CORE-… a Console (breaking false); sin cambios en app/, migraciones, push ni despliegue; DEC-RAG-001 PENDING; #4 no se toca."
+      ],
+      "specPaths": [
+        "spec/contracts/interoperability-contract.md",
+        "spec/README.md",
+        "CHANGELOG.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-062-scope-approval.md",
+        "harness/reports/wi-core-062-transcription-cs-sandbox-20261014-001.md",
+        "harness/contract-sync/inbox/CS-SANDBOX-20261014-001.yaml",
+        "harness/reports/wi-core-062-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-062 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-062-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-062 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-062-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-062-scope-approval.md"
     }
   ]
 }

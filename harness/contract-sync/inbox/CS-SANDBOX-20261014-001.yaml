@@ -1,0 +1,20 @@
+type: CONTRACT_SYNC
+id: CS-SANDBOX-20261014-001
+source: sandbox
+sourceWorkItem: WI-SANDBOX-007
+targets: [core]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - executions
+  - evidence
+requiredAction:
+  - Additive and backward compatible (WI-SANDBOX-007, approved by Jean 2026-10-14): StageDuration in INTEROP section 7.3 gains optional startedAt and completedAt (ISO-8601 UTC) per stage, alongside unchanged durationMs. Consumers must ignore unknown fields (INTEROP section 1). Incorporate into the canonical contract at your discretion; the Sandbox emits the fields from the commit in sourceRevision once deployed. No change to routes, codes, auth, idempotency or isolation.
+sourceRevision: 19dfde456795c0a533d4823c25b546f3d372a970
+originalCreatedAt: 2026-10-14T06:30:33.225Z
+originalPath: tjc-be-test-execution-sandbox/harness/contract-sync/outbox/CS-SANDBOX-20261014-001.json
+originalSha256: eb0c8a255cc4e5daed4c6105a733bde5bf2d3e1f0b7c98bcd5082575c41ecf8e
+transcription: transcrito por Core con autorizacion del usuario (2026-10-14) desde el JSON original; scopePaths derivado del texto «INTEROP section 7.3»; ver harness/reports/wi-core-062-transcription-cs-sandbox-20261014-001.md
+consumerImportedAt: 2026-10-14T06:49:01.000Z
+status: C-ACKNOWLEDGED
+acknowledgementEvidence: harness/reports/wi-core-062-transcription-cs-sandbox-20261014-001.md
