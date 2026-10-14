@@ -3599,7 +3599,7 @@
       "id": "WI-CORE-063",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Replay de calibración offline del RAG (métricas M1–M6) en harness/",
@@ -3628,7 +3628,15 @@
         "harness/reports/fase3-calibracion-rag-diagnostico.md",
         "harness/reports/fase2-01-replay-colaboradores.py",
         "spec/features/004-rag-retrieval-context/tasks.md",
-        "harness/reports/wi-core-063-contract-sync-scope-review.md"
+        "harness/reports/wi-core-063-contract-sync-scope-review.md",
+        "harness/reports/wi-core-063-technical-checks.md",
+        "harness/reports/wi-core-063-calibracion-baseline.md",
+        "harness/calibration/lib.mjs",
+        "harness/calibration/calibrate.mjs",
+        "harness/calibration/extract-experiments.sh",
+        "harness/calibration/README.md",
+        "harness/calibration/calibration.test.mjs",
+        "CHANGELOG.md"
       ],
       "contractSyncReview": [
         {

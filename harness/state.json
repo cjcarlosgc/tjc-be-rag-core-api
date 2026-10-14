@@ -16820,7 +16820,7 @@
     "id": "WI-CORE-063",
     "component": "CORE",
     "workItemType": "HARNESS",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "priority": "P2",
     "title": "Replay de calibración offline del RAG (métricas M1–M6) en harness/",
     "approved": true,
@@ -16839,7 +16839,15 @@
       "harness/reports/fase3-calibracion-rag-diagnostico.md",
       "harness/reports/fase2-01-replay-colaboradores.py",
       "spec/features/004-rag-retrieval-context/tasks.md",
-      "harness/reports/wi-core-063-contract-sync-scope-review.md"
+      "harness/reports/wi-core-063-contract-sync-scope-review.md",
+      "harness/reports/wi-core-063-technical-checks.md",
+      "harness/reports/wi-core-063-calibracion-baseline.md",
+      "harness/calibration/lib.mjs",
+      "harness/calibration/calibrate.mjs",
+      "harness/calibration/extract-experiments.sh",
+      "harness/calibration/README.md",
+      "harness/calibration/calibration.test.mjs",
+      "CHANGELOG.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -16872,24 +16880,50 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "implementer",
+          "status": "APPROVED",
+          "findings": [
+            "Replay de calibracion offline M1-M6 en harness/calibration; linea base 10/10; M6 con precision observada."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/calibration/lib.mjs",
+            "harness/calibration/calibrate.mjs",
+            "harness/calibration/extract-experiments.sh",
+            "harness/calibration/README.md",
+            "harness/calibration/calibration.test.mjs"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-063-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente delegada (Modo fuera de casa).",
+          "executedBy": {
+            "agent": "implementer",
+            "configuredModel": "claude-haiku-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": false,
@@ -16904,13 +16938,40 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-14T07:22:14.547Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-063",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-14T07:35:08.771Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-063",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-14T07:35:08.897Z"
         }
       ],
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
-      "harness/reports/wi-core-063-scope-approval.md"
+      "harness/reports/wi-core-063-scope-approval.md",
+      "harness/reports/wi-core-063-technical-checks.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
@@ -16919,6 +16980,18 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-063-scope-approval.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-063-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-063-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-063-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-063-technical-checks.md"
       ]
     }
   },

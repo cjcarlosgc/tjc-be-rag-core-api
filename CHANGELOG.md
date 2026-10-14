@@ -12,6 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **WI-CORE-063 — replay de calibración offline del RAG (2026-10-14, en revisión):** `harness/calibration/` evalúa cambios candidatos del RAG sin LLM con las métricas M1 a M6 (colaboradores en top-10 y sección, plantilla manual R1–R5, ruido, tokens, estabilidad del top-10 y reglas estáticas de fallos previstos con precisión observada) sobre los 9 casos V1 y 6 verificaciones no oficiales; la línea base reproduce el top-10 persistido 10/10. Sin cambios en `app/`, ranking, R-PHP ni contratos.
 - **WI-CORE-062 — INTEROP-2.16 documental y aditiva (StageDuration startedAt/completedAt) y transcripción de CS-SANDBOX-20261014-001; CS-CORE-20261014-001 (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-061 — tiempos por etapa del Sandbox conservados y persistidos internamente (revisión independiente delegada por el Modo fuera de casa; CS-SANDBOX-20261014-001 sin importar) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-060 — reconstrucción interna de un trial: analysisRunId, commitSha, tiempos, hash del prompt y evidencia del Sandbox; migración 20261013110000 sin aplicar (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
