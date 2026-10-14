@@ -3284,6 +3284,64 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-057-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-058",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Marcar tipos final en la sección de dependencias PHP del contexto RAG",
+      "storyIds": [
+        "HU05",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-065"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-057"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "Para cada dependencia resuelta cuyo chunk de declaración está en el índice de la versión, la entrada indica final cuando la declaración es `final class`/`final readonly class` o una enumeración; si no se puede determinar (tipo fuera del índice, declaración ilegible) no se afirma ni se marca.",
+        "La sección renderizada indica de forma clara que el tipo es final y no se puede mockear (instanciar con new o usar el tipo real); respeta el tope de 20 entradas y 300 tokens y reporta los tokens extra por caso.",
+        "La traza expone el marcador de forma aditiva y retrocompatible (final opcional) con INTEROP versionado aprobado por contract-reviewer ANTES de editar y Contract Sync a Console.",
+        "Pruebas roja-verde (final, final readonly, abstract/interface sin marca, enum, tipo fuera del índice, class comentado/atributos antes de final); replay offline de los 9 casos con top-10 idéntico y tokens extra; criterio de verificación para SUB-1/SUB-2.",
+        "Sin cambios en ranking, pesos, topK, R-PHP1..5, contextTokens, métricas, agente generalista ni migraciones; DEC-RAG-001 sigue PENDING; vitest, lint y tsc contra la línea base (delta 0); sin build en app/."
+      ],
+      "specPaths": [
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "spec/contracts/interoperability-contract.md",
+        "harness/reports/wi-core-058-scope-approval.md",
+        "harness/reports/wi-core-057-closure.md",
+        "harness/reports/wi-core-058-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-058 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-058-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-058 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-058-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-058-scope-approval.md"
     }
   ]
 }
