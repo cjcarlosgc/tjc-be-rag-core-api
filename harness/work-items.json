@@ -3418,7 +3418,7 @@
       "id": "WI-CORE-060",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Persistir de forma interna lo necesario para reconstruir un trial (analysisRunId, commitSha, tiempos, hash del prompt y evidencia del Sandbox)",
@@ -3451,7 +3451,9 @@
         "harness/reports/wi-core-060-contract-sync-scope-review.md",
         "harness/reports/wi-core-060-technical-checks.md",
         "app/prisma/migrations/20261013110000_experiment_trial_reconstruction/migration.sql",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "harness/reports/wi-core-060-independent-review.md",
+        "harness/reports/wi-core-060-closure.md"
       ],
       "contractSyncReview": [
         {

@@ -12,7 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
-- **WI-CORE-060 — reconstrucción interna de un trial (2026-10-13, en revisión):** Core deja de descartar `evidence[]`, `startedAt` y `completedAt` del resultado del Sandbox y persiste, de forma aditiva e interna, `ExperimentRun.analysisRunId`/`commitSha`, `startedAt`/`finishedAt` y `promptSha256` (solo hash) por intento y la evidencia acotada y saneada del Sandbox en `experiment_repetition_artifacts`; migración `20261013110000_experiment_trial_reconstruction` (aditiva, nullable, sin aplicar). Sin DTO público, contrato ni cambios en el Sandbox.
+- **WI-CORE-060 — reconstrucción interna de un trial: analysisRunId, commitSha, tiempos, hash del prompt y evidencia del Sandbox; migración 20261013110000 sin aplicar (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-059 — inspect_symbol resuelve métodos PHP por nombre simple (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-058 — marca final en las dependencias PHP del contexto RAG, INTEROP-2.15 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-003) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-057 — dependencias PHP con FQCN en el contexto RAG y la traza, INTEROP-2.14 (revisión independiente delegada por el Modo fuera de casa; CS-CORE-20261013-002) (2026-10-13, W-DONE, revisión independiente delegada).**
