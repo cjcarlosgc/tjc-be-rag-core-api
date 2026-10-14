@@ -342,15 +342,16 @@ function resolveTestName(name, parsed) {
  * Solo se consideran lineas; las llamadas multilinea de assertSame no se analizan (limitacion documentada).
  * Precision observada: por regla, trials (analizados) con hit y su resultado (valid / fallido con evidencia en errorSummary).
  */
-const RULE_IDS = ['R-FINAL', 'R-SAME', 'R-NS', 'R-ANON-FINAL', 'R-STATIC-THIS', 'R-SIG'];
+const RULE_IDS = ['R-FINAL', 'R-SAME', 'R-NS', 'R-ANON-FINAL', 'R-STATIC-THIS', 'R-SIG', 'R-NEW-ENUM'];
 /** Evidencia en errorSummary de la clase de fallo que cada regla pretende detectar. */
 export const FAILURE_EVIDENCE = {
   'R-FINAL': (s) => /ClassIsFinal/.test(s) || (/final/i.test(s) && /mock/i.test(s)),
   'R-SAME': (s) => /same object|reference the same/i.test(s),
   'R-NS': (s) => /not found|Class (?:or interface )?"[^"]*" does not exist|UnknownType/i.test(s),
-  'R-ANON-FINAL': (s) => /cannot extend final|final class/i.test(s),
+  'R-ANON-FINAL': (s) => /cannot extend final|final class|cannot implement .* it is not an interface/i.test(s),
   'R-STATIC-THIS': (s) => /Using \$this when not in object context/i.test(s),
   'R-SIG': (s) => /ArgumentCountError|Too few arguments|Unknown named parameter/i.test(s),
+  'R-NEW-ENUM': (s) => /Cannot instantiate enum/i.test(s),
 };
 
 /** Segmentos de metodo: desde cada `function nombre(` hasta la linea anterior a la siguiente declaracion. */
@@ -466,6 +467,19 @@ export function m6Static(c) {
         if (info && info.final) pushRule('R-ANON-FINAL', { line: idx + 1, snippet: snippet(line), type: fq });
       }
     });
+    // WI-CORE-067: clase anonima que implementa (implements A, B) un tipo final del caso; interfaces y no final no cuentan.
+    lines.forEach((line, idx) => {
+      const head = /new\s+class\s*(?:\([^)]*\)\s*)?((?:extends|implements)\b[^{]*)/.exec(line);
+      const impl = head ? /\bimplements\s+([^{]*)/.exec(head[1]) : null;
+      if (!impl) return;
+      for (const raw of impl[1].split(',')) {
+        const nm = /^\\?[A-Za-z_][\w\\]*/.exec(raw.trim());
+        if (!nm) continue;
+        const fq = resolveTestName(nm[0], parsed);
+        const info = types.get(fq);
+        if (info && info.final) pushRule('R-ANON-FINAL', { line: idx + 1, snippet: snippet(line), type: fq });
+      }
+    });
     // WI-CORE-065: $this-> dentro de closures static (function con balance de llaves; fn hasta fin de expresion).
     const seenThis = new Set();
     for (const body of staticClosureBodies(t.testContent)) {
@@ -489,6 +503,15 @@ export function m6Static(c) {
       if (reason) {
         const ln = lineOf(t.testContent, m.index);
         pushRule('R-SIG', { line: ln, snippet: snippet(lines[ln - 1]), type: fq, reason });
+      }
+    }
+    // WI-CORE-067: `new X(` donde X es un enum conocido del caso (un enum no se instancia).
+    for (const m of t.testContent.matchAll(/new\s+(\\?[A-Za-z_][\w\\]*)\s*\(/g)) {
+      const fq = resolveTestName(m[1], parsed);
+      const info = types.get(fq);
+      if (info && info.kind === 'ENUM') {
+        const ln = lineOf(t.testContent, m.index);
+        pushRule('R-NEW-ENUM', { line: ln, snippet: snippet(lines[ln - 1]), type: fq });
       }
     }
     for (const u of parsed.useLines) {

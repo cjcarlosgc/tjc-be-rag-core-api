@@ -376,7 +376,7 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
   };
 
   it('exports the prompt version constant (i)', () => {
-    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.5');
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.6');
   });
 
   it('exports exactly the five convention lines in the agreed wording (v)', () => {
@@ -385,17 +385,32 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
       'PHPUnit: compara objetos de valor (p. ej. `DateTimeImmutable`) con `assertEquals`; usa `assertSame` solo para escalares o identidad del mismo objeto.',
     );
     expect(LINES[1]).toBe(
-      'No uses `createMock`/`createStub`/`getMockBuilder` con clases `final` ni enums: instancia las clases con `new` (un enum, con uno de sus casos); crea dobles solo de interfaces o clases no `final`.',
+      'No uses `createMock`/`createStub`/`getMockBuilder` con clases `final` ni enums, ni hagas `new` de un enum: instancia las clases `final` con `new` y usa un caso del enum (`Enum::Caso`); crea dobles solo de interfaces o clases no `final`.',
     );
     expect(LINES[2]).toBe(
       'En los `use` pon solo FQCN presentes en el código y el contexto disponibles (si hay una sección de dependencias, también los de ella); no inventes namespaces.',
     );
     expect(LINES[3]).toBe(
-      'No extiendas clases `final`, tampoco con clases anónimas (`new class extends X`): usa el tipo real o una implementación de su interfaz.',
+      'No uses una clase `final` en `extends` ni en `implements`, tampoco en clases anónimas (`new class extends|implements X`): usa una instancia real con `new` (o una implementación de su interfaz si X es interfaz).',
     );
     expect(LINES[4]).toBe(
       'No declares `static` los closures que usan `$this->assert…` o `$this->callback(...)`: sin `$this` fallan en tiempo de ejecución.',
     );
+  });
+
+  it('redacción reforzada: ambas líneas cubren implements, getMockBuilder y casos de enum (WI-CORE-067)', () => {
+    expect(LINES[1]).toContain('getMockBuilder');
+    expect(LINES[1]).toContain('Enum::Caso');
+    expect(LINES[1]).toMatch(/`new` de un enum/);
+    expect(LINES[3]).toContain('implements');
+    expect(LINES[3]).toContain('new class extends|implements X');
+  });
+
+  it('la versión .6 se refleja en el prompt de ambos brazos con la misma redacción (WI-CORE-067)', () => {
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.6');
+    const prompt = new PromptBuilder().build(phpBase(), options);
+    expect(prompt).toContain(LINES[1]);
+    expect(prompt).toContain(LINES[3]);
   });
 
   it('inserts the three lines as own sections right after the Extiende line and before the location line (i)', () => {

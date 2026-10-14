@@ -367,7 +367,7 @@ describe('PhpDependencyContextService profundidad 2 (WI-CORE-066)', () => {
 });
 
 describe('versión del prompt (WI-CORE-066)', () => {
-  it('declara php-prompt-2026-10-14.5', () => {
-    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.5');
+  it('declara php-prompt-2026-10-14.6', () => {
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.6');
   });
 });
