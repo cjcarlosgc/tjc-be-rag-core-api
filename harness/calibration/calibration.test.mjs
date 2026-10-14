@@ -161,7 +161,7 @@ test('M6: no marca casos validos (assertEquals, doble de interfaz, use presente)
   const clean = { ...c, trials: [c.trials[1]] };
   const m6 = m6Static(clean);
   assert.equal(m6.trialsAnalyzed, 1);
-  assert.deepEqual(m6.rules.map((r) => r.count), [0, 0, 0]);
+  assert.deepEqual(m6.rules.map((r) => r.count), [0, 0, 0, 0, 0, 0]);
 });
 
 test('M6 sin trials.json devuelve null', () => {
@@ -202,7 +202,8 @@ test('extractor: sin argumentos devuelve uso (64) sin tocar nada', () => {
 
 test('extractor: el script no contiene la asignacion de credenciales literal ni secretos', () => {
   const src = readFileSync(join(HERE, 'extract-experiments.sh'), 'utf8');
-  assert.equal(src.includes('DATABASE_URL='), false);
+  // Se prohíbe la asignación literal de la URL (`DATABASE_URL=valor`); el grep de lectura `^DATABASE_URL=` es válido.
+  assert.equal(/^\s*(export\s+)?DATABASE_URL\s*=\s*\S/m.test(src), false);
   assert.equal(/postgres(ql)?:\/\/[^\s'"$]+@/.test(src), false);
   assert.ok(src.includes('default_transaction_read_only=on'));
   assert.ok(src.includes('statement_timeout=60000'));
@@ -305,6 +306,91 @@ test('M6 precision: agregacion suma contadores crudos entre casos', () => {
   assert.equal(agg['R-SAME'].failedWithEvidence, 1);
   assert.equal(agg['R-SAME'].precision, 0.5);
   assert.equal(aggregateM6Precision([null]), null);
+});
+
+// ---- M6 WI-CORE-065: R-ANON-FINAL, R-STATIC-THIS, R-SIG (fixtures sinteticos, clases inventadas) ----
+const typeChunk = (fq, content, kind = 'CLASS') => ({
+  id: `c-${fq.split('\\').pop()}`, filePath: `src/${fq.split('\\').pop()}.php`, symbolKind: kind, symbolName: fq,
+  parentSymbolName: null, importsUsed: [], content, tokenCount: 5,
+});
+const BASE_CHUNK = typeChunk('Acme\\Billing\\Base', 'class Base {}');
+const CONTRACT_CHUNK = typeChunk('Acme\\Billing\\Contract', 'interface Contract {}', 'INTERFACE');
+const CTOR_SIG = {
+  id: 'c-plan-ctor', filePath: 'src/Billing/Plan.php', symbolKind: 'CONSTRUCTOR', symbolName: '__construct',
+  parentSymbolName: 'Acme\\Billing\\Plan', importsUsed: [],
+  content: 'public function __construct(public string $code, public float $monthlyPrice) {}', tokenCount: 9,
+};
+const ruleOf = (m6, name) => m6.rules.find((x) => x.rule === name);
+const oneTrial = (uses, body, extra = []) => withTrials(load(), [trial(testFile(uses, body))], extra);
+
+test('M6 R-ANON-FINAL: clase anonima que extiende final (use, FQCN, con argumentos) -> marcada', () => {
+  const uses = ['Acme\\Billing\\Plan', 'Acme\\Billing\\Base', 'PHPUnit\\Framework\\TestCase'];
+  const body = '    $a = new class extends Plan {};\n    $b = new class(1) extends \\Acme\\Billing\\Plan {};';
+  const r = ruleOf(m6Static(oneTrial(uses, body, [PLAN_CHUNK])), 'R-ANON-FINAL');
+  assert.equal(r.count, 2);
+  assert.equal(r.evidence[0].type, 'Acme\\Billing\\Plan');
+});
+
+test('M6 R-ANON-FINAL: clase anonima que extiende no final, implementa interfaz o tipo desconocido -> NO marcada', () => {
+  const uses = ['Acme\\Billing\\Base', 'Acme\\Billing\\Contract', 'PHPUnit\\Framework\\TestCase'];
+  const body = '    $a = new class extends Base {};\n    $b = new class implements Contract {};\n    $c = new class extends Unknown {};';
+  const m6 = m6Static(oneTrial(uses, body, [BASE_CHUNK, CONTRACT_CHUNK, PLAN_CHUNK]));
+  assert.equal(ruleOf(m6, 'R-ANON-FINAL').count, 0);
+});
+
+test('M6 R-STATIC-THIS: static function con $this-> marcada; static fn con $this-> marcada', () => {
+  const body = "    $f = static function () { $this->assertTrue(true); };\n    $g = static fn() => $this->make();";
+  const r = ruleOf(m6Static(oneTrial(['PHPUnit\\Framework\\TestCase'], body)), 'R-STATIC-THIS');
+  assert.equal(r.count, 2);
+  assert.equal(r.evidence[0].line, 6);
+  assert.equal(r.evidence[1].line, 7);
+});
+
+test('M6 R-STATIC-THIS: closure no static con $this, static sin $this, static fn sin $this y metodo static -> NO marcada', () => {
+  const body = "    $a = function () { $this->assertTrue(true); };\n"
+    + "    $b = static function () { return 1; };\n"
+    + "    $c = static fn($x) => $x + 1;\n"
+    + "    $d = static function () { return fn() => 2; };";
+  const m6 = m6Static(oneTrial(['PHPUnit\\Framework\\TestCase'], body));
+  assert.equal(ruleOf(m6, 'R-STATIC-THIS').count, 0);
+  const helper = `<?php\nnamespace Acme\\Tests\\Billing;\nuse PHPUnit\\Framework\\TestCase;\nclass BillingTest extends TestCase {\n`
+    + '  public static function helper(): void {\n    $this->assertTrue(true);\n  }\n}';
+  assert.equal(ruleOf(m6Static(withTrials(load(), [trial(helper), trial(testFile(['PHPUnit\\Framework\\TestCase'], body))])), 'R-STATIC-THIS').count, 0);
+});
+
+test('M6 R-SIG: firma de 2 parametros: new Plan(p, 10.0) no marca; new Plan(monthlyPrice: 10.0) marca', () => {
+  const uses = ['Acme\\Billing\\Plan', 'PHPUnit\\Framework\\TestCase'];
+  const ok = oneTrial(uses, "    $p = new Plan('p', 10.0);\n    $q = new Plan(code: 'p', monthlyPrice: 10.0);", [CTOR_SIG]);
+  assert.equal(ruleOf(m6Static(ok), 'R-SIG').count, 0);
+  const bad = oneTrial(uses, '    $p = new Plan(monthlyPrice: 10.0);', [CTOR_SIG]);
+  const r = ruleOf(m6Static(bad), 'R-SIG');
+  assert.equal(r.count, 1);
+  assert.equal(r.evidence[0].line, 7);
+  assert.equal(r.evidence[0].reason, 'missing-required');
+});
+
+test('M6 R-SIG: parametro con valor por defecto no marca; posicional corto y nombre desconocido si marcan; splat no', () => {
+  const uses = ['Acme\\Billing\\Plan', 'PHPUnit\\Framework\\TestCase'];
+  const withDefault = { ...CTOR_SIG, content: 'public function __construct(public string $code, public float $monthlyPrice = 0.0) {}' };
+  const defaults = oneTrial(uses, "    $a = new Plan(code: 'p');\n    $b = new Plan('p');", [withDefault]);
+  assert.equal(ruleOf(m6Static(defaults), 'R-SIG').count, 0);
+  const short = oneTrial(uses, "    $a = new Plan('p');\n    $b = new Plan('p', price: 1.0);", [CTOR_SIG]);
+  assert.equal(ruleOf(m6Static(short), 'R-SIG').count, 2);
+  const unknown = oneTrial(uses, "    $a = new Plan(code: 'p', price: 1.0);", [CTOR_SIG]);
+  const ru = ruleOf(m6Static(unknown), 'R-SIG');
+  assert.equal(ru.count, 1);
+  assert.equal(ru.evidence[0].reason, 'unknown-named');
+  const splat = oneTrial(uses, '    $a = new Plan(...$args);', [CTOR_SIG]);
+  assert.equal(ruleOf(m6Static(splat), 'R-SIG').count, 0);
+});
+
+test('M6 R-SIG: deps.json signatures tiene prioridad; sin firma conocida no marca', () => {
+  const uses = ['Acme\\Billing\\Plan', 'PHPUnit\\Framework\\TestCase'];
+  const base = oneTrial(uses, '    $p = new Plan(monthlyPrice: 10.0);', []);
+  const withDeps = { ...base, deps: { ...base.deps, signatures: [{ fqcn: 'Acme\\Billing\\Plan', signature: '(string $code, float $monthlyPrice)' }] } };
+  assert.equal(ruleOf(m6Static(withDeps), 'R-SIG').count, 1);
+  const sinFirma = { ...base, deps: { ...base.deps, signatures: [] } };
+  assert.equal(ruleOf(m6Static(sinFirma), 'R-SIG').count, 0);
 });
 
 test('resolve sanity: REPO_ROOT apunta al repositorio', () => {

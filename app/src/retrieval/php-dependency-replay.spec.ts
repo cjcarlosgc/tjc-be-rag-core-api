@@ -64,6 +64,11 @@ interface CaseRow {
   sectionTokens: number;
   sectionTokensSinMarcas: number;
   finalExtraTokens: number;
+  /** WI-CORE-065: sección con firmas (sectionTokens) y la misma sección sin firmas (repositorio sin constructores). */
+  sectionTokensSinFirmas: number;
+  signatureExtraTokens: number;
+  signatures: Array<{ fqcn: string; signature: string }>;
+  truncated: boolean;
   baselineContextTokens: number;
   extraPercent: number;
 }
@@ -126,13 +131,28 @@ function buildRetrievalResult(replay: ReplayCase, anchor: ReplayChunk): Retrieva
  * Repositorio falso: sirve los chunks del caso al servicio real de dependencias. Con `withDeclarations`
  * false, `findPhpTypeDeclarations` devuelve vacío (línea base sin marcas final).
  */
-function fakeRepository(replay: ReplayCase, withDeclarations = true) {
+function fakeRepository(replay: ReplayCase, withDeclarations = true, withConstructors = true) {
   const typeNames = replay.chunks
     .filter((chunk) => chunk.filePath.endsWith('.php') && TYPE_KINDS.has(chunk.symbolKind))
     .map((chunk) => chunk.symbolName);
   return {
     findByFile: async (_pv: string, filePath: string) => replay.chunks.filter((chunk) => chunk.filePath === filePath),
     findPhpTypeSymbolNames: async () => typeNames,
+    // Misma semántica que el repositorio real: CONSTRUCTOR de .php con parent pedido; una sola declaración por padre
+    // (partIndex 1 o único; si hay varias, constructores en archivos distintos, el padre se omite).
+    findPhpConstructorDeclarations: async (_pv: string, parentSymbolNames: string[]) => {
+      if (!withConstructors || parentSymbolNames.length === 0) return [];
+      const wanted = new Set(parentSymbolNames);
+      const byParent = new Map<string, Array<{ parentSymbolName: string; content: string }>>();
+      for (const chunk of replay.chunks) {
+        if (chunk.symbolKind !== 'CONSTRUCTOR' || !chunk.filePath.endsWith('.php')) continue;
+        if (chunk.parentSymbolName === null || !wanted.has(chunk.parentSymbolName)) continue;
+        const list = byParent.get(chunk.parentSymbolName) ?? [];
+        list.push({ parentSymbolName: chunk.parentSymbolName, content: chunk.content });
+        byParent.set(chunk.parentSymbolName, list);
+      }
+      return [...byParent.values()].filter((list) => list.length === 1).map((list) => list[0]);
+    },
     // Misma semántica que el repositorio real: una fila por symbolName, preferir CLASS/ENUM.
     findPhpTypeDeclarations: async (_pv: string, symbolNames: string[]) => {
       if (!withDeclarations || symbolNames.length === 0) return [];
@@ -159,8 +179,9 @@ async function resolveDependencies(
   replay: ReplayCase,
   anchor: ReplayChunk,
   withDeclarations = true,
+  withConstructors = true,
 ): Promise<GenerationContextDependencyContext | undefined> {
-  const service = new PhpDependencyContextService(fakeRepository(replay, withDeclarations));
+  const service = new PhpDependencyContextService(fakeRepository(replay, withDeclarations, withConstructors));
   const resolved = await service.resolve(replay.meta.pv, [anchor as never], 'php');
   if (resolved === null) return undefined;
   return {
@@ -203,7 +224,8 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
     const lines = rows.map(
       (row) =>
         `${row.caso} | ${row.target} | entradas=${row.entries.length} | final=${row.finalCount} | sinResolver=${row.unresolvedCount} | ` +
-        `tokensSeccion=${row.sectionTokens} | tokensSinMarcas=${row.sectionTokensSinMarcas} | finalExtra=${row.finalExtraTokens} | ` +
+        `tokensSeccion=${row.sectionTokens} | sinFirmas=${row.sectionTokensSinFirmas} | firmaExtra=${row.signatureExtraTokens} | ` +
+        `tokensSinMarcas=${row.sectionTokensSinMarcas} | finalExtra=${row.finalExtraTokens} | truncated=${row.truncated} | ` +
         `contextTokensBase=${row.baselineContextTokens} | extra=${row.extraPercent.toFixed(2)}%` +
         row.entries
           .map((e) => `\n    - ${e.typeName} → ${e.fqcn} [${e.origin}, ${e.resolvedBy}]${e.final ? ' FINAL' : ''}`)
@@ -245,6 +267,13 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
     // Línea base sin marcas final: mismo servicio, sin declaraciones del índice.
     const sinMarcas = await resolveDependencies(replay, anchor, false);
     const sectionTokensSinMarcas = sinMarcas?.tokenCount ?? 0;
+    // WI-CORE-065: línea base sin firmas: mismo servicio con un repositorio que no devuelve constructores.
+    const sinFirmas = await resolveDependencies(replay, anchor, true, false);
+    const sectionTokensSinFirmas = sinFirmas?.tokenCount ?? 0;
+    // El tipo de contexto del producto no expone `signature`; se lee del objeto que devuelve el servicio real.
+    const signatures = (dependencyContext?.entries ?? [])
+      .map((e) => ({ fqcn: e.fqcn, signature: (e as { signature?: string }).signature }))
+      .filter((e): e is { fqcn: string; signature: string } => e.signature !== undefined);
     const finalEntries = entries.filter((e) => e.final === true).map((e) => e.typeName);
     rows.push({
       caso: name,
@@ -262,12 +291,17 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
       sectionTokens,
       sectionTokensSinMarcas,
       finalExtraTokens: sectionTokens - sectionTokensSinMarcas,
+      sectionTokensSinFirmas,
+      signatureExtraTokens: sectionTokens - sectionTokensSinFirmas,
+      signatures,
+      truncated: dependencyContext?.truncated ?? false,
       baselineContextTokens: baseCtx,
       extraPercent: baseCtx > 0 ? (sectionTokens / baseCtx) * 100 : 0,
     });
 
     // WI-CORE-058: tope de tokens y texto de marca con marcas activas.
     expect(sectionTokens).toBeLessThanOrEqual(300);
+    expect(sectionTokens).toBeGreaterThanOrEqual(sectionTokensSinFirmas);
     if (finalEntries.length > 0) expect(dependencyContext?.text).toContain('final: no se puede mockear');
 
     // Helper: entrada presente por typeName; `final` según lo esperado.
