@@ -4322,3 +4322,60 @@ ${'x'.repeat(9000)}`,
 function execIsRetried(deps: ReturnType<typeof makeDeps>['deps']): boolean {
   return (deps.sandboxExecutionService.execute as ReturnType<typeof vi.fn>).mock.calls.length > 6;
 }
+
+describe('ExperimentJobHandler RAG detail constructor signature (WI-CORE-065)', () => {
+  const chunk = {
+    id: 'target-chunk-1',
+    filePath: 'src/foo.ts',
+    symbolKind: 'FUNCTION',
+    symbolName: 'foo',
+    parentSymbolName: null,
+    startLine: 1,
+    endLine: 3,
+    content: 'target content',
+    tokenCount: 5,
+  };
+
+  it('persists only typeName, fqcn, origin, resolvedBy and final for an entry with signature', async () => {
+    const { deps } = makeDeps({
+      retrievalService: {
+        retrieve: vi.fn().mockResolvedValue({ targetChunks: [chunk], candidates: [] }),
+      },
+      contextBuilder: new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never),
+      promptBuilder: new PromptBuilder(),
+      phpDependencyContextService: {
+        resolve: vi.fn().mockResolvedValue({
+          entries: [
+            {
+              typeName: 'Plan',
+              fqcn: 'App\\Plan',
+              origin: 'CONSTRUCTOR',
+              resolvedBy: 'IMPORT',
+              final: true,
+              signature: '(public string $SIGNATURE_MARKER)',
+            },
+          ],
+          unresolvedCount: 0,
+          tokenCount: 14,
+          truncated: false,
+          text: 'TEXTO',
+        }),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    const serialized = deps.contextTracesRepository.updateDetail.mock.calls
+      .map((call: unknown[]) => JSON.stringify(call[1]))
+      .filter((value: string) => value.includes('"dependencyContext"'));
+    expect(serialized.length).toBeGreaterThan(0);
+    for (const value of serialized) expect(value).not.toContain('SIGNATURE_MARKER');
+    const detail = JSON.parse(serialized.at(-1) as string) as { dependencyContext: unknown };
+    expect(detail.dependencyContext).toEqual({
+      entries: [{ typeName: 'Plan', fqcn: 'App\\Plan', origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', final: true }],
+      unresolvedCount: 0,
+      tokenCount: 14,
+      truncated: false,
+    });
+  });
+});

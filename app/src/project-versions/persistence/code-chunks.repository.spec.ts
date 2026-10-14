@@ -151,3 +151,60 @@ describe('CodeChunksRepository.findPhpTypeDeclarations (WI-CORE-058)', () => {
     ]);
   });
 });
+
+describe('CodeChunksRepository.findPhpConstructorDeclarations (WI-CORE-065)', () => {
+  function makeRepository(rows: unknown[] = []) {
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const repository = new CodeChunksRepository({ codeChunk: { findMany } } as unknown as PrismaService);
+    return { findMany, repository };
+  }
+
+  it('does not query when the parent list is empty', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await expect(repository.findPhpConstructorDeclarations('version-1', [])).resolves.toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('queries only part 1 of PHP CONSTRUCTOR chunks for the unique parents, in deterministic order', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await repository.findPhpConstructorDeclarations('version-1', ['Pilot\\A', 'Pilot\\A', 'Pilot\\B']);
+
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      projectVersionId: 'version-1',
+      symbolKind: 'CONSTRUCTOR',
+      parentSymbolName: { in: ['Pilot\\A', 'Pilot\\B'] },
+      filePath: { endsWith: '.php' },
+      partIndex: 1,
+    });
+    expect(findMany.mock.calls[0][0].orderBy).toEqual([
+      { parentSymbolName: 'asc' },
+      { filePath: 'asc' },
+      { partIndex: 'asc' },
+    ]);
+  });
+
+  it('returns one constructor per parent and omits parents declared in different files (ambiguous)', async () => {
+    const { repository } = makeRepository([
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: 'public function __construct(int $a) {}', partIndex: 1 },
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/Other/A.php', content: 'public function __construct() {}', partIndex: 1 },
+      { parentSymbolName: 'Pilot\\B', filePath: 'src/B.php', content: 'public function __construct(string $b) {}', partIndex: 1 },
+    ]);
+
+    await expect(repository.findPhpConstructorDeclarations('version-1', ['Pilot\\A', 'Pilot\\B'])).resolves.toEqual([
+      { parentSymbolName: 'Pilot\\B', content: 'public function __construct(string $b) {}' },
+    ]);
+  });
+
+  it('ignores non-first parts so they do not count as another constructor', async () => {
+    const { repository } = makeRepository([
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: 'public function __construct(int $a', partIndex: 1 },
+      { parentSymbolName: 'Pilot\\A', filePath: 'src/A.php', content: '{}) {}', partIndex: 2 },
+    ]);
+
+    await expect(repository.findPhpConstructorDeclarations('version-1', ['Pilot\\A'])).resolves.toEqual([
+      { parentSymbolName: 'Pilot\\A', content: 'public function __construct(int $a' },
+    ]);
+  });
+});

@@ -897,3 +897,47 @@ describe('ContextTracesService dependencyContext final (WI-CORE-058, INTEROP-2.1
     expect(entry).not.toHaveProperty('final');
   });
 });
+
+describe('ContextTracesService dependencyContext signature (WI-CORE-065)', () => {
+  it('does not expose constructor signatures in the persisted RAG detail', async () => {
+    const stored = {
+      entries: [
+        {
+          typeName: 'Plan',
+          fqcn: 'Pilot\\Subscriptions\\Domain\\Plan',
+          origin: 'CONSTRUCTOR',
+          resolvedBy: 'IMPORT',
+          final: true,
+          signature: '(public string $code, public float $monthlyPrice)',
+        },
+      ],
+      unresolvedCount: 0,
+      tokenCount: 30,
+      truncated: false,
+      text: 'TEXTO_NO_DEBE_EXPONERSE',
+    };
+    const trace = makeTrace('RAG', {
+      detail: {
+        target: { chunkIds: ['target-chunk'], excerpt: makeNullLineExcerpt(), tokenCount: 12 },
+        candidates: [],
+        retrievedChunks: 0,
+        selectedChunks: 0,
+        contextTokens: 20,
+        configuration: { minimumScore: 0.1, topK: 5, maxContextTokens: 100, semanticWeight: 0.7, structuralWeight: 0.3 },
+        dependencyContext: stored,
+      },
+    });
+    const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(trace) } });
+
+    const detail = (await service.getContextTraceDetail('trace-1', USER_ID)) as unknown as Record<string, unknown>;
+
+    expect(JSON.stringify(detail)).not.toContain('signature');
+    expect(JSON.stringify(detail)).not.toContain('(public string $code');
+    expect(detail.dependencyContext).toEqual({
+      entries: [{ typeName: 'Plan', fqcn: 'Pilot\\Subscriptions\\Domain\\Plan', origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', final: true }],
+      unresolvedCount: 0,
+      tokenCount: 30,
+      truncated: false,
+    });
+  });
+});

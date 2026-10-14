@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CodeChunksRepository, type CodeChunkDependencyFields } from '../project-versions/persistence/code-chunks.repository.js';
 import {
   applyDependencyTokenCap,
+  extractPhpConstructorSignature,
   isFinalPhpDeclaration,
   MAX_PHP_DEPENDENCY_TOKENS,
   renderPhpDependencySection,
@@ -19,6 +20,7 @@ export interface PhpDependencyContext {
 
 const METHOD_KINDS = new Set(['METHOD', 'CONSTRUCTOR', 'FUNCTION']);
 const MAX_FINAL_LOOKUPS = 20;
+const MAX_CONSTRUCTOR_LOOKUPS = 20;
 
 /**
  * Sección best-effort de dependencias PHP del código objetivo. Un fallo del repositorio no se
@@ -56,9 +58,19 @@ export class PhpDependencyContextService {
         knownTypes,
       };
       const firstPass = resolvePhpDependencies(input);
-      const finalTypes = await this.resolveFinalTypes(projectVersionId, firstPass.entries.map((entry) => entry.fqcn));
-      const resolved = finalTypes.size > 0 ? resolvePhpDependencies({ ...input, finalTypes }) : firstPass;
-      const capped = applyDependencyTokenCap(resolved.entries, MAX_PHP_DEPENDENCY_TOKENS);
+      const index = await this.indexTypeDeclarations(projectVersionId, firstPass.entries.map((entry) => entry.fqcn));
+      const resolved =
+        index.finalTypes.size > 0 ? resolvePhpDependencies({ ...input, finalTypes: index.finalTypes }) : firstPass;
+      const signatures = await this.resolveConstructorSignatures(
+        projectVersionId,
+        resolved.entries.map((entry) => entry.fqcn),
+        index.kinds,
+      );
+      const withSignatures = resolved.entries.map((entry) => {
+        const signature = signatures.get(entry.fqcn);
+        return signature === undefined ? entry : { ...entry, signature };
+      });
+      const capped = applyDependencyTokenCap(withSignatures, MAX_PHP_DEPENDENCY_TOKENS);
 
       if (capped.entries.length === 0 && resolved.unresolvedCount === 0) return null;
 
@@ -77,23 +89,59 @@ export class PhpDependencyContextService {
   }
 
   /**
-   * WI-CORE-058: FQCN resueltos cuya declaración del índice es final o enum. Best-effort: si la consulta
-   * falla no se afirma nada (conjunto vacío) y la sección se renderiza sin marcas.
+   * WI-CORE-058: FQCN resueltos cuya declaración del índice es final o enum; WI-CORE-065: su symbolKind.
+   * Best-effort: si la consulta falla no se afirma nada (índice vacío) y la sección se renderiza sin marcas.
    */
-  private async resolveFinalTypes(projectVersionId: string, fqcns: string[]): Promise<Set<string>> {
-    const finalTypes = new Set<string>();
+  private async indexTypeDeclarations(
+    projectVersionId: string,
+    fqcns: string[],
+  ): Promise<{ finalTypes: Set<string>; kinds: Map<string, string> }> {
+    const index = { finalTypes: new Set<string>(), kinds: new Map<string, string>() };
     const lookup = [...new Set(fqcns)].slice(0, MAX_FINAL_LOOKUPS);
-    if (lookup.length === 0) return finalTypes;
+    if (lookup.length === 0) return index;
     try {
       const declarations = await this.codeChunks.findPhpTypeDeclarations(projectVersionId, lookup);
       for (const declaration of declarations) {
-        if (isFinalPhpDeclaration(declaration.content, declaration.symbolKind)) finalTypes.add(declaration.symbolName);
+        index.kinds.set(declaration.symbolName, declaration.symbolKind);
+        if (isFinalPhpDeclaration(declaration.content, declaration.symbolKind)) index.finalTypes.add(declaration.symbolName);
       }
     } catch (error) {
       const errorName = error instanceof Error ? error.name : 'UnknownError';
-      this.logger.warn(`Marcas final de dependencias PHP omitidas por error de repositorio: ${errorName}`);
-      return new Set<string>();
+      this.logger.warn(`Índice de declaraciones PHP omitido por error de repositorio: ${errorName}`);
+      return { finalTypes: new Set<string>(), kinds: new Map<string, string>() };
     }
-    return finalTypes;
+    return index;
+  }
+
+  /**
+   * WI-CORE-065: firma del constructor por FQCN. Excluye los que el índice conoce como interfaz, enum o
+   * trait. Best-effort: un error de consulta deja el mapa vacío y no se propaga.
+   */
+  private async resolveConstructorSignatures(
+    projectVersionId: string,
+    fqcns: string[],
+    kinds: ReadonlyMap<string, string>,
+  ): Promise<Map<string, string>> {
+    const signatures = new Map<string, string>();
+    const lookup = [...new Set(fqcns)]
+      .filter((fqcn) => {
+        const kind = kinds.get(fqcn);
+        return kind === undefined || kind === 'CLASS';
+      })
+      .slice(0, MAX_CONSTRUCTOR_LOOKUPS);
+    if (lookup.length === 0) return signatures;
+    try {
+      const declarations = await this.codeChunks.findPhpConstructorDeclarations(projectVersionId, lookup);
+      for (const declaration of declarations) {
+        if (!lookup.includes(declaration.parentSymbolName)) continue;
+        const signature = extractPhpConstructorSignature(declaration.content);
+        if (signature !== null) signatures.set(declaration.parentSymbolName, signature);
+      }
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.warn(`Firmas de constructor PHP omitidas por error de repositorio: ${errorName}`);
+      return new Map<string, string>();
+    }
+    return signatures;
   }
 }

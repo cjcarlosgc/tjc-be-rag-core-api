@@ -557,3 +557,38 @@ describe('ContextBuilder dependencyContext (WI-CORE-057)', () => {
     expect(withDependencies.audit).toEqual(without.audit);
   });
 });
+
+describe('ContextBuilder dependencyContext signature (WI-CORE-065)', () => {
+  it('keeps contextTokens and selectedChunks identical with and without constructor signatures', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ id: 'target', symbolName: 'foo', content: 'target body', tokenCount: 4 })],
+      candidates: [
+        makeCandidate({ chunk: makeChunk({ id: 'c1', filePath: 'src/a.ts', tokenCount: 10 }), semanticScore: 0.9 }),
+      ],
+    };
+    const withSignature = {
+      entries: [
+        {
+          typeName: 'Plan',
+          fqcn: 'App\\Plan',
+          origin: 'CONSTRUCTOR' as const,
+          resolvedBy: 'IMPORT' as const,
+          signature: '(public string $code, public float $monthlyPrice)',
+        },
+      ],
+      unresolvedCount: 0,
+      tokenCount: 40,
+      truncated: false,
+      text: 'Dependencias del código objetivo: App\\Plan — constructor(public string $code, public float $monthlyPrice)',
+    };
+    const metadata = { framework: null, language: 'php' as const };
+    const options = { maxContextTokens: 25 };
+
+    const without = builder.build(result, target, metadata, options, []);
+    const withDependencies = builder.build(result, target, metadata, options, [], withSignature);
+
+    expect(withDependencies.contextTokens).toBe(without.contextTokens);
+    expect(withDependencies.selectedChunks).toEqual(without.selectedChunks);
+  });
+});
