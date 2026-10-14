@@ -241,3 +241,47 @@ describe('PhpDependencyContextService final lookups edge cases (WI-CORE-058)', (
     for (const name of requested) expect(imports).toContain(name);
   });
 });
+
+describe('PhpDependencyContextService enum mark (WI-CORE-068)', () => {
+  const STATUS = `${DOMAIN}\\SubscriptionStatus`;
+  const enumRepository = () => {
+    const files = [
+      {
+        filePath: FILE,
+        symbolKind: 'CLASS',
+        symbolName: DECLARING,
+        parentSymbolName: null,
+        importsUsed: [`${DOMAIN}\\Subscription`],
+        content: 'class RenewalService {}',
+      },
+      {
+        filePath: FILE,
+        symbolKind: 'CONSTRUCTOR',
+        symbolName: '__construct',
+        parentSymbolName: DECLARING,
+        importsUsed: [STATUS],
+        content: 'public function __construct(private SubscriptionStatus $status) {}',
+      },
+    ];
+    return {
+      findByFile: vi.fn().mockResolvedValue(files),
+      findPhpTypeSymbolNames: vi.fn().mockResolvedValue([STATUS, `${DOMAIN}\\Subscription`]),
+      findPhpTypeDeclarations: vi.fn().mockResolvedValue([
+        { symbolName: STATUS, symbolKind: 'ENUM', content: 'enum SubscriptionStatus: string { case Active = "a"; }' },
+      ]),
+    } as unknown as CodeChunksRepository;
+  };
+
+  it('un enum SubscriptionStatus renderiza la marca de enum y no la mención a new', async () => {
+    const service = new PhpDependencyContextService(enumRepository());
+
+    const result = await service.resolve('version-1', [methodChunk], 'php');
+
+    expect(result?.text).toContain(
+      `- SubscriptionStatus → ${STATUS} (constructor) — enum: no se puede mockear ni instanciar con new; usa un caso (Enum::Caso)`,
+    );
+    expect(result?.text).not.toContain('new, o un caso');
+    expect(result?.entries[0].final).toBe(true);
+    expect(result?.tokenCount).toBeLessThanOrEqual(300);
+  });
+});

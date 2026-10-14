@@ -315,7 +315,7 @@ function RENEWAL_FIXTURE_WITH_FINALS() {
 }
 
 describe('renderPhpDependencySection final mark (WI-CORE-058)', () => {
-  const finalSuffix = ' — final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)';
+  const finalSuffix = ' — final: no se puede mockear; usa una instancia real con new';
 
   it('agrega la marca solo a las entradas finales', () => {
     const text = renderPhpDependencySection([
@@ -342,5 +342,88 @@ describe('renderPhpDependencySection final mark (WI-CORE-058)', () => {
     expect(capped.tokenCount).toBeLessThanOrEqual(300);
     expect(capped.tokenCount).toBe(countPhpDependencyTokens(renderPhpDependencySection(capped.entries)));
     expect(renderPhpDependencySection(capped.entries)).toContain('no se puede mockear');
+  });
+});
+
+describe('renderPhpDependencySection enum mark (WI-CORE-068)', () => {
+  const enumSuffix = ' — enum: no se puede mockear ni instanciar con new; usa un caso (Enum::Caso)';
+  const finalSuffix = ' — final: no se puede mockear; usa una instancia real con new';
+  const STATUS = `${NS}\\SubscriptionStatus`;
+
+  it('renderiza la marca de enum y no la marca genérica con «new, o un caso»', () => {
+    const text = renderPhpDependencySection([
+      { typeName: 'SubscriptionStatus', fqcn: STATUS, origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', final: true, enum: true },
+    ]);
+
+    expect(text).toContain(`- SubscriptionStatus → ${STATUS} (constructor)${enumSuffix}`);
+    expect(text).not.toContain('new, o un caso');
+    expect(text).not.toContain('un caso si es un enum');
+  });
+
+  it('una final class mantiene la marca final sin mencionar enums', () => {
+    const text = renderPhpDependencySection([
+      { typeName: 'RenewalDatePolicy', fqcn: `${NS}\\RenewalDatePolicy`, origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', final: true },
+    ]);
+
+    expect(text).toContain(`- RenewalDatePolicy → ${NS}\\RenewalDatePolicy (constructor)${finalSuffix}`);
+    expect(text).not.toContain('enum');
+    expect(text).not.toContain('un caso');
+  });
+
+  it('un enum y una final class en la misma sección llevan cada uno su marca', () => {
+    const text = renderPhpDependencySection([
+      { typeName: 'SubscriptionStatus', fqcn: STATUS, origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', final: true, enum: true },
+      { typeName: 'RenewalDatePolicy', fqcn: `${NS}\\RenewalDatePolicy`, origin: 'METHOD_SIGNATURE', resolvedBy: 'IMPORT', final: true },
+    ]);
+    const lines = text.split('\n');
+
+    expect(lines[1].endsWith(enumSuffix)).toBe(true);
+    expect(lines[2].endsWith(finalSuffix)).toBe(true);
+    expect(lines[2]).not.toContain('enum');
+  });
+
+  it('la retirada de entradas por tope mantiene ≤ 300 tokens y la marca de enum en las que quedan', () => {
+    const entries = Array.from({ length: 20 }, (_, index) => ({
+      typeName: `VeryLongEnumerationTypeName${index}`,
+      fqcn: `Pilot\\Subscriptions\\Domain\\Enums\\VeryLongEnumerationTypeName${index}`,
+      origin: 'METHOD_SIGNATURE' as const,
+      resolvedBy: 'IMPORT' as const,
+      final: true as const,
+      enum: true as const,
+    }));
+
+    const capped = applyDependencyTokenCap(entries, 300);
+    const text = renderPhpDependencySection(capped.entries);
+    const renderedLines = text.split('\n').slice(1);
+
+    expect(capped.truncated).toBe(true);
+    expect(capped.tokenCount).toBeLessThanOrEqual(300);
+    expect(countPhpDependencyTokens(text)).toBe(capped.tokenCount);
+    expect(renderedLines).toHaveLength(capped.entries.length);
+    expect(renderedLines.every((line) => line.endsWith(enumSuffix))).toBe(true);
+  });
+});
+
+describe('resolvePhpDependencies enum flag (WI-CORE-068)', () => {
+  it('marca enum (y final) solo a los FQCN indicados en enumTypes', () => {
+    const policy = `${NS}\\RenewalDatePolicy`;
+    const result = resolvePhpDependencies({
+      ...RENEWAL_FIXTURE(),
+      finalTypes: new Set([policy]),
+      enumTypes: new Set([policy]),
+    });
+    const entry = result.entries.find((item) => item.fqcn === policy);
+
+    expect(entry?.final).toBe(true);
+    expect(entry?.enum).toBe(true);
+  });
+
+  it('una final class sin enumTypes no lleva la marca enum', () => {
+    const policy = `${NS}\\RenewalDatePolicy`;
+    const result = resolvePhpDependencies({ ...RENEWAL_FIXTURE(), finalTypes: new Set([policy]) });
+    const entry = result.entries.find((item) => item.fqcn === policy);
+
+    expect(entry?.final).toBe(true);
+    expect(entry).not.toHaveProperty('enum');
   });
 });

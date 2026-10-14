@@ -74,7 +74,9 @@ export class PhpDependencyContextService {
       const firstPass = resolvePhpDependencies(input);
       const index = await this.indexTypeDeclarations(projectVersionId, firstPass.entries.map((entry) => entry.fqcn));
       const resolved =
-        index.finalTypes.size > 0 ? resolvePhpDependencies({ ...input, finalTypes: index.finalTypes }) : firstPass;
+        index.finalTypes.size > 0
+          ? resolvePhpDependencies({ ...input, finalTypes: index.finalTypes, enumTypes: index.enumTypes })
+          : firstPass;
       const constructors = await this.resolveConstructorInfo(
         projectVersionId,
         resolved.entries.map((entry) => entry.fqcn),
@@ -119,20 +121,21 @@ export class PhpDependencyContextService {
   private async indexTypeDeclarations(
     projectVersionId: string,
     fqcns: string[],
-  ): Promise<{ finalTypes: Set<string>; kinds: Map<string, string> }> {
-    const index = { finalTypes: new Set<string>(), kinds: new Map<string, string>() };
+  ): Promise<{ finalTypes: Set<string>; enumTypes: Set<string>; kinds: Map<string, string> }> {
+    const index = { finalTypes: new Set<string>(), enumTypes: new Set<string>(), kinds: new Map<string, string>() };
     const lookup = [...new Set(fqcns)].slice(0, MAX_FINAL_LOOKUPS);
     if (lookup.length === 0) return index;
     try {
       const declarations = await this.codeChunks.findPhpTypeDeclarations(projectVersionId, lookup);
       for (const declaration of declarations) {
         index.kinds.set(declaration.symbolName, declaration.symbolKind);
+        if (declaration.symbolKind === 'ENUM') index.enumTypes.add(declaration.symbolName);
         if (isFinalPhpDeclaration(declaration.content, declaration.symbolKind)) index.finalTypes.add(declaration.symbolName);
       }
     } catch (error) {
       const errorName = error instanceof Error ? error.name : 'UnknownError';
       this.logger.warn(`Índice de declaraciones PHP omitido por error de repositorio: ${errorName}`);
-      return { finalTypes: new Set<string>(), kinds: new Map<string, string>() };
+      return { finalTypes: new Set<string>(), enumTypes: new Set<string>(), kinds: new Map<string, string>() };
     }
     return index;
   }
