@@ -27,3 +27,18 @@ Rango: `git diff 009fa85^..009fa85` (5 archivos). Implementer: claude-haiku-5-5;
 Corregir la redacción de la línea (2) en `php-phpunit-conventions.ts` (p. ej. «instáncialas con `new`, o usa un caso si es un enum») y mantener la misma constante en ambos brazos; ajustar los tests de redacción (v), opcionalmente condicionar «si existe» en (3) y alinear cifras de tokens en informe/spec/CHANGELOG; subir la versión del prompt (`.3`) si cambia el texto y repetir sonda de pareado, replay y vitest. Ciclo 2 de 2 sobre ese corte.
 
 filesAffected (revisados): `app/src/generation/php-phpunit-conventions.ts`, `app/src/generation/prompt-builder.service.ts`, `app/src/experiments/experiment-job.handler.ts`, sus specs. blockers: ninguno.
+
+
+## Ciclo 2 de 2 (Modo fuera de casa) — rango `009fa85..dc45e1e`
+
+**Veredicto final: APPROVED.** Revisor independiente del implementer; sin base real.
+
+- **H1 resuelto:** la línea 2 dice «instancia las clases con `new` (un enum, con uno de sus casos)»; coherente con la marca de WI-058 («new, o un caso si es un enum»). Sin contradicción.
+- **H2 resuelto:** la línea 3 dice «(si hay una sección de dependencias, también los de ella)»; no cita el encabezado entre comillas (comprobado sobre los 9 prompts RAG y las 9 instrucciones del agente: sin «Dependencias del código…» citado); coherente con el agente.
+- **H3 resuelto:** sonda sobre el prompt RAG real de los 9 casos (HEAD vs `1d22c2e`): las tres líneas = 35+52+39 = **126 tokens** cl100k; delta de prompt RAG 126 en 9/9 → +9,8 % a +14,4 % (SUB-1 9,8; SUB-2 9,9; SUB-3 10,5; RES-3 11,5; SAL-1 12,2; RES-2 13,0; RES-1 13,1; SAL-3 13,7; SAL-2 14,4), 9/9 ≤ 15 %. Spec 004, CHANGELOG y informe de replay declaran 126 y «≈ +10 % a +14,5 %»/«+9,8 % a +14,5 %» (redondeo conservador del máximo 14,4; aceptable). Agente: +126 tokens.
+- **Versión:** `php-prompt-2026-10-14.3` consistente en constante, test, spec 004, CHANGELOG e informes; sin restos de `.2` (salvo el texto histórico de mi ciclo 1).
+- **Pareado y TypeScript:** cada línea aparece exactamente una vez en el prompt RAG y una vez en las instrucciones del agente (misma constante); prompt TypeScript byte a byte idéntico a la base en 9/9.
+- **Mutantes (ambos detectados):** volver a «instáncialas con `new`» y volver a citar el encabezado fallan «exports exactly the three convention lines in the agreed wording (v)».
+- **Gates:** vitest completo 145 archivos/2385 pruebas (7/104 omitidos); `oxlint src` exit 0; `tsc --noEmit` 45 errores en HEAD y 45 en la base (delta 0); `validate-harness` pasa; `node --test harness/*.test.mjs harness/calibration/*.test.mjs` 57/57. Worktrees eliminados; sin cambios en el repo.
+
+**Pendiente (no bloquea):** el efecto real de las instrucciones sobre la calidad de las pruebas no es medible sin LLM; requiere el experimento no oficial con el criterio de verificación del informe de replay (versiones declaradas, `promptSha256` distinto). La versión del prompt no se persiste en la traza. Cierre del WI y push quedan para el usuario/leader.
