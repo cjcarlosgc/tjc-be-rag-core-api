@@ -314,3 +314,41 @@ describe('PromptBuilder PHP dependency context (WI-CORE-057)', () => {
     expect(new PromptBuilder().build(context)).not.toContain('Dependencias del código objetivo');
   });
 });
+
+describe('PromptBuilder PHP final mark (WI-CORE-058)', () => {
+  it('includes the final mark produced by the dependency section in the PHP prompt', () => {
+    const text = [
+      'Dependencias del código objetivo (nombres completos de clase; usa exactamente estos nombres en los `use`):',
+      '- RenewalDatePolicy → Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy (constructor) — final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)',
+    ].join('\n');
+    const context = makeContext({
+      target: {
+        filePath: 'src/Services/RenewalService.php',
+        symbolName: 'RenewalService',
+        methodName: 'renew',
+        targetType: 'METHOD',
+        content: 'public function renew(): void {}',
+      },
+      metadata: { language: 'php', framework: 'PHPUNIT' },
+      dependencyContext: {
+        entries: [
+          {
+            typeName: 'RenewalDatePolicy',
+            fqcn: 'Pilot\\Subscriptions\\Contracts\\RenewalDatePolicy',
+            origin: 'CONSTRUCTOR',
+            resolvedBy: 'SAME_NAMESPACE',
+            final: true,
+          },
+        ],
+        unresolvedCount: 0,
+        tokenCount: 30,
+        truncated: false,
+        text,
+      },
+    });
+
+    const prompt = new PromptBuilder().build(context);
+
+    expect(prompt).toContain('— final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)');
+  });
+});

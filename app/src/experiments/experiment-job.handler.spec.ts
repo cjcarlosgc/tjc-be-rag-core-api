@@ -4017,3 +4017,66 @@ describe('ExperimentJobHandler PHP dependency context (WI-CORE-057)', () => {
     expect(serialized.every((value: string) => !value.includes('"dependencyContext"'))).toBe(true);
   });
 });
+
+describe('ExperimentJobHandler RAG detail final mark (WI-CORE-058, INTEROP-2.15)', () => {
+  const chunk = {
+    id: 'target-chunk-1',
+    filePath: 'src/foo.ts',
+    symbolKind: 'FUNCTION',
+    symbolName: 'foo',
+    parentSymbolName: null,
+    startLine: 1,
+    endLine: 3,
+    content: 'target content',
+    tokenCount: 5,
+  };
+  const baseDependency = {
+    unresolvedCount: 0,
+    tokenCount: 14,
+    truncated: false,
+    text: 'SECCION_DEPENDENCIAS_TEXTO',
+  };
+
+  async function detailsFor(entry: Record<string, unknown>): Promise<string[]> {
+    const { deps } = makeDeps({
+      retrievalService: { retrieve: vi.fn().mockResolvedValue({ targetChunks: [chunk], candidates: [] }) },
+      contextBuilder: new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never),
+      promptBuilder: new PromptBuilder(),
+      phpDependencyContextService: {
+        resolve: vi.fn().mockResolvedValue({
+          ...baseDependency,
+          entries: [{ typeName: 'Policy', fqcn: 'App\\Policy', origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', ...entry }],
+        }),
+      },
+    });
+    await makeHandler(deps).handle(payload, 'job-1');
+    return deps.contextTracesRepository.updateDetail.mock.calls
+      .map((call: unknown[]) => JSON.stringify(call[1]))
+      .filter((value: string) => value.includes('"candidates"'));
+  }
+
+  it('persists final true on an entry that carries it', async () => {
+    const serialized = await detailsFor({ final: true });
+
+    const finalDetail = serialized.at(-1) as string;
+    expect(finalDetail).toContain('"final":true');
+    expect(finalDetail).not.toContain('SECCION_DEPENDENCIAS_TEXTO');
+  });
+
+  it('does not persist final for an entry without the mark', async () => {
+    const serialized = await detailsFor({});
+
+    expect(serialized.some((value: string) => value.includes('"dependencyContext":{"entries"'))).toBe(true);
+    for (const value of serialized) {
+      expect(value).not.toContain('"final"');
+    }
+  });
+
+  it('never persists final false', async () => {
+    const serialized = await detailsFor({ final: false });
+
+    for (const value of serialized) {
+      expect(value).not.toContain('"final"');
+    }
+  });
+});

@@ -74,3 +74,80 @@ describe('CodeChunksRepository.findPhpTypeSymbolNames', () => {
     });
   });
 });
+
+describe('CodeChunksRepository.findPhpTypeDeclarations (WI-CORE-058)', () => {
+  function makeRepository(rows: unknown[] = []) {
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const repository = new CodeChunksRepository({ codeChunk: { findMany } } as unknown as PrismaService);
+    return { findMany, repository };
+  }
+
+  it('does not query when the symbol list is empty', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await expect(repository.findPhpTypeDeclarations('version-1', [])).resolves.toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('queries only part 1 of PHP type chunks for the given unique names, in deterministic order', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await repository.findPhpTypeDeclarations('version-1', ['Pilot\\A', 'Pilot\\A', 'Pilot\\B']);
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        projectVersionId: 'version-1',
+        symbolKind: { in: ['CLASS', 'INTERFACE', 'TRAIT', 'ENUM'] },
+        symbolName: { in: ['Pilot\\A', 'Pilot\\B'] },
+        filePath: { endsWith: '.php' },
+        partIndex: 1,
+      },
+      select: { symbolName: true, symbolKind: true, content: true, partIndex: true },
+      orderBy: [{ symbolName: 'asc' }, { filePath: 'asc' }, { partIndex: 'asc' }],
+    });
+  });
+
+  it('returns one declaration per name with the content of its part 1', async () => {
+    const { repository } = makeRepository([
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: '#[Attr]\nfinal class A {', partIndex: 1 },
+      { symbolName: 'Pilot\\B', symbolKind: 'ENUM', content: 'enum B {', partIndex: 1 },
+    ]);
+
+    await expect(repository.findPhpTypeDeclarations('version-1', ['Pilot\\A', 'Pilot\\B'])).resolves.toEqual([
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: '#[Attr]\nfinal class A {' },
+      { symbolName: 'Pilot\\B', symbolKind: 'ENUM', content: 'enum B {' },
+    ]);
+  });
+
+  it('omits a FQCN declared twice in different files (ambiguous)', async () => {
+    const { repository } = makeRepository([
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: 'final class A {}', partIndex: 1 },
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: 'class A {}', partIndex: 1 },
+      { symbolName: 'Pilot\\B', symbolKind: 'CLASS', content: 'final class B {}', partIndex: 1 },
+    ]);
+
+    await expect(repository.findPhpTypeDeclarations('version-1', ['Pilot\\A', 'Pilot\\B'])).resolves.toEqual([
+      { symbolName: 'Pilot\\B', symbolKind: 'CLASS', content: 'final class B {}' },
+    ]);
+  });
+
+  it('omits a FQCN declared as class and as interface (ambiguous, not preferred)', async () => {
+    const { repository } = makeRepository([
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: 'final class A {}', partIndex: 1 },
+      { symbolName: 'Pilot\\A', symbolKind: 'INTERFACE', content: 'interface A {}', partIndex: 1 },
+    ]);
+
+    await expect(repository.findPhpTypeDeclarations('version-1', ['Pilot\\A'])).resolves.toEqual([]);
+  });
+
+  it('ignores non-first parts of a split declaration so they do not count as another declaration', async () => {
+    const { repository } = makeRepository([
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: 'final class A {', partIndex: 1 },
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: 'public function x() {}', partIndex: 2 },
+    ]);
+
+    await expect(repository.findPhpTypeDeclarations('version-1', ['Pilot\\A'])).resolves.toEqual([
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', content: 'final class A {' },
+    ]);
+  });
+});

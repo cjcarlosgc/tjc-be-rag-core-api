@@ -81,6 +81,8 @@ export interface GenerationContextDependencyContext {
     fqcn: string;
     origin: 'CONSTRUCTOR' | 'METHOD_SIGNATURE';
     resolvedBy: 'LITERAL' | 'IMPORT' | 'SAME_NAMESPACE';
+    /** WI-CORE-058 (INTEROP-2.15): solo `true` cuando el índice lo determina como final o enum. */
+    final?: true;
   }>;
   unresolvedCount: number;
   tokenCount: number;
