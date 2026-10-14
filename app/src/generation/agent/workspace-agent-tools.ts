@@ -194,7 +194,8 @@ export const AGENT_TOOL_SCHEMAS: AgentToolSchema[] = [
         properties: {
           symbolName: {
             type: 'string',
-            description: 'Nombre exacto del símbolo a inspeccionar.',
+            description:
+              'Nombre exacto del símbolo a inspeccionar: clase, interfaz, tipo, enum o función. En PHP también admite un método por nombre simple (`método`) o calificado (`Clase::método`, `Namespace\\Clase\\método`).',
           },
         },
         required: ['symbolName'],
@@ -262,41 +263,97 @@ function matchPhpDeclaration(
   });
 }
 
+/**
+ * Recorre las declaraciones PHP de primer nivel en orden de aparición, entrando
+ * en namespaces con llaves. Un `namespace X;` sin cuerpo aplica a los hermanos siguientes.
+ */
+function* phpDeclarations(
+  nodes: SyntaxNode[],
+  initialNamespace: string,
+): Generator<{ node: SyntaxNode; namespaceName: string }> {
+  let currentNamespace = initialNamespace;
+  for (const node of nodes) {
+    if (node.type === 'namespace_definition') {
+      const name = node.childForFieldName('name')?.text ?? '';
+      const body = node.childForFieldName('body');
+      if (body) {
+        yield* phpDeclarations(namedChildrenOf(body), name);
+      } else {
+        currentNamespace = name;
+      }
+      continue;
+    }
+    if (PHP_DECLARATION_TYPES.has(node.type)) {
+      yield { node, namespaceName: currentNamespace };
+    }
+  }
+}
+
 function findPhpDeclarationNode(
   root: SyntaxNode,
   target: string,
 ): SyntaxNode | undefined {
-  const visit = (
-    nodes: SyntaxNode[],
-    initialNamespace: string,
-  ): SyntaxNode | undefined => {
-    // Un `namespace X;` sin cuerpo aplica a los hermanos siguientes.
-    let currentNamespace = initialNamespace;
-    for (const node of nodes) {
-      if (node.type === 'namespace_definition') {
-        const name = node.childForFieldName('name')?.text ?? '';
-        const body = node.childForFieldName('body');
-        if (body) {
-          const inner = visit(namedChildrenOf(body), name);
-          if (inner) {
-            return inner;
-          }
-        } else {
-          currentNamespace = name;
-        }
-        continue;
-      }
-      if (PHP_DECLARATION_TYPES.has(node.type)) {
-        const match = matchPhpDeclaration(node, currentNamespace, target);
-        if (match) {
-          return match;
-        }
+  for (const { node, namespaceName } of phpDeclarations(
+    namedChildrenOf(root),
+    '',
+  )) {
+    const match = matchPhpDeclaration(node, namespaceName, target);
+    if (match) {
+      return match;
+    }
+  }
+  return undefined;
+}
+
+/** Métodos con ese nombre simple en tipos con cuerpo (class, interface, trait, enum). */
+function findPhpMethodNodes(
+  root: SyntaxNode,
+  methodName: string,
+): Array<{ className: string; node: SyntaxNode }> {
+  const matches: Array<{ className: string; node: SyntaxNode }> = [];
+  for (const { node } of phpDeclarations(namedChildrenOf(root), '')) {
+    if (!PHP_TYPE_WITH_METHODS_TYPES.has(node.type)) {
+      continue;
+    }
+    const className = node.childForFieldName('name')?.text;
+    const body = node.childForFieldName('body');
+    if (!className || !body) {
+      continue;
+    }
+    for (const member of namedChildrenOf(body)) {
+      if (
+        member.type === 'method_declaration' &&
+        member.childForFieldName('name')?.text === methodName
+      ) {
+        matches.push({ className, node: member });
       }
     }
-    return undefined;
-  };
+  }
+  return matches;
+}
 
-  return visit(namedChildrenOf(root), '');
+interface PhpSymbolMatch {
+  content: string;
+  startLine: number;
+  endLine: number;
+}
+
+interface PhpMethodCandidate extends PhpSymbolMatch {
+  filePath: string;
+  className: string;
+}
+
+function toPhpSymbolMatch(node: SyntaxNode): PhpSymbolMatch {
+  return {
+    content: node.text.trim(),
+    startLine: node.startPosition.row + 1,
+    endLine: node.endPosition.row + 1,
+  };
+}
+
+/** Nombre simple: sin `\`, `::` ni `.`. Solo entonces se admite un método suelto. */
+function isSimpleSymbolName(symbolName: string): boolean {
+  return !/\\|::|\./.test(symbolName);
 }
 
 /** Último segmento de un nombre calificado (`\`, `::` o `.`). */
@@ -450,10 +507,14 @@ export class WorkspaceAgentTools {
    * con ese nombre corto, top-level o dentro de un namespace con llaves.
    * Archivos con errores de sintaxis no aportan declaraciones.
    */
-  private async findPhpDeclaration(
+  private async analyzePhpFile(
     content: string,
     symbolName: string,
-  ): Promise<{ content: string; startLine: number; endLine: number } | null> {
+    collectMethods: boolean,
+  ): Promise<{
+    declaration: PhpSymbolMatch | null;
+    methods: Array<PhpSymbolMatch & { className: string }>;
+  }> {
     const language = await loadPhpLanguage();
     const parser = new Parser();
     let tree: Tree | null = null;
@@ -461,16 +522,20 @@ export class WorkspaceAgentTools {
       parser.setLanguage(language);
       tree = parser.parse(content);
       if (!tree || tree.rootNode.hasError) {
-        return null;
+        return { declaration: null, methods: [] };
       }
       const node = findPhpDeclarationNode(tree.rootNode, symbolName);
-      if (!node) {
-        return null;
-      }
+      const methods = collectMethods
+        ? findPhpMethodNodes(tree.rootNode, symbolName).map(
+            ({ className, node: method }) => ({
+              className,
+              ...toPhpSymbolMatch(method),
+            }),
+          )
+        : [];
       return {
-        content: node.text.trim(),
-        startLine: node.startPosition.row + 1,
-        endLine: node.endPosition.row + 1,
+        declaration: node ? toPhpSymbolMatch(node) : null,
+        methods,
       };
     } finally {
       tree?.delete();
@@ -506,6 +571,9 @@ export class WorkspaceAgentTools {
       '\\$&',
     );
     const referencePattern = new RegExp(`\\b${escapedSymbolName}\\b`);
+    // Métodos por nombre simple: solo si no hay ningún tipo/función con ese nombre.
+    const collectMethods = isSimpleSymbolName(phpSymbolName);
+    const methodCandidates: PhpMethodCandidate[] = [];
 
     for (const filePath of [...this.allowedFiles].sort()) {
       const isTypeScript = /\.tsx?$/.test(filePath);
@@ -527,12 +595,17 @@ export class WorkspaceAgentTools {
       }
 
       if (!declaration && isPhp) {
-        const phpDeclaration = await this.findPhpDeclaration(
+        const analysis = await this.analyzePhpFile(
           content,
           phpSymbolName,
+          collectMethods,
         );
-        if (phpDeclaration) {
-          declaration = { filePath, ...phpDeclaration };
+        if (analysis.declaration) {
+          declaration = { filePath, ...analysis.declaration };
+        } else {
+          methodCandidates.push(
+            ...analysis.methods.map((method) => ({ filePath, ...method })),
+          );
         }
       }
 
@@ -564,6 +637,27 @@ export class WorkspaceAgentTools {
       }
     }
 
+    let ambiguity: string | null = null;
+    if (!declaration && methodCandidates.length > 0) {
+      // Los candidatos están en orden de ruta y, dentro de cada archivo, de posición.
+      const [first] = methodCandidates;
+      declaration = {
+        filePath: first.filePath,
+        content: first.content,
+        startLine: first.startLine,
+        endLine: first.endLine,
+      };
+      if (methodCandidates.length > 1) {
+        const candidates = methodCandidates
+          .map(
+            ({ filePath, className }) =>
+              `${filePath} (${className}::${symbolName})`,
+          )
+          .join(', ');
+        ambiguity = `Ambiguo: ${methodCandidates.length} coincidencias para "${symbolName}": ${candidates}`;
+      }
+    }
+
     if (!declaration) {
       return result(
         `No se encontró una declaración de "${symbolName}" en los archivos disponibles.`,
@@ -576,6 +670,7 @@ export class WorkspaceAgentTools {
     );
 
     const toolResult = [
+      ...(ambiguity ? [ambiguity] : []),
       `Declarado en ${declaration.filePath}:`,
       declaration.content,
       '',

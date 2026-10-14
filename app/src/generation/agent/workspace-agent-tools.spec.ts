@@ -579,6 +579,236 @@ describe('WorkspaceAgentTools', () => {
     });
   });
 
+  describe('inspect_symbol con métodos PHP por nombre simple', () => {
+    beforeEach(async () => {
+      await mkdir(join(dir, 'app/Billing'), { recursive: true });
+      await mkdir(join(dir, 'app/Domain'), { recursive: true });
+      await writeFile(
+        join(dir, 'app/Billing/Subscription.php'),
+        [
+          '<?php',
+          'namespace App\\Billing;',
+          '',
+          'class Subscription {',
+          '    public function applyPendingPlan(): void {',
+          '        $this->plan = null;',
+          '    }',
+          '}',
+        ].join('\n'),
+      );
+      await writeFile(
+        join(dir, 'app/Domain/OrderLine.php'),
+        [
+          '<?php',
+          'namespace App\\Domain;',
+          '',
+          'class OrderLine {',
+          '    public function total(): int {',
+          '        return 1;',
+          '    }',
+          '    public function hasStock(int $q): bool { return $q > 0; }',
+          '}',
+        ].join('\n'),
+      );
+      // Sin `use` completo: solo `new OrderLine()` y `->hasStock(`.
+      await writeFile(
+        join(dir, 'app/Usage.php'),
+        [
+          '<?php',
+          'namespace App;',
+          '',
+          'function place(): void {',
+          '    $line = new OrderLine();',
+          '    $line->hasStock(1);',
+          '}',
+        ].join('\n'),
+      );
+      await writeFile(
+        join(dir, 'app/Billing/Order.php'),
+        [
+          '<?php',
+          'namespace App\\Billing;',
+          '',
+          'class Order {',
+          '    public function status(): string { return "paid"; }',
+          '}',
+        ].join('\n'),
+      );
+      await writeFile(
+        join(dir, 'app/Domain/Shipment.php'),
+        [
+          '<?php',
+          'namespace App\\Domain;',
+          '',
+          'class Shipment {',
+          '    public function status(): string { return "sent"; }',
+          '}',
+        ].join('\n'),
+      );
+    });
+
+    function makeMethodTools() {
+      return new WorkspaceAgentTools(dir, [
+        'app/Billing/Order.php',
+        'app/Billing/Subscription.php',
+        'app/Domain/OrderLine.php',
+        'app/Domain/Shipment.php',
+        'app/Usage.php',
+      ]);
+    }
+
+    it('resolves a unique method by simple name to the method node', async () => {
+      const result = await makeMethodTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'applyPendingPlan' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain('Declarado en app/Billing/Subscription.php:');
+      expect(result.result).toContain('public function applyPendingPlan(): void {');
+      expect(result.result).not.toContain('Ambiguo');
+      expect(result.observations[0]).toMatchObject({
+        kind: 'SYMBOL',
+        filePath: 'app/Billing/Subscription.php',
+        symbolName: 'applyPendingPlan',
+        excerpt: { startLine: 5, endLine: 7 },
+      });
+    });
+
+    it('resolves a unique method total by simple name', async () => {
+      const result = await makeMethodTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'total' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain('Declarado en app/Domain/OrderLine.php:');
+      expect(result.result).toContain('public function total(): int {');
+      expect(result.observations[0]?.excerpt).toMatchObject({
+        startLine: 5,
+        endLine: 7,
+      });
+    });
+
+    it('reports ambiguity with every candidate path and returns the first one', async () => {
+      const result = await makeMethodTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'status' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain(
+        'Ambiguo: 2 coincidencias para "status": app/Billing/Order.php (Order::status), app/Domain/Shipment.php (Shipment::status)',
+      );
+      expect(result.result).toContain('Declarado en app/Billing/Order.php:');
+      expect(result.observations[0]?.filePath).toBe('app/Billing/Order.php');
+    });
+
+    it('marks an unknown simple method name as EMPTY', async () => {
+      const result = await makeMethodTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'noExisteNada' },
+      );
+
+      expect(result).toMatchObject({ status: 'EMPTY', observations: [] });
+      expect(result.result).toContain('No se encontró una declaración');
+    });
+
+    it('prefers a type with the simple name over an earlier method with the same name', async () => {
+      await mkdir(join(dir, 'app/Aaa'), { recursive: true });
+      await mkdir(join(dir, 'app/Models'), { recursive: true });
+      await writeFile(
+        join(dir, 'app/Aaa/Factory.php'),
+        [
+          '<?php',
+          'namespace App\\Aaa;',
+          '',
+          'class Factory {',
+          '    public function Invoice(): void {}',
+          '}',
+        ].join('\n'),
+      );
+      await writeFile(
+        join(dir, 'app/Models/Invoice.php'),
+        ['<?php', 'namespace App\\Models;', '', 'class Invoice {', '}'].join(
+          '\n',
+        ),
+      );
+      const tools = new WorkspaceAgentTools(dir, [
+        'app/Aaa/Factory.php',
+        'app/Models/Invoice.php',
+      ]);
+
+      const result = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'Invoice',
+      });
+
+      expect(result.result).toContain('Declarado en app/Models/Invoice.php:');
+      expect(result.result).not.toContain('Ambiguo');
+    });
+
+    it('resolves a simple method name and references it by its last segment', async () => {
+      const result = await makeMethodTools().dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'hasStock' },
+      );
+
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.result).toContain('Declarado en app/Domain/OrderLine.php:');
+      expect(result.result).toContain('Referenciado también en: app/Usage.php');
+    });
+
+    it('keeps qualified class and method names working with references by last segment', async () => {
+      const tools = makeMethodTools();
+
+      const cls = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'App\\Domain\\OrderLine',
+      });
+      const method = await tools.dispatchWithObservations('inspect_symbol', {
+        symbolName: 'App\\Domain\\OrderLine\\hasStock',
+      });
+      const classMethod = await tools.dispatchWithObservations(
+        'inspect_symbol',
+        { symbolName: 'OrderLine::hasStock' },
+      );
+
+      expect(cls.result).toContain('Declarado en app/Domain/OrderLine.php:');
+      expect(cls.result).toContain('Referenciado también en: app/Usage.php');
+      expect(method.result).toContain('Declarado en app/Domain/OrderLine.php:');
+      expect(method.result).toContain('Referenciado también en: app/Usage.php');
+      expect(method.result).not.toContain('Ambiguo');
+      expect(classMethod.result).toContain(
+        'public function hasStock(int $q)',
+      );
+      expect(classMethod.result).not.toContain('Ambiguo');
+    });
+  });
+
+  it('does not resolve TypeScript methods by simple name', async () => {
+    const tools = makeTools();
+
+    const result = await tools.dispatchWithObservations('inspect_symbol', {
+      symbolName: 'add',
+    });
+
+    expect(result).toMatchObject({ status: 'EMPTY', observations: [] });
+  });
+
+  it('describes symbolName with the supported PHP method forms', () => {
+    // inspect_symbol es la cuarta herramienta (orden fijado en el test anterior).
+    const inspectSchema = AGENT_TOOL_SCHEMAS[3];
+    const parameters = inspectSchema.function.parameters as unknown as {
+      properties: { symbolName: { description: string } };
+    };
+    const description = parameters.properties.symbolName.description;
+
+    expect(description).not.toBe('Nombre exacto del símbolo a inspeccionar.');
+    expect(description).toContain('clase');
+    expect(description).toContain('función');
+    expect(description).toContain('Clase::método');
+    expect(description).toContain('Namespace\\Clase\\método');
+  });
+
   it('dispatch returns a message for an unknown tool name', async () => {
     const tools = makeTools();
 
