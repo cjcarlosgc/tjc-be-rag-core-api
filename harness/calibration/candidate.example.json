@@ -1,0 +1,4 @@
+[
+  { "name": "base-0.7-0.3-k10", "semanticWeight": 0.7, "structuralWeight": 0.3, "topK": 10, "minimumScore": 0 },
+  { "name": "ejemplo-topK8", "semanticWeight": 0.7, "structuralWeight": 0.3, "topK": 8, "minimumScore": 0 }
+]

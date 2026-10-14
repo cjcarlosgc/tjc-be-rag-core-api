@@ -1,0 +1,98 @@
+[
+  {
+    "chunkId": "c-pricer",
+    "sem": 0.95,
+    "struct": "DECLARING_CLASS",
+    "combined": 0.965,
+    "decision": "SELECTED",
+    "rank": 1
+  },
+  {
+    "chunkId": "c-money",
+    "sem": 0.9,
+    "struct": "IMPORTED_BY",
+    "combined": 0.93,
+    "decision": "SELECTED",
+    "rank": 2
+  },
+  {
+    "chunkId": "c-gateway",
+    "sem": 0.85,
+    "struct": "IMPORTS",
+    "combined": 0.895,
+    "decision": "SELECTED",
+    "rank": 3
+  },
+  {
+    "chunkId": "c-tax",
+    "sem": 0.8,
+    "struct": null,
+    "combined": 0.56,
+    "decision": "SELECTED",
+    "rank": 4
+  },
+  {
+    "chunkId": "c-ctor",
+    "sem": 0.78,
+    "struct": null,
+    "combined": 0.546,
+    "decision": "SELECTED",
+    "rank": 5
+  },
+  {
+    "chunkId": "c-rate",
+    "sem": 0.6,
+    "struct": null,
+    "combined": 0.42,
+    "decision": "SELECTED",
+    "rank": 6
+  },
+  {
+    "chunkId": "c-other",
+    "sem": 0.1,
+    "struct": "IMPORTED_BY",
+    "combined": 0.37,
+    "decision": "SELECTED",
+    "rank": 7
+  },
+  {
+    "chunkId": "c-total",
+    "sem": 0.5,
+    "struct": null,
+    "combined": 0.35,
+    "decision": "SELECTED",
+    "rank": 8
+  },
+  {
+    "chunkId": "c-pricertest",
+    "sem": 0.45,
+    "struct": null,
+    "combined": 0.315,
+    "decision": "SELECTED",
+    "rank": 9
+  },
+  {
+    "chunkId": "c-othertest",
+    "sem": 0.4,
+    "struct": null,
+    "combined": 0.28,
+    "decision": "SELECTED",
+    "rank": 10
+  },
+  {
+    "chunkId": "c-discount",
+    "sem": 0.1,
+    "struct": null,
+    "combined": 0.07,
+    "decision": "DISCARDED",
+    "rank": 11
+  },
+  {
+    "chunkId": "c-foo",
+    "sem": 0.05,
+    "struct": null,
+    "combined": 0.035,
+    "decision": "DISCARDED",
+    "rank": 12
+  }
+]

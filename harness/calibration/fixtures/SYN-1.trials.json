@@ -1,0 +1,32 @@
+[
+  {
+    "strategy": "RAG",
+    "repetition": 1,
+    "valid": false,
+    "failureType": "TEST_RUNTIME",
+    "errorSummary": "sintetico",
+    "promptSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "testContentSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "testContent": "<?php\nnamespace Acme\\Tests\\Orders;\nuse Acme\\Orders\\Pricer;\nuse Acme\\Orders\\Money;\nuse Acme\\Orders\\Gateway;\nuse Acme\\Tax\\Tax;\nuse Acme\\Inventado\\Widget;\nuse PHPUnit\\Framework\\TestCase;\nuse DateTimeImmutable;\nclass PricerTest extends TestCase {\n  public function testPrice(): void {\n    $gateway = $this->createMock(Gateway::class);\n    $tax = $this->createMock(Tax::class);\n    $money = $this->createMock(Money::class);\n    $this->assertSame(new Money(10), $this->price());\n    $when = new DateTimeImmutable(\"2024-01-01\");\n    $this->assertSame($when, $now);\n    $this->assertEquals(new Money(10), $x);\n  }\n}"
+  },
+  {
+    "strategy": "RAG",
+    "repetition": 2,
+    "valid": true,
+    "failureType": "NONE",
+    "errorSummary": null,
+    "promptSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "testContentSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "testContent": "<?php\nnamespace Acme\\Tests\\Orders;\nuse Acme\\Orders\\Pricer;\nuse Acme\\Orders\\Gateway;\nuse PHPUnit\\Framework\\TestCase;\nclass PricerTest extends TestCase {\n  public function testPrice(): void {\n    $gateway = $this->createMock(Gateway::class);\n    $this->assertEquals(10, $this->price());\n  }\n}"
+  },
+  {
+    "strategy": "RAG",
+    "repetition": 3,
+    "valid": false,
+    "failureType": "COMPILATION",
+    "errorSummary": null,
+    "promptSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "testContentSha256": null,
+    "testContent": null
+  }
+]

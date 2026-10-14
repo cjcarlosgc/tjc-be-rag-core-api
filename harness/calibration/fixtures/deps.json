@@ -1,0 +1,29 @@
+[
+  {
+    "caso": "SYN-1",
+    "entries": [
+      {
+        "typeName": "Gateway",
+        "fqcn": "Acme\\Orders\\Gateway",
+        "origin": "METHOD_SIGNATURE",
+        "resolvedBy": "SAME_NAMESPACE"
+      },
+      {
+        "typeName": "Money",
+        "fqcn": "Acme\\Orders\\Money",
+        "origin": "METHOD_SIGNATURE",
+        "resolvedBy": "SAME_NAMESPACE",
+        "final": true
+      },
+      {
+        "typeName": "Tax",
+        "fqcn": "Acme\\Tax\\Tax",
+        "origin": "CONSTRUCTOR",
+        "resolvedBy": "IMPORT",
+        "final": true
+      }
+    ],
+    "sectionTokens": 80,
+    "baselineContextTokens": 400
+  }
+]
