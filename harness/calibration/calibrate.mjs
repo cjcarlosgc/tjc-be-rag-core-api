@@ -153,11 +153,11 @@ async function main() {
   const precisionLines = m6Agg ? ['## Precision observada (M6)', '',
     'Por regla, sobre los trials analizados (testContent presente) de todos los casos. "Trials con hit" cuenta trials, no hits de linea. '
     + 'Precision = con hit y fallido con evidencia / trials con hit. Sensibilidad = fallidos con evidencia en los que la regla dio hit / fallidos con evidencia. '
-    + 'Evidencia en errorSummary: R-FINAL "ClassIsFinal" o "final"+"mock"; R-SAME "same object" o "reference the same"; R-NS "not found", "Class ... does not exist" o "UnknownType"; R-ANON-FINAL "cannot extend final" o "final class"; R-STATIC-THIS "Using $this when not in object context"; R-SIG "ArgumentCountError", "Too few arguments" o "Unknown named parameter". '
+    + 'Evidencia en errorSummary: R-FINAL "ClassIsFinal" o "final"+"mock"; R-SAME "same object" o "reference the same"; R-NS "not found", "Class ... does not exist" o "UnknownType"; R-ANON-FINAL "cannot extend final", "final class" o "cannot implement ... it is not an interface"; R-NEW-ENUM "Cannot instantiate enum"; R-STATIC-THIS "Using $this when not in object context"; R-SIG "ArgumentCountError", "Too few arguments" o "Unknown named parameter". '
     + 'Los trials con hit y valid=true son posibles falsos positivos. Muestra pequena: no es una estimacion estable.', '',
     '| regla | trials con hit | hit y valid=true (posibles FP) | hit y fallido | fallidos con evidencia | hit y fallido con evidencia | precision | sensibilidad |',
     '|---|---|---|---|---|---|---|---|',
-    ...['R-FINAL', 'R-SAME', 'R-NS', 'R-ANON-FINAL', 'R-STATIC-THIS', 'R-SIG'].map((r) => { const p = m6Agg[r]; return `| ${r} | ${p.hitTrials} | ${p.hitValid} | ${p.hitFailed} | ${p.failedWithEvidence} | ${p.hitFailedWithEvidence} | ${f(p.precision)} | ${f(p.sensitivity)} |`; }), ''] : [];
+    ...['R-FINAL', 'R-SAME', 'R-NS', 'R-ANON-FINAL', 'R-STATIC-THIS', 'R-SIG', 'R-NEW-ENUM'].map((r) => { const p = m6Agg[r]; return `| ${r} | ${p.hitTrials} | ${p.hitValid} | ${p.hitFailed} | ${p.failedWithEvidence} | ${p.hitFailedWithEvidence} | ${f(p.precision)} | ${f(p.sensitivity)} |`; }), ''] : [];
   const md = ['# Calibracion offline (WI-CORE-063)', '', `Version de metricas: ${METRIC_VERSION} · tokenizador: ${tok.name}`, '',
     '## Verificacion de linea base', '', '| caso | SELECTED persistido | recalculado top-10 = SELECTED |', '|---|---|---|',
     ...verification.map((v) => `| ${v.case} | ${v.selectedPersisted} | ${v.recomputedTop10MatchesSelected ? 'si' : 'NO'} |`), '',

@@ -3839,6 +3839,65 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-066-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-067",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Reforzar convenciones PHPUnit sobre clases final y enums y extender R-ANON-FINAL a implements",
+      "storyIds": [
+        "HU05",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-074"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-066"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Las convenciones PHPUnit de RAG y agente (misma redacción, php-phpunit-conventions.ts) cubren: no usar clases final en createMock/createStub/getMockBuilder, extends ni implements (tampoco en clases anónimas new class extends|implements X) usando la instancia real con new; y no hacer new ni mock de un enum, usando uno de sus casos (Enum::Caso); concisas, con tokens extra por prompt informados.",
+        "R-ANON-FINAL del banco detecta también new class … implements <clase final conocida>; regla nueva R-NEW-ENUM detecta new <Enum>; evidencia real reproducida en pruebas (46e82081, 6b661170, 5a1efbc2).",
+        "Versión del prompt php-prompt-2026-10-14.6 en constante y spec 004; sin cambios en ranking, pesos, R-PHP, targets, traza, contrato ni migraciones.",
+        "Pruebas rojo-verde; medición en harness/calibration (M5 idéntico, M4 tokens por caso, M6 precisión/sensibilidad de las reglas nuevas sobre trials con evidencia real); revisión independiente; criterio de verificación para un experimento no oficial."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-067-scope-approval.md",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "app/src/generation/php-phpunit-conventions.ts",
+        "harness/calibration/lib.mjs",
+        "harness/calibration/README.md",
+        "harness/reports/wi-core-067-contract-sync-scope-review.md",
+        "harness/reports/wi-core-067-technical-checks.md",
+        "harness/reports/wi-core-067-replay-y-verificacion.md",
+        "harness/reports/wi-core-067-independent-review.md",
+        "harness/reports/wi-core-067-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-067 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-067-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-067 se limita a su alcance aprobado, sin tocar binding, auth ni despliegue.",
+          "report": "harness/reports/wi-core-067-contract-sync-scope-review.md"
+        }
+      ],
+      "scopeApprovalReport": "harness/reports/wi-core-067-scope-approval.md"
     }
   ]
 }

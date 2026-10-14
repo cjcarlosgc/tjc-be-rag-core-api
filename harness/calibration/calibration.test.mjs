@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import {
   loadCase, loadDeps, baselineTopK, recompute, collaboratorsOf, m1Collaborators, m3Noise, m4Tokens,
   m5Stability, m6Static, isFinalPhpDeclaration, loadTokenizer, discoverCases, DEFAULT_CONFIG, REPO_ROOT, round,
-  aggregateM6Precision, precisionOf,
+  aggregateM6Precision, precisionOf, FAILURE_EVIDENCE,
 } from './lib.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -161,7 +161,7 @@ test('M6: no marca casos validos (assertEquals, doble de interfaz, use presente)
   const clean = { ...c, trials: [c.trials[1]] };
   const m6 = m6Static(clean);
   assert.equal(m6.trialsAnalyzed, 1);
-  assert.deepEqual(m6.rules.map((r) => r.count), [0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(m6.rules.map((r) => r.count), [0, 0, 0, 0, 0, 0, 0]);
 });
 
 test('M6 sin trials.json devuelve null', () => {
@@ -382,6 +382,58 @@ test('M6 R-SIG: parametro con valor por defecto no marca; posicional corto y nom
   assert.equal(ru.evidence[0].reason, 'unknown-named');
   const splat = oneTrial(uses, '    $a = new Plan(...$args);', [CTOR_SIG]);
   assert.equal(ruleOf(m6Static(splat), 'R-SIG').count, 0);
+});
+
+// ---- WI-CORE-067: implements sobre final (R-ANON-FINAL) y R-NEW-ENUM (fixtures sinteticos, clases inventadas) ----
+const ENUM_CHUNK = typeChunk('Acme\\Billing\\Status', 'enum Status { case Active; }', 'ENUM');
+const RULE_TYPE_IFACE = typeChunk('Acme\\Billing\\Policy', 'interface Policy {}', 'INTERFACE');
+const RULE_TYPE_FINAL = typeChunk('Acme\\Billing\\Rule', 'final class Rule implements Policy {}');
+
+test('WI-CORE-067 R-ANON-FINAL implements: new class implements tipo final -> marcada (con y sin extends previo)', () => {
+  const uses = ['Acme\\Billing\\Rule', 'Acme\\Billing\\Base', 'PHPUnit\\Framework\\TestCase'];
+  const body = '    $a = new class implements Rule {};\n    $b = new class extends Base implements Rule, \\Acme\\Billing\\Policy {};\n    $c = new class() implements Rule {};';
+  const r = ruleOf(m6Static(oneTrial(uses, body, [BASE_CHUNK, RULE_TYPE_FINAL, RULE_TYPE_IFACE])), 'R-ANON-FINAL');
+  assert.equal(r.count, 3);
+  assert.equal(r.evidence[0].type, 'Acme\\Billing\\Rule');
+});
+
+test('WI-CORE-067 R-ANON-FINAL implements: interfaz, clase no final o tipo desconocido -> NO marcada', () => {
+  const uses = ['Acme\\Billing\\Policy', 'Acme\\Billing\\Base', 'PHPUnit\\Framework\\TestCase'];
+  const body = '    $a = new class implements Policy {};\n    $b = new class implements Base {};\n    $c = new class implements Unknown {};';
+  const m6 = m6Static(oneTrial(uses, body, [BASE_CHUNK, RULE_TYPE_IFACE]));
+  assert.equal(ruleOf(m6, 'R-ANON-FINAL').count, 0);
+});
+
+test('WI-CORE-067 R-ANON-FINAL: evidencia "cannot implement ... it is not an interface" cuenta como fallo con evidencia', () => {
+  const ev = FAILURE_EVIDENCE['R-ANON-FINAL'];
+  assert.equal(ev('Fatal: RenewalDatePolicy@anonymous cannot implement Acme\\Rule - it is not an interface'), true);
+  assert.equal(ev('Fatal: cannot extend final class Acme\\Rule'), true);
+  assert.equal(ev('Assertion failed'), false);
+});
+
+test('WI-CORE-067 R-NEW-ENUM: new sobre enum conocido -> marcada; enum como caso (Enum::Caso) y clase no enum -> NO', () => {
+  const uses = ['Acme\\Billing\\Status', 'Acme\\Billing\\Base', 'PHPUnit\\Framework\\TestCase'];
+  const bad = '    $a = new Status();\n    $b = new \\Acme\\Billing\\Status(\n    );';
+  const r = ruleOf(m6Static(oneTrial(uses, bad, [ENUM_CHUNK, BASE_CHUNK])), 'R-NEW-ENUM');
+  assert.equal(r.count, 2);
+  assert.equal(r.evidence[0].type, 'Acme\\Billing\\Status');
+  const ok = '    $a = Status::Active;\n    $b = new Base();';
+  assert.equal(ruleOf(m6Static(oneTrial(uses, ok, [ENUM_CHUNK, BASE_CHUNK])), 'R-NEW-ENUM').count, 0);
+});
+
+test('WI-CORE-067 R-NEW-ENUM: evidencia "Cannot instantiate enum" y precision por regla incluida', () => {
+  assert.equal(FAILURE_EVIDENCE['R-NEW-ENUM']('Error: Cannot instantiate enum Acme\\Billing\\Status'), true);
+  assert.equal(FAILURE_EVIDENCE['R-NEW-ENUM']('ArgumentCountError'), false);
+  const uses = ['Acme\\Billing\\Status', 'PHPUnit\\Framework\\TestCase'];
+  const c = withTrials(load(), [
+    trial(testFile(uses, '    $a = new Status();'), { valid: false, errorSummary: 'Error: Cannot instantiate enum Acme\\Billing\\Status' }),
+    trial(testFile(uses, '    $a = Status::Active;'), { valid: true }),
+  ], [ENUM_CHUNK]);
+  const m6 = m6Static(c);
+  assert.equal(m6.precision['R-NEW-ENUM'].hitTrials, 1);
+  assert.equal(m6.precision['R-NEW-ENUM'].hitFailedWithEvidence, 1);
+  assert.equal(m6.precision['R-NEW-ENUM'].precision, 1);
+  assert.equal(m6.precision['R-NEW-ENUM'].sensitivity, 1);
 });
 
 test('M6 R-SIG: deps.json signatures tiene prioridad; sin firma conocida no marca', () => {
