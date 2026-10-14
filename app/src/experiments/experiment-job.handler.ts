@@ -32,6 +32,7 @@ import {
   coLocatedSpecPath,
 } from '../generation/test-file-merge.service.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
+import { PHP_PHPUNIT_CONVENTION_LINES } from '../generation/php-phpunit-conventions.js';
 import type {
   LLMEffectiveConfig,
   LLMProvider,
@@ -1385,6 +1386,7 @@ export class ExperimentJobHandler
       'Usa el framework de pruebas PHPUnit 11.',
       `El archivo de prueba es "${placement.relativePath}" y debe declarar el namespace "${placement.namespace}".`,
       'Usa declaraciones use con nombres de clase completos (namespace completo). Extiende Tests\\TestCase solo si el código usa el contenedor de Laravel; en otro caso extiende PHPUnit\\Framework\\TestCase.',
+      ...PHP_PHPUNIT_CONVENTION_LINES,
       `Tienes como máximo ${maxToolCalls} llamadas a herramientas; al alcanzar ese límite deberás responder sin más herramientas.`,
       `Presupuesto de contexto: los resultados de las herramientas suman como máximo ${maxContextTokens} tokens en total; lo que exceda se trunca y queda marcado como truncado.`,
       'Cuando tengas suficiente información, responde ÚNICAMENTE con el archivo PHP completo: empieza con <?php, declara el namespace y los use, y contiene la clase de prueba. No incluyas explicaciones ni envuelvas la respuesta en fences de markdown.',

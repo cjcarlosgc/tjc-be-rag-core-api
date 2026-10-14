@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261014-001
+source: core
+sourceWorkItem: WI-CORE-062
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.16: StageDuration (§7.3) agrega startedAt? y completedAt? opcionales (ISO-8601 UTC) por etapa, emitidos por el Sandbox desde WI-SANDBOX-007 (CS-SANDBOX-20261014-001); aditivo y documental; durationMs y los tipos existentes sin cambio; sin rutas, codigos ni DTO publico nuevos
+requiredAction:
+  - Sincronizar el espejo INTEROP-2.16 byte a byte; tolerar la ausencia de startedAt/completedAt (Sandboxes anteriores); sin cambio funcional ni de DTO
+sourceRevision: 7f24c169c7d774a2f22a5c74d1869a78d69ab53b
+status: C-PENDING

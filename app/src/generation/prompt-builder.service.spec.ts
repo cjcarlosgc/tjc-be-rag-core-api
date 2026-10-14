@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PromptBuilder, sanitizeGeneratedPhp } from './prompt-builder.service.js';
+import { PHP_PHPUNIT_CONVENTION_LINES, PHP_PROMPT_CONVENTIONS_VERSION } from './php-phpunit-conventions.js';
 import type { FunctionalRule, GenerationContext } from '../retrieval/generation-context.js';
 import { renderFunctionalRule } from '../retrieval/functional-rule-format.js';
 
@@ -300,9 +301,10 @@ describe('PromptBuilder PHP dependency context (WI-CORE-057)', () => {
   });
 
   it('renders no header and no section when dependency context is absent or has empty text', () => {
-    const header = 'Dependencias del código objetivo';
-    expect(new PromptBuilder().build(phpContext())).not.toContain(header);
-    expect(new PromptBuilder().build(phpContext({ dependencyContext: dependencyContext('') }))).not.toContain(header);
+    // Anclado a inicio de línea: la convención PHPUnit (WI-CORE-064) cita el título entre comillas.
+    const header = /^Dependencias del código objetivo/m;
+    expect(new PromptBuilder().build(phpContext())).not.toMatch(header);
+    expect(new PromptBuilder().build(phpContext({ dependencyContext: dependencyContext('') }))).not.toMatch(header);
   });
 
   it('never renders the section for TypeScript even when the field is present', () => {
@@ -350,5 +352,140 @@ describe('PromptBuilder PHP final mark (WI-CORE-058)', () => {
     const prompt = new PromptBuilder().build(context);
 
     expect(prompt).toContain('— final: no se puede mockear; usa una instancia real (new, o un caso si es un enum)');
+  });
+});
+
+describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
+  const LINES = PHP_PHPUNIT_CONVENTION_LINES;
+  const phpTarget = {
+    filePath: 'src/Services/RenewalService.php',
+    symbolName: 'RenewalService',
+    methodName: 'renew',
+    targetType: 'METHOD' as const,
+    content: 'public function renew(): void {}',
+  };
+  const phpBase = (overrides: Partial<GenerationContext> = {}): GenerationContext =>
+    makeContext({
+      target: phpTarget,
+      metadata: { language: 'php', framework: 'PHPUNIT' },
+      ...overrides,
+    });
+  const options = {
+    testNamespace: 'Tests\\Unit\\Services',
+    testPath: 'tests/Unit/Services/RenewalServiceRenewTest.php',
+  };
+
+  it('exports the prompt version constant (i)', () => {
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.3');
+  });
+
+  it('exports exactly the three convention lines in the agreed wording (v)', () => {
+    expect(LINES).toHaveLength(3);
+    expect(LINES[0]).toBe(
+      'PHPUnit: compara objetos de valor (p. ej. `DateTimeImmutable`) con `assertEquals`; usa `assertSame` solo para escalares o identidad del mismo objeto.',
+    );
+    expect(LINES[1]).toBe(
+      'No uses `createMock`/`createStub`/`getMockBuilder` con clases `final` ni enums: instancia las clases con `new` (un enum, con uno de sus casos); crea dobles solo de interfaces o clases no `final`.',
+    );
+    expect(LINES[2]).toBe(
+      'En los `use` pon solo FQCN presentes en el código y el contexto disponibles (si hay una sección de dependencias, también los de ella); no inventes namespaces.',
+    );
+  });
+
+  it('inserts the three lines as own sections right after the Extiende line and before the location line (i)', () => {
+    const prompt = new PromptBuilder().build(phpBase(), options);
+    const parts = prompt.split('\n\n');
+    const extendsAt = parts.findIndex((p) => p.startsWith('Extiende `Tests\\TestCase`'));
+    expect(extendsAt).toBeGreaterThan(-1);
+    expect(parts.slice(extendsAt + 1, extendsAt + 1 + LINES.length)).toEqual([...LINES]);
+    expect(parts[extendsAt + 1 + LINES.length]).toBe(
+      `El archivo debe estar en ${options.testPath} y declarar el namespace ${options.testNamespace}.`,
+    );
+    expect(prompt).toContain(LINES[0]);
+  });
+
+  it('keeps the rest of the PHP prompt identical when the three lines are removed (iv)', () => {
+    const prompt = new PromptBuilder().build(phpBase(), options);
+    const previous = [
+      'Eres un ingeniero de software senior escribiendo pruebas unitarias en PHP.',
+      'Objetivo: escribir una prueba unitaria para el método "RenewalService.renew" en src/Services/RenewalService.php.',
+      'Usa PHPUnit 11 como framework de pruebas. Escribe un archivo PHP completo: debe empezar con `<?php`, puede declarar `declare(strict_types=1);`, declarar el namespace del test y usar `use` con el namespace completo de cada clase del proyecto que necesites.',
+      'Extiende `Tests\\TestCase` solo si el código objetivo usa el contenedor de Laravel (helpers como `config()` o `app()`, o facades `Illuminate\\Support\\Facades\\...`). Si no lo usa, extiende `PHPUnit\\Framework\\TestCase`.',
+      `El archivo debe estar en ${options.testPath} y declarar el namespace ${options.testNamespace}.`,
+      'Código objetivo:',
+      '```php',
+      'public function renew(): void {}',
+      '```',
+      'Reglas funcionales',
+    ];
+    const stripped = LINES.reduce((text, line) => text.replace(`${line}\n\n`, ''), prompt);
+    expect(stripped.split('\n\n').slice(0, 7)).toEqual(previous.slice(0, 7));
+    expect(stripped.startsWith(previous[0])).toBe(true);
+    expect(stripped).toContain(
+      'Responde ÚNICAMENTE con código PHP válido, empezando por `<?php`. No incluyas explicaciones ni comentarios de proceso. No envuelvas la respuesta en fences de markdown.',
+    );
+  });
+
+  it('keeps the TypeScript prompt byte-identical to the previous construction (iii)', () => {
+    const prompt = new PromptBuilder().build(makeContext());
+    const expected = [
+      'Eres un ingeniero de software senior escribiendo pruebas unitarias en TypeScript.',
+      'Objetivo: escribir una prueba unitaria para el método "Foo.bar" en src/foo.ts.',
+      'Usa el framework de pruebas VITEST.',
+      'Código objetivo:',
+      '```ts',
+      'bar(): number { return 1; }',
+      '```',
+      'Responde ÚNICAMENTE con código TypeScript válido (imports + bloques de prueba). No incluyas explicaciones ni comentarios de proceso. No envuelvas la respuesta en fences de markdown.',
+    ].join('\n\n');
+    expect(prompt).toBe(expected);
+    expect(prompt).not.toContain(LINES[0]);
+  });
+
+  it('keeps dependency, functional rules and related context in their positions (vi)', () => {
+    const sectionText = 'Dependencias del código objetivo (orden de inserción):\n- RenewalDatePolicy';
+    const prompt = new PromptBuilder().build(
+      phpBase({
+        dependencyContext: {
+          entries: [],
+          unresolvedCount: 0,
+          tokenCount: 1,
+          truncated: false,
+          text: sectionText,
+        },
+        functionalRules: [
+          {
+            knowledgeId: 'rule-1',
+            scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+            normalizedRule: 'Regla de prueba PHP.',
+            scope: 'METHOD',
+            targetRef: 'src/Services/RenewalService.php::renew',
+            source: 'HUMAN_ANSWER',
+            provenance: { confirmedByUserId: null, confirmedRole: null, originHeadSha: null, sourceRef: null },
+          },
+        ],
+        relatedChunks: [
+          {
+            filePath: 'src/Other.php',
+            symbolKind: 'CLASS',
+            symbolName: 'Other',
+            parentSymbolName: null,
+            content: 'class Other {}',
+            score: 0.9,
+            matchedVia: ['SEMANTIC'],
+          },
+        ],
+      }),
+      options,
+    );
+    const targetAt = prompt.indexOf('public function renew(): void {}');
+    const conventionAt = prompt.indexOf(LINES[2]);
+    const sectionAt = prompt.indexOf(sectionText);
+    const rulesAt = prompt.indexOf('Reglas funcionales');
+    const relatedAt = prompt.indexOf('Contexto relacionado del mismo proyecto');
+    expect(targetAt).toBeLessThan(sectionAt);
+    expect(sectionAt).toBeLessThan(rulesAt);
+    expect(rulesAt).toBeLessThan(relatedAt);
+    expect(conventionAt).toBeLessThan(prompt.indexOf('Código objetivo:'));
   });
 });

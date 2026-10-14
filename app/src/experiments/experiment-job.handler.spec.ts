@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentJobHandler } from './experiment-job.handler.js';
+import { PHP_PHPUNIT_CONVENTION_LINES } from '../generation/php-phpunit-conventions.js';
 import {
   SandboxAcceptedExecutionError,
   SandboxUnavailableError,
@@ -3580,6 +3581,37 @@ describe('ExperimentJobHandler PHP/PHPUnit (WI-CORE-029)', () => {
         relativePath: PHP_PATH,
         artifactType: 'CREATED',
       });
+    }
+  });
+
+  it('agent arm: includes exactly the shared PHPUnit convention lines, in order, between the use line and the call limit (WI-CORE-064)', async () => {
+    const { deps } = phpDeps();
+    const originalGenerate =
+      deps.generalistAgentService.generate.getMockImplementation()!;
+    deps.generalistAgentService.generate.mockImplementation(
+      async (...args: unknown[]) => {
+        const result = await originalGenerate(...args);
+        return { ...result, content: PHP_TEST };
+      },
+    );
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    const calls = deps.generalistAgentService.generate.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      const parts = (call[0] as string).split('\n\n');
+      const useAt = parts.findIndex((p) =>
+        p.startsWith('Usa declaraciones use con nombres de clase completos'),
+      );
+      const limitAt = parts.findIndex((p) =>
+        p.startsWith('Tienes como máximo'),
+      );
+      expect(useAt).toBeGreaterThan(-1);
+      expect(parts.slice(useAt + 1, useAt + 1 + PHP_PHPUNIT_CONVENTION_LINES.length)).toEqual([
+        ...PHP_PHPUNIT_CONVENTION_LINES,
+      ]);
+      expect(limitAt).toBe(useAt + 1 + PHP_PHPUNIT_CONVENTION_LINES.length);
     }
   });
 
