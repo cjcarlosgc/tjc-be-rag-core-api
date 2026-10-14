@@ -376,11 +376,11 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
   };
 
   it('exports the prompt version constant (i)', () => {
-    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.3');
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.4');
   });
 
-  it('exports exactly the three convention lines in the agreed wording (v)', () => {
-    expect(LINES).toHaveLength(3);
+  it('exports exactly the five convention lines in the agreed wording (v)', () => {
+    expect(LINES).toHaveLength(5);
     expect(LINES[0]).toBe(
       'PHPUnit: compara objetos de valor (p. ej. `DateTimeImmutable`) con `assertEquals`; usa `assertSame` solo para escalares o identidad del mismo objeto.',
     );
@@ -389,6 +389,12 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
     );
     expect(LINES[2]).toBe(
       'En los `use` pon solo FQCN presentes en el código y el contexto disponibles (si hay una sección de dependencias, también los de ella); no inventes namespaces.',
+    );
+    expect(LINES[3]).toBe(
+      'No extiendas clases `final`, tampoco con clases anónimas (`new class extends X`): usa el tipo real o una implementación de su interfaz.',
+    );
+    expect(LINES[4]).toBe(
+      'No declares `static` los closures que usan `$this->assert…` o `$this->callback(...)`: sin `$this` fallan en tiempo de ejecución.',
     );
   });
 
@@ -487,5 +493,35 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
     expect(sectionAt).toBeLessThan(rulesAt);
     expect(rulesAt).toBeLessThan(relatedAt);
     expect(conventionAt).toBeLessThan(prompt.indexOf('Código objetivo:'));
+  });
+});
+
+describe('PromptBuilder PHP constructor signature (WI-CORE-065)', () => {
+  it('includes the constructor signature rendered in the RAG dependency section', () => {
+    const text = [
+      'Dependencias del código objetivo (nombres completos de clase; usa exactamente estos nombres en los `use`):',
+      '- Plan → Pilot\\Subscriptions\\Domain\\Plan (constructor) — constructor(public string $code, public float $monthlyPrice)',
+    ].join('\n');
+    const prompt = new PromptBuilder().build(
+      makeContext({
+        target: {
+          filePath: 'src/Services/RenewalService.php',
+          symbolName: 'RenewalService',
+          methodName: 'renew',
+          targetType: 'METHOD',
+          content: 'public function renew(): void {}',
+        },
+        metadata: { language: 'php', framework: 'PHPUNIT' },
+        dependencyContext: {
+          entries: [],
+          unresolvedCount: 0,
+          tokenCount: 20,
+          truncated: false,
+          text,
+        },
+      }),
+    );
+
+    expect(prompt).toContain(text);
   });
 });

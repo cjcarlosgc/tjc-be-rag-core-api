@@ -134,6 +134,41 @@ export class CodeChunksRepository {
   }
 
   /**
+   * WI-CORE-065: content de la parte 1 del CONSTRUCTOR PHP de cada clase padre indicada. Un padre con
+   * constructores en más de un archivo es ambiguo y se omite.
+   */
+  async findPhpConstructorDeclarations(
+    projectVersionId: string,
+    parentSymbolNames: string[],
+  ): Promise<Array<{ parentSymbolName: string; content: string }>> {
+    const names = [...new Set(parentSymbolNames)];
+    if (names.length === 0) return [];
+    const rows = await this.prisma.codeChunk.findMany({
+      where: {
+        projectVersionId,
+        symbolKind: 'CONSTRUCTOR',
+        parentSymbolName: { in: names },
+        filePath: { endsWith: '.php' },
+        partIndex: 1,
+      },
+      select: { parentSymbolName: true, filePath: true, content: true, partIndex: true },
+      orderBy: [{ parentSymbolName: 'asc' }, { filePath: 'asc' }, { partIndex: 'asc' }],
+    });
+    const byParent = new Map<string, Array<{ parentSymbolName: string; content: string }>>();
+    for (const row of rows) {
+      if (row.parentSymbolName === null || row.partIndex !== 1) continue;
+      const list = byParent.get(row.parentSymbolName) ?? [];
+      list.push({ parentSymbolName: row.parentSymbolName, content: row.content });
+      byParent.set(row.parentSymbolName, list);
+    }
+    const unique: Array<{ parentSymbolName: string; content: string }> = [];
+    for (const constructors of byParent.values()) {
+      if (constructors.length === 1) unique.push(constructors[0]);
+    }
+    return unique;
+  }
+
+  /**
    * Similitud coseno de pgvector (`<=>`) contra el embedding de un chunk ancla,
    * excluyendo ese mismo chunk y cualquier parte hermana de un mismo símbolo
    * oversized (mismo filePath/symbolKind/symbolName/parentSymbolName).

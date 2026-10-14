@@ -45,7 +45,7 @@ ENV_FILE="$REPO_ROOT/app/.env"
 [ -f "$ENV_FILE" ] || { echo "no existe app/.env" >&2; exit 66; }
 
 # Lee la URL sin imprimirla: solo grep/sed dentro de este script.
-RAW_URL="$(grep -E '^DATABASE_URL' "$ENV_FILE" | head -n 1 | sed -E 's/^DATABASE_URL[[:space:]]*=[[:space:]]*//; s/^"//; s/"[[:space:]]*$//; s/^'\''//; s/'\''[[:space:]]*$//' || true)"
+RAW_URL="$(grep -E '^DATABASE_URL=' "$ENV_FILE" | head -n 1 | sed -E 's/^DATABASE_URL[[:space:]]*=[[:space:]]*//; s/^"//; s/"[[:space:]]*$//; s/^'\''//; s/'\''[[:space:]]*$//' || true)"
 [ -n "$RAW_URL" ] || { echo "DATABASE_URL vacia o ausente en app/.env" >&2; exit 66; }
 DB_URL="${RAW_URL%%\?*}"
 export PGSSLMODE="${PGSSLMODE:-require}"

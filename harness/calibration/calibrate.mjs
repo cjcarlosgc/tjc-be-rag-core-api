@@ -118,8 +118,9 @@ async function main() {
       'M3 miem%': baseline.m3.memberNoisePct,
       'M4 tok sel': baseline.m4.selectedTokensPersisted,
       'M4 sec': baseline.m4.sectionTokens ?? 'n/a',
+      'M4 firma extra': baseline.m4.signatureExtraTokens ?? 'n/a',
       'M5 base': baseline.m5.overlapLabel,
-      'M6 R-FINAL/SAME/NS': baseline.m6 ? baseline.m6.rules.map((r) => r.count).join('/') : 'n/a',
+      'M6 FINAL/SAME/NS/ANON/THIS/SIG': baseline.m6 ? baseline.m6.rules.map((r) => r.count).join('/') : 'n/a',
       ...(cands.length ? Object.fromEntries(Object.entries(candidates).map(([n, v]) => [`M5 ${n}`, v.m5.overlapLabel])) : {}),
     });
 
@@ -152,18 +153,18 @@ async function main() {
   const precisionLines = m6Agg ? ['## Precision observada (M6)', '',
     'Por regla, sobre los trials analizados (testContent presente) de todos los casos. "Trials con hit" cuenta trials, no hits de linea. '
     + 'Precision = con hit y fallido con evidencia / trials con hit. Sensibilidad = fallidos con evidencia en los que la regla dio hit / fallidos con evidencia. '
-    + 'Evidencia en errorSummary: R-FINAL "ClassIsFinal" o "final"+"mock"; R-SAME "same object" o "reference the same"; R-NS "not found", "Class ... does not exist" o "UnknownType". '
+    + 'Evidencia en errorSummary: R-FINAL "ClassIsFinal" o "final"+"mock"; R-SAME "same object" o "reference the same"; R-NS "not found", "Class ... does not exist" o "UnknownType"; R-ANON-FINAL "cannot extend final" o "final class"; R-STATIC-THIS "Using $this when not in object context"; R-SIG "ArgumentCountError", "Too few arguments" o "Unknown named parameter". '
     + 'Los trials con hit y valid=true son posibles falsos positivos. Muestra pequena: no es una estimacion estable.', '',
     '| regla | trials con hit | hit y valid=true (posibles FP) | hit y fallido | fallidos con evidencia | hit y fallido con evidencia | precision | sensibilidad |',
     '|---|---|---|---|---|---|---|---|',
-    ...['R-FINAL', 'R-SAME', 'R-NS'].map((r) => { const p = m6Agg[r]; return `| ${r} | ${p.hitTrials} | ${p.hitValid} | ${p.hitFailed} | ${p.failedWithEvidence} | ${p.hitFailedWithEvidence} | ${f(p.precision)} | ${f(p.sensitivity)} |`; }), ''] : [];
+    ...['R-FINAL', 'R-SAME', 'R-NS', 'R-ANON-FINAL', 'R-STATIC-THIS', 'R-SIG'].map((r) => { const p = m6Agg[r]; return `| ${r} | ${p.hitTrials} | ${p.hitValid} | ${p.hitFailed} | ${p.failedWithEvidence} | ${p.hitFailedWithEvidence} | ${f(p.precision)} | ${f(p.sensitivity)} |`; }), ''] : [];
   const md = ['# Calibracion offline (WI-CORE-063)', '', `Version de metricas: ${METRIC_VERSION} · tokenizador: ${tok.name}`, '',
     '## Verificacion de linea base', '', '| caso | SELECTED persistido | recalculado top-10 = SELECTED |', '|---|---|---|',
     ...verification.map((v) => `| ${v.case} | ${v.selectedPersisted} | ${v.recomputedTop10MatchesSelected ? 'si' : 'NO'} |`), '',
     '## Resumen linea base', '', '| ' + Object.keys(summaryRows[0]).join(' | ') + ' |',
     '|' + Object.keys(summaryRows[0]).map(() => '---').join('|') + '|',
     ...summaryRows.map((r) => '| ' + Object.values(r).join(' | ') + ' |'), '',
-    'Leyenda: M1 top10 = colaboradores con chunk de tipo en el top-10 / total; M1 faltan = sin top-10 ni seccion; M3 test% y miem% = % de tokens seleccionados (ruido de pruebas y de miembros ajenos); M4 = tokens persistidos; M5 = solape con la base (n/K).', '', ...precisionLines];
+    'Leyenda: M1 top10 = colaboradores con chunk de tipo en el top-10 / total; M1 faltan = sin top-10 ni seccion; M3 test% y miem% = % de tokens seleccionados (ruido de pruebas y de miembros ajenos); M4 = tokens persistidos; M4 firma extra = tokens que anaden las firmas del constructor (WI-CORE-065); M5 = solape con la base (n/K).', '', ...precisionLines];
   writeFileSync(join(outDir, 'report.json'), JSON.stringify(report, null, 2));
   writeFileSync(join(outDir, 'report.md'), md.join('\n'));
   writeFileSync(join(outDir, 'm2-template.md'), m2Lines.join('\n'));

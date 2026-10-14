@@ -206,6 +206,8 @@ export function m4Tokens(c, selectedIds, tokenizer, baseSelectedIds = null) {
   const counted = sum(sel.map((x) => tokenizer.count(x.content)));
   const section = c.deps ? c.deps.entries : null;
   const sectionCounted = section ? tokenizer.count(renderDependencySection(section)) : null;
+  // WI-CORE-065: tokens de firmas (extra frente a la misma sección sin firmas), si deps.json los registra.
+  const hasSignatureFields = !!c.deps && 'signatureExtraTokens' in c.deps;
   let delta = null;
   if (baseSelectedIds) {
     const base = sum(baseSelectedIds.map((id) => c.byId.get(id).tokenCount));
@@ -217,6 +219,8 @@ export function m4Tokens(c, selectedIds, tokenizer, baseSelectedIds = null) {
     selectedTokensCounted: counted,
     sectionTokens: c.deps ? c.deps.sectionTokens : null,
     sectionTokensCounted: sectionCounted,
+    sectionTokensSinFirmas: hasSignatureFields ? c.deps.sectionTokensSinFirmas : null,
+    signatureExtraTokens: hasSignatureFields ? c.deps.signatureExtraTokens : null,
     baselineContextTokens: c.deps ? c.deps.baselineContextTokens : null,
     deltaVsBaselinePct: delta,
   };
@@ -338,12 +342,15 @@ function resolveTestName(name, parsed) {
  * Solo se consideran lineas; las llamadas multilinea de assertSame no se analizan (limitacion documentada).
  * Precision observada: por regla, trials (analizados) con hit y su resultado (valid / fallido con evidencia en errorSummary).
  */
-const RULE_IDS = ['R-FINAL', 'R-SAME', 'R-NS'];
+const RULE_IDS = ['R-FINAL', 'R-SAME', 'R-NS', 'R-ANON-FINAL', 'R-STATIC-THIS', 'R-SIG'];
 /** Evidencia en errorSummary de la clase de fallo que cada regla pretende detectar. */
 export const FAILURE_EVIDENCE = {
   'R-FINAL': (s) => /ClassIsFinal/.test(s) || (/final/i.test(s) && /mock/i.test(s)),
   'R-SAME': (s) => /same object|reference the same/i.test(s),
   'R-NS': (s) => /not found|Class (?:or interface )?"[^"]*" does not exist|UnknownType/i.test(s),
+  'R-ANON-FINAL': (s) => /cannot extend final|final class/i.test(s),
+  'R-STATIC-THIS': (s) => /Using \$this when not in object context/i.test(s),
+  'R-SIG': (s) => /ArgumentCountError|Too few arguments|Unknown named parameter/i.test(s),
 };
 
 /** Segmentos de metodo: desde cada `function nombre(` hasta la linea anterior a la siguiente declaracion. */
@@ -428,7 +435,8 @@ export function m6Static(c) {
     for (const i of x.importsUsed ?? []) known.add(stripSlash(i));
   }
   if (c.deps) for (const e of c.deps.entries) known.add(e.fqcn);
-  const rules = { 'R-FINAL': [], 'R-SAME': [], 'R-NS': [] };
+  const rules = Object.fromEntries(RULE_IDS.map((r) => [r, []]));
+  const sigs = caseSignatures(c);
   const hitTrials = Object.fromEntries(RULE_IDS.map((r) => [r, new Set()]));
   let trialsAnalyzed = 0;
   c.trials.forEach((t, ti) => {
@@ -449,6 +457,39 @@ export function m6Static(c) {
     });
     for (const seg of functionSegments(lines)) {
       sameHitsInSegment(lines, seg, parsed, types, (ln) => pushRule('R-SAME', { line: ln, snippet: snippet(lines[ln - 1]) }));
+    }
+    // WI-CORE-065: clase anonima que extiende un tipo final del caso (new class extends X / new class(...) extends X).
+    lines.forEach((line, idx) => {
+      for (const m of line.matchAll(/new\s+class\s*(?:\([^)]*\)\s*)?extends\s+(\\?[A-Za-z_][\w\\]*)/g)) {
+        const fq = resolveTestName(m[1], parsed);
+        const info = types.get(fq);
+        if (info && info.final) pushRule('R-ANON-FINAL', { line: idx + 1, snippet: snippet(line), type: fq });
+      }
+    });
+    // WI-CORE-065: $this-> dentro de closures static (function con balance de llaves; fn hasta fin de expresion).
+    const seenThis = new Set();
+    for (const body of staticClosureBodies(t.testContent)) {
+      const text = t.testContent.slice(body.start, body.end + 1);
+      for (const m of text.matchAll(/\$this\s*->/g)) {
+        const pos = body.start + m.index;
+        if (seenThis.has(pos)) continue;
+        seenThis.add(pos);
+        const ln = lineOf(t.testContent, pos);
+        pushRule('R-STATIC-THIS', { line: ln, snippet: snippet(lines[ln - 1]) });
+      }
+    }
+    // WI-CORE-065: argumentos de `new X(` incompatibles con la firma conocida de X (texto multilinea incluido).
+    for (const m of t.testContent.matchAll(/new\s+(\\?[A-Za-z_][\w\\]*)\s*\(/g)) {
+      const fq = resolveTestName(m[1], parsed);
+      const params = sigs.get(fq);
+      if (!params) continue;
+      const open = m.index + m[0].length - 1;
+      const args = splitArgs(t.testContent.slice(open + 1));
+      const reason = signatureMismatch(args, params);
+      if (reason) {
+        const ln = lineOf(t.testContent, m.index);
+        pushRule('R-SIG', { line: ln, snippet: snippet(lines[ln - 1]), type: fq, reason });
+      }
     }
     for (const u of parsed.useLines) {
       const ok = known.has(u.fqcn) || u.fqcn.startsWith('PHPUnit\\Framework\\')
@@ -479,6 +520,130 @@ export function m6Static(c) {
     })),
     precision,
   };
+}
+
+// ---- WI-CORE-065: R-ANON-FINAL, R-STATIC-THIS, R-SIG (M6) ----
+
+/** Indice del delimitador de cierre que empareja el de apertura en `open`, saltando cadenas. -1 si no cierra. */
+function matchClose(text, open, o, c) {
+  let depth = 0; let quote = null;
+  for (let i = open; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quote !== null) { if (ch === '\\') i += 1; else if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === o) depth += 1;
+    else if (ch === c) { depth -= 1; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+/** Cuerpos de closures `static function` (balance de llaves) y `static fn` (expresion hasta `,`, `;` o cierre a nivel 0). */
+export function staticClosureBodies(text) {
+  const bodies = [];
+  // Solo closures: `static function (` o `static fn (`; un metodo `static function nombre(` no entra.
+  const re = /\bstatic\s+(function|fn)(?=\s*\()/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const open = text.indexOf('(', m.index + m[0].length);
+    if (open < 0) continue;
+    const close = matchClose(text, open, '(', ')');
+    if (close < 0) continue;
+    if (m[1] === 'function') {
+      const brace = text.indexOf('{', close);
+      if (brace < 0) continue;
+      const end = matchClose(text, brace, '{', '}');
+      if (end > 0) bodies.push({ start: brace, end });
+    } else {
+      const arrow = text.indexOf('=>', close);
+      if (arrow < 0) continue;
+      let depth = 0; let quote = null; let end = text.length - 1;
+      for (let i = arrow + 2; i < text.length; i += 1) {
+        const ch = text[i];
+        if (quote !== null) { if (ch === '\\') i += 1; else if (ch === quote) quote = null; continue; }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+        else if (ch === ')' || ch === ']' || ch === '}') { if (depth === 0) { end = i - 1; break; } depth -= 1; }
+        else if ((ch === ',' || ch === ';') && depth === 0) { end = i - 1; break; }
+      }
+      bodies.push({ start: arrow, end });
+    }
+  }
+  return bodies;
+}
+
+/** Parametros de una lista (texto entre parentesis, sin el `(` inicial): [{ name, required, variadic }]. Null si no legible. */
+export function parseParamList(inner) {
+  const params = [];
+  for (const raw of splitArgs(`${inner})`)) {
+    const p = raw.replace(/#\[[^\]]*\]/g, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
+    if (p === '') continue;
+    const name = /\$(\w+)/.exec(p);
+    if (!name) return null;
+    const after = p.slice(p.indexOf(`$${name[1]}`) + name[1].length + 1);
+    const hasDefault = /^\s*=/.test(after);
+    const variadic = /\.\.\.\s*\$/.test(p);
+    params.push({ name: name[1], required: !hasDefault && !variadic, variadic });
+  }
+  return params;
+}
+
+/** Parametros del constructor de un contenido PHP (misma logica que la firma: hasta el parentesis balanceado). */
+export function constructorParams(content) {
+  if (typeof content !== 'string') return null;
+  const m = /\bfunction\s+__construct\s*\(/i.exec(content);
+  if (!m) return null;
+  const open = m.index + m[0].length - 1;
+  const close = matchClose(content, open, '(', ')');
+  if (close < 0) return null;
+  return parseParamList(content.slice(open + 1, close));
+}
+
+/** Firmas por FQCN: deps.json `signatures` si existe (lo que consta en el contexto); si no, chunks CONSTRUCTOR unicos. */
+export function caseSignatures(c) {
+  const sigs = new Map();
+  if (c.deps && Array.isArray(c.deps.signatures)) {
+    for (const s of c.deps.signatures) {
+      const params = s.signature.startsWith('(') && s.signature.endsWith(')')
+        ? parseParamList(s.signature.slice(1, -1)) : null;
+      if (params) sigs.set(s.fqcn, params);
+    }
+    return sigs;
+  }
+  const byParent = new Map();
+  for (const x of c.chunks) {
+    if (x.symbolKind !== 'CONSTRUCTOR' || !x.parentSymbolName) continue;
+    byParent.set(x.parentSymbolName, [...(byParent.get(x.parentSymbolName) ?? []), x]);
+  }
+  for (const [parent, list] of byParent) {
+    if (list.length !== 1) continue;
+    const params = constructorParams(list[0].content);
+    if (params) sigs.set(parent, params);
+  }
+  return sigs;
+}
+
+/** R-SIG: `new X(` con firma conocida y argumentos que no la cumplen (faltan obligatorios o nombre desconocido). Sin splat. */
+export function signatureMismatch(args, params) {
+  if (args.some((a) => a.trim().startsWith('...'))) return null;
+  const parts = args.map((a) => a.trim()).filter((a, i, all) => !(all.length === 1 && a === ''));
+  const covered = new Set();
+  let positional = 0;
+  let namedSeen = false;
+  for (const a of parts) {
+    const named = /^(\w+)\s*:(?!:)/.exec(a);
+    if (named) {
+      namedSeen = true;
+      const idx = params.findIndex((p) => p.name === named[1]);
+      if (idx < 0) return 'unknown-named';
+      covered.add(idx);
+    } else {
+      if (namedSeen) return null; // posicional tras nombrado: sintaxis invalida, no se opina
+      covered.add(positional);
+      positional += 1;
+    }
+  }
+  const missing = params.findIndex((p, i) => p.required && !covered.has(i));
+  return missing >= 0 ? 'missing-required' : null;
 }
 
 /** Divide los argumentos de una llamada (texto desde tras el '('), respetando parentesis y comillas. */

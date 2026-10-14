@@ -16,6 +16,8 @@ export interface PhpDependencyEntry {
   resolvedBy: PhpDependencyResolvedBy;
   /** WI-CORE-058 (INTEROP-2.15): presente solo cuando es true; el tipo es final o enum según el índice. */
   final?: true;
+  /** WI-CORE-065: firma del constructor `(…)` sin cuerpo; presente solo si se determinó sin ambigüedad. */
+  signature?: string;
 }
 
 export interface PhpDependencySourceChunk {
@@ -124,7 +126,8 @@ export function renderPhpDependencySection(entries: readonly PhpDependencyEntry[
   const lines = entries.map(
     (entry) =>
       `- ${entry.typeName} → ${entry.fqcn} (${entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'})` +
-      (entry.final === true ? FINAL_MARK : ''),
+      (entry.final === true ? FINAL_MARK : '') +
+      (entry.signature !== undefined ? ` — constructor${entry.signature}` : ''),
   );
   return [SECTION_HEADER, ...lines].join('\n');
 }
@@ -204,14 +207,114 @@ export function countPhpDependencyTokens(text: string): number {
   return countTokens(text);
 }
 
-/** Recorta entradas por el final hasta que la sección renderizada cabe en `maxTokens`. */
+/**
+ * WI-CORE-065: firma del constructor (`__construct(...)`) con modificadores promovidos, tipos, nombres y
+ * valores por defecto; sin atributos, comentarios, cuerpo ni tipo de retorno. Espacios normalizados.
+ * Devuelve null si no hay constructor o no es legible. Nunca lanza.
+ */
+export function extractPhpConstructorSignature(content: string): string | null {
+  try {
+    if (typeof content !== 'string') return null;
+    const match = CONSTRUCTOR_PATTERN.exec(content);
+    if (!match) return null;
+    const parameters = readParameterList(content, match.index + match[0].length - 1);
+    return parameters === null ? null : `(${parameters})`;
+  } catch {
+    return null;
+  }
+}
+
+const CONSTRUCTOR_PATTERN = /\bfunction\s+__construct\s*\(/i;
+
+/** Lee la lista de parámetros desde `(` hasta su `)` de cierre, omitiendo atributos y comentarios. */
+function readParameterList(content: string, open: number): string | null {
+  const parameters: string[] = [];
+  let current = '';
+  let depth = 0;
+  let index = open + 1;
+  while (index < content.length) {
+    const char = content[index];
+    const next = content[index + 1];
+    if (char === "'" || char === '"') {
+      const end = findStringEnd(content, index);
+      if (end < 0) return null;
+      current += content.slice(index, end + 1);
+      index = end + 1;
+      continue;
+    }
+    if ((char === '/' && next === '/') || (char === '#' && next !== '[')) {
+      const newline = content.indexOf('\n', index);
+      if (newline < 0) return null;
+      current += ' ';
+      index = newline + 1;
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      const end = content.indexOf('*/', index + 2);
+      if (end < 0) return null;
+      current += ' ';
+      index = end + 2;
+      continue;
+    }
+    if (char === '#' && next === '[') {
+      const end = findAttributeEnd(content.slice(index));
+      if (end < 0) return null;
+      index += end + 1;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') {
+      depth += 1;
+    } else if (char === ')' || char === ']' || char === '}') {
+      if (depth === 0) {
+        if (char !== ')') return null;
+        parameters.push(current);
+        return parameters
+          .map((parameter) => parameter.replace(/\s+/g, ' ').trim())
+          .filter((parameter) => parameter !== '')
+          .join(', ');
+      }
+      depth -= 1;
+    } else if (char === ',' && depth === 0) {
+      parameters.push(current);
+      current = '';
+      index += 1;
+      continue;
+    }
+    current += char;
+    index += 1;
+  }
+  return null;
+}
+
+/** Índice de la comilla de cierre de la cadena que empieza en `start`, o -1. */
+function findStringEnd(content: string, start: number): number {
+  const quote = content[start];
+  for (let index = start + 1; index < content.length; index += 1) {
+    if (content[index] === '\\') index += 1;
+    else if (content[index] === quote) return index;
+  }
+  return -1;
+}
+
+/**
+ * Recorta por el final hasta que la sección renderizada cabe en `maxTokens`. WI-CORE-065: primero retira
+ * firmas desde la última entrada hacia atrás (conserva nombres); después recorta entradas.
+ */
 export function applyDependencyTokenCap(
   entries: readonly PhpDependencyEntry[],
   maxTokens: number = MAX_PHP_DEPENDENCY_TOKENS,
 ): CappedPhpDependencies {
-  const kept = [...entries];
+  const kept = entries.map((entry) => ({ ...entry }));
   let truncated = false;
-  while (kept.length > 0 && countPhpDependencyTokens(renderPhpDependencySection(kept)) > maxTokens) {
+  const exceeds = (): boolean => countPhpDependencyTokens(renderPhpDependencySection(kept)) > maxTokens;
+
+  for (let index = kept.length - 1; index >= 0 && exceeds(); index -= 1) {
+    if (kept[index].signature !== undefined) {
+      delete kept[index].signature;
+      truncated = true;
+    }
+  }
+  while (kept.length > 0 && exceeds()) {
     kept.pop();
     truncated = true;
   }
