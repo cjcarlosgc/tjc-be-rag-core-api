@@ -376,7 +376,7 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
   };
 
   it('exports the prompt version constant (i)', () => {
-    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.2');
+    expect(PHP_PROMPT_CONVENTIONS_VERSION).toBe('php-prompt-2026-10-14.3');
   });
 
   it('exports exactly the three convention lines in the agreed wording (v)', () => {
@@ -385,10 +385,10 @@ describe('PromptBuilder PHPUnit conventions (WI-CORE-064)', () => {
       'PHPUnit: compara objetos de valor (p. ej. `DateTimeImmutable`) con `assertEquals`; usa `assertSame` solo para escalares o identidad del mismo objeto.',
     );
     expect(LINES[1]).toBe(
-      'No uses `createMock`/`createStub`/`getMockBuilder` con clases `final` ni enums: instáncialas con `new`; crea dobles solo de interfaces o clases no `final`.',
+      'No uses `createMock`/`createStub`/`getMockBuilder` con clases `final` ni enums: instancia las clases con `new` (un enum, con uno de sus casos); crea dobles solo de interfaces o clases no `final`.',
     );
     expect(LINES[2]).toBe(
-      'En los `use` pon solo FQCN presentes en el código y el contexto disponibles (incl. «Dependencias del código objetivo»); no inventes namespaces.',
+      'En los `use` pon solo FQCN presentes en el código y el contexto disponibles (si hay una sección de dependencias, también los de ella); no inventes namespaces.',
     );
   });
 
