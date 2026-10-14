@@ -3662,7 +3662,7 @@
       "id": "WI-CORE-064",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Convenciones PHPUnit en el prompt de generación PHP (RAG y agente, misma redacción)",
@@ -3693,7 +3693,12 @@
         "app/src/generation/prompt-builder.service.spec.ts",
         "app/src/experiments/experiment-job.handler.ts",
         "harness/calibration/README.md",
-        "harness/reports/wi-core-064-contract-sync-scope-review.md"
+        "harness/reports/wi-core-064-contract-sync-scope-review.md",
+        "harness/reports/wi-core-064-technical-checks.md",
+        "harness/reports/wi-core-064-replay-y-verificacion.md",
+        "app/src/generation/php-phpunit-conventions.ts",
+        "spec/features/004-rag-retrieval-context/spec.md",
+        "CHANGELOG.md"
       ],
       "contractSyncReview": [
         {

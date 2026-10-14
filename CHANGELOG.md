@@ -12,6 +12,7 @@ Todos los cambios notables de la línea base SDD se registran aquí. El contenid
 
 ## [Unreleased]
 
+- **WI-CORE-064 — convenciones PHPUnit en el prompt PHP (2026-10-14, en revisión; versión del prompt `php-prompt-2026-10-14.2`):** el prompt de generación PHP del brazo RAG y las instrucciones iniciales del agente generalista incluyen, con la misma redacción (pareado), tres convenciones: objetos de valor con `assertEquals` y `assertSame` solo para escalares o identidad, sin dobles de clases `final` o enumeraciones, y solo FQCN presentes en el contexto. +115 tokens por prompt PHP (≈ +10 % a +17 %). Sin cambios en ranking, R-PHP, pesos, `topK`, herramientas del agente, prompt TypeScript ni contrato; replay offline: top-10 idéntico 9/9.
 - **WI-CORE-063 — replay de calibración offline del RAG en harness/calibration con métricas M1–M6 (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-062 — INTEROP-2.16 documental y aditiva (StageDuration startedAt/completedAt) y transcripción de CS-SANDBOX-20261014-001; CS-CORE-20261014-001 (revisión independiente delegada por el Modo fuera de casa) (2026-10-13, W-DONE, revisión independiente delegada).**
 - **WI-CORE-061 — tiempos por etapa del Sandbox conservados y persistidos internamente (revisión independiente delegada por el Modo fuera de casa; CS-SANDBOX-20261014-001 sin importar) (2026-10-13, W-DONE, revisión independiente delegada).**
