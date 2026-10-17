@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20261011-002
+source: github-integration
+sourceWorkItem: WI-GH-012
+targets: [core]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - CREATE_REJECTED requires the neutral terminal error GITHUB_CHECK_CREATE_REJECTED (HTTP 422, retryable false): only a confirmed no-create outcome after complete zero-candidate reconciliation may be persisted; identical request hashes replay it without POST.
+requiredAction:
+  - Core, as canonical GH-INTEROP owner, must publish the approved CREATE_REJECTED error and replay semantics in a new canonical contract revision; GitHub Integration will import and mirror it byte-for-byte. This event does not authorize deploy, provisioning, or cutover.
+sourceRevision: feature/jean@working-tree
+consumerImportedAt: 2026-10-11T20:38:33.537Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/wi-core-039-contract-sync-acknowledgement.md
+resolutionEvidence: harness/reports/wi-core-039-implementation.md

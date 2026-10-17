@@ -1,16 +1,8 @@
-# providers — Tareas
+# providers — Subtareas vigentes
 
-- [x] Interfaces (`EmbeddingProvider.embedMany`).
-- [x] OpenAI implementations iniciales (`OpenAiEmbeddingProvider`, cliente lazy, batching).
-- [x] `DEC-EMB-001` ya resuelta (`APROBADO`: `text-embedding-3-small`, 1536); consulta vectorial definitiva de `004-rag-retrieval-context` implementada bajo ese modelo (`CodeChunksRepository.findSimilarByEmbedding`, cosine `<=>`).
-- [ ] Si una reevaluación futura con evidencia del experimento cambiara modelo/dimensionalidad, planificar y ejecutar adaptador, migración pgvector y reindexación; no hacerlo por inferencia.
-- [x] Timeouts/retry policy (`createOpenAiClient`, compartido por `OpenAiEmbeddingProvider`/`OpenAiLLMProvider`/`GeneralistAgentService`: `OPENAI_TIMEOUT_MS`, `OPENAI_MAX_RETRIES`).
-- [x] Usage metadata (`OpenAiEmbeddingProvider` loguea `usage.total_tokens` por batch; `OpenAiLLMProvider`/`GeneralistAgentService` devuelven `inputTokens`/`outputTokens` ya consumidos por 005/008 para métricas de costo).
+- [x] **ST-CORE-030 · T-DONE · WI-CORE-023 · HU17:** RAG y `GENERALIST_AGENT` detrás de `LLMProvider` con configuración efectiva única, sin degradar razonamiento en silencio y con M1–M3 verificables (ESC-MOD-01).
 
-## Calidad
+- [x] **ST-CORE-038 · T-DONE · WI-CORE-031 · HU17:** migrar las llamadas con herramientas del proveedor LLM a `/v1/responses` para permitir razonamiento activo en los experimentos OE5 (`gpt-6-luna` con herramientas solo admite `reasoning_effort=none` en `/v1/chat/completions`); pedido del usuario (2026-10-09).
 
-- [x] Agregar/actualizar pruebas.
-- [x] Verificar manejo de errores.
-- [x] Verificar observabilidad mínima.
-- [x] Ejecutar lint/test/build.
-- [x] Registrar evidencia de revisión en `harness/reports/`.
+Una futura migración de modelo/dimensionalidad permanece como `IDEA-003`.
+Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

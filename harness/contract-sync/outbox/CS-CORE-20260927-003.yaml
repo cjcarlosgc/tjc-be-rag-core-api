@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20260927-003
+source: core
+sourceWorkItem: WI-CORE-011
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.6 y SYSTEM-2.5: elegibilidad por pull_request.created_at frente a RepositoryBinding.createdAt; Runs anteriores al vínculo se conservan como OBSOLETE y se ocultan de listas, detalles e inbox; fechas no verificables se recuperan mediante backfill durable. Sin cambio de rutas ni shapes de respuesta.
+requiredAction:
+  - Importar el evento en Console y planificar su espejo de INTEROP-2.6 en WI-CONSOLE-008 tras la revisión/cierre aprobado de WI-CORE-011; no requiere cambio de UI. Acusar recibo y reportar incompatibilidades.
+sourceRevision: a99b3c315738966d956e9cb08833b2c42a7c85e5
+status: C-PENDING

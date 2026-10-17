@@ -13,10 +13,12 @@ Conservar datos objetivos para análisis estadístico posterior sin fijar todav�
 - Conservar trazas explicativas de adquisición de contexto propias de cada estrategia sin convertir un dato ausente en cero.
 - Exponer datos y agregados reproducibles; el backend no concluye significancia estadística ni declara automáticamente un ganador.
 
-Mutation score es una mejora prioritaria deseada y potencialmente más informativa que cobertura, pero no es todavía una métrica aprobada ni implementable mientras `DEC-MET-001`, cuyo propietario es `spec/contracts/system-contract.md`, siga PENDING.
 
+## Jerarquía de métricas y evidencia (SDD 2026-10-08; implementación pendiente)
+
+La jerarquía vigente es CF primaria, CO secundaria y VT guardrail; tokens, costo, latencia, tool calls y archivos son descriptivas; compilación, ejecución, aprobación y tipo de fallo son diagnóstico técnico; Precision@k y Recall@k son exclusivas de OE2. El oráculo es previo a las salidas, no se entrega a RAG ni al agente y no se construye de la prueba generada; no hay segundo LLM como juez y la evaluación de CF/CO es humana y externa. Core no deriva CF/CO de `valid`/`passed`, no declara ganador funcional y exporta evidencia reproducible versionada (`INTEROP-2.7` §6.16, `schemaVersion: '1'`) sin chain-of-thought ni identificadores `EV-OE*`. Bootstrap, Wilcoxon y Cohen κ quedan fuera del producto. **Hallazgo:** el agregado actual prioriza `validRate`; `WI-CORE-027` ajusta la presentación a esta jerarquía sin inventar estados.
 
 ## Fuera de alcance
 
 - No ampliar a capacidades no mencionadas en esta spec.
-- No convertir decisiones PENDING en implementación definitiva sin aprobación.
+- Mutation testing no forma parte de este alcance; la decisión de descarte está en `spec/ideas.md`.

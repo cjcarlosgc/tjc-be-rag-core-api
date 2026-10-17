@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261008-003
+source: core
+sourceWorkItem: WI-CORE-019
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - ProjectRole agrega WRITER (ADMIN > MAINTAINER > WRITER > READER); el permiso GitHub write deriva WRITER y la reverificacion reclasifica (cambio observable). Writer vincula, pausa y reactiva repositorios, publica tests y crea experimentos, pero no responde preguntas funcionales ni registra UNKNOWN (403 PROJECT_ROLE_INSUFFICIENT con details.requiredRole y details.currentRole). FunctionalKnowledgeResponse agrega confirmedByUserId, confirmedRole, originHeadSha y sourceRef (null en reglas historicas; originHeadSha no es vencimiento). POST /retrieval-comparisons sigue sin implementar (WI-CORE-022).
+requiredAction:
+  - Importar y acusar; agregar WRITER a tipos, comparaciones de rol y UI de permisos; habilitar para Writer vincular, pausar, reactivar, publicar tests y crear experimentos; deshabilitar o explicar responder y UNKNOWN para Writer y Reader; mapear el 403 con details.requiredRole y details.currentRole; mostrar la procedencia de las reglas con estado vacio para null. Sin cambios en Sandbox ni GitHub Integration.
+sourceRevision: 11d396ef9e35ca8a1f73bc14a07d9915b6a699b4
+status: C-PENDING

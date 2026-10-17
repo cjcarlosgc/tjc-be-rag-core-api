@@ -1,0 +1,18 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261011-004
+source: core
+sourceWorkItem: WI-CORE-038
+targets: [console, github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md, spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GH-INTEROP-1.5 fija la coordinación durable de Check Runs entre réplicas con PostgreSQL técnico propio de GitHub Integration; conserva la request/respuesta exitosa de Checks y limita explícitamente el comportamiento cuando el resultado remoto es incierto.
+requiredAction:
+  - "Console: importar y comparar byte por byte los tres contratos; registrar resolución con evidencia. No requiere cambio de UI, endpoint ni DTO."
+  - "GitHub Integration: importar los tres contratos y actualizar el WI-GH-012 existente con criterios/enlaces locales para implementar GH-INTEROP-1.5; no crear un segundo WI que duplique el trabajo."
+  - "GitHub Integration: actualizar la excepción local de tech-stack para admitir exclusivamente un PostgreSQL administrado dedicado a coordinación técnica, bajo ownership de ese servicio y separado de la persistencia de dominio Supabase/Core. No habilita otra base de dominio."
+  - "GitHub Integration: reemplazar locks en memoria como mecanismo de corrección por reserva PostgreSQL compartida con unicidad exacta (repositoryId, appId, headSha, name) y claim transaccional/lease para create y updates; persistir CREATE_UNKNOWN/UPDATE_UNKNOWN antes de llamadas remotas y fallar cerrado si base, esquema o coordinación no están disponibles."
+  - "GitHub Integration: implementar replay seguro de CREATE_REJECTED, reconciliación paginada de candidatos exactos, adopción única o 409 GITHUB_CHECK_IDENTITY_AMBIGUOUS, tombstone sin TTL ante resultado incierto, y 503 GITHUB_CHECK_COORDINATION_UNAVAILABLE sin reintento ciego de POST/PATCH. Cubrir carreras de al menos dos instancias contra PostgreSQL compartido, fallos antes/después de cada llamada remota, migración aditiva, retención, backup, alertas, runbook y drenado de instancias antiguas antes de habilitar multi-réplica."
+  - "El Contract Sync no declara implementada la persistencia ni autoriza provisión de base, cambios de infraestructura, despliegue o cutover; esos pasos conservan sus propios gates/aprobaciones."
+sourceRevision: 0adbede3e89b154dc720115189822333748c1d2a
+status: C-PENDING

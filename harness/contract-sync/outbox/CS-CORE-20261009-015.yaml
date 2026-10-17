@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-015
+source: core
+sourceWorkItem: WI-CORE-027
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: true
+changed:
+  - StrategyMetricsResponse (INTEROP-2.7 6.5/6.5.1, DEC-EVID-001 opcion A): validRate, compilationRate, executionRate, passedRate, generationDurationMs, executionDurationMs y totalDurationMs pasan de number a number | null. Son null cuando la estrategia no tiene repeticiones evaluables (technicallyEvaluable !== false); executionDurationMs es null tambien si ninguna repeticion evaluable invoco el Sandbox. 0 solo significa cero real. Se anaden evaluableRepetitions y nonEvaluableRepetitions (number; suman las repeticiones vigentes de la estrategia). ExperimentRepetitionResponse, ExperimentResultsResponse y el bundle de evidencia (6.16) no cambian de forma. Nota informativa (IDEA-015, sin cambio de DTO): errorSummary y failureSummary se emiten saneados y failure.category se valida contra FailureType (desconocido => UNKNOWN). Sin bump de version INTEROP-2.7.
+requiredAction:
+  - Console (WI-CONSOLE-017/020): refrescar el contrato desde sourceRevision y acusar; tipar las tasas y las tres medias de duracion como number | null y los dos contadores como number; mostrar «sin datos» (no 0 % ni 0 ms) ante null y usar evaluableRepetitions/nonEvaluableRepetitions para indicar cuantas repeticiones sustentan la metrica; no derivar ganadores ni formatear null como 0.
+sourceRevision: 55e3ec9c12646213ab103d9fbe2bffd2cfe6a759
+status: C-PENDING

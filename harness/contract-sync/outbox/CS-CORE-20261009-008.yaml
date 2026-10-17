@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-008
+source: core
+sourceWorkItem: WI-CORE-025
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.7 §6.5.1 implementado (WI-CORE-023/024/025), sin cambio de version. ExperimentStatusResponse agrega model, budget, executionProfile, runnerHint, randomizationSeed; ExperimentRepetitionResponse agrega pairId, pairPosition (1|2), attempt (1|2) y technicallyEvaluable (en corridas previas los cinco primeros y pairId/pairPosition vienen null; attempt=1 y technicallyEvaluable=true). Cambio observable: ExperimentRepetitionResponse.executionDurationMs es number|null (null si el Sandbox no ejecuto y en corridas previas; antes se emitia 0). Cambio de semantica: tasas y promedios de StrategyMetricsResponse (validRate, compilationRate, executionRate, passedRate, duraciones, tokens, costo, chunks, herramientas, archivos y failures) se calculan solo sobre repeticiones con technicallyEvaluable=true (cambia el denominador); sin slots evaluables las tasas valen 0 y los promedios 0 (duraciones) o null, y ese 0 significa sin datos evaluables y no 0% valido; StrategyMetricsResponse.executionDurationMs sigue siendo number. POST /experiments: nuevos 422 REASONING_EFFORT_UNSUPPORTED (details.supportedEfforts: string[]) y 422 UNSUPPORTED_PROJECT (PHP o sin framework JEST/VITEST) y 503 LLM_PROVIDER_UNAVAILABLE si el modelo no esta disponible; en todos no se crea el experimento. Reintento: solo fallos externos (LLM 5xx/429/conexion, excepcion del cliente de Sandbox, INFRASTRUCTURE salvo TIMED_OUT), un unico intento 2 inmediato; tras el segundo fallo externo, o si el intento 2 queda huerfano, technicallyEvaluable=false; TIMED_OUT no se reintenta; los experimentos creados antes de OE5 no tienen pareado ni reintento. La identidad Core->Sandbox del intento 2 (sufijo :2) es interna de Core e informativa. Ningun DTO declara ganador y no se expone ningun campo interno.
+requiredAction:
+  - Console: importar y acusar el contrato; mostrar un guion (no 0) cuando executionDurationMs de una repeticion sea null y no formatear ni sumar sin guardas; tolerar null en model, budget, executionProfile, runnerHint, randomizationSeed, pairId y pairPosition; mostrar technicallyEvaluable=false y attempt=2 sin declarar ganador; tratar las tasas de strategies[] con el nuevo denominador (mostrar sin datos evaluables si todas las repeticiones de la estrategia son no evaluables); mostrar los 422/503 de creacion (supportedEfforts en el primero; el 503 como error reintentable). Sin cambios en Sandbox ni GitHub Integration.
+sourceRevision: d1d04b7c49e6194848953416a045d0590d29211b
+status: C-PENDING

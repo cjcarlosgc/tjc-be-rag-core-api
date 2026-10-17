@@ -1,3 +1,4 @@
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import type { SandboxExecutionResult } from './sandbox.types.js';
 
 export type FailureTypeValue =
@@ -9,6 +10,33 @@ export type FailureTypeValue =
   | 'CONFIGURATION'
   | 'INFRASTRUCTURE'
   | 'UNKNOWN';
+
+/**
+ * Valores de `FailureType` que puede producir un fallo del Sandbox: el enum sin `NONE` (un fallo nunca es
+ * `NONE`, DEC-EVID-006). Cualquier otro valor, ausente o no textual, se convierte en `UNKNOWN` (IDEA-015).
+ */
+const SANDBOX_FAILURE_TYPES: readonly FailureTypeValue[] = [
+  'COMPILATION',
+  'TEST_ASSERTION',
+  'TEST_RUNTIME',
+  'DEPENDENCY',
+  'CONFIGURATION',
+  'INFRASTRUCTURE',
+  'UNKNOWN',
+];
+
+function toSandboxFailureType(category: unknown): FailureTypeValue {
+  return typeof category === 'string' && (SANDBOX_FAILURE_TYPES as readonly string[]).includes(category)
+    ? (category as FailureTypeValue)
+    : 'UNKNOWN';
+}
+
+/**
+ * Texto de `errorSummary` para una ejecución que agotó el tiempo límite del Sandbox (WI-CORE-025).
+ * Solo es texto para mostrar: el discriminador de timeout de la redelivery es la columna interna
+ * `ExperimentRepetition.sandboxTimedOut`, no este texto.
+ */
+export const SANDBOX_TIMED_OUT_ERROR_SUMMARY = 'La ejecución en el Sandbox agotó el tiempo límite.';
 
 export interface MappedSandboxOutcome {
   status: 'VALID' | 'INVALID' | 'FAILED';
@@ -34,19 +62,24 @@ export function mapSandboxResult(result: SandboxExecutionResult): MappedSandboxO
       passed: result.facts?.passed ?? null,
       valid: false,
       failureType: 'INFRASTRUCTURE',
-      errorSummary: 'La ejecución en el Sandbox agotó el tiempo límite.',
+      errorSummary: SANDBOX_TIMED_OUT_ERROR_SUMMARY,
     };
   }
 
   if (result.status === 'FAILED' || !result.facts) {
+    const failureMessage = result.failure?.message;
     return {
       status: 'FAILED',
       compiled: result.facts?.compiled ?? null,
       executed: result.facts?.executed ?? null,
       passed: result.facts?.passed ?? null,
       valid: false,
-      failureType: result.failure?.category ?? 'UNKNOWN',
-      errorSummary: result.failure?.message ?? 'El Sandbox no pudo completar la ejecución.',
+      failureType: toSandboxFailureType(result.failure?.category),
+      // WI-CORE-027 (IDEA-015): el mensaje del Sandbox se sanea antes de llegar a errorSummary.
+      errorSummary:
+        typeof failureMessage === 'string'
+          ? sanitizeFailureMessage(failureMessage)
+          : 'El Sandbox no pudo completar la ejecución.',
     };
   }
 
@@ -64,8 +97,20 @@ export function mapSandboxResult(result: SandboxExecutionResult): MappedSandboxO
     };
   }
 
-  const failureType = !facts.compiled ? 'COMPILATION' : !facts.executed ? 'TEST_RUNTIME' : 'TEST_ASSERTION';
-  const failedCase = facts.testCases.find((testCase) => testCase.status === 'FAILED');
+  const failedCases = facts.testCases.filter((testCase) => testCase.status === 'FAILED');
+  // DEC-PHP-GEN-002: un caso fallido con failureKind ERROR es fallo técnico y gana sobre las aserciones.
+  // Sin failureKind (Sandbox anterior) o solo con ASSERTION se conserva la clasificación previa.
+  const errorCase = facts.compiled && facts.executed
+    ? failedCases.find((testCase) => testCase.failureKind === 'ERROR')
+    : undefined;
+  const failureType = !facts.compiled
+    ? 'COMPILATION'
+    : !facts.executed || errorCase
+      ? 'TEST_RUNTIME'
+      : 'TEST_ASSERTION';
+  const failedCase = errorCase ?? failedCases[0];
+  // WI-CORE-027 (IDEA-015, integración WI-CORE-013): el mensaje de la prueba fallida se sanea más abajo.
+  const failedMessage = failedCase?.errorMessage;
 
   return {
     status: 'INVALID',
@@ -74,6 +119,10 @@ export function mapSandboxResult(result: SandboxExecutionResult): MappedSandboxO
     passed: facts.passed,
     valid: false,
     failureType,
-    errorSummary: failedCase?.errorMessage ?? 'La prueba generada no pasó en el Sandbox.',
+    // WI-CORE-027 (IDEA-015): el mensaje de la prueba fallida se sanea antes de llegar a errorSummary.
+    errorSummary:
+      typeof failedMessage === 'string'
+        ? sanitizeFailureMessage(failedMessage)
+        : 'La prueba generada no pasó en el Sandbox.',
   };
 }

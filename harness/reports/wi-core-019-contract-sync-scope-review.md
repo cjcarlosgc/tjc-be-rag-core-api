@@ -1,0 +1,4 @@
+# WI-CORE-019 — Revisión de alcance de Contract Sync
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+`CS-20260920-001` (409 `REPOSITORY_ALREADY_BOUND`, rutas `enable` y `DELETE /projects/{id}`, lifecycle de Project/RepositoryBinding) y `CS-20260921-003` (login solo GitHub y orden de despliegue) siguen reconocidos pero no resueltos. Se clasifican `NOT_RELEVANT` solo para este WI: `WI-CORE-019` incorpora el rol `WRITER`, recalibra el rol mínimo de operaciones existentes y persiste la procedencia de reglas; no cambia códigos de conflicto de binding, rutas de lifecycle, login ni despliegue. La mención de `CS-20260921-003` a la espera de un Contract Sync de implementación de roles se atiende con el evento que este WI publica hacia Console. La clasificación no cambia el estado de los eventos originales.

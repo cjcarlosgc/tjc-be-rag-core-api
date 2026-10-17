@@ -1,14 +1,5 @@
-# errors — Tareas
+# errors — Subtareas vigentes
 
-- [x] Exception filter (`AllExceptionsFilter`).
-- [x] Catálogo y HTTP mapping (`ErrorCode`, `AppException`).
-- [x] correlationId (`x-correlation-id`, propagado al envelope).
-- [x] pruebas de no stack trace.
+No hay una subtarea técnica seleccionable en este archivo para SDD 3.0. El comportamiento vigente está en `spec.md` y `plan.md`; la ejecución futura requiere una ST local y un WI registrado antes de comenzar.
 
-## Calidad
-
-- [x] Agregar/actualizar pruebas.
-- [x] Verificar manejo de errores.
-- [x] Verificar observabilidad mínima.
-- [x] Ejecutar lint/test/build.
-- [x] Registrar evidencia de revisión en `harness/reports/`.
+Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

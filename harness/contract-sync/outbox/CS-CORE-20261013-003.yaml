@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261013-003
+source: core
+sourceWorkItem: WI-CORE-058
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.15: RagDependencyEntryResponse (§6.7) agrega final?: true (solo PHP; presente si el tipo resuelto es final class o enum según el índice; ausente = no determinado o no final); aditivo; sin cambio de rutas, §6.16, contextTokens ni ranking
+requiredAction:
+  - Sincronizar el espejo INTEROP-2.15 byte a byte; opcionalmente mostrar una marca final en las dependencias de la traza RAG, tolerando su ausencia y sin inferir mockeable de ella
+sourceRevision: 334708c2c7b88bc1d4b57ab67d3b229f26738408
+status: C-PENDING

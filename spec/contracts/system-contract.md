@@ -1,33 +1,37 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.2
-**Fecha de corte:** 2026-09-17
+**Versión del contrato:** SYSTEM-2.12
+**Fecha de corte:** 2026-10-12
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
-Developer Console y Test Execution Sandbox conservan una copia espejo byte por byte. Una spec local puede detallar la implementación de su componente, pero no redefinir este contrato.
+Core y Console establecen la frontera de un cuarto componente durante `planningBaseline: 2026-09-24-core-console-transition`. Sandbox conserva por ahora la copia operativa SYSTEM-2.2, correspondiente a su línea SDD 2.1, sin editarla ni homologarla en este corte. `GH-INTEROP-1.7` extiende el contrato de extracción: Core y GitHub Integration sirven al pipeline; Console accede directamente a GitHub Integration para capacidades de GitHub propias de su interfaz, con autorización síncrona de Core; la publicación de Checks queda limitada a una única instancia activa de GitHub Integration y un mutex efímero en proceso, sin una base adicional de coordinación. Tras reiniciar el proceso, la coordinación volátil se pierde y el contrato acepta el riesgo residual de duplicado cuando el resultado remoto de una creación anterior no sea visible en la búsqueda. El rechazo terminal confirmado de creación conserva la reconciliación completa sin candidatos. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consumió en `WI-CORE-011`; Console sincronizó y validó el corte previo en `WI-CONSOLE-008`. Los cierres son locales: la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
 
-## Arquitectura objetivo
+## Arquitectura operativa vigente y transición aprobada
 
 RAG Test Studio adopta un flujo PR-driven. La unidad operativa principal es un `CHANGESET` asociado al HEAD de un Pull Request, no una selección manual `METHOD|CLASS|PROJECT` iniciada obligatoriamente desde la Console.
 
 ```text
 developer and/or coding agent
-  -> feature branch
-  -> Pull Request hacia integrationBranch
-  -> GitHub App
-  -> RAG Core
-  -> AnalysisRun + Job
+  -> feature branch -> Pull Request hacia integrationBranch
+  -> GitHub -> GitHub Integration
+  -> evento normalizado -> RAG Core -> AnalysisRun + Job
   -> contexto semántico + estructural + funcional + tests existentes
-  -> Sandbox
-  -> clasificación objetiva
-  -> GitHub Check + Console
-  -> revisión humana opcional de tests
-  -> companion PR
+  -> Sandbox -> clasificación objetiva
+  -> RAG Core -> GitHub Integration -> GitHub Check + Console
+  -> revisión humana opcional de tests -> companion PR vía GitHub Integration
+```
+
+La superficie de vinculación de repositorio tiene un camino directo separado:
+
+```text
+Developer Console ──user API──> GitHub Integration ──> GitHub
+        │                              │
+        └──persist binding──> Core <───┘ autorización síncrona
 ```
 
 - Developer Console es el control plane, workspace human-in-the-loop y superficie de revisión/trazabilidad. No es un launcher obligatorio.
-- RAG Core contiene inicialmente GitHub Integration, dominio, RAG, Functional Knowledge, generación, jobs, orquestación, métricas y publicación de resultados. No se crea un cuarto microservicio por defecto.
+- GitHub Integration (`tjc-be-github-integration-api`) es dueño de toda interacción GitHub, incluido SDK, GitHub App, REST/Git Data y recepción/verificación de webhooks. `GH-INTEROP-1.7` define operaciones privadas Core↔Integration, rutas de usuario Console→Integration y la restricción de una instancia activa con coordinación efímera en proceso para Checks, incluido el error terminal de creación confirmada. Console usa estas últimas solo para información de App, discovery, verificación GitHub y ramas; Core mantiene dominio, sesión, autorización, persistencia de dominio, RAG, freshness y orquestación. Core continúa usando Integration internamente para el pipeline y recibe sus webhooks normalizados. Ningún cambio implica deploy/cutover externo.
 - Test Execution Sandbox ejecuta perfiles aislados y devuelve hechos. Permanece ciego a GitHub, OAuth, usuarios, RAG, reglas funcionales, estrategia experimental y conclusiones de negocio.
 - PostgreSQL + pgvector, Supabase Storage, jobs DB-backed y containers efímeros permanecen vigentes. No se incorporan Redis, RabbitMQ o Kafka sin una decisión posterior.
 
@@ -35,10 +39,10 @@ developer and/or coding agent
 
 Son fronteras independientes:
 
-1. **Login:** correo/contraseña o GitHub OAuth mediante Supabase Auth producen un `PlatformUser`. Google OAuth queda fuera de alcance.
+1. **Login:** solo GitHub OAuth mediante Supabase Auth produce un `PlatformUser` (`DEC-ORG-001`, HU01/HU02; el correo y la contraseña se retiran). Google OAuth queda fuera de alcance.
 2. **Automatización de repositorio:** una GitHub App administra instalaciones, repositorios autorizados, webhooks, Checks y, cuando se habilite, ramas/PR.
 
-GitHub OAuth permite únicamente descubrir los repositorios visibles para la persona autenticada; no autoriza automatización, snapshots, Checks ni publicación. `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son conceptos independientes. No se implementa linking propio por coincidencia de correo; se admite únicamente el linking seguro que Supabase Auth aplique a identidades con correo verificado y configuración explícita. El actor de GitHub es metadata y no autoridad automática dentro de un Project.
+GitHub OAuth mediante Supabase Auth autentica a la persona; su provider token efímero permite descubrir repositorios visibles y verificar identidad/acceso de un repositorio nuevo a través de GitHub Integration. Estas comprobaciones no autorizan por sí solas un binding ni el acceso a un Project: Core aplica las reglas de dominio y la GitHub App autoriza la automatización. OAuth no autoriza snapshots, Checks ni publicación. `PlatformUser`, `GitHubInstallation`, `GitHubRepository` y `GitHubActor` son conceptos independientes. No se implementa linking propio por coincidencia de correo; se admite únicamente el linking seguro que Supabase Auth aplique a identidades con correo verificado y configuración explícita. El actor de GitHub es metadata y no autoridad automática dentro de un Project.
 
 Los permisos de la GitHub App aplican mínimo privilegio:
 
@@ -49,9 +53,24 @@ Los permisos de la GitHub App aplican mínimo privilegio:
 
 ## Onboarding y repository binding
 
-Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. La Console usa el token OAuth GitHub del usuario, transportado solo para ese descubrimiento, para listar repositorios visibles. Al seleccionar uno, Core se autentica como GitHub App y consulta directamente la instalación que tiene acceso al repositorio. La ausencia de acceso es `NOT_AUTHORIZED`, un resultado de producto que ofrece la URL de configuración centralizada de la App; no se enumeran instalaciones ni se infiere acceso desde OAuth.
+Un usuario ya autenticado conecta un repositorio desde `Project -> Integrations -> GitHub`. En la topología nueva, Console llama directamente a las rutas de usuario de GitHub Integration con el JWT de sesión Supabase y, solo para discovery o verificación de un repositorio nuevo, el provider token OAuth efímero; el callback a Core lleva sesión y hechos allowlisted, no el provider token. La excepción temporal es la ruta Core heredada de discovery: recibe el token y lo reenvía a Integration mientras se conserva compatibilidad. Ni las rutas directas ni las heredadas usan OAuth para bindings existentes o ramas. Para ramas, Integration obtiene de Core la identidad GitHub vinculada y el scope permitido, verifica acceso con la GitHub App y solicita una segunda decisión Core con hechos allowlisted. Integration no expone credenciales de servicio al navegador. Core valida la sesión, coteja la identidad GitHub vinculada y aplica reglas de workspace/Project a datos verificados. Para crear el binding, Integration obtiene de Core una evidencia firmada, reciente y limitada a usuario, acción, Project, repositorio e integration branch; Console la presenta al endpoint de persistencia de Core. Core valida firma, vigencia, usuario, Project y claims antes de escribir. El provider token no se persiste, registra, devuelve ni envía a Sandbox. El scope actual `repo` permanece y `IDEA-005` evaluará menor privilegio por separado. Las rutas Core previas de discovery, verify-access y branches se conservan temporalmente para compatibilidad; retirarlas requerirá otro corte aprobado. La ausencia de acceso continúa como `NOT_AUTHORIZED` y no enumera instalaciones.
 
-Después de que la App autorice el repositorio, Core lista las ramas con un installation access token y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, instalación resuelta por Core, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar deshabilita/revoca el binding, impide aceptar eventos nuevos para ese Project y conserva Runs/evidencia según retención. Además de la desconexión manual, Core reacciona a los eventos de ciclo de vida de la GitHub App (`installation`/`installation_repositories`, HU31): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`.
+El repositorio debe pertenecer al workspace del Project y el usuario debe tener permiso `maintain`/`write`/`admin` sobre él (`DEC-ORG-001`, HU02; ver "Workspaces, roles y acceso"). GitHub Integration verifica la instalación y consulta las ramas usando credenciales que permanecen en ese componente; Core aplica la decisión de dominio y el usuario elige una rama existente. El binding durable pertenece al `Project`, no a quien lo configuró, y conserva Project, el `installationId` incluido en evidencia Core-firmada a partir de la verificación de Integration, repository id estable, nombre, `integrationBranch` explícita y estado enabled/disabled. No existe rama por defecto ni equivalencia entre nombres de ramas. Desconectar es una pausa reversible: deja el binding `DISABLED` (la fila y su `repositoryId` se conservan, por lo que el repositorio sigue reservado para ese Project), impide aceptar eventos nuevos y conserva Runs/evidencia según retención; el usuario lo reactiva sin volver a vincular. Un repositorio solo puede estar vinculado a un Project a la vez; intentar vincularlo a otro es un conflicto de producto (`REPOSITORY_ALREADY_BOUND`), no un error interno. Además de la desconexión manual, Core reacciona a los eventos normalizados de ciclo de vida de GitHub App (`installation`/`installation_repositories`, HU14): desinstalar la App o retirar acceso a un repositorio puntual revoca el binding correspondiente; suspender/reanudar la instalación deshabilita/habilita sin perder el binding, salvo que ya esté `REVOKED`; reanudar solo rehabilita los bindings que la suspensión deshabilitó, nunca uno pausado por el usuario. Un binding `REVOKED` puede reactivarse explícitamente por el usuario solo si Core vuelve a verificar mediante GitHub Integration que la App recuperó acceso al repositorio; sin acceso el estado no cambia.
+
+La cardinalidad no cambia al detectar aplicaciones dentro del repositorio: **un `repositoryId` se vincula a un solo Project, y un Project vinculado conserva un solo `projectRoot` efectivo**. Core detecta automáticamente una aplicación PHP cuando el snapshot contiene un único `composer.json` candidato; si está en la raíz lógica, `projectRoot` es `.`. No se crean Projects por cada subdirectorio ni Console pregunta qué Project o aplicación elegir. Con cero candidatos PHP se mantiene la detección legacy del stack desde la raíz; con más de un candidato PHP no se elige por ranking/heurística y el subcaso queda sujeto a `DEC-PHP-ROOT-001`. La detección solo considera el contenido del snapshot; `composer.lock`, `artisan` y configuración/dependencias PHPUnit caracterizan el candidato, pero no sustituyen a `composer.json`.
+
+`projectRoot` es una ruta POSIX relativa y normalizada bajo la raíz lógica del repositorio; debe existir y no puede ser absoluta, contener traversal ni escapar mediante symlinks. La raíz de extracción de un ZIP incidental no forma parte de `projectRoot`. Core persiste la raíz vigente en el Project y congela `effectiveProjectRoot` en cada `ProjectVersion`, con `.` como backfill para las versiones históricas anteriores al campo. En una `ProjectVersion` PHP, parsing, inventario, retrieval, generación y exploración se limitan a ese subtree. Los paths de API, evidencia y artefactos siguen siendo relativos a la raíz del repositorio (incluido el prefijo del subtree). La raíz efectiva permanece inmutable para preservar el significado histórico si cambia la raíz activa del Project. En PHP, el Sandbox instala y ejecuta desde el `workingDir` de ese subproyecto sin cambiar los paths canónicos del repositorio. TypeScript conserva el root `.` y su comportamiento vigente.
+
+Eliminar un `Project` (solo Admin) es un borrado lógico irreversible desde la API (sin restauración): el Project y todo lo que cuelga de él dejan de ser visibles, se libera su binding para que el repositorio pueda vincularse a otro Project, y los Runs y jobs en curso se cancelan u obsoletan. Runs, versiones y Functional Knowledge se conservan como evidencia, sin exposición por la API. Un webhook de un repositorio sin binding se ignora.
+
+## Workspaces, roles y acceso
+
+Consolida `DEC-ORG-001` (HU01/HU02); el detalle normativo vigente de rutas, DTOs, errores y eventos vive en `INTEROP-2.12` §6.13 y §6.14.
+
+- Un `Project` pertenece a un workspace: la cuenta personal de su creador o una organización de GitHub donde la GitHub App está instalada y el usuario es miembro. Un Project personal solo lo ve su creador, que es siempre su Admin y no tiene registro de acceso; solo se comparte mediante organizaciones. GitHub es la fuente de verdad de la autorización; Core solo persiste el vínculo `userId -> githubUserId`, la organización del Project y, para Projects de organización, un registro de acceso `(projectId, userId, rol, verifiedAt)`.
+- Roles por Project, con jerarquía Admin ⊃ Maintainer ⊃ Writer ⊃ Reader (en una organización, Maintainer, Writer y Reader exigen además ser miembro activo de ella; `DEC-ORG-003`): Reader solo consulta; Writer opera el día a día (dispara Runs, vincula, pausa y reactiva repositorios, publica tests, envía cambios a una rama nueva y los acepta, ejecuta experimentos y comparaciones de retrieval) salvo responder preguntas funcionales y registrar `UNKNOWN`; Maintainer, además, responde preguntas funcionales y confirma conocimiento funcional; Admin, además, crea, renombra y elimina Projects. Core deriva el rol de los hechos de permiso que entrega GitHub Integration y no acepta un rol enviado por el navegador: owner de la organización o creador del workspace personal → Admin; `admin` o `maintain` → Maintainer; `write` → Writer; `triage` o `read` → Reader. La matriz rol -> operación de toda la superficie HTTP es `INTEROP-2.12` §6.13.
+- El acceso se crea al entrar mediante una verificación en vivo solicitada a GitHub Integration, donde reside el installation token de la App; se revoca por los eventos normalizados de webhook y por una reconciliación horaria, nunca por caché ni por reinicio de sesión. Si GitHub no responde, Core conserva los accesos ya registrados y no concede accesos nuevos.
+- Ninguna identidad implica autorización de la otra: ver un Project no autoriza automatización sobre el repositorio, que sigue autorizada solo por la GitHub App. Un recurso no visible responde el mismo `404` que uno inexistente; uno visible con rol insuficiente responde `403`.
 
 ## Trigger PR-driven y lifecycle
 
@@ -73,6 +92,8 @@ También se procesan `closed`, `edited` y `converted_to_draft` para mantener lif
 - cierre sin merge cancela/obsoleta trabajo no terminal sin borrar historial;
 - merge cierra el lifecycle y resultados tardíos no pueden publicarse como vigentes.
 
+Solo son elegibles los PR cuya fecha original de creación sea igual o posterior a `RepositoryBinding.createdAt`; un PR anterior no inicia ni reinicia análisis aunque después reciba eventos. Si la fecha no puede verificarse temporalmente, Core acepta el webhook y conserva de forma durable el evento normalizado necesario para reanudarlo, sin crear un Run provisional ni sustituir la fecha con `receivedAt`. Al recuperar la metadata, Core reanuda solo con binding habilitado y HEAD aún vigente. Los Runs históricos anteriores al binding se conservan como evidencia y se ocultan de listas, detalles y bandejas; los eventos de cierre mantienen el lifecycle aunque falte la fecha.
+
 Fork PR se distingue de same-repository PR. Su publicación queda fuera del primer incremento hasta resolver permisos de escritura específicos.
 
 ## AnalysisRun, Job y Check
@@ -81,7 +102,7 @@ Un `AnalysisRun` valida un HEAD concreto de un PR concreto. Su identidad concept
 
 Un Run no es un Job/Attempt. Reintentos técnicos y continuaciones pertenecen al mismo Run mientras el HEAD no cambie. `ACTION_REQUIRED` termina el job actual; una respuesta válida crea un continuation job sobre el mismo Run si el HEAD sigue vigente. Eventos duplicados se deduplican mediante delivery id más repository/PR/head/event/action.
 
-Core conserva un historial append-only de transiciones de status por Run (estado previo, estado nuevo, motivo, timestamp; HU53) para que un usuario autorizado entienda cómo llegó a su estado actual sin inferirlo de los timestamps sueltos; complementa esos timestamps, no los reemplaza.
+Core conserva un historial append-only de transiciones de status por Run (estado previo, estado nuevo, motivo, timestamp; HU12) para que un usuario autorizado entienda cómo llegó a su estado actual sin inferirlo de los timestamps sueltos; complementa esos timestamps, no los reemplaza.
 
 Todo Check pertenece al SHA del Run. Un resultado viejo nunca sobrescribe el Check del HEAD vigente. Core publica conclusión objetiva (`success|failure|action_required|neutral`); la configuración del repositorio decide si el Check es required.
 
@@ -109,13 +130,17 @@ TARGET
 `FunctionalKnowledge` es conocimiento funcional persistente y específico del Project. Core conserva pregunta/respuesta originales, regla normalizada, scope (`PROJECT|MODULE|CLASS|METHOD|SYMBOL`), referencia, fuente, estado (`ACTIVE|SUPERSEDED`), validez/versión, timestamp y embedding cuando corresponda.
 
 - Una regla no se sobrescribe silenciosamente: la anterior pasa a `SUPERSEDED` y la nueva a `ACTIVE`.
-- Antes de persistir una regla nueva, Core detecta si contradice una regla `ACTIVE` vigente en scope compatible y expone el conflicto para decisión humana explícita (`SUPERSEDE` o mantener la vigente) antes de contaminar el conocimiento persistido (HU51); no se resuelve automáticamente.
-- `No lo sé` puede registrarse como evidencia de pregunta, pero no crea una regla autoritativa `ACTIVE`.
+- Antes de persistir una regla nueva, Core detecta si contradice una regla `ACTIVE` vigente en scope compatible y expone el conflicto para decisión humana explícita (`SUPERSEDE` o mantener la vigente) antes de contaminar el conocimiento persistido (HU09); no se resuelve automáticamente.
+- `No lo sé` (`UNKNOWN`) es una abstención auditada, no una respuesta (`DEC-FK-002`): no crea ni modifica Functional Knowledge, no resuelve la incertidumbre, no continúa el Run ni dispara generación. La pregunta permanece `PENDING`, el Run permanece `ACTION_REQUIRED` y Core registra quién se abstuvo, con qué rol y cuándo. Solo Maintainer o Admin pueden registrarla.
 - Si falta conocimiento relevante, el Run pasa a `ACTION_REQUIRED`, no `ERROR`; el job termina y no deja runners esperando.
 - Si una regla vigente contradice un cambio, Core solicita decisión humana o clasifica con evidencia; no concluye automáticamente que el código está mal.
 - La Console ofrece Focus Mode de página completa con Project/repo/PR/commit/target, pregunta, motivo, respuesta, ayuda visual técnica opcional y preguntas adaptativas; no muestra un total fijo.
 - La navegación incluye una bandeja `Action Required`; el Check enlaza al Run concreto. Tras login, `returnTo` conserva el deep link original.
-- Responde un usuario autorizado por el Project; el autor del PR no obtiene autoridad por ser autor.
+- Responde y confirma conocimiento funcional un usuario con rol Maintainer o Admin sobre el Project; Writer y Reader reciben `403 PROJECT_ROLE_INSUFFICIENT`. El autor del PR no obtiene autoridad por ser autor. La restricción es sobre la autoridad funcional persistente, no una degradación global del Writer a Reader.
+- Procedencia: toda regla conserva `confirmedByUserId`, `confirmedRole` (`ADMIN` o `MAINTAINER`), `originHeadSha` y, cuando la fuente es `APPROVED_IMPORT`, `sourceRef`. `originHeadSha` registra desde qué HEAD se confirmó la regla; es procedencia, no vencimiento: una regla `ACTIVE` no expira por un HEAD nuevo. Renombrar o mover un símbolo no hereda reglas automáticamente en V1.
+- Una regla `ACTIVE` por escenario (`DEC-FK-001`): un mismo target puede tener varias reglas `ACTIVE` independientes cuando describen escenarios distintos. Core deriva de forma determinista el `scenarioKey` de la pregunta atómica (un target, un escenario, una incertidumbre); nadie lo escribe a mano. La derivación está fijada por `DEC-FK-004`. El conflicto (§ HU09) solo existe entre reglas con el mismo scope, `targetRef` y `scenarioKey`.
+- V1 no usa embeddings, chunks ni pgvector para Functional Knowledge: la recuperación es determinista por Project + target + `ACTIVE` + aplicabilidad. El contexto de generación las entrega separadas del código y con procedencia: `GenerationContext = { target, relatedChunks, functionalRules, metadata }`. Comentarios, nombres y retornos del código no son verdad funcional por sí mismos.
+- `ACTION_REQUIRED` se activa solo cuando, para un target afectado, la arquitectura necesita determinar un comportamiento esperado necesario para generar o validar una prueba unitaria y no puede establecerlo con conocimiento funcional autorizado, vigente y aplicable. No se activa porque cambió un método, no existe una regla, el código es complejo o tiene muchas dependencias. Preguntas válidas: resultado esperado, borde, excepción, transición de estado, efecto observable o precondición funcional (V1 solo genera resultado esperado, borde, excepción y transición de estado; las dos últimas categorías están reservadas, `DEC-FK-004`). No se pregunta por naming, refactor, calidad, performance, patrones, aprobación del PR, tooling ni configuración de PHPUnit. La elegibilidad es determinista y estructural (`DEC-FK-003`); la pregunta es atómica.
 
 ## Baseline, generación y clasificación
 
@@ -127,9 +152,10 @@ Antes de atribuir una falla a pruebas generadas, se ejecuta el baseline relevant
 - test generado técnicamente válido que evidencia discrepancia -> `BEHAVIORAL_MISMATCH`;
 - namespace/import/API/mock/setup/sintaxis inválidos generados -> `TECHNICAL_GENERATION_FAILURE`;
 - Docker/red/storage/worker/runtime de plataforma -> `INFRASTRUCTURE_FAILURE`;
+  - Para un símbolo elegible cuya ejecución falla por plataforma y para la precedencia del estado del Run con resultados mezclados rige `DEC-VAL-002` (APROBADA; implementada en `WI-CORE-048`).
 - validación correcta -> `SUCCESS`.
 
-No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU48) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
+No se generan duplicados para demostrar actividad. La autorreparación semántica y la modificación automática de código productivo permanecen prohibidas. El experimento conserva `RAG` vs `GENERALIST_AGENT`; si se incorpora Functional Knowledge, la metodología debe resolver cómo mantener comparabilidad antes de ejecutar evidencia experimental. La unidad experimental (HU17) es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED` de un `AnalysisRun` existente, no una selección manual de `TestTarget`.
 
 ## Publicación human-in-the-loop
 
@@ -164,12 +190,27 @@ NO_TEST_RELEVANT_CHANGES
 OBSOLETE
 ```
 
-## Compatibilidad y legado
+## Demo y alcance
 
-- Las modalidades manuales `METHOD|CLASS|CLASS_REMAINING|PROJECT|PROJECT_REMAINING` y la carga de proyecto vía ZIP quedan **retiradas como ruta de producto**: el único disparador de análisis es PR-driven (`AnalysisRun`). No existe camino legacy paralelo ni endpoint de subida manual; ver `CHANGELOG.md` para el detalle del retiro.
-- El experimento `RAG` vs `GENERALIST_AGENT` (HU19) se conserva, pero su creación deja de depender de la selección manual de targets sobre un proyecto cargado por ZIP. Reapuntar la unidad experimental a un `AnalysisRun` existente es trabajo pendiente de un corte posterior (P1/P4 según handoff de reorientación); mientras tanto no bloquea el desarrollo PR-driven (P0) en curso.
-- La experiencia mock de HU26 basada en GitHub login -> listado de repos -> selector/importación queda **SUPERSEDED BY SDD 2.0 / T-001**. Puede conservarse temporalmente como código histórico, pero no define producto ni contrato.
-- Mocks frontend deben implementar `INTEROP-2.2`, estar señalizados como demo y permanecer detrás de adapters separados de live. No son evidencia científica ni empresarial.
+- El análisis productivo nace de un `AnalysisRun` asociado a PR/HEAD. El snapshot ZIP que recupera Docker/Sandbox es un detalle interno, no una entrada manual de proyecto.
+- La comparación `RAG` vs `GENERALIST_AGENT` de HU17 usa un `AnalysisRun` y un símbolo elegible compartidos; su adaptación live sigue pendiente de aceptación.
+- Los mocks frontend implementan `INTEROP-2.6`, están señalizados como demo y permanecen detrás de adapters separados de live. No son evidencia científica ni empresarial.
+
+## Calidad, métricas y evidencia
+
+Jerarquía de métricas del experimento (SMART, Bloque 0):
+
+1. `CF` — conformidad funcional con el oráculo: métrica primaria.
+2. `CO` — cobertura del oráculo: secundaria.
+3. `VT` — validez técnica: guardrail.
+4. Tokens, costo, latencia, tool calls y archivos inspeccionados: descriptivas.
+5. Compilación, ejecución, aprobación y tipo de fallo: diagnóstico técnico.
+6. `Precision@k` y `Recall@k`: exclusivamente la comparación de retrieval (OE2).
+
+El oráculo es previo a las salidas, no se entrega a RAG ni al agente generalista, no se construye a partir de la prueba generada y no existe un segundo LLM como juez final de CF/CO. La evaluación oficial de CF/CO es humana y externa a Core. Core conserva y exporta evidencia; no declara un ganador funcional ni deriva CF/CO de `valid`, `passed` o `validRate`. Se distingue conceptualmente entre técnicamente inválido, técnicamente válido y funcionalmente evaluable, y técnicamente válido pero funcionalmente no evaluable; Core no crea estados runtime nuevos para ello salvo donde tenga información para decidirlos. Mutation testing, bootstrap, Wilcoxon, Cohen κ y los identificadores `EV-OE*` quedan fuera del producto.
+
+Trace operativo (HU15): el recorrido auditable de un cambio tiene nueve enlaces: repositorio/PR/HEAD → `AnalysisRun` → changeset/targets → retrieval → contexto → generación → Sandbox → resultados → publicación/Check. Core introduce solo `retrieval_id`, `context_id` y reutiliza el `execution_id` del Sandbox; no crea otros identificadores (`changeset_id`, `test_candidate_id`). `N/A` solo cuando el flujo termina legítimamente antes. El trace operativo del `AnalysisRun` es distinto del `ContextTrace` experimental. Core exporta evidencia reproducible versionada sin chain-of-thought.
+
 
 ## Decisiones compartidas
 
@@ -179,7 +220,7 @@ OBSOLETE
 
 **Blocks:** NONE
 
-**Resolución:** GitHub App, binding Project<->Repository, eventos PR-driven, webhooks, Checks API, mínimo privilegio, human-in-the-loop y companion PR aprobado por humano. No se requiere workflow YAML. GitHub OAuth mediante Supabase Auth sirve para identidad y, con un provider token efímero, para descubrir repositorios visibles; la App sigue siendo la única autoridad de automatización.
+**Resolución:** GitHub App, binding Project<->Repository, eventos PR-driven, webhooks, Checks API, mínimo privilegio, human-in-the-loop y companion PR aprobado por humano. No se requiere workflow YAML. GitHub OAuth mediante Supabase Auth sirve para identidad y, con un provider token efímero, para discovery y verificación de un repositorio nuevo. En la topología vigente, Console llama a GitHub Integration para discovery, verificación, App info y ramas; la consulta de ramas usa la identidad GitHub vinculada y permisos verificados por la App, sin provider token. Integration consulta síncronamente a Core para autorización de dominio. Core conserva la persistencia y el pipeline. La App sigue siendo la única autoridad de automatización.
 
 ### DEC-WEB-AUTH-001 — Identidad del navegador
 
@@ -187,7 +228,7 @@ OBSOLETE
 
 **Blocks:** NONE
 
-**Resolución:** Supabase Auth admite únicamente correo/contraseña y GitHub OAuth. Core valida el access token y autoriza por Project. Login e instalación GitHub App son independientes; Google OAuth y linking propio por correo quedan fuera de alcance.
+**Resolución:** Supabase Auth admite únicamente GitHub OAuth (el correo y la contraseña se retiraron por `DEC-ORG-001`, HU01/HU02). Core valida el access token y autoriza por Project. Login e instalación GitHub App son independientes; Google OAuth y linking propio por correo quedan fuera de alcance.
 
 ### DEC-INT-001 — Contrato Core<->Sandbox
 
@@ -213,38 +254,224 @@ OBSOLETE
 
 **Resolución:** keys durables y jobs DB-backed existentes se adaptan al lifecycle PR/HEAD. GitHub deliveries y continuaciones tienen identidades estables.
 
-### DEC-MET-001 — Mutation testing
-
-**Estado:** PENDING
-
-**Blocks:** únicamente investigación e implementación de mutation testing; no bloquea T-001 ni el pipeline principal.
-
-**Pregunta:** definir herramientas, stacks, costo y rol metodológico antes de volver Mutation Score una métrica; no es requisito obligatorio en SDD 2.0.
-
 ### DEC-INF-001 — Infraestructura remota del Sandbox
 
-**Estado:** PENDING
+**Estado:** APROBADO (2026-10-12, por solicitud del usuario de resolver la decisión y autorización previa para adoptar la recomendación técnica)
 
-**Blocks:** aprovisionamiento remoto; no bloquea desarrollo/prevalidación local ni T-001.
+**Blocks:** NONE para seleccionar el destino; antes de ejecutar el despliegue deben cumplirse los controles de red de esta resolución y contar con autorización operativa explícita para los cambios concretos de GCE.
 
-**Pregunta:** seleccionar proveedor y controles de VM remota sin resolver silenciosamente costo, aislamiento, red o retención.
+**Resolución:** reutilizar la VM GCE ya existente `rag-test-execution-sandbox` en `us-central1-a` (e2-standard-4, 4 vCPU, 16 GiB RAM, disco de arranque pd-balanced de 100 GB). No crear otra VM, Cloud NAT, balanceador, base de coordinación ni otro componente de arquitectura. La instancia existente está en ejecución y genera cargos de cómputo mientras permanezca encendida; el disco, la IP externa y los snapshots también pueden generar cargos. No se presume que el crédito de GCP siga disponible ni se presenta esta opción como gratuita. Limitar el uso a ventanas autorizadas de prueba y detener la VM cuando no se esté usando para el piloto.
+
+**Alcance de datos y aislamiento:** exclusivamente repositorios de demostración/piloto controlados por el usuario; no código empresarial, datos de producción, secretos ni evidencia empresarial. `DEC-VAL-001` permanece `PENDING`. Mantener una sola VM de Sandbox y los controles ya aprobados para cada ejecución: contenedor efímero, usuario no-root UID/GID 10001, `CapDrop: ALL`, `no-new-privileges`, workspace aislado y red deshabilitada durante PHPUnit/tests. La salida a Internet de la VM existente se usa solo para obtener dependencias durante la fase de instalación; no se habilita red del contenedor durante las pruebas.
+
+**Red:** el acceso administrativo y al servicio de Sandbox será por IAP TCP forwarding, limitado mediante firewall al rango IAP IPv4 `35.235.240.0/20`, a esta VM y solo a TCP 22 (SSH) y TCP 3000 (puerto HTTP predeterminado de Sandbox; confirmar `PORT` efectivo). OS Login y 2FA permanecen habilitados. No publicar el puerto de Sandbox en `0.0.0.0/0`. Se conserva la IP externa existente únicamente para salida de la VM y descargas; IAP no requiere IP externa. La inspección de solo lectura del 2026-10-12 encontró reglas existentes de SSH, RDP, HTTP, HTTPS e ICMP desde `0.0.0.0/0` (HTTP/HTTPS aplican por los tags actuales `http-server`/`https-server`), y no encontró una regla de ingreso IAP. Por tanto, la política de ingreso no está aún satisfecha: antes de reutilizar la VM para otra prueba se deben limitar o eludir esas exposiciones para esta instancia, habilitar solo el ingreso aprobado por IAP y verificarlo sin interrumpir otras VMs del proyecto. Esta decisión no cambia reglas de firewall por sí sola.
+
+**Retención:** se acepta para este piloto controlado la política ya adjunta al disco: snapshots diarios, retención máxima de 14 días y `KEEP_AUTO_SNAPSHOTS` al borrar el disco de origen. El código clonado puede permanecer en el disco persistente y en sus snapshots; borrar contenedores o workspaces no purga esas copias. No colocar allí datos o código que requieran una retención menor. La decisión no elimina ni modifica la política de snapshots existente.
+
+**Estado de despliegue reportado por el usuario (2026-10-12):** el repositorio ya está clonado en esta VM y hubo un primer despliegue con fallas antes de correcciones recientes. Ese despliegue previo no demuestra que las correcciones estén instaladas ni que el E2E esté validado; antes de la próxima prueba se debe identificar el commit remoto desplegado y actualizar la copia a la revisión corregida aprobada. La clonación y el primer despliegue no cambian la política de ingreso ni autorizan por sí solos una operación nueva.
+
+Esta resolución selecciona una topología y controles, pero no equivale a haber cambiado firewall, desplegado código, iniciado/parado la VM o autorizado un gasto adicional fuera del uso de esta instancia.
+
+### DEC-INF-002 — Exposición del servicio de Sandbox a Core desplegado en Render
+
+**Estado:** APROBADA AS-BUILT (usuario, 2026-10-12, `WI-CORE-049`): «Sí, aprobada as-built»; decisión relayada: «Aprobado tal como quedó, rate limit sí, rotación de 90 días y IAP respaldo». Describe una infraestructura ya desplegada y verificada por Cross el 2026-10-12; Core no la modificó ni la verificó. Este documento no autoriza nuevas operaciones de firewall, proxy, VM, DNS ni certificados. Hasta que el rate limit se implemente en el proxy, el único freno al abuso es el bearer.
+
+**Blocks:** NONE.
+
+**Resolución:** `DEC-INF-002` sustituye de forma explícita solo dos puntos del párrafo «Red» de `DEC-INF-001`: (i) el ingreso al servicio del Sandbox únicamente por IAP al puerto efectivo del servicio (`DEC-INF-001` dice 3000; el puerto efectivo as-built es 3001), que pasa a ser respaldo y vía de reversión; y (ii) la obligación de limitar las exposiciones HTTP/HTTPS `0.0.0.0/0`, solo para TCP 80 y 443 hacia el proxy TLS. Core llega al servicio por HTTPS con TLS y `Authorization: Bearer` (`DEC-AUTH-001`, sin cambios). Siguen vigentes: SSH/administración solo por IAP con OS Login y 2FA, no publicar el puerto del servicio (3001/3000) en `0.0.0.0/0`, limitar las demás reglas públicas existentes (SSH, RDP, ICMP; su estado actual no fue verificado por Cross) y el resto de `DEC-INF-001`. Los 80/443 públicos no habilitan código empresarial: `DEC-VAL-001` permanece `PENDING`.
+
+**As-built (verificado por Cross):**
+- Proxy TLS Caddy v2.11.7 en la VM `rag-test-execution-sandbox`, con el hostname gratuito `136-115-2-208.sslip.io` sobre la IP estática reservada `rag-sandbox-ip` (136.115.2.208), certificado público Let's Encrypt, `reverse_proxy` a `127.0.0.1:3001` y `request_body` máximo de 5 MB.
+- Firewall `rag-sandbox-https-allow` (prioridad 899): tcp:80 y tcp:443 desde `0.0.0.0/0`, sin filtro por IP de Render; 3001 y 22 siguen solo por IAP (`rag-sandbox-iap-allow` y `rag-sandbox-iap-deny`, prioridades 900 y 901).
+- Control de acceso: TLS más bearer `SANDBOX_SERVICE_TOKEN` de 64 hex (401 sin bearer, verificado por Cross).
+- Core en Render usa `SANDBOX_URL=https://136-115-2-208.sslip.io`. E2E de producción verificado por Cross: PR #3 de `tjc-piloto-ventas` → Check `success` con 1 propuesta (Render → VM por HTTPS).
+
+**Superficie de riesgo (sin suavizar):** el firewall abre TCP 80 y 443 a todo Internet y no hay filtro por IP de Render (según Cross, las IP de salida de Render son rangos compartidos de poco valor como control; Core no lo verificó). Cualquier host de Internet alcanza el proxy; solo el bearer y, cuando se implemente, el rate limit frenan el abuso. El Sandbox ejecuta código de terceros. El token viaja por Internet bajo TLS. `/health/live` y `/health/ready` no llevan bearer y no deben quedar expuestos por el proxy; el proxy no debe registrar `Authorization`. El hostname sslip.io y la renovación de Let's Encrypt dependen de terceros. La latencia adicional puede acercar ejecuciones al timeout y producir fallo de plataforma (`DEC-VAL-002`).
+
+**Rate limit:** control aprobado (rate limit sí); los valores NO están aprobados: valor inicial propuesto a ratificar por Sandbox/Cross tras observar un PR real: `POST /executions` 20 por minuto por IP y 30 por minuto global; `GET /executions/*` (sondeo) 240 por minuto por IP; 10 intentos por minuto por IP sin bearer válido, con bloqueo temporal. El ritmo de sondeo lo dicta el `pollAfterMs` del Sandbox (`sandbox-execution.service.ts`); el valor de 240 es una estimación a contrastar, y un 429 del proxy puede producir un fallo de plataforma (`DEC-VAL-002`); Core hoy no documenta ni maneja un 429 del proxy como caso específico, y el valor de 240 debe contrastarse también con ejecuciones concurrentes. Caddy estándar no trae limitador: requiere el módulo `caddy-ratelimit` compilado con xcaddy u otro limitador delante de `127.0.0.1:3001`; si no puede aplicarse en el proxy, se evalúa un límite en el propio Sandbox. Hasta su implementación el único freno es el bearer.
+
+**Rotación del token (aprobada):** cada 90 días o de inmediato ante sospecha; dueño: Jean. Procedimiento: generar un token nuevo, actualizarlo en la VM y en Render, verificar la huella (`sha256`, primeros 8 caracteres) en ambos y revocar el anterior. El valor del token nunca se escribe en el repositorio.
+
+**Reversión y respaldo:** el túnel IAP se mantiene como respaldo y vía de reversión: cerrar `rag-sandbox-https-allow`, detener Caddy y usar `SANDBOX_URL` loopback (`http://127.0.0.1:3101`).
+
+**Impacto en experimentos y métricas:** nulo en validez y resultados; la duración medida por Core ahora incorpora TLS sobre Internet y no es comparable con corridas por túnel sin declararlo; sin cambio de métricas.
+
+**Seguimiento aprobado aparte:** work item de código `isAllowedSandboxUrl` (HTTPS obligatorio en producción; HTTP solo loopback fuera de producción; sin credenciales, ruta ni query; sin romper `http://localhost:3001` ni `http://127.0.0.1:3101`), preparado y sin implementar hasta indicación; implementación del rate limit y de la rotación a cargo de Sandbox/Cross con autorización operativa.
 
 ### DEC-VAL-001 — Validación empresarial
 
 **Estado:** PENDING
 
-**Blocks:** ingestión/despliegue con código empresarial y producción de evidencia empresarial; no bloquea T-001.
+**Blocks:** ingestión/despliegue con código empresarial y producción de evidencia empresarial; no bloquea trabajo con código de demostración autorizado.
 
 **Pregunta:** aprobar autorización organizacional, retención, proveedores externos, protección de código y exportación de evidencia.
 
+### DEC-VAL-002 — Fallo de plataforma por símbolo y precedencia del estado del Run
+
+**Estado:** APROBADA (usuario, 2026-10-12, `WI-CORE-047`; caso operativo OC08). El usuario aprobó la versión recomendada «sin afectar métricas»; una redacción anterior que ponía la plataforma sobre cualquier otra clasificación fue descartada y no tiene efecto.
+
+**Blocks:** NONE. Desbloquea el work item de código que alinee OC08, que hereda la condición de abajo.
+
+**Regla.** *Fallo de plataforma por símbolo:* el símbolo elegible no obtuvo veredicto porque el Sandbox no estuvo disponible o rechazó la ejecución, la ejecución agotó el tiempo límite del Sandbox o el Sandbox reportó una falla de categoría `INFRASTRUCTURE` (Docker, red, almacenamiento, worker o runtime de plataforma). No lo son compilación, aserción, error de ejecución de la prueba, dependencia ni configuración del framework (siguen siendo fallo técnico), y un fallo `UNKNOWN` no se atribuye a la plataforma sin evidencia. *Precedencia del estado del Run con resultados mezclados por símbolo* (de mayor a menor): `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `INFRASTRUCTURE_FAILURE` > `SUCCESS` > `NO_ADDITIONAL_TESTS_REQUIRED` / `NO_TEST_RELEVANT_CHANGES` (estos dos últimos son excluyentes entre sí). `BASELINE_FAILED` y los `INFRASTRUCTURE_FAILURE` de nivel job (binding, versión, materializado, compare o job completo) terminan el Run antes de la clasificación por símbolo y no entran en esta precedencia.
+
+**Aclaración (no cambia la decisión):** los resultados por símbolo (propuestas, ejecuciones, evidencia de discrepancia y fallo por símbolo) y el `resultSummary`, que cuenta por separado los fallos de plataforma y los técnicos, se conservan y siguen consultables aunque el estado agregado sea `INFRASTRUCTURE_FAILURE`; el estado del Run es solo el más accionable.
+
+**Razón:** una discrepancia demostrada no se oculta por un fallo ajeno de plataforma en otro símbolo; un fallo técnico atribuible no se degrada a `neutral`; un Run con un símbolo sin veredicto no es `SUCCESS` ni permite publicar como si todo estuviera validado. Las alternativas «plataforma sobre técnico» y «la falla de plataforma no altera el Run» no fueron elegidas.
+
+**Consecuencias:** un Run en `INFRASTRUCTURE_FAILURE` con propuestas `AVAILABLE` válidas tiene Check `neutral` y no es publicable (`409 TEST_PUBLICATION_INVALID_RUN_STATUS`) hasta reintentar; `NO_TEST_RELEVANT_CHANGES` mantiene Check `success`.
+
+**Condición del usuario:** el cambio queda confinado al análisis de PR (clasificación por símbolo y del `AnalysisRun`) y no puede alterar el comportamiento de experimentos (008), OE2/OE5 ni la evidencia o métricas existentes. Si se toca `sandbox/map-sandbox-result.ts` (compartido por generación y experimentos), exige prueba de no regresión explícita sobre experimentos o no se toca; si afecta métricas, `DECISION_REQUIRED` y no se aplica.
+
+**Estado de la implementación:** implementada en `WI-CORE-048` (2026-10-12): una excepción, timeout o categoría `INFRASTRUCTURE` del Sandbox por símbolo es fallo de plataforma y el estado del Run aplica la precedencia; la evidencia por ejecución, los experimentos y las métricas no cambian.
+
+### DEC-ORG-001 — Organizaciones y compartición de Projects
+
+**Estado:** APROBADO (2026-09-20, por el usuario)
+
+**Blocks:** NONE. No cierra `DEC-VAL-001`. Modifica `DEC-WEB-AUTH-001`: el login pasa a ser solo GitHub (HU01/HU02). Lo no probado contra una organización real es criterio de aceptación de los cortes que lo usan y **condición para desplegar**, no para implementar (ver "Precondiciones de despliegue").
+
+**Resolución:** GitHub es la fuente de verdad de la autorización y Core persiste solo lo necesario para poder revocar por evento.
+
+- **Workspaces:** el home ofrece la cuenta personal (siempre) y cada organización donde la GitHub App está instalada y el usuario es miembro; Core obtiene la lista mediante GitHub Integration, que consulta las instalaciones de la App y verifica la membresía con credenciales propias, sin depender del token del usuario ni del scope `read:org`. Una organización aparece cuando alguien instala la App en ella. El "equipo" es la organización; los Teams de GitHub no son workspace y solo aportan permisos de forma indirecta. Un Project guarda su organización (`githubOrgId`, `login`; nulo = personal) porque al crearse aún no tiene repositorio.
+- **Login:** solo GitHub (HU01/HU02). La identidad se resuelve por el `githubUserId` numérico que Core obtiene de la Admin API de Supabase con el `sub` del token; nunca de `user_metadata`, que el propio usuario puede editar.
+- **Roles (jerarquía Admin ⊃ Maintainer ⊃ Reader; `DEC-ORG-003` la enmienda con Writer entre Maintainer y Reader y prevalece donde se mencione `write` o los permisos de Maintainer):** Admin es solo el owner de la organización (en el workspace personal, quien lo creó) y es además Maintainer; solo Admin crea, renombra y elimina Projects (el borrado sigue siendo lógico). Maintainer es quien tiene permiso `maintain`, `write` o `admin` sobre el repositorio vinculado (desde `DEC-ORG-003`: `maintain` o `admin`; `write` produce Writer); opera el día a día (binding, preguntas funcionales, publicación, experimentos; el Writer hace lo mismo salvo responder preguntas funcionales). Reader es quien tiene `triage` o `read`: solo consulta.
+- **Visibilidad:** en una organización se ve un Project si se tiene al menos `read` sobre su repositorio vinculado. Un Project sin repositorio solo lo ven los Admin (todos los owners de la organización). Un Project personal solo lo ve su creador. Un recurso no visible responde el mismo `404` que uno inexistente. *Enmienda 2026-09-20 (`DEC-ORG-002`): la versión aprobada decía "también en el workspace personal"; los Projects personales no se comparten con colaboradores, solo se comparte mediante organizaciones, y el registro de acceso existe únicamente para Projects de organización.*
+- **Binding:** un Project tiene un solo repositorio y no se revincula (para otro repositorio se elimina el Project y se crea otro). En una organización solo se ofrecen y aceptan repositorios de esa organización; en el workspace personal, solo los propios. Vincular exige permiso `maintain`/`write` (o `admin`) sobre el repositorio, porque la GitHub App publica con permisos de escritura. Vincular, pausar y reactivar lo hacen Admin y Maintainer (desde `DEC-ORG-003`, también Writer); como el Project sin repositorio solo lo ven los Admin, el primer vínculo es de un Admin. Un renombre del repositorio actualiza el nombre; una transferencia a otra organización o su eliminación pasa el binding a `REVOKED` sin borrar evidencia.
+- **Alta y revocación:** el acceso se crea automáticamente al entrar, verificando en vivo el rol o permiso del usuario mediante GitHub Integration; nadie invita. La revocación no usa caché ni depende del inicio de sesión: GitHub Integration valida y normaliza webhooks, Core procesa sus eventos en el endpoint privado (§6.9) para actualizar o borrar el registro de acceso, y un job periódico de reconciliación, cada hora, sobre la cola existente corrige webhooks perdidos. Si GitHub no responde, Core conserva los accesos ya registrados (nunca revoca por un error de red), reintenta después y no concede accesos nuevos hasta poder verificarlos.
+- **Ciclo de vida de la organización:** si la organización desaparece o se desinstala la App (una organización de GitHub no puede quedarse sin owners: una lista de owners vacía se trata como no verificable y no oculta nada), sus Projects y su evidencia se conservan pero dejan de verse (binding `REVOKED`); reaparecen si la App se reinstala o la organización vuelve. No se reasignan a otro workspace.
+- **Persistencia mínima:** el vínculo `userId -> githubUserId`, las columnas de organización en `Project` y un registro de acceso `(projectId, userId, rol, verifiedAt)`. No hay tablas `Organization` ni `Membership`.
+- Se conserva el invariante de que ninguna identidad implica autorización de la otra: ver un Project no autoriza la automatización sobre el repositorio, que sigue autorizada solo por la GitHub App.
+
+**Decisiones de producto cerradas (2026-09-20):** origen de la lista de workspaces (organizaciones con la App instalada), reconciliación cada hora, comportamiento ante una caída de GitHub (conservar lo existente, negar lo nuevo) y ciclo de vida de una organización que desaparece (Projects ocultos y conservados). Límite aceptado: solo se comparte con quien tiene acceso al repositorio en GitHub.
+
+**Verificaciones técnicas contra GitHub (spike 2026-09-20):**
+- **Permiso de un colaborador (evidencia histórica de integración):** GitHub Integration consulta el permiso efectivo con solo `Metadata: read`, permiso que la App ya tiene. Se usa `role_name` (admin, maintain, write, triage, read o rol personalizado); el campo `permission` colapsa maintain a write y triage a read. Un rol personalizado se mapea por su permiso base. No se probó un colaborador que no sea owner ni el permiso heredado por Team o permiso base de la organización. La llamada se delega ahora mediante `GH-INTEROP-1.7`.
+- **Rol en la organización (DOCUMENTADO, no probado):** `GET /orgs/{org}/memberships/{username}` (`role` admin = owner; solo cuenta `state=active`) y `GET /orgs/{org}/members` exigen el permiso de organización `Members: read`, que la App no tiene hoy. No se probó contra una organización real porque la única instalación de la App es de una cuenta personal.
+- **Permisos y eventos nuevos de la App:** `Members: read` (lo acepta un owner en cada organización) y suscripción a `member`, `membership`, `organization`, `team` y `repository`. `installation` e `installation_repositories` llegan siempre; `Metadata: read` ya cubre `repository`. Hoy la App solo se suscribe a `pull_request`.
+- **Cobertura de eventos (DOCUMENTADO):** cubiertos los cambios de colaborador directo (`member`), alta y baja de miembro de la organización (`organization`), membresía y permisos de Team sobre un repositorio (`membership`, `team`, con la salvedad de que un cambio de permiso del Team no está garantizado) y renombre, transferencia, eliminación o privatización del repositorio (`repository`). **Sin evento fiable:** cambio de rol en la organización, cambio del permiso base de la organización y accesos heredados que cambian sin evento directo. Para esos casos la reconciliación horaria es el único mecanismo, con una ventana de hasta una hora.
+- **Identidad (PROBADO):** la Admin API de Supabase `GET /auth/v1/admin/users/{sub}` devuelve `identities[]`; el listado `GET /admin/users` devuelve `identities: null`, así que se debe consultar por id. El `githubUserId` numérico es `identities[].id` (igual a `identity_data.provider_id` y `identity_data.sub`), nunca `user_metadata`.
+- **Prerrequisito de despliegue (decidido 2026-09-20):** la App es hoy privada (`GET /apps/{slug}` sin autenticación responde `404`) y solo puede instalarse en la cuenta de su dueño, sin ninguna instalación de organización; eso impide también el workspace personal de cualquier otro usuario. Se decide hacerla **pública ("Any account") sin listing en Marketplace**, cambio externo en la configuración de la App que realiza el usuario. Además cada organización debe aceptar `Members: read`. Una lista de cuentas permitidas en Core queda como mejora futura fuera de esta decisión.
+- Los códigos de error nuevos se nombran al consolidar el contrato en INTEROP.
+
+**Precondiciones de despliegue** (ninguna bloquea implementar ni probar con fakes):
+1. La GitHub App es pública ("Any account"), sin listing en Marketplace, y tiene `Members: read` y los eventos `member`, `membership`, `organization`, `team` y `repository` suscritos; cada organización acepta el permiso.
+2. Se validan contra una organización real, con la App instalada, las lecturas aún no probadas: rol de owner (`memberships`), permiso heredado por Team o permiso base, y membresía `pending`.
+3. El proveedor de correo y contraseña de Supabase Auth se deshabilita cuando la Console solo ofrezca GitHub.
+
+*Precisión de despliegue (`DEC-ORG-002`, 2026-09-20/21):* (a) orden: primero la Console solo GitHub, luego el bundle A de Core (identidad y corrección de seguridad del binding, que exige identidad GitHub en toda la sesión) y solo después el bundle B (workspaces, roles, acceso y webhooks, junto); la App no debe ser instalada por terceros (idealmente privada) hasta desplegar el bundle A; (b) la condición 2 incluye validar que un colaborador externo (no miembro) con permiso sobre el repositorio no accede al Project.
+
+### DEC-ORG-002 — Casos borde de acceso derivados de DEC-ORG-001
+
+**Estado:** APROBADO (2026-09-20, por el usuario)
+
+**Blocks:** NONE. No cierra `DEC-VAL-001`. El punto 1 precisa la definición de Maintainer y Reader de `DEC-ORG-001` y el punto 2 enmienda su visibilidad en el workspace personal.
+
+**Resolución:**
+
+1. **Membresía activa siempre en una organización** (precisado por el usuario, 2026-09-21): en un Project de organización se exige SIEMPRE ser miembro activo de la organización además del permiso sobre el repositorio vinculado (`read`/`triage` para Reader; `maintain`/`write`/`admin` para Maintainer; desde `DEC-ORG-003`, `maintain`/`admin` para Maintainer y `write` para Writer), sea el repositorio privado, internal o público. Un colaborador externo (no miembro) no accede al Project aunque tenga `write`. El `read` implícito de un repositorio público no cuenta como acceso. En el workspace personal no aplica (punto 2).
+2. **Projects personales:** no se comparten con colaboradores; solo se comparte mediante organizaciones. Un Project personal lo ve únicamente su creador, que es siempre su Admin. No existe "compartido conmigo", ni acceso de colaboradores por enlace, ni registro de acceso para Projects personales: `project_access` existe solo para Projects de organización. `GET /projects` nunca devuelve Projects personales de otra persona. Corrige la viñeta "Visibilidad" de `DEC-ORG-001`.
+3. **Binding `REVOKED`:** sin acceso de la App al repositorio no hay permiso verificable, por lo que solo los Admin ven el Project (para reactivar el binding con `POST .../enable` o eliminarlo); Maintainer y Reader lo recuperan cuando el binding se reactiva. Si la organización desaparece, se desinstala la App o queda sin owners, el Project queda oculto para todos y se conserva (`DEC-ORG-001`, "Ciclo de vida de la organización").
+4. **Superficie de repositorios a nivel de usuario:** `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` exigen permiso `maintain`, `write` o `admin` sobre el repositorio consultado. Con permiso menor: `403 REPOSITORY_PERMISSION_INSUFFICIENT`; sin visibilidad: `404 GITHUB_REPOSITORY_NOT_FOUND` en `branches` y `NOT_AUTHORIZED` en `verify-app-access`. Es una corrección de seguridad del contrato anterior, que respondía sobre cualquier repositorio al que la App tuviera acceso.
+5. **La corrección de seguridad va primero** (precisado por el usuario, 2026-09-21): el punto 4 y la validación de propietario y permiso del binding se implementan y publican justo después de la identidad GitHub, antes de workspaces, roles y webhooks (`spec/features/014-organizations-access/`, corte 4a). Precondición de despliegue añadida: la GitHub App no debe ser instalada por terceros (idealmente privada) hasta que esa corrección esté desplegada (bundle A).
+
+**Decisiones derivadas** (tomadas por el analista al consolidar `INTEROP-2.4` y por el leader al corregir la revisión de contrato; no vienen de `DEC-ORG-001` y el usuario puede vetarlas):
+
+- (a) Nombres públicos: `GET /workspaces`, `PATCH /projects/{projectId}` y el parámetro `workspaceId` (el id numérico de GitHub de la cuenta u organización, como texto; omitido = personal).
+- (b) Rol de workspace `ADMIN`|`MEMBER` (`ADMIN` = cuenta personal u owner activo de la organización).
+- (c) HTTP de los códigos nuevos: `GITHUB_IDENTITY_REQUIRED` 401, `IDENTITY_UNAVAILABLE` 503, `WORKSPACE_NOT_FOUND` 404, `WORKSPACE_ADMIN_REQUIRED` 403, `PROJECT_ROLE_INSUFFICIENT` 403 (`details: { requiredRole, currentRole }`), `REPOSITORY_OUTSIDE_WORKSPACE` 400, `REPOSITORY_PERMISSION_INSUFFICIENT` 403 y `GITHUB_VERIFICATION_UNAVAILABLE` 503.
+- (d) En `POST .../integrations/github`, "sin ningún permiso del usuario sobre el repositorio" colapsa en el paso `404 GITHUB_REPOSITORY_NOT_FOUND` y va antes de `REPOSITORY_OUTSIDE_WORKSPACE`; `branches` sin visibilidad responde el mismo `404`. Se acepta la diferencia residual entre `403 GITHUB_APP_ACCESS_REQUIRED` (App no instalada) y `404` (instalada, sin permiso del usuario).
+- (e) Las validaciones de propietario y de permiso van antes de `REPOSITORY_ALREADY_BOUND`, para que nadie sondee qué repositorios ajenos están vinculados.
+- (f) Con GitHub caído: `GET /workspaces` devuelve el workspace personal más las organizaciones con acceso ya registrado; los listados omiten lo no verificable; un acceso directo a un Project de organización no verificable responde `503` (revela solo la existencia de un UUID). Los Projects personales no dependen de GitHub para verse.
+- (g) `installation.suspend` no borra registros de acceso: una instalación suspendida se trata como GitHub no disponible.
+- (h) Los eventos de acceso se procesan aunque el binding no esté `ENABLED`.
+- (i) El payload normalizado de un webhook solo selecciona qué reverificar; el rol siempre sale de una verificación viva delegada a GitHub Integration, nunca del payload.
+- (j) No existe ruta que dispare una validación manual, así que "validación" del rol Maintainer queda como nota de la matriz de `INTEROP-2.4` §6.13.
+- (k) Un permiso o una pertenencia no verificable en `verify-app-access`, `branches` y `GET /integrations/github/repositories?workspaceId` responde `503 GITHUB_VERIFICATION_UNAVAILABLE`, nunca `NOT_AUTHORIZED` ni `404`.
+- (l) `GET /analysis-runs` y `GET /action-required` sin `projectId` cubren los Projects personales del usuario más los de organización con registro de acceso ya existente. `GET /action-required?projectId=X` con un Project no visible responde `404 PROJECT_NOT_FOUND` (cambio observable: antes una página vacía).
+- (m) Un alta de acceso no puede sobrescribir una revocación posterior al inicio de su verificación; las verificaciones contra GitHub tienen tope de concurrencia y presupuesto por petición y no memoizan denegaciones (sin caché, a petición del usuario). Se acepta por escrito el riesgo residual: un límite de tasa de GitHub degrada las altas nuevas a `503` u omitidas, nunca revoca lo existente.
+- (n) La reconciliación horaria también revalida propietario y nombre del repositorio vinculado (transferido o eliminado: binding `REVOKED`; renombrado: actualiza el nombre).
+- (o) Default-deny obligatorio: una ruta autenticada sin rol mínimo ni excepción explícita falla el guard y una prueba que enumera el router.
+- (p) WebSocket: mapa socket -> Project; se expulsa también por borrado lógico y por pérdida de visibilidad (binding `REVOKED` para no Admin); una suscripción cuya verificación no está disponible se rechaza con un motivo reintentable (`INTEROP-2.4` §6.6).
+- (q) El manual linking de identidades de Supabase permanece deshabilitado; `AUTH_BYPASS` de desarrollo aporta una identidad GitHub sintética y nunca se activa en producción.
+- (r) Un Reader no debe llamar `verify-app-access` (`403`); consulta el estado del binding con `GET .../integrations/github`.
+- (s) Jobs de acceso: `jobs` no tiene columna de alcance, así que se añade `dedupeKey` (texto, nullable) y un índice único parcial que cubre SOLO filas `PENDING` con `dedupeKey` no nulo (no `RUNNING`), para `ACCESS_RECONCILIATION` y `ACCESS_REVERIFY`. La siguiente ocurrencia de la reconciliación se autoencola al inicio sin chocar con la fila `RUNNING`, y un evento que llega durante un `ACCESS_REVERIFY` en ejecución encola uno nuevo que corre después (el reclamo no toma un `PENDING` cuya `dedupeKey` coincide con una fila `RUNNING` no obsoleta). La siembra al arrancar solo omite si existe un `PENDING` o un `RUNNING` no obsoleto.
+- (t) El advisory lock transaccional por `(projectId, userId)` es el único mecanismo contra la carrera alta/revocación; reverificaciones y revocaciones toman el mismo lock. Retiene una conexión durante las llamadas a GitHub, acotado por el presupuesto de verificaciones.
+- (u) El predicado de acceso de un Project de organización es "registro de acceso suficiente Y (binding no `REVOKED` o rol `ADMIN`)", evaluado en cada petición, con prueba.
+- (v) `POST .../enable` sobre un binding `REVOKED` aplica la misma validación de propietario y de `repositoryId` que `POST .../integrations/github` (`404 GITHUB_REPOSITORY_NOT_FOUND`, `400 REPOSITORY_OUTSIDE_WORKSPACE`); no se permite reactivar sin comparar el `repositoryId` persistido.
+- (w) Alcance de la reconciliación: la revalidación del repositorio (propietario, nombre) cubre todo Project vivo con binding, personales incluidos; la recalculación de registros cubre los Projects con registros de acceso. Al pasar un binding a `REVOKED` se borran los registros Maintainer y Reader.
+- (x) `SubscribeAck` con tres resultados fijos y comportamiento del handshake WebSocket ante `GITHUB_IDENTITY_REQUIRED`, `IDENTITY_UNAVAILABLE` e `INVALID_ACCESS_TOKEN` (`INTEROP-2.4` §6.6); es aditivo y la Console, que emite `subscribe` sin callback, lo ignora.
+- (y) La Console envía `workspaceId` a `POST /projects` y `GET /projects` y consume `workspace`/`role` solo después del sync de implementación del bundle B; el bundle A solo acepta `workspaceId` (personal) en el discovery. El bundle A espera a la Console solo-GitHub publicada.
+- (z) Una App desinstalada de la organización se distingue de un resultado no verificable: la organización deja de ofrecerse y sus Projects responden `404` (no `503`). Un `branches` con la App no instalada en el repositorio responde `403 GITHUB_APP_ACCESS_REQUIRED` antes que los `404`/`403` de permiso; `verify-app-access`, `NOT_AUTHORIZED`.
+- (aa) Una lista de owners de organización VACÍA con HTTP 200 se trata como no verificable, no como "sin owners": una organización de GitHub no puede tener cero owners y una lista vacía es casi siempre un artefacto de visibilidad (p. ej. solo miembros públicos). Se conserva todo y se reintenta; solo se oculta con confirmación de GitHub (organización inexistente, App desinstalada, `organization.deleted` o `installation.deleted`). Decidida por el leader al corregir la revisión del bundle B (2026-09-21).
+- (ab) Un listado de GitHub usado para NEGAR (instalaciones de la App, owners) que alcanza el tope de páginas se trata como no verificable, no como completo (2026-09-21).
+- (ac) Un fallo determinista al reverificar un acceso sigue el camino normal de reintentos hasta `FAILED`; solo lo no verificable se reprograma con espera creciente sin consumir intentos (2026-09-21).
+
 ### DEC-EXP-FK-001 — Paridad experimental del contexto funcional
 
-**Estado:** PENDING
+**Estado:** APROBADO (2026-10-08, por el usuario a partir del handoff V3)
 
-**Blocks:** ejecución experimental que incorpore Functional Knowledge; no bloquea implementación del producto ni T-001.
+**Resolución:** la comparación de OE5 se hace bajo condiciones experimentales externas controladas, no bajo paridad estricta de información. El brazo RAG recibe el conocimiento funcional `ACTIVE` aplicable al target; el agente generalista no recibe conocimiento funcional persistente. Ambos brazos comparten repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable. Esta decisión desbloquea la ejecución experimental con Functional Knowledge.
 
-**Pregunta:** definir si ambos brazos reciben la misma información funcional para aislar la variable de adquisición/construcción de contexto.
+### DEC-EXP-003 — Pruebas existentes visibles para el agente generalista
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Supersedes:** el punto 4 de `DEC-EXP-002`; los demás puntos de `DEC-EXP-002` siguen vigentes.
+
+**Resolución:** el agente generalista puede descubrir y leer las pruebas existentes mediante sus herramientas read-only; no se le entregan directamente ni se ocultan artificialmente. Las herramientas permitidas son listar archivos, leer archivo, buscar texto e inspeccionar símbolo/referencias; quedan prohibidos shell, ejecución de Composer/PHPUnit/Jest/Vitest, escritura e Internet o GitHub API. Se conserva el tope de tool calls y el presupuesto de contexto de `DEC-EXP-002`.
+
+### DEC-FK-001 — Varias reglas ACTIVE por target
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Resolución:** Core deriva de forma determinista un `scenarioKey` desde la pregunta atómica; el conflicto de HU09 solo se da entre reglas con el mismo scope, `targetRef` y `scenarioKey`. Reglas con distinto `scenarioKey` coexisten como `ACTIVE`. Ninguna persona escribe el `scenarioKey` a mano.
+
+### DEC-FK-002 — UNKNOWN es abstención auditada
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Supersedes:** la frase anterior de que `No lo sé` puede cerrar una pregunta.
+
+**Resolución:** `UNKNOWN` deja la pregunta `PENDING`, registra la abstención (quién, rol, cuándo) y no continúa el Run. Solo Maintainer o Admin pueden registrarla. La Console no muestra "resuelto", "continuando" ni "todas las preguntas respondidas" como consecuencia.
+
+### DEC-FK-003 — Activación determinista de ACTION_REQUIRED
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Resolución:** Core crea una pregunta funcional solo cuando el target es un símbolo `METHOD`/`FUNCTION` `DIRECTLY_CHANGED`, no existe una regla `ACTIVE` aplicable y el diff introduce o modifica lógica de comportamiento observable: una ramificación (`if`, `switch` o ternario), un `throw` o una transición o escritura de estado. No se pregunta por cambios cosméticos, getters, refactors sin cambio conductual ni delegaciones puras. Core detecta esa lógica comparando las huellas (`DEC-FK-004`) de las construcciones de comportamiento del símbolo entre la base y el HEAD: hay lógica nueva o modificada cuando el conjunto de huellas difiere. Una regla es aplicable cuando comparte target y `scenarioKey` con la construcción: una regla `ACTIVE` de otro escenario del mismo target no la satisface (implementado en `WI-CORE-018` y `WI-CORE-020`). V1 cubre TypeScript; PHP queda diferido con su soporte.
+
+### DEC-FK-004 — Derivación del scenarioKey
+
+**Estado:** APROBADO (2026-10-08, por el usuario), incluidos el detalle de normalización y el mapeo de `scenarioKind`, aprobados al cerrar `WI-CORE-017`.
+
+**Resolución:** `scenarioKey` se deriva de `scenarioKind`, del `targetRef` estable (`filePath::qualifiedName`) y de una huella determinista de la construcción concreta que disparó la pregunta: `scenarioKey = <scenarioKind>:<16 primeros hex de SHA-256(targetRef + "\n" + forma normalizada de la construcción)>`. La forma normalizada es una representación estructural del AST, no el número de línea ni el formato: descarta espacios, comentarios y formato, reemplaza los identificadores locales por marcadores posicionales y conserva los nombres de parámetros, miembros y campos, los operadores y los literales. Dos construcciones funcionalmente distintas dentro de un mismo método producen claves distintas y los cambios cosméticos no crean un escenario nuevo. `scenarioKind` según la construcción: `throw` → `EXCEPTION`; ramificación cuya condición compara contra un límite (`<`, `<=`, `>`, `>=`) → `BOUNDARY`; otra ramificación → `EXPECTED_RESULT`; escritura o transición de estado → `STATE_TRANSITION`. `OBSERVABLE_SIDE_EFFECT` y `FUNCTIONAL_PRECONDITION` quedan reservados y V1 no los produce. Las reglas históricas reciben `scenarioKind=EXPECTED_RESULT` y `scenarioKey=LEGACY` mediante una migración reversible.
+
+### DEC-FK-005 — Reglas ACTIVE duplicadas por identidad de escenario en la migración de WI-CORE-020
+
+**Estado:** APROBADO (2026-10-08, por el usuario; opción A)
+
+**Resolución:** ante múltiples reglas `ACTIVE` para el mismo `projectId` + `scope` + `targetRef` + `scenarioKey`, la migración `20261008150000_functional_knowledge_scenarios` aborta sin modificar estados y emite un listado determinista (ordenado) de los casos afectados. La identidad se evalúa tras el backfill `EXPECTED_RESULT`/`LEGACY` de las reglas históricas (`DEC-FK-004`). La migración nunca cambia `status`, no selecciona automáticamente una regla ganadora ni marca reglas como `SUPERSEDED`, incluso si parecen equivalentes por normalización textual: no existe equivalencia automática entre reglas. La resolución es explícita, mediante el flujo vigente `SUPERSEDE` / `KEEP_EXISTING`, preservando trazabilidad. Resueltos los conflictos, la migración puede ejecutarse nuevamente (es re-ejecutable e idempotente) y entonces crea el índice único parcial `ACTIVE` sobre `(projectId, scope, targetRef, scenarioKey)`. Una consulta SQL de solo lectura, documentada como paso de despliegue, reporta los mismos casos antes de migrar. Sin cambio de contrato ni de DTO.
+
+**Descartadas:** B (equivalencia por `normalizedRule` normalizado con `SUPERSEDED` automático) y C (nuevo estado persistido de revisión humana, con superficie en DTO/Console).
+
+### DEC-EXP-004 — Configuración del LLM de los experimentos
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Resolución:** la configuración actual del proyecto para el flujo de producto no cambia por esta decisión. Los experimentos RAG vs `GENERALIST_AGENT` usan el modelo `gpt-6-luna` mediante la API de OpenAI en ambos brazos, con `reasoning_effort` en el valor máximo que soporten el modelo y el runtime. Ambos brazos usan exactamente el mismo modelo y el mismo esfuerzo y los dos valores efectivos se registran en la evidencia experimental. El experimento no degrada en silencio el modelo ni el esfuerzo: si la configuración pedida no es compatible con alguno de los brazos (por ejemplo, el modelo no admite herramientas con ese esfuerzo), la creación falla con `422 REASONING_EFFORT_UNSUPPORTED` y la corrección es una decisión de configuración que toma una persona antes de reintentar. El identificador del modelo y el esfuerzo máximo soportado se confirman en tiempo de ejecución contra la API; un modelo no disponible impide crear el experimento.
+
+### DEC-ORG-003 — Rol Writer
+
+**Estado:** APROBADO (2026-10-08, por el usuario)
+
+**Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable. Las menciones de roles de `DEC-ORG-001` y `DEC-ORG-002` y de los planes de cortes ya implementados describen la historia; donde difieran, prevalece esta decisión.
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.2` es la arquitectura objetivo vigente. Hereda el retiro de ZIP upload y generación manual como ruta de producto, y define repository discovery user-centric con automatización GitHub-App-centric. No existen APIs manuales transitorias: toda operación coordinada usa `INTEROP-2.2` y el modelo PR/HEAD. Todo cambio posterior se consolida primero aquí y luego en los mirrors.
+`SYSTEM-2.12` (2026-10-12, `WI-CORE-049`) aprueba `DEC-INF-002` as-built (servicio del Sandbox por HTTPS con TLS y bearer detrás de un proxy en la VM; el túnel IAP queda como respaldo) y sustituye solo los puntos (i) y (ii) del párrafo «Red» de `DEC-INF-001`; reemplaza el estado PROPOSED de `SYSTEM-2.11`. Sandbox conserva SYSTEM-2.2 y debe ratificar el rate limit y la rotación; `INTEROP-2.12` es la versión compatible. `SYSTEM-2.11` (2026-10-12, `WI-CORE-049`) registró `DEC-INF-002` como PROPOSED y corrigió el estado editorial de `DEC-VAL-002` (implementada en `WI-CORE-048`).
+
+`SYSTEM-2.10` (2026-10-12, `WI-CORE-047`) aprueba `DEC-VAL-002` (fallo de plataforma por símbolo y precedencia del estado del Run, sin cambiar `DEC-INF-001` ni la infraestructura). Sandbox conserva SYSTEM-2.2 y no requiere acción local. `INTEROP-2.10` es la versión compatible.
+
+`SYSTEM-2.9` (2026-10-12) resuelve `DEC-INF-001`: reutiliza la VM GCE existente para el Sandbox del piloto controlado, con ingreso administrativo y del servicio vía IAP a TCP 22 y al puerto de Sandbox (predeterminado 3000), sin agregar componentes. La instancia actual aún tiene reglas de ingreso público y no una regla IAP; su clon y despliegue inicial fueron reportados por el usuario como anteriores a correcciones recientes, por lo que no cuentan como prueba del corte corregido. `DEC-VAL-001` sigue pendiente para código y evidencia empresarial.
+
+`SYSTEM-2.5` conserva las reglas operativas PR/HEAD; la topología de cuatro componentes está implementada y cerrada localmente por los WIs de migración bajo `GH-INTEROP-1.1`. `GH-INTEROP-1.2` agrega la fecha original de creación del PR, implementada y cerrada localmente en `WI-GH-007` y consumida por Core en `WI-CORE-011`, tras la publicación canónica de `WI-CORE-014`. Console validó el corte previo del espejo en `WI-CONSOLE-008`. `GH-INTEROP-1.3` (`WI-CORE-026`, `DEC-TRACE-001`) añade `checkId` a la respuesta de `POST /internal/v1/github/checks`; `GH-INTEROP-1.4` (`WI-CORE-034`, `DEC-CHECK-001`) define su identidad lógica; `GH-INTEROP-1.5` (`WI-CORE-038`, `DEC-CHECK-002`) fijó históricamente PostgreSQL compartido; `GH-INTEROP-1.6` (`WI-CORE-039`) precisó el rechazo tras HTTP 422 y reconciliación completa. `GH-INTEROP-1.7` (`WI-CORE-040`, `DEC-CHECK-003`) reemplaza la coordinación durable entre réplicas por una única instancia activa y mutex en proceso; por ello no conserva reservas ni replay terminales a través de reinicios y acepta el riesgo residual documentado. Core tolera `204`, y la implementación de GitHub Integration y los espejos quedan pendientes de sus WIs locales. No hay despliegue ni cutover. La carga manual ZIP y los modos manuales no son rutas de producto; el ZIP interno de snapshot para Docker/Sandbox continúa. El estado de implementación o despliegue de cada capacidad se demuestra con evidencia por componente, no se infiere del número de contrato. `SYSTEM-2.6` (preparado en `WI-CORE-017`; la abstención `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge están implementados en Core por `WI-CORE-018`, `WI-CORE-019` y `WI-CORE-020`; el resto sigue su propio WI) agrega el rol Writer, la abstención auditada de `UNKNOWN`, la procedencia y los escenarios de Functional Knowledge, la jerarquía de métricas, el trace operativo de nueve enlaces y las decisiones `DEC-EXP-003`, `DEC-EXP-004`, `DEC-FK-001`, `DEC-FK-002`, `DEC-FK-003`, `DEC-FK-004` y `DEC-ORG-003`; cierra `DEC-EXP-FK-001`. `SYSTEM-2.7` conserva esa base e incorpora la raíz PHP por subproyecto, la cardinalidad única repositorio↔Project, paths repo-relative y la raíz efectiva congelada; el subcaso con varios manifiestos permanece pendiente en `DEC-PHP-ROOT-001`. `SYSTEM-2.8` conserva SYSTEM-2.7 e incorpora la topología de Checks de una sola instancia descrita por `GH-INTEROP-1.7`. La implementación de SDD y el estado de espejos se demuestran con evidencia por WI y componente, no por el número de contrato.

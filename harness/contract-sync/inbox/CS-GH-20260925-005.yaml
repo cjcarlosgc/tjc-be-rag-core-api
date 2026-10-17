@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20260925-005
+source: github-integration
+sourceWorkItem: WI-GH-005
+targets: [core]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - Specify webhook ingress 25 MB cap, 8 s Core acceptance deadline, error mapping, and PR-only duplicate acknowledgement.
+requiredAction:
+  - Core canonical owner should review/update GH-INTEROP and implement or confirm POST /internal/v1/github/webhook-events in WI-CORE-003 before cutover.
+sourceRevision: 3ff7e1b
+consumerImportedAt: 2026-09-25T20:17:44.000Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/contract-sync-review-wi-core-003.md
+resolutionEvidence: harness/reports/wi-core-003-implementation.md

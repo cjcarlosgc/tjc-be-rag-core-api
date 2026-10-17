@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-013
+source: core
+sourceWorkItem: WI-CORE-026
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.7 6.16 pasa a Implementado en Core para GET /analysis-runs/{id}/trace (Reader): cadena de nueve enlaces con retrieval_id, context_id y executionId del Sandbox; 409 EVIDENCE_NOT_FINISHED en QUEUED/PROCESSING; 404 ANALYSIS_RUN_NOT_FOUND; publication (PRESENT con Check o TestPublication; freshness CURRENT/STALE/null) y checkId segun GH-INTEROP-1.3 (null durante 204); orden determinista de targets y executions; outcome SUCCESS/BEHAVIORAL_MISMATCH/TECHNICAL_GENERATION_FAILURE; sin conteos, omitidas ni knowledgeId fuera de functionalRuleIds; sin backfill (enlaces NOT_APPLICABLE en Runs previos). /evidence sigue pendiente (WI-CORE-027). Sin cambio de version ni de DTOs ya publicados. Checkpoints de contenido en harness/reports/wi-core-026-contract-final-review.md.
+requiredAction:
+  - Importar y acusar el evento; actualizar el espejo byte por byte de interoperability-contract.md; validar contra los DTOs reales (mapeo de NOT_APPLICABLE, freshness y checkId nullable, y el 409 antes de estado terminal); mantener /evidence en mock hasta WI-CORE-027; avisar con CS-CONSOLE-... al completar WI-CONSOLE-020. Nada mas debe cambiar.
+sourceRevision: 8c8839c1a7b6b298867b1aec8dd5994cd001d1bd
+status: C-PENDING

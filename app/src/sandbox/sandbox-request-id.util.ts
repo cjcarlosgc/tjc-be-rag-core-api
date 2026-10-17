@@ -15,15 +15,19 @@ export function sandboxGenerationRequestId(jobId: string, targetId: string): str
   return uuidV5(SANDBOX_REQUEST_ID_NAMESPACE, `urn:tjc:sandbox-execution:v1:generation:${jobId}:${targetId}`);
 }
 
+/**
+ * Identidad de una ejecución del Sandbox para una repetición experimental.
+ * El intento 1 conserva la identidad original (sin sufijo); el intento 2 (reintento
+ * externo, WI-CORE-025) agrega `:{attempt}`, por lo que obtiene un requestId distinto.
+ */
 export function sandboxExperimentRequestId(
   jobId: string,
   strategy: string,
   repetition: number,
+  attempt = 1,
 ): string {
-  return uuidV5(
-    SANDBOX_REQUEST_ID_NAMESPACE,
-    `urn:tjc:sandbox-execution:v1:experiment:${jobId}:${strategy}:${repetition}`,
-  );
+  const base = `urn:tjc:sandbox-execution:v1:experiment:${jobId}:${strategy}:${repetition}`;
+  return uuidV5(SANDBOX_REQUEST_ID_NAMESPACE, attempt > 1 ? `${base}:${attempt}` : base);
 }
 
 export function sandboxManualRetryRequestId(retryJobId: string, targetId: string): string {

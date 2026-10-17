@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunsService } from './analysis-runs.service.js';
 import { AnalysisRunsRepository } from './analysis-runs.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisRun, Project } from '../generated/prisma/client.js';
@@ -13,9 +14,13 @@ describe('AnalysisRunsService', () => {
     create: ReturnType<typeof vi.fn>;
     findCurrentByPullRequest: ReturnType<typeof vi.fn>;
     findByIdForOwner: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    transitionCurrent: ReturnType<typeof vi.fn>;
     findByProjectForOwner: ReturnType<typeof vi.fn>;
+    findVisibleForUser: ReturnType<typeof vi.fn>;
   };
+  let projectAccess: { require: ReturnType<typeof vi.fn> };
   let projectsRepository: { findById: ReturnType<typeof vi.fn> };
 
   const OWNER_USER_ID = 'user-1';
@@ -26,6 +31,9 @@ describe('AnalysisRunsService', () => {
     name: 'demo',
     ownerUserId: OWNER_USER_ID,
     currentVersionId: null,
+    deletedAt: null,
+    githubOrgId: null,
+    githubOrgLogin: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -68,16 +76,21 @@ describe('AnalysisRunsService', () => {
       create: vi.fn(),
       findCurrentByPullRequest: vi.fn(),
       findByIdForOwner: vi.fn(),
+      findById: vi.fn(),
       update: vi.fn(),
+      transitionCurrent: vi.fn(),
       findByProjectForOwner: vi.fn(),
+      findVisibleForUser: vi.fn(),
     };
     projectsRepository = { findById: vi.fn() };
+    projectAccess = { require: vi.fn().mockResolvedValue({ project, role: 'READER' }) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AnalysisRunsService,
         { provide: AnalysisRunsRepository, useValue: repository },
         { provide: ProjectsRepository, useValue: projectsRepository },
+        { provide: ProjectAccessService, useValue: projectAccess },
       ],
     }).compile();
 
@@ -130,14 +143,13 @@ describe('AnalysisRunsService', () => {
         projectsRepository.findById.mockResolvedValue(project);
         const existing = buildRun({ headSha: 'head-sha-1', status: previousStatus });
         repository.findCurrentByPullRequest.mockResolvedValue(existing);
-        repository.update.mockResolvedValue({ ...existing, status: 'OBSOLETE', current: false });
+        repository.transitionCurrent.mockResolvedValue({ ...existing, status: 'OBSOLETE', current: false });
         const created = buildRun({ id: 'run-2', headSha: 'head-sha-2' });
         repository.create.mockResolvedValue(created);
 
         const result = await service.startRun(createInput, OWNER_USER_ID);
 
-        expect(repository.update).toHaveBeenCalledWith(existing.id, {
-          status: 'OBSOLETE',
+        expect(repository.transitionCurrent).toHaveBeenCalledWith(existing.id, previousStatus, 'OBSOLETE', {
           current: false,
         });
         expect(repository.create).toHaveBeenCalledWith(createInput);
@@ -158,12 +170,11 @@ describe('AnalysisRunsService', () => {
     it('moves ACTION_REQUIRED back to PROCESSING and increments attemptCount', async () => {
       const run = buildRun({ status: 'ACTION_REQUIRED', attemptCount: 1 });
       repository.findByIdForOwner.mockResolvedValue(run);
-      repository.update.mockResolvedValue({ ...run, status: 'PROCESSING', attemptCount: 2 });
+      repository.transitionCurrent.mockResolvedValue({ ...run, status: 'PROCESSING', attemptCount: 2 });
 
       const result = await service.requestContinuation(run.id, OWNER_USER_ID);
 
-      expect(repository.update).toHaveBeenCalledWith(run.id, {
-        status: 'PROCESSING',
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(run.id, 'ACTION_REQUIRED', 'PROCESSING', {
         attemptCount: 2,
       });
       expect(result.attemptCount).toBe(2);
@@ -208,16 +219,15 @@ describe('AnalysisRunsService', () => {
     it('obsoletes the previous current run when the HEAD changed and reports isNew:true', async () => {
       const existing = buildRun({ headSha: 'head-sha-1', status: 'PROCESSING' });
       repository.findCurrentByPullRequest.mockResolvedValue(existing);
-      repository.update.mockResolvedValue({ ...existing, status: 'OBSOLETE', current: false });
+      repository.transitionCurrent.mockResolvedValue({ ...existing, status: 'OBSOLETE', current: false });
       const created = buildRun({ id: 'run-2', headSha: 'head-sha-2' });
       repository.create.mockResolvedValue(created);
 
       const result = await service.startRunFromWebhook(createInput);
 
-      expect(repository.update).toHaveBeenCalledWith(existing.id, {
-        status: 'OBSOLETE',
-        current: false,
-      });
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(existing.id, 'PROCESSING', 'OBSOLETE', {
+          current: false,
+        });
       expect(result).toEqual({ run: created, isNew: true });
     });
 
@@ -235,11 +245,11 @@ describe('AnalysisRunsService', () => {
   describe('startProcessing', () => {
     it('moves QUEUED to PROCESSING', async () => {
       const run = buildRun({ status: 'QUEUED' });
-      repository.update.mockResolvedValue({ ...run, status: 'PROCESSING' });
+      repository.transitionCurrent.mockResolvedValue({ ...run, status: 'PROCESSING' });
 
       const result = await service.startProcessing(run);
 
-      expect(repository.update).toHaveBeenCalledWith(run.id, { status: 'PROCESSING' });
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(run.id, 'QUEUED', 'PROCESSING', {});
       expect(result.status).toBe('PROCESSING');
     });
   });
@@ -264,7 +274,7 @@ describe('AnalysisRunsService', () => {
   describe('completeRunFromSystem', () => {
     it('moves PROCESSING to a terminal status without an owner check', async () => {
       const run = buildRun({ status: 'PROCESSING' });
-      repository.update.mockResolvedValue({ ...run, status: 'NO_TEST_RELEVANT_CHANGES' });
+      repository.transitionCurrent.mockResolvedValue({ ...run, status: 'NO_TEST_RELEVANT_CHANGES' });
 
       const result = await service.completeRunFromSystem(
         run,
@@ -272,32 +282,30 @@ describe('AnalysisRunsService', () => {
         { resultSummary: 'solo docs' },
       );
 
-      expect(repository.update).toHaveBeenCalledWith(
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(
         run.id,
+        'PROCESSING',
+        'NO_TEST_RELEVANT_CHANGES',
         expect.objectContaining({
-          status: 'NO_TEST_RELEVANT_CHANGES',
           resultSummary: 'solo docs',
           completedAt: expect.any(Date),
         }),
       );
-      expect(result.status).toBe('NO_TEST_RELEVANT_CHANGES');
+      expect(result?.status).toBe('NO_TEST_RELEVANT_CHANGES');
     });
 
-    it('throws ANALYSIS_RUN_INVALID_TRANSITION for an invalid transition', async () => {
+    it('ignores a system completion after the run became obsolete', async () => {
       const run = buildRun({ status: 'OBSOLETE' });
 
-      await expect(
-        service.completeRunFromSystem(run, 'SUCCESS', {}),
-      ).rejects.toMatchObject<Partial<AppException>>({
-        code: ErrorCode.ANALYSIS_RUN_INVALID_TRANSITION,
-      });
+      await expect(service.completeRunFromSystem(run, 'SUCCESS', {})).resolves.toBeNull();
+      expect(repository.transitionCurrent).not.toHaveBeenCalled();
     });
   });
 
   describe('closeRun', () => {
     it('obsoletes a non-terminal run and stamps prState when given', async () => {
       const run = buildRun({ status: 'PROCESSING' });
-      repository.update.mockResolvedValue({
+      repository.transitionCurrent.mockResolvedValue({
         ...run,
         status: 'OBSOLETE',
         current: false,
@@ -306,8 +314,7 @@ describe('AnalysisRunsService', () => {
 
       const result = await service.closeRun(run, 'MERGED');
 
-      expect(repository.update).toHaveBeenCalledWith(run.id, {
-        status: 'OBSOLETE',
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(run.id, 'PROCESSING', 'OBSOLETE', {
         current: false,
         prState: 'MERGED',
       });
@@ -330,12 +337,11 @@ describe('AnalysisRunsService', () => {
 
     it('does not change prState when omitted (converted_to_draft)', async () => {
       const run = buildRun({ status: 'PROCESSING' });
-      repository.update.mockResolvedValue({ ...run, status: 'OBSOLETE', current: false });
+      repository.transitionCurrent.mockResolvedValue({ ...run, status: 'OBSOLETE', current: false });
 
       await service.closeRun(run);
 
-      expect(repository.update).toHaveBeenCalledWith(run.id, {
-        status: 'OBSOLETE',
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(run.id, 'PROCESSING', 'OBSOLETE', {
         current: false,
       });
     });
@@ -345,7 +351,7 @@ describe('AnalysisRunsService', () => {
     it('moves PROCESSING to ACTION_REQUIRED and increments actionRequiredCount', async () => {
       const run = buildRun({ status: 'PROCESSING', actionRequiredCount: 0 });
       repository.findByIdForOwner.mockResolvedValue(run);
-      repository.update.mockResolvedValue({
+      repository.transitionCurrent.mockResolvedValue({
         ...run,
         status: 'ACTION_REQUIRED',
         actionRequiredCount: 1,
@@ -353,8 +359,7 @@ describe('AnalysisRunsService', () => {
 
       const result = await service.markActionRequired(run.id, OWNER_USER_ID);
 
-      expect(repository.update).toHaveBeenCalledWith(run.id, {
-        status: 'ACTION_REQUIRED',
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(run.id, 'PROCESSING', 'ACTION_REQUIRED', {
         actionRequiredCount: 1,
       });
       expect(result.status).toBe('ACTION_REQUIRED');
@@ -365,7 +370,7 @@ describe('AnalysisRunsService', () => {
     it('moves PROCESSING to a terminal status and stamps completedAt', async () => {
       const run = buildRun({ status: 'PROCESSING' });
       repository.findByIdForOwner.mockResolvedValue(run);
-      repository.update.mockResolvedValue({ ...run, status: 'SUCCESS' });
+      repository.transitionCurrent.mockResolvedValue({ ...run, status: 'SUCCESS' });
 
       await service.completeRun(
         run.id,
@@ -374,10 +379,11 @@ describe('AnalysisRunsService', () => {
         OWNER_USER_ID,
       );
 
-      expect(repository.update).toHaveBeenCalledWith(
+      expect(repository.transitionCurrent).toHaveBeenCalledWith(
         run.id,
+        'PROCESSING',
+        'SUCCESS',
         expect.objectContaining({
-          status: 'SUCCESS',
           resultSummary: 'ok',
           generatedTestsCount: 3,
           completedAt: expect.any(Date),
@@ -403,12 +409,11 @@ describe('AnalysisRunsService', () => {
       async (status) => {
         const run = buildRun({ status });
         repository.findByIdForOwner.mockResolvedValue(run);
-        repository.update.mockResolvedValue({ ...run, status: 'OBSOLETE', current: false });
+        repository.transitionCurrent.mockResolvedValue({ ...run, status: 'OBSOLETE', current: false });
 
         const result = await service.obsoleteRun(run.id, OWNER_USER_ID);
 
-        expect(repository.update).toHaveBeenCalledWith(run.id, {
-          status: 'OBSOLETE',
+        expect(repository.transitionCurrent).toHaveBeenCalledWith(run.id, status, 'OBSOLETE', {
           current: false,
         });
         expect(result.status).toBe('OBSOLETE');
@@ -421,14 +426,13 @@ describe('AnalysisRunsService', () => {
 
       const result = await service.obsoleteRun(run.id, OWNER_USER_ID);
 
-      expect(repository.update).not.toHaveBeenCalled();
+      expect(repository.transitionCurrent).not.toHaveBeenCalled();
       expect(result).toEqual(run);
     });
   });
 
   describe('listByProject', () => {
     it('requests one extra row to detect a next page and strips it from the returned items', async () => {
-      projectsRepository.findById.mockResolvedValue(project);
       repository.findByProjectForOwner.mockResolvedValue([
         buildRun({ id: 'run-3' }),
         buildRun({ id: 'run-2' }),
@@ -437,6 +441,7 @@ describe('AnalysisRunsService', () => {
 
       const page = await service.listByProject(PROJECT_ID, undefined, 2, undefined, OWNER_USER_ID);
 
+      expect(projectAccess.require).toHaveBeenCalledWith(OWNER_USER_ID, PROJECT_ID, 'READER');
       expect(repository.findByProjectForOwner).toHaveBeenCalledWith(
         PROJECT_ID,
         OWNER_USER_ID,
@@ -448,12 +453,41 @@ describe('AnalysisRunsService', () => {
       expect(page.nextCursor).toBe('run-2');
     });
 
-    it('throws PROJECT_NOT_FOUND when the project does not belong to the owner', async () => {
-      projectsRepository.findById.mockResolvedValue(null);
+    it('propagates the access failure (404 not visible, 503 unverifiable) without reading runs', async () => {
+      projectAccess.require.mockRejectedValue(
+        new AppException(ErrorCode.PROJECT_NOT_FOUND, 'nope', 404),
+      );
 
       await expect(
         service.listByProject(PROJECT_ID, undefined, undefined, undefined, OWNER_USER_ID),
-      ).rejects.toMatchObject<Partial<AppException>>({ code: ErrorCode.PROJECT_NOT_FOUND });
+      ).rejects.toMatchObject({ code: ErrorCode.PROJECT_NOT_FOUND });
+      expect(repository.findByProjectForOwner).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listVisible (HU55)', () => {
+    it('lists the runs of every visible project, paginating with one extra row', async () => {
+      repository.findVisibleForUser.mockResolvedValue([
+        buildRun({ id: 'run-3' }),
+        buildRun({ id: 'run-2' }),
+        buildRun({ id: 'run-1' }),
+      ]);
+
+      const page = await service.listVisible('SUCCESS', 2, undefined, OWNER_USER_ID);
+
+      expect(repository.findVisibleForUser).toHaveBeenCalledWith(OWNER_USER_ID, 2, 'SUCCESS', undefined);
+      expect(page.items.map((run) => run.id)).toEqual(['run-3', 'run-2']);
+      expect(page.nextCursor).toBe('run-2');
+      expect(projectAccess.require).not.toHaveBeenCalled();
+    });
+
+    it('applies the default limit and returns a null cursor on the last page', async () => {
+      repository.findVisibleForUser.mockResolvedValue([buildRun({ id: 'run-1' })]);
+
+      const page = await service.listVisible(undefined, undefined, undefined, OWNER_USER_ID);
+
+      expect(repository.findVisibleForUser).toHaveBeenCalledWith(OWNER_USER_ID, 20, undefined, undefined);
+      expect(page.nextCursor).toBeNull();
     });
   });
 });

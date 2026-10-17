@@ -34,13 +34,13 @@ describe('validateEnv', () => {
   it('accepts SANDBOX_URL and SANDBOX_SERVICE_TOKEN both set (DEC-AUTH-001)', () => {
     expect(() =>
       validateEnv(
-        baseConfig({ SANDBOX_URL: 'http://sandbox.local', SANDBOX_SERVICE_TOKEN: 'token' }),
+        baseConfig({ SANDBOX_URL: 'http://localhost:3001', SANDBOX_SERVICE_TOKEN: 'token' }),
       ),
     ).not.toThrow();
   });
 
   it('rejects SANDBOX_URL set without SANDBOX_SERVICE_TOKEN (DEC-AUTH-001)', () => {
-    expect(() => validateEnv(baseConfig({ SANDBOX_URL: 'http://sandbox.local' }))).toThrow(
+    expect(() => validateEnv(baseConfig({ SANDBOX_URL: 'http://localhost:3001' }))).toThrow(
       /DEC-AUTH-001/,
     );
   });
@@ -51,22 +51,51 @@ describe('validateEnv', () => {
     );
   });
 
-  it('accepts GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_BASE64 both set', () => {
+  it('accepts GitHub Integration URL and both service tokens together', () => {
     expect(() =>
-      validateEnv(baseConfig({ GITHUB_APP_ID: '123', GITHUB_APP_PRIVATE_KEY_BASE64: 'a2V5' })),
+      validateEnv(baseConfig({
+        GITHUB_INTEGRATION_API_BASE_URL: 'https://github-integration.local',
+        CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+        GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+        GITHUB_BINDING_EVIDENCE_SECRET: 'test-only-github-binding-evidence-secret',
+      })),
     ).not.toThrow();
   });
 
-  it('rejects GITHUB_APP_ID set without GITHUB_APP_PRIVATE_KEY_BASE64', () => {
-    expect(() => validateEnv(baseConfig({ GITHUB_APP_ID: '123' }))).toThrow(
-      /GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64/,
+  it('rejects partial GitHub Integration configuration', () => {
+    expect(() => validateEnv(baseConfig({ CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token' }))).toThrow(
+      /GITHUB_INTEGRATION_API_BASE_URL y ambos tokens internos/,
     );
   });
 
-  it('rejects GITHUB_APP_PRIVATE_KEY_BASE64 set without GITHUB_APP_ID', () => {
-    expect(() => validateEnv(baseConfig({ GITHUB_APP_PRIVATE_KEY_BASE64: 'a2V5' }))).toThrow(
-      /GITHUB_APP_ID y GITHUB_APP_PRIVATE_KEY_BASE64/,
-    );
+  it('keeps GitHub Integration optional in local configs', () => {
+    expect(() => validateEnv(baseConfig())).not.toThrow();
+  });
+
+  it('requires a scoped binding-evidence key and HTTPS for configured remote Integration', () => {
+    expect(() => validateEnv(baseConfig({
+      GITHUB_INTEGRATION_API_BASE_URL: 'https://github-integration.local',
+      CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+      GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+    }))).toThrow(/GITHUB_BINDING_EVIDENCE_SECRET es obligatorio/);
+
+    expect(() => validateEnv(baseConfig({
+      GITHUB_INTEGRATION_API_BASE_URL: 'http://integration.internal',
+      CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+      GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+      GITHUB_BINDING_EVIDENCE_SECRET: 'test-only-github-binding-evidence-secret',
+    }))).toThrow(/debe usar HTTPS/);
+  });
+
+  it('allows loopback HTTP for local Integration but rejects it in production', () => {
+    const local = baseConfig({
+      GITHUB_INTEGRATION_API_BASE_URL: 'http://localhost:3002',
+      CORE_TO_GITHUB_INTEGRATION_TOKEN: 'core-token',
+      GITHUB_INTEGRATION_TO_CORE_TOKEN: 'gh-token',
+      GITHUB_BINDING_EVIDENCE_SECRET: 'test-only-github-binding-evidence-secret',
+    });
+    expect(() => validateEnv(local)).not.toThrow();
+    expect(() => validateEnv({ ...local, NODE_ENV: 'production' })).toThrow(/debe usar HTTPS/);
   });
 
   it('defaults NODE_ENV to development and AUTH_BYPASS_ENABLED to false', () => {
@@ -81,6 +110,45 @@ describe('validateEnv', () => {
     const result = validateEnv(baseConfig({ AUTH_BYPASS_ENABLED: 'false' }));
 
     expect(result.AUTH_BYPASS_ENABLED).toBe(false);
+  });
+
+  it('configures the access jobs (HU61): reconciliation on by default, hourly, with budget, concurrency and stale-lock threshold', () => {
+    const result = validateEnv(baseConfig());
+
+    expect(result).toMatchObject({
+      ACCESS_RECONCILIATION_ENABLED: true,
+      ACCESS_RECONCILIATION_INTERVAL_MS: 3_600_000,
+      ACCESS_RECONCILIATION_BUDGET: 500,
+      ACCESS_RECONCILIATION_CONCURRENCY: 5,
+      JOBS_STALE_LOCK_MS: 600_000,
+    });
+  });
+
+  it('defaults the job lock heartbeat to 60 s and accepts it while it is at most JOBS_STALE_LOCK_MS / 3 (WI-CORE-030)', () => {
+    expect(validateEnv(baseConfig()).JOBS_HEARTBEAT_INTERVAL_MS).toBe(60_000);
+    expect(
+      validateEnv(baseConfig({ JOBS_STALE_LOCK_MS: 180_000, JOBS_HEARTBEAT_INTERVAL_MS: 60_000 })).JOBS_HEARTBEAT_INTERVAL_MS,
+    ).toBe(60_000);
+    expect(() =>
+      validateEnv(baseConfig({ JOBS_STALE_LOCK_MS: 180_000, JOBS_HEARTBEAT_INTERVAL_MS: 60_000 })),
+    ).not.toThrow();
+  });
+
+  it('rejects a job lock heartbeat above JOBS_STALE_LOCK_MS / 3 (WI-CORE-030, DEC-JOBS-002)', () => {
+    expect(() =>
+      validateEnv(baseConfig({ JOBS_STALE_LOCK_MS: 120_000, JOBS_HEARTBEAT_INTERVAL_MS: 60_000 })),
+    ).toThrow(/JOBS_HEARTBEAT_INTERVAL_MS debe ser ≤ JOBS_STALE_LOCK_MS \/ 3/);
+    expect(() => validateEnv(baseConfig({ JOBS_HEARTBEAT_INTERVAL_MS: 200_000 }))).not.toThrow(); // 3 × 200 000 = 600 000 (default)
+    expect(() => validateEnv(baseConfig({ JOBS_HEARTBEAT_INTERVAL_MS: 200_001 }))).toThrow(/JOBS_HEARTBEAT_INTERVAL_MS/);
+  });
+
+  it('rejects a job lock heartbeat below the 1 s minimum', () => {
+    expect(() => validateEnv(baseConfig({ JOBS_HEARTBEAT_INTERVAL_MS: 500 }))).toThrow(/inválida/);
+  });
+
+  it('turns the reconciliation off only with an explicit "false"', () => {
+    expect(validateEnv(baseConfig({ ACCESS_RECONCILIATION_ENABLED: 'false' })).ACCESS_RECONCILIATION_ENABLED).toBe(false);
+    expect(validateEnv(baseConfig({ ACCESS_RECONCILIATION_ENABLED: 'true' })).ACCESS_RECONCILIATION_ENABLED).toBe(true);
   });
 
   it('treats the literal string "true" as AUTH_BYPASS_ENABLED=true', () => {
@@ -99,5 +167,106 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv(baseConfig({ NODE_ENV: 'production', AUTH_BYPASS_ENABLED: 'true' })),
     ).toThrow(/DEC-WEB-AUTH-001/);
+  });
+
+  it('exposes a synthetic numeric GitHub identity for the bypass (HU62)', () => {
+    const result = validateEnv(baseConfig({ AUTH_BYPASS_ENABLED: 'true', AUTH_BYPASS_GITHUB_USER_ID: '12345' }));
+
+    expect(result.AUTH_BYPASS_GITHUB_USER_ID).toBe('12345');
+    expect(validateEnv(baseConfig()).AUTH_BYPASS_GITHUB_USER_ID).toMatch(/^\d+$/);
+  });
+
+  it('rejects a non-numeric AUTH_BYPASS_GITHUB_USER_ID', () => {
+    expect(() => validateEnv(baseConfig({ AUTH_BYPASS_GITHUB_USER_ID: 'octocat' }))).toThrow(/inválida/);
+  });
+
+  it('rejects the bypass with a synthetic GitHub identity in production (HU62)', () => {
+    expect(() =>
+      validateEnv(
+        baseConfig({
+          NODE_ENV: 'production',
+          AUTH_BYPASS_ENABLED: 'true',
+          AUTH_BYPASS_GITHUB_USER_ID: '12345',
+        }),
+      ),
+    ).toThrow(/DEC-WEB-AUTH-001/);
+  });
+
+  it('accepts max and none in LLM_SUPPORTED_COMBINATIONS (WI-CORE-031)', () => {
+    const combinations = JSON.stringify([
+      {
+        model: 'gpt-6-luna',
+        efforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+        toolEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+      },
+    ]);
+
+    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).not.toThrow();
+  });
+
+  it('rejects an effort outside the reasoning scale in LLM_SUPPORTED_COMBINATIONS at startup', () => {
+    const combinations = JSON.stringify([
+      { model: 'gpt-6-luna', efforts: ['low', 'ultra'], toolEfforts: ['low'] },
+    ]);
+
+    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).toThrow(
+      /esfuerzos desconocidos \(ultra\)/,
+    );
+  });
+
+  describe('SANDBOX_URL (isAllowedSandboxUrl)', () => {
+    const sandboxSecret = { SANDBOX_SERVICE_TOKEN: 'token' };
+    const sandboxMessage = /SANDBOX_URL debe usar HTTPS; HTTP solo se permite en loopback fuera de producción, y no admite credenciales, ruta ni parámetros\./;
+
+    it('accepts an HTTPS Sandbox URL in production with a token', () => {
+      expect(() =>
+        validateEnv(baseConfig({
+          NODE_ENV: 'production',
+          SANDBOX_URL: 'https://136-115-2-208.sslip.io',
+          ...sandboxSecret,
+        })),
+      ).not.toThrow();
+    });
+
+    it('rejects a non-loopback HTTP Sandbox URL in production and outside production', () => {
+      expect(() => validateEnv(baseConfig({
+        NODE_ENV: 'production', SANDBOX_URL: 'http://sandbox.local', ...sandboxSecret,
+      }))).toThrow(sandboxMessage);
+      expect(() => validateEnv(baseConfig({
+        NODE_ENV: 'development', SANDBOX_URL: 'http://sandbox.local', ...sandboxSecret,
+      }))).toThrow(sandboxMessage);
+    });
+
+    it('accepts loopback HTTP Sandbox URLs outside production and rejects them in production', () => {
+      for (const url of ['http://localhost:3001', 'http://127.0.0.1:3101', 'http://[::1]:3001']) {
+        expect(() => validateEnv(baseConfig({ NODE_ENV: 'development', SANDBOX_URL: url, ...sandboxSecret }))).not.toThrow();
+        expect(() => validateEnv(baseConfig({ NODE_ENV: 'production', SANDBOX_URL: url, ...sandboxSecret }))).toThrow(sandboxMessage);
+      }
+    });
+
+    it('rejects Sandbox URLs with credentials, path or query', () => {
+      for (const url of ['https://u:p@host.example', 'https://host.example/x', 'https://host.example/?a=1']) {
+        expect(() => validateEnv(baseConfig({ NODE_ENV: 'production', SANDBOX_URL: url, ...sandboxSecret }))).toThrow(sandboxMessage);
+      }
+    });
+
+    it('rejects an unparseable Sandbox URL', () => {
+      expect(() => validateEnv(baseConfig({ SANDBOX_URL: 'no-es-url', ...sandboxSecret }))).toThrow(sandboxMessage);
+    });
+
+    it('keeps an unset SANDBOX_URL allowed', () => {
+      expect(() => validateEnv(baseConfig({ NODE_ENV: 'production' }))).not.toThrow();
+    });
+
+    it('does not print the Sandbox URL value in the error', () => {
+      const secretHost = 'https://secreto-host.example/ruta-secreta';
+      try {
+        validateEnv(baseConfig({ NODE_ENV: 'production', SANDBOX_URL: secretHost, ...sandboxSecret }));
+        throw new Error('se esperaba un error');
+      } catch (error) {
+        expect((error as Error).message).not.toContain('secreto-host');
+        expect((error as Error).message).not.toContain('ruta-secreta');
+      }
+    });
   });
 });

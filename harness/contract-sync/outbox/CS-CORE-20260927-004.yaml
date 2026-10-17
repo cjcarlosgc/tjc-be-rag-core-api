@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20260927-004
+source: core
+sourceWorkItem: WI-CORE-015
+targets: [github-integration, console]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md, spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - Alinea el estado de cierre local de GH-INTEROP-1.2 en SYSTEM-2.5 y GH-INTEROP-1.2; solicita importar los tres contratos canónicos exactos, incluido INTEROP-2.6 de Core/Console (GH conserva INTEROP-2.5). Sin cambios de comportamiento/versiones ni despliegue.
+requiredAction:
+  - GitHub Integration: importar byte a byte SYSTEM-2.5, INTEROP-2.6 y GH-INTEROP-1.2 desde Core y alinear referencias vigentes; Console: actualizar los espejos SYSTEM/GH y confirmar INTEROP-2.6 idéntico. Ambos consumidores deben acusar el evento y mantener separado cierre local de deploy/cutover.
+sourceRevision: 606006b44c23c0515c73dc21518102bb49edcb8c
+status: C-PENDING

@@ -195,4 +195,81 @@ describe('IdempotencyService', () => {
     expect(rebuildResponse).toHaveBeenCalledWith('run-1');
     expect(result).toEqual({ runId: 'run-1', status: 'PENDING' });
   });
+
+  it('runs prepare() once before the transaction on a new key and passes its result to create()', async () => {
+    const { prisma, idempotencyRecord } = makeFakePrisma();
+    const service = new IdempotencyService(prisma as never);
+    const prepare = vi.fn().mockResolvedValue({ model: 'm-1' });
+    const create = vi.fn().mockResolvedValue({
+      operationId: 'run-1',
+      response: { runId: 'run-1' },
+    });
+
+    await service.run({
+      scope: 'EXPERIMENT_CREATE',
+      key: VALID_KEY,
+      fingerprintInput: { projectId: 'p1' },
+      prepare,
+      create,
+      rebuildResponse: vi.fn(),
+    });
+
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith(expect.anything(), { model: 'm-1' });
+    expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(prisma.$transaction.mock.invocationCallOrder[0]);
+    expect(idempotencyRecord.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run prepare() on replay, so a replay never repeats the external preparation', async () => {
+    const { prisma, idempotencyRecord } = makeFakePrisma();
+    const service = new IdempotencyService(prisma as never);
+    const prepare = vi.fn().mockResolvedValue({ model: 'm-1' });
+    const create = vi.fn().mockResolvedValue({ operationId: 'run-1', response: { runId: 'run-1' } });
+    const rebuildResponse = vi.fn().mockResolvedValue({ runId: 'run-1' });
+
+    await service.run({
+      scope: 'EXPERIMENT_CREATE',
+      key: VALID_KEY,
+      fingerprintInput: { projectId: 'p1' },
+      prepare,
+      create,
+      rebuildResponse,
+    });
+    const storedFingerprint = idempotencyRecord.create.mock.calls[0][0].data.requestFingerprint;
+    idempotencyRecord.findUnique.mockResolvedValue({ requestFingerprint: storedFingerprint, operationId: 'run-1' });
+
+    const replay = await service.run({
+      scope: 'EXPERIMENT_CREATE',
+      key: VALID_KEY,
+      fingerprintInput: { projectId: 'p1' },
+      prepare,
+      create,
+      rebuildResponse,
+    });
+
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(replay).toEqual({ runId: 'run-1' });
+  });
+
+  it('propagates a prepare() error without opening the transaction or persisting a record', async () => {
+    const { prisma, idempotencyRecord } = makeFakePrisma();
+    const service = new IdempotencyService(prisma as never);
+    const create = vi.fn();
+
+    await expect(
+      service.run({
+        scope: 'EXPERIMENT_CREATE',
+        key: VALID_KEY,
+        fingerprintInput: { projectId: 'p1' },
+        prepare: vi.fn().mockRejectedValue(new Error('incompatible')),
+        create,
+        rebuildResponse: vi.fn(),
+      }),
+    ).rejects.toThrow('incompatible');
+
+    expect(create).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(idempotencyRecord.create).not.toHaveBeenCalled();
+  });
 });

@@ -7,11 +7,14 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
 import { AuthModule } from './common/auth/auth.module.js';
+import { ProjectAccessModule } from './project-access/project-access.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { WorkspacesModule } from './workspaces/workspaces.module.js';
 import { ProjectVersionsModule } from './project-versions/project-versions.module.js';
 import { RetrievalModule } from './retrieval/retrieval.module.js';
 import { GenerationModule } from './generation/generation.module.js';
 import { ExperimentsModule } from './experiments/experiments.module.js';
+import { RetrievalComparisonsModule } from './retrieval-comparisons/retrieval-comparisons.module.js';
 import { RepositoryBindingsModule } from './repository-bindings/repository-bindings.module.js';
 import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
 import { GithubWebhooksModule } from './github-webhooks/github-webhooks.module.js';
@@ -19,6 +22,7 @@ import { SnapshotIntelligenceModule } from './snapshot-intelligence/snapshot-int
 import { FunctionalKnowledgeModule } from './functional-knowledge/functional-knowledge.module.js';
 import { ValidationModule } from './validation/validation.module.js';
 import { PublicationsModule } from './publications/publications.module.js';
+import { EvidenceModule } from './evidence/evidence.module.js';
 import { HealthController } from './common/health/health.controller.js';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware.js';
 import { validateEnv } from './config/env.validation.js';
@@ -30,17 +34,21 @@ import { validateEnv } from './config/env.validation.js';
       validate: validateEnv,
     }),
     AuthModule,
+    // Guard default-deny de roles de Project: después de AuthModule (su AuthGuard corre antes).
+    ProjectAccessModule,
     PrismaModule,
     ObjectStorageModule,
     ProvidersModule,
     JobsModule,
     RealtimeModule,
     IdempotencyModule,
+    WorkspacesModule,
     ProjectsModule,
     ProjectVersionsModule,
     RetrievalModule,
     GenerationModule,
     ExperimentsModule,
+    RetrievalComparisonsModule,
     RepositoryBindingsModule,
     AnalysisRunsModule,
     GithubWebhooksModule,
@@ -48,6 +56,7 @@ import { validateEnv } from './config/env.validation.js';
     FunctionalKnowledgeModule,
     ValidationModule,
     PublicationsModule,
+    EvidenceModule,
   ],
   controllers: [HealthController],
 })

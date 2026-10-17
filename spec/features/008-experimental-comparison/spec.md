@@ -1,9 +1,11 @@
 # 008-experimental-comparison — Especificación
 
-**Estado:** aprobado salvo elementos marcados PENDING/PROPOSED. Se conserva bajo SDD 2.1.
-**Historias:** HU19, HU27, HU28
+**Estado:** comparación aprobada como objetivo; entrada live por AnalysisRun implementada en WI-CORE-035; aceptación integrada por evidencia pendiente.
+**Historias:** HU17, HU18
 
-> **Nota SDD 2.1:** `targetId` en `CreateExperimentRequest` referencia un `TestTarget` producido por la indexación ZIP, retirada como ruta de producto (`CHANGELOG.md`). Mientras no exista una ruta que derive targets desde un `AnalysisRun` (P1/P4, corte futuro — ver handoff de reorientación de Experiments citado en `CHANGELOG.md`), este endpoint no tiene forma vigente de crear experimentos nuevos. No se rediseña en este corte; el desarrollo P0 (PR-driven) no espera por esto.
+La adaptación live de `POST /experiments` queda registrada en `WI-CORE-035`: recibe `analysisRunId`, `symbolFilePath` y `symbolQualifiedName`; Core autoriza sobre el AnalysisRun y resuelve el `TestTarget` interno desde la versión congelada del Run. El contrato canónico ya define esa forma en INTEROP-2.7 §6.5; esta tarea implementa conformidad sin cambiar el contrato ni el DTO público.
+
+El experimento productivo parte de un `AnalysisRun` real y un símbolo elegible del changeset, según INTEROP-2.8 §6.5. El código que aún dependa de selección manual de `TestTarget` es deuda de adaptación, no otra ruta de producto.
 
 ## Objetivo
 
@@ -18,12 +20,13 @@ Ejecutar una comparación pareada entre la arquitectura RAG especializada y un a
 - La variable de interés es la política de adquisición y construcción de contexto. Registrar también el costo de esa adquisición: tool calls/archivos consultados para el agente y retrieved/selected chunks para RAG.
 - Evaluación principal first-shot; autorreparación desactivada. No existe experimento RAG+autorepair.
 - Default de tesis: 3 repeticiones por target y estrategia.
+- `completedRepetitions` cuenta slots lógicos distintos `(strategy, repetition)` que alcanzaron estado terminal (`COMPLETED` o `FAILED`) en al menos un intento. Reintentar un slot no suma otra repetición ni permite superar `totalRepetitions`.
 - Métricas obligatorias: compiled,executed,passed,valid,failureType,generationDurationMs,executionDurationMs,totalDurationMs,inputTokens,outputTokens,totalTokens,estimatedCost cuando proveedor permita datos suficientes.
 - Métricas RAG explicativas: retrievedChunks,selectedChunks,contextTokens.
 - Métricas explicativas del agente generalista: toolCalls,filesInspected y contexto/tokens atribuibles a la exploración cuando el proveedor permita observarlos.
 - Agregados: tasas, diferencia en puntos porcentuales, media/mediana de tiempos/tokens/costo y distribución de failureType.
 - Coverage se evalúa como métrica secundaria en Sprint 4 si resulta homogénea/viable; no bloquea PI1.
-- `INTEROP-2.1` conserva el transporte y DTO experimental con `RAG|GENERALIST_AGENT`; la operación interna del agente generalista queda resuelta en `DEC-EXP-002` (APROBADO, ver más abajo).
+- `INTEROP-2.8` conserva el transporte experimental y agrega la raíz efectiva congelada por versión y ejecución; la operación interna del agente generalista queda resuelta en `DEC-EXP-002` (APROBADO, ver más abajo).
 - `POST /experiments` exige `Idempotency-Key`; un replay equivalente devuelve el mismo experimento. Cada repetición/estrategia deriva su propia identidad Sandbox estable de `experiment:{jobId}:{strategy}:{repetition}`.
 
 ### DEC-EXP-001 — Baseline experimental realista
@@ -41,14 +44,55 @@ El brazo de referencia es `GENERALIST_AGENT`; el término académico “baseline
 **Resolución:**
 
 1. **Herramientas** (todas read-only, sin shell/red/escritura, acotadas al snapshot del `ProjectVersion`): listar archivos, leer contenido de un archivo, buscar texto/símbolo (grep), seguir imports/referencias de un archivo, y capacidades de TypeScript language service (ir a definición, buscar referencias, inspeccionar tipos).
-2. **Entrega del snapshot:** se reutiliza el mismo mecanismo de materialización de workspace ya usado por indexación/generación (extracción del ZIP a un directorio temporal); no se inventa un mecanismo de acceso nuevo.
+2. **Entrega del snapshot:** se reutiliza la materialización interna del commit fijado; su ZIP privado puede extraerse en un directorio temporal, sin introducir carga manual.
 3. **Trazabilidad de la trayectoria:** se persiste la trayectoria completa del agente — secuencia ordenada de tool calls con argumentos y resultado resumido — como evidencia auditable/reproducible. Las métricas agregadas `toolCalls`/`filesInspected` se derivan de esa trayectoria, no la reemplazan.
-4. **Política sobre pruebas existentes:** los archivos `*.test.ts`/`*.spec.ts` que cubren el target actual quedan excluidos de la vista del snapshot que recibe el agente, para evitar que copie la prueba existente en vez de generarla y mantener comparabilidad con RAG.
+4. **Política sobre pruebas existentes:** reemplazada por `DEC-EXP-003` (2026-10-08): el agente puede descubrir y leer las pruebas existentes mediante sus herramientas; ya no se excluyen de su vista y tampoco se le entregan directamente.
 5. **Límites y paridad frente a RAG:** mismo presupuesto de tokens de contexto que usa `ContextBuilder` para RAG (`maxContextTokens`), mismo timeout de generación del pipeline, y un tope de ~20 tool calls para evitar loops de exploración descontrolados.
 
 El implementador no debe simular el agente con un contexto fijo ni darle shell irrestricto por defecto; el diseño anterior es la resolución definitiva, pendiente de implementación.
 
-Para HU27/HU28, la trayectoria JSON existente debe migrar a la forma normalizada y consultable de `011-context-traces`: hashes, rangos, snippets, truncamiento, resultados vacíos/errores y archivos descubiertos paginables. Las métricas agregadas se conservan.
+Para HU15/HU17, la trayectoria observable se expone en la forma normalizada y consultable de `011-context-traces`: hashes, rangos, snippets, truncamiento, resultados vacíos/errores y archivos descubiertos paginables. Las métricas agregadas se conservan.
+
+## Alineación SMART V3 — OE5 (SDD 2026-10-08; implementación pendiente)
+
+Decisiones: `DEC-EXP-FK-001` y `DEC-EXP-003`, ambas `APROBADO`. Contrato: `INTEROP-2.8` §6.5.1.
+
+- OE5 compara la arquitectura RAG completa con un agente generalista competente de solo lectura, bajo condiciones experimentales externas controladas; no mide solo retrieval y no afirma paridad estricta de información. RAG usa `SE`, `ContextBuilder` y el conocimiento funcional `ACTIVE` aplicable; el agente explora sin retriever RAG, sin `ContextBuilder` y sin conocimiento funcional persistente. Ninguno recibe el oráculo.
+- Condiciones comunes: repositorio, PR/HEAD, snapshot, target, proveedor, modelo y versión, esfuerzo de razonamiento, parámetros comunes, perfil de Sandbox y presupuesto comparable (tope de tool calls, presupuesto de contexto, tokens, archivos y duración). El razonamiento no se degrada en silencio. **Hallazgo:** el agente lee hoy `reasoning_effort` por su cuenta y usa el SDK de OpenAI directamente, así que puede divergir del brazo RAG; `WI-CORE-023` lo unifica detrás de `LLMProvider`.
+- Herramientas del agente: `list_files`, `read_file`, `search_text` e `inspect_symbol`/referencias. Prohibidos: shell, Composer/PHPUnit/Jest/Vitest, escritura, Internet y GitHub API (`WI-CORE-024`).
+- Diseño pareado: 3 repeticiones por estrategia forman 3 pares, cada repetición en sesión fresca; el orden dentro del par es aleatorio y reproducible desde `randomizationSeed`; se persisten `pairId`, `pairPosition`, `attempt` y configuración. Un fallo de la estrategia no admite reintento de calidad; un fallo externo demostrado admite como máximo uno; un segundo fallo de infraestructura deja la repetición `technicallyEvaluable: false`. **Hallazgo:** no existe pairing, orden ni seed formales (`WI-CORE-025`).
+- Jerarquía: CF primaria, CO secundaria y VT guardrail; CF/CO son externas y no se derivan de `valid`/`passed`; no hay ganador automático ni significancia estadística en el backend (`spec/transversal/experimental-metrics`).
+- Core soporta experimentos PHP/PHPUnit por `WI-CORE-013` y `WI-CORE-029`; el piloto cross-repo sigue condicionado a que Core y Sandbox sincronicen e implementen `projectRoot` (WIs locales pendientes; Core `WI-CORE-036`/`037`) y a congelar/verificar los snapshots externos.
+
+## Piloto controlado de compatibilidad PHP
+
+Este piloto complementa, pero no sustituye ni renumera, los casos operativos `OC01`–`OC15`. El handoff propone tres repositorios externos reportados como **Validación Ventas**, **Reservas** y **Suscripciones**, con tres targets cada uno. Sus permisos, HEADs, `projectRoot`, dependencias y existencia de símbolos deben confirmarse antes de ejecutar; esta tabla es un protocolo de selección, no evidencia verificada ni fuente de verdad funcional. No copiar ni almacenar oráculos en repositorios de producto.
+
+| Repo piloto | Target | Categoría reportada | Símbolo reportado |
+| --- | --- | --- | --- |
+| Validación Ventas | SAL-1 | Local | `DiscountCalculator::applyPercentage()` |
+| Validación Ventas | SAL-2 | Functional | `DiscountPolicy::discountFor()` |
+| Validación Ventas | SAL-3 | Structural | `OrderPricingService::calculateTotal()` |
+| Reservas | RES-1 | Local | `ReservationPeriod::durationMinutes()` |
+| Reservas | RES-2 | Structural | `AvailabilityService::canReserve()` |
+| Reservas | RES-3 | Functional | `CancellationPolicy::refundAmount()` |
+| Suscripciones | SUB-1 | Local | `PlanPriceCalculator::monthlyAmount()` |
+| Suscripciones | SUB-2 | Structural | `RenewalService::renew()` |
+| Suscripciones | SUB-3 | Functional | `Subscription::handleFailedPayment()` |
+
+Plan de medición: 3 repeticiones por target y estrategia (`RAG` y `GENERALIST_AGENT`), en sesiones frescas y con las condiciones pareadas de esta especificación: **9 targets, 27 pares y 54 ejecuciones**. Antes de la primera corrida se congela y registra el `repositoryId`, commit SHA y `effectiveProjectRoot` de cada repo; cada ejecución posterior usa el mismo snapshot del par. Se registran CF primaria, CO secundaria y VT guardrail, más métricas técnicas/costo ya definidas; ninguna se interpreta como oráculo ni produce un ganador automático. No se modifica ningún repo piloto ni se hace E2E hasta verificar acceso y congelar sus revisiones.
+
+## Evidencia privada por repetición (`WI-CORE-053`, 2026-10-13)
+
+Cada repetición que invoca al Sandbox persiste, en la tabla privada `experiment_repetition_artifacts` (1:1, `ON DELETE CASCADE`, RLS sin acceso para `anon`/`authenticated`), el contenido exacto de la prueba enviada (hasta 256 KiB UTF-8, con `testContentSha256` del contenido completo y marca de recorte) y un reporte con los hechos normalizados del runner (hasta 200 casos con `errorMessage` saneado de hasta 500 caracteres, hecho de fallo y duraciones por etapa) con su sha256. El Sandbox no devuelve stdout/stderr: la salida en bruto es un pedido aparte que requeriría extender el contrato del Sandbox. La escritura es best-effort y no altera el resultado, el estado ni el reintento de la repetición; no se expone en `ExperimentRepetitionResponse`, trace ni §6.16 (solo `artifactHash` ya definido). No hay purga: `DEC-VAL-001` sigue `PENDING`, por lo que solo aplica a repositorios de piloto; el contenido del código de terceros se guarda tal como se envió al Sandbox. La migración `20261013100000_experiment_repetition_artifacts` es aditiva y se aplica con autorización explícita.
+
+## Reconstrucción interna de un trial (`WI-CORE-060`, 2026-10-13)
+
+De forma aditiva e interna (sin DTO público ni §6.16, sin cambiar el Sandbox), Core persiste lo necesario para reconstruir un trial sin cruzar tablas: `ExperimentRun.analysisRunId` y `commitSha`; por intento, `startedAt`/`finishedAt` y `promptSha256` (solo el hash del prompt enviado: del prompt RAG o de las instrucciones iniciales del agente; el texto no se guarda mientras `DEC-VAL-001` esté `PENDING`); y, en `experiment_repetition_artifacts`, la evidencia acotada que el Sandbox ya devuelve (`evidence[]`: salida del compilador, de las pruebas y reporte del runner, con `truncated`/`originalBytes`), saneada (secretos redactados, sin NUL) con tope de 8 KiB por entrada y 40 KiB en total, y `startedAt`/`completedAt` del Sandbox. Core ya no descarta esos campos en `fetchResult`. La escritura es best-effort y no altera el resultado, el estado ni el reintento de la repetición. Migración `20261013110000_experiment_trial_reconstruction` aditiva y nullable (no aplicada hasta orden); las filas anteriores quedan sin dato (sin backfill: los trials del piloto V1 no tienen salida del Sandbox). Sin purga; stdout/stderr puede contener código de terceros (solo repositorios de piloto).
+
+## Tiempos por etapa del Sandbox (`WI-CORE-061`, 2026-10-14)
+
+El Sandbox (`WI-SANDBOX-007`, `CS-SANDBOX-20261014-001`) agrega a cada etapa de `stageDurations[]` las marcas ISO-8601 UTC opcionales `startedAt` y `completedAt` junto a `durationMs`. Core las conserva por etapa cuando son válidas (se omiten sin error si faltan o son inválidas) y las persiste de forma interna dentro de `runnerReport.stageDurations` del artefacto de la repetición (sin migración, sin DTO público ni §6.16); un Sandbox anterior sigue funcionando y sus reportes no cambian. Con ellas se puede medir la espera antes de `PREPARING` (frente al inicio del intento de Core) y entre etapas. La incorporación documental de los campos a INTEROP §7.3 queda pendiente de una decisión aparte.
 
 ## Fuera de alcance
 

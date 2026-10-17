@@ -1,19 +1,16 @@
-# 004-rag-retrieval-context — Tareas
+# 004 — Subtareas vigentes
 
-- [x] `DEC-CHUNK-001` y `DEC-EMB-001` ya resueltas (`APROBADO`); retrieval/contexto implementado conforme a ese diseño (`RetrievalService`/`ContextBuilder`, `src/retrieval/`).
-- [x] Structural retrieval por imports (bidireccional: `IMPORTS`/`IMPORTED_BY`, resuelto por chunk vía `importsUsed`).
-- [x] Vector query filtrada por projectVersionId (`CodeChunksRepository.findSimilarByEmbedding`, cosine `<=>`, excluye partes hermanas del propio target).
-- [x] Score/dedupe/config (`ContextBuilder`: peso semántico/estructural configurable, dedupe por chunk id, `minimumScore`/`topK`).
-- [x] Token budget (`maxContextTokens`, best-effort fill respetando el orden de score).
-- [x] GenerationContext y trazabilidad (`target`, `relatedChunks` con `matchedVia`, `metadata`, `retrievedChunks`/`selectedChunks`/`contextTokens` para métricas experimentales de 008).
-- [ ] Exponer a `011-context-traces` la decisión completa de cada candidato, incluidos los descartes por mínimo, top-K y token budget (HU27; no cubierto por las métricas agregadas existentes).
-- [x] Pruebas de aislamiento entre versiones (`findSimilarByEmbedding`/`findByProjectVersion` siempre filtran por `projectVersionId`; ver `retrieval.service.spec.ts`).
-- [ ] Investigar `DEC-RAG-001` después del núcleo de Sprint 2; no implementar test-aware mientras permanezca PENDING.
+- [x] **ST-CORE-006 · T-DONE · WI-CORE-006 · HU05, HU15, HU17:** registrar y exponer la decisión completa de cada candidato RAG, incluido descarte por score mínimo, top-K y presupuesto de tokens; revisar contrato y probar trazabilidad.
+- [x] **ST-CORE-028 · T-DONE · WI-CORE-021 · HU05, HU07, HU10:** `GenerationContext.functionalRules` separado del código y con procedencia; recuperación determinista de reglas `ACTIVE` aplicables; pruebas de que Sandbox nunca recibe reglas funcionales.
+- [x] **ST-CORE-029 · T-DONE · WI-CORE-022 · HU05, HU17:** comparación de retrieval OE2 `SE` vs `SEM` según INTEROP-2.7 §6.15 (endpoints asíncronos, candidatos con scores y relaciones, `retrieval_id` por modo, P@k/R@k solo con verdad de terreno externa); sin LLM, FK, Sandbox ni publicación.
+- [x] **ST-CORE-035 · T-DONE · WI-CORE-028 · HU05, HU17:** relaciones estructurales PHP R-PHP1–R-PHP5 en `SE`; diferida hasta cerrar `WI-CORE-013` y la coordinación con Sandbox.
 
-## Calidad
-
-- [x] Agregar/actualizar pruebas (`retrieval.service.spec.ts`, `context-builder.service.spec.ts`).
-- [x] Verificar manejo de errores (`UNRESOLVABLE_TARGET` cuando no hay chunk indexado para el target).
-- [x] Verificar observabilidad mínima (hereda correlación/logging del pipeline; sin logging propio adicional necesario en esta capa).
-- [x] Ejecutar lint/test/build.
-- [x] Registrar evidencia de revisión en `harness/reports/` (`004-rag-retrieval-context.md`).
+La investigación test-aware permanece como `IDEA-002` y `DEC-RAG-001`; no es parte de este WI.
+- [x] **ST-CORE-064 · T-DONE · WI-CORE-057 · HU05, HU15, HU17:** sección de dependencias con FQCN (tipos del constructor y de la firma del método, verificados contra el índice) en el contexto de generación RAG de PHP y en la traza, sin cambiar el ranking, `topK`, pesos, relaciones R-PHP1..5 ni métricas; `DEC-RAG-001` sigue `PENDING`.
+- [x] **ST-CORE-065 · T-DONE · WI-CORE-058 · HU05, HU15, HU17:** marcar `final` (clases `final`/`final readonly` y enumeraciones) en las entradas de la sección de dependencias PHP, desde el chunk de declaración del índice, sin cambiar el ranking ni R-PHP; si no se puede determinar no se afirma.
+- [x] **ST-CORE-070 · T-DONE · WI-CORE-063 · HU05, HU15, HU17:** replay de calibración offline del RAG en `harness/calibration/` (métricas M1–M6 sobre los 9 casos V1 y las verificaciones no oficiales, sin LLM y sin tocar `app/`) para evaluar cambios candidatos.
+- [x] **ST-CORE-071 · T-DONE · WI-CORE-064 · HU05, HU17:** convenciones PHPUnit en el prompt de generación PHP de RAG y del agente generalista con la misma redacción (objetos de valor con `assertEquals`, no doblar clases `final`, solo FQCN del contexto), sin cambiar ranking, R-PHP ni pesos; replay con el harness de `WI-CORE-063`.
+- [x] **ST-CORE-072 · T-DONE · WI-CORE-065 · HU05, HU17:** firma del constructor de cada tipo resuelto en la sección de dependencias del brazo RAG (tope de tokens y truncado) y dos convenciones PHPUnit comunes (no extender clases `final`, no `static` en closures con `$this->assert`); medición en `harness/calibration`; sin ranking, R-PHP ni contrato.
+- [x] **ST-CORE-073 · T-DONE · WI-CORE-066 · HU05, HU15, HU17:** firma del constructor de los tipos del constructor de las dependencias directas (profundidad 2) en la sección de dependencias del brazo RAG, con origen «vía X», mismo tope de 300 tokens y retirada de mayor profundidad primero; prompt `.5`; medición en `harness/calibration`; sin ranking, R-PHP, traza ni contrato.
+- [x] **ST-CORE-074 · T-DONE · WI-CORE-067 · HU05, HU15, HU17:** reforzar las convenciones PHPUnit comunes a RAG y agente (clases `final` en mocks, `extends` e `implements`, incluidas anónimas; `new` y mocks sobre enums) y extender R-ANON-FINAL a `implements` con la regla R-NEW-ENUM en `harness/calibration`; prompt `.6`; sin ranking, R-PHP, targets, traza ni contrato.
+- [x] **ST-CORE-075 · T-DONE · WI-CORE-068 · HU05, HU15, HU17:** marca de los enums en la sección de dependencias del brazo RAG con «usa un caso (`Enum::Caso`), nunca `new`» (solo texto, symbolKind interno); las `final class` conservan su marca; prompt `.7`; sin recuperación, ranking, R-PHP, targets, traza ni contrato.

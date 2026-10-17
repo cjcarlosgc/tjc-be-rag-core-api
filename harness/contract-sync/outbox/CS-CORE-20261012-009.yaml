@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-009
+source: core
+sourceWorkItem: WI-CORE-049
+targets: [console]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.11/INTEROP-2.11: DEC-INF-002 PROPOSED (sin efecto normativo) y correcciones editoriales de estado (DEC-VAL-002 implementada en WI-CORE-048; mensaje de OC11 implementado en WI-CORE-046). Sin cambios de rutas, campos, códigos ni transporte.
+requiredAction:
+  - Sincronizar el espejo INTEROP-2.11 (y SYSTEM-2.11 si lo mantiene) byte a byte; sin cambio de comportamiento
+sourceRevision: b07d188a6ad60051e40e4d47ae44ec06aa0de50f
+status: C-PENDING

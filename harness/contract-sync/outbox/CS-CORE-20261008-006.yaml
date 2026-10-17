@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261008-006
+source: core
+sourceWorkItem: WI-CORE-020
+targets: [console, github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - Sincronizacion documental sin cambio funcional (complementa CS-CORE-20261008-005, no lo modifica): SYSTEM-2.6 DEC-FK-003 y nota de version indican que la aplicabilidad por scenarioKey y la abstencion UNKNOWN/procedencia/escenarios estan implementadas en Core (WI-CORE-018/019/020); INTEROP-2.7 elimina notas transitorias pendientes de WI-CORE-018/020 y HU09 aclara match por scope+targetRef+scenarioKey; SYSTEM agrega DEC-FK-005 PENDING (politica de duplicados ACTIVE en la migracion de WI-CORE-020, solo bloquea ese cierre en Core). Console actualiza ambos espejos; GitHub Integration solo el espejo SYSTEM.
+requiredAction:
+  - Console: refrescar espejos SYSTEM e INTEROP byte por byte. GitHub Integration: refrescar espejo SYSTEM. Sin cambio funcional ni de codigo; acusar al importar.
+sourceRevision: 2b0e89ae5763b6923227504f466e1e44a9d2fb8a
+status: C-PENDING

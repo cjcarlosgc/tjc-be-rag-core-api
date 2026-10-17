@@ -1,0 +1,15 @@
+# WI-CORE-064 — replay offline, versión del prompt y criterio de verificación
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+**Versión del prompt PHP:** `php-prompt-2026-10-14.3` (`PHP_PROMPT_CONVENTIONS_VERSION`; constante en `app/src/generation/php-phpunit-conventions.ts`; no se persiste en la traza: el `promptSha256` por intento distingue las versiones).
+
+## Replay con el harness de WI-CORE-063 (offline, sin LLM)
+- **M5 (top-10 idéntico):** el replay real de recuperación (`php-dependency-replay.spec.ts`, `ContextBuilder` y servicio reales) pasa 9/9 con `relatedChunks`, `audit.candidates`, `contextTokens`, `selectedChunks` y `retrievedChunks` idénticos y SELECTED = persistido; `calibrate.mjs` reproduce la línea base 10/10 en los 9 casos. El cambio no toca retrieval, ranking, pesos, `topK` ni R-PHP.
+- **M4 (tokens extra):** las tres líneas suman **126 tokens** (cl100k; las redacciones anteriores de 182 y 115 tokens se acortaron y corrigieron tras la revisión: enums se usan por caso y no se cita el encabezado de la sección). Medido por el reviewer sobre el prompt RAG real de los 9 casos con la redacción `.2` (115 tokens): +8,9 % a +13,2 %; con 126 tokens ≈ **+9,8 % a +14,5 %**, es decir, los 9 casos ≤ 15 %.
+- **M6 (reglas estáticas; no es medición de calidad):** cada instrucción ataca una regla: R-FINAL ↔ (2): 2 de 54 trials V1 y 9 de 36 de las verificaciones fallaron por doble de clase `final` (precisión y sensibilidad 1/1 de la regla); R-NS ↔ (3): 6 trials V1 fallaron por `use` fuera de contexto (precisión 1/1); R-SAME ↔ (1): 2 trials reales de `951a7bb2` fallaron por `assertSame` sobre un valor devuelto por método (la regla estática no los detecta). El efecto real de las instrucciones **no se puede medir sin LLM**.
+
+## Criterio de verificación para un experimento no oficial (PHP, SUB-1/SUB-2 y SAL/RES)
+1. **Misma configuración que la verificación posterior a WI-058** (modelo, semilla, ProjectVersion) y declarar las versiones: resolutor de dependencias (WI-057/058), `inspect_symbol` (WI-059), prompt `php-prompt-2026-10-14.3`.
+2. **No interferencia:** traza RAG con `contextTokens`, `selectedChunks`, `retrievedChunks`, candidatos y `configuration` iguales a los de la verificación previa (top-10 sin cambio); `promptSha256` de RAG y agente distinto del anterior (el prompt cambió).
+3. **Efecto esperado en `testContent`** (evidencia privada de WI-053): ningún `createMock`/`getMockBuilder` sobre `RenewalDatePolicy` ni `Subscription` (finales); sin `assertSame` sobre `DateTimeImmutable` devuelto por método; sin `use` de namespaces ausentes del contexto; y en `errorSummary`: sin `ClassIsFinalException`, sin «reference the same object» ni «does not exist» por esos tipos.
+4. **Comparación:** `harness/calibration/calibrate.mjs` sobre el experimento nuevo (extractor) para M6/M3/M4; reportar `technicallyValidRate` y `failures` por brazo y los tokens del prompt. Sin n suficiente no se concluye mejora; el agente y RAG reciben la misma redacción (pareado).

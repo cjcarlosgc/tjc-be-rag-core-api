@@ -35,6 +35,12 @@ enum TestTargetType {
 enum TestFramework {
   JEST
   VITEST
+  PHPUNIT
+}
+
+enum ProjectLanguage {
+  TYPESCRIPT
+  PHP
 }
 
 enum GenerationMode {
@@ -86,15 +92,54 @@ enum ExperimentStatus {
   FAILED
 }
 
+enum RetrievalComparisonStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// WI-CORE-022 (INTEROP-2.7 §6.15): SE = modo del producto (semántico + estructural); SEM = solo semántico.
+enum RetrievalMode {
+  SE
+  SEM
+}
+
 enum ExperimentStrategy {
   RAG
   GENERALIST_AGENT
+}
+
+enum ExperimentRepetitionState {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ContextTraceKind {
+  RAG
+  AGENT
+}
+
+enum ContextTraceState {
+  CAPTURING
+  COMPLETE
+  FAILED
 }
 
 enum RepositoryBindingStatus {
   ENABLED
   DISABLED
   REVOKED
+}
+
+/// HU57: por qué un binding está `DISABLED`. `USER` = pausa manual (solo el
+/// usuario la revierte); `INSTALLATION_SUSPENDED` = GitHub suspendió la
+/// instalación (`installation.unsuspend` la revierte). Null = no DISABLED, o
+/// un DISABLED anterior a esta columna, que se trata como pausa del usuario.
+enum BindingDisabledReason {
+  USER
+  INSTALLATION_SUSPENDED
 }
 
 enum AnalysisRunStatus {
@@ -174,24 +219,70 @@ enum FunctionalKnowledgeStatus {
   SUPERSEDED
 }
 
+/// WI-CORE-019 (INTEROP-2.7): rol que confirmó una regla funcional al responder.
+/// Solo ADMIN o MAINTAINER: Writer y Reader no responden preguntas funcionales.
+enum ConfirmingRole {
+  ADMIN
+  MAINTAINER
+}
+
 model Project {
   id                  String                @id @default(uuid())
   name                String
+  projectRoot         String?
   ownerUserId         String?
   currentVersionId    String?               @unique
+  deletedAt           DateTime?
+  /// 014 (HU63): workspace del Project, fijado al crearlo. Ambas nulas = cuenta
+  /// personal (su único usuario es el creador); ambas presentes = organización.
+  /// El check `projects_github_org_coherence_check` (migración) impide una sola.
+  githubOrgId         String?
+  githubOrgLogin      String?
   currentVersion      ProjectVersion?       @relation("ProjectCurrentVersion", fields: [currentVersionId], references: [id])
   versions            ProjectVersion[]      @relation("ProjectVersions")
   testGenerationRuns  TestGenerationRun[]
   experimentRuns      ExperimentRun[]
+  retrievalComparisons RetrievalComparison[]
   repositoryBinding   RepositoryBinding?
   analysisRuns        AnalysisRun[]
   functionalQuestions FunctionalQuestion[]
   functionalKnowledge FunctionalKnowledge[]
+  /// 014 (HU59): registros de acceso; solo existen para Projects de organización.
+  access              ProjectAccess[]
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
   @@index([ownerUserId])
+  @@index([githubOrgId])
   @@map("projects")
+}
+
+/// 014 (HU60): rol derivado de GitHub sobre un Project de organización. Jerarquía
+/// `ADMIN` ⊃ `MAINTAINER` ⊃ `WRITER` ⊃ `READER` (WI-CORE-019, INTEROP-2.7 §6.13).
+enum ProjectRole {
+  ADMIN
+  MAINTAINER
+  WRITER
+  READER
+}
+
+/// 014 (HU59/HU60): registro de acceso `(projectId, userId, role, verifiedAt)`.
+/// Solo para Projects de organización: un Project personal solo lo ve su creador
+/// (siempre Admin) y no tiene registros. Se crea al entrar, verificando en vivo con
+/// el installation token; `verifiedAt` es la última confirmación, no una caducidad
+/// (sin TTL ni caché). `userId` es el `sub` de Supabase (mismo tipo que
+/// `Project.ownerUserId`); la clave `(projectId, userId)` respalda la búsqueda por
+/// Project (prefijo de la clave) y `@@index([userId])` los listados del usuario.
+model ProjectAccess {
+  projectId  String
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String
+  role       ProjectRole
+  verifiedAt DateTime    @db.Timestamptz(3)
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_access")
 }
 
 /// HU30 (dominio): binding Project<->Repository detrás de la GitHub App.
@@ -207,6 +298,7 @@ model RepositoryBinding {
   repositoryName    String
   integrationBranch String
   status            RepositoryBindingStatus @default(ENABLED)
+  disabledReason    BindingDisabledReason?
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
@@ -226,6 +318,10 @@ model AnalysisRun {
   repositoryId                String
   repositoryName              String
   prNumber                    Int
+  /// Fecha original de creación en GitHub; null mientras no se pueda verificar.
+  pullRequestCreatedAt         DateTime?
+  /// null = sin clasificar; false = anterior al binding; true = elegible.
+  repositoryBindingEligible    Boolean?
   prTitle                     String
   baseRef                     String
   headRef                     String
@@ -244,6 +340,10 @@ model AnalysisRun {
   projectVersionId            String?
   projectVersion              ProjectVersion?         @relation(fields: [projectVersionId], references: [id])
   symbols                     AnalysisSymbol[]
+  retrievalComparisons        RetrievalComparison[]
+  analysisRetrievals          AnalysisRetrieval[]
+  analysisContexts            AnalysisContext[]
+  analysisRunExecutions       AnalysisRunExecution[]
   functionalQuestions         FunctionalQuestion[]
   generatedTestProposals      GeneratedTestProposal[]
   testPublications            TestPublication[]
@@ -251,12 +351,17 @@ model AnalysisRun {
   actionRequiredCount         Int                     @default(0)
   generatedTestsCount         Int                     @default(0)
   resultSummary               String?
+  /// WI-CORE-026 (corte D; GH-INTEROP 1.3): id del Check publicado en GitHub para este Run. Null si no se publicó o si GitHub Integration no devolvió id.
+  checkId                     String?
+  /// WI-CORE-026 (DEC-TRACE-002; GH-INTEROP 1.3): instante en que GitHub Integration confirmó la creación del Check, aunque no devolviera id (204 transitorio). Independiente de checkId.
+  checkPublishedAt            DateTime?
   completedAt                 DateTime?
   createdAt                   DateTime                @default(now())
   updatedAt                   DateTime                @updatedAt
 
   @@index([projectId])
   @@index([repositoryId, prNumber, current])
+  @@index([repositoryId, prNumber, repositoryBindingEligible], map: "analysis_runs_pr_metadata_eligibility_idx")
   @@map("analysis_runs")
 }
 
@@ -273,10 +378,95 @@ model AnalysisSymbol {
   qualifiedName String
   filePath      String
   changeKind    SymbolChangeKind
+  /// WI-CORE-018 (columna aditiva, nula): construcciones de comportamiento del símbolo
+  /// `[{scenarioKind, scenarioKey, order, snippet}]`. La escribe el job de snapshot en el corte 3.
+  behaviorConstructs Json?
   createdAt     DateTime               @default(now())
+  analysisRetrievals AnalysisRetrieval[]
+  analysisContexts   AnalysisContext[]
+  generatedTestProposals GeneratedTestProposal[]
 
   @@index([analysisRunId])
   @@map("analysis_symbols")
+}
+
+/// WI-CORE-026 (HU12/HU15; INTEROP-2.7 §6.16): retrieval de un target de un AnalysisRun. `id` es el
+/// `retrieval_id`. `candidates` no contiene código: solo identificadores, ubicación y puntajes.
+model AnalysisRetrieval {
+  id               String          @id @default(uuid())
+  analysisRunId    String
+  analysisRun      AnalysisRun     @relation(fields: [analysisRunId], references: [id])
+  analysisSymbolId String
+  analysisSymbol   AnalysisSymbol  @relation(fields: [analysisSymbolId], references: [id])
+  mode             RetrievalMode
+  config           Json
+  candidates       Json
+  createdAt        DateTime        @default(now())
+  contexts         AnalysisContext[]
+
+  @@unique([analysisRunId, analysisSymbolId])
+  @@index([analysisRunId])
+  @@map("analysis_retrievals")
+}
+
+/// WI-CORE-026 (corte B; INTEROP-2.7 §6.16): ejecución aceptada por el Sandbox para una propuesta, en un intento del Run.
+/// `executionId` es el identificador que devuelve el Sandbox; `outcome` reutiliza la clasificación del Run.
+model AnalysisRunExecution {
+  id               String                @id @default(uuid())
+  analysisRunId    String
+  analysisRun      AnalysisRun           @relation(fields: [analysisRunId], references: [id])
+  proposalId       String
+  proposal         GeneratedTestProposal @relation(fields: [proposalId], references: [id])
+  executionId      String
+  attempt          Int
+  executionProfile String
+  outcome          String
+  /// WI-CORE-027 (DEC-EVID-003): interno, no expuesto en DTO ni INTEROP hasta WI-CORE-027 corte C. Identidad
+  /// de la petición del Sandbox; null si no se observó (filas previas o fallo antes de la aceptación).
+  requestId        String?
+  /// WI-CORE-027: `x-correlation-id` de la ejecución; null si no se observó.
+  correlationId    String?
+  /// WI-CORE-027: duración de la llamada real al Sandbox en ms; null si no se observó (nunca 0 inventado).
+  durationMs       Int?
+  /// WI-CORE-027: hechos del Sandbox (14 claves cerradas de §6.16). Solo conteos y banderas; sin testCases.
+  facts            Json?
+  /// WI-CORE-027: hecho de fallo `{ stage, category, code, message }` ya validado y saneado; null si no hay.
+  failure          Json?
+  createdAt        DateTime              @default(now())
+
+  @@unique([proposalId, attempt])
+  @@index([analysisRunId])
+  @@map("analysis_run_executions")
+}
+
+/// WI-CORE-026 (HU12/HU15; INTEROP-2.7 §6.16): contexto construido para un target. `id` es el
+/// `context_id`. Guarda los identificadores y conteos de la obligación de WI-CORE-021; la procedencia
+/// de las reglas no se duplica aquí y se reconstruye por `knowledgeId` desde FunctionalKnowledge.
+model AnalysisContext {
+  id                       String            @id @default(uuid())
+  analysisRunId            String
+  analysisRun              AnalysisRun       @relation(fields: [analysisRunId], references: [id])
+  analysisSymbolId         String
+  analysisSymbol           AnalysisSymbol    @relation(fields: [analysisSymbolId], references: [id])
+  retrievalId              String
+  retrieval                AnalysisRetrieval @relation(fields: [retrievalId], references: [id])
+  selectedChunkIds         String[]
+  discardedChunkIds        String[]
+  selectedTokens           Int
+  tokenBudget              Int
+  /// `knowledgeId` de las reglas incluidas en el contexto, en el orden determinista del retriever.
+  functionalRuleIds        String[]
+  functionalRulesRetrieved Int
+  functionalRulesSelected  Int
+  functionalRulesOmitted   Int
+  /// `[{knowledgeId, reason}]`; `reason` = `TOKEN_BUDGET`.
+  omittedFunctionalRules   Json
+  createdAt                DateTime          @default(now())
+  proposals                GeneratedTestProposal[]
+
+  @@unique([analysisRunId, analysisSymbolId])
+  @@index([analysisRunId])
+  @@map("analysis_contexts")
 }
 
 enum GeneratedTestProposalStatus {
@@ -304,8 +494,19 @@ model GeneratedTestProposal {
   contentSha256  String
   status         GeneratedTestProposalStatus
   failureSummary String?
+  /// WI-CORE-026: `context_id` del contexto con el que se generó la propuesta (null en Runs previos o si no hubo contexto).
+  contextId      String?
+  context        AnalysisContext?            @relation(fields: [contextId], references: [id])
+  /// WI-CORE-026 (corte B): símbolo del que se generó la propuesta. Clave natural (analysisRunId, analysisSymbolId).
+  analysisSymbolId String?
+  analysisSymbol   AnalysisSymbol?           @relation(fields: [analysisSymbolId], references: [id])
+  /// WI-CORE-027 (DEC-EVID-003): generación de la propuesta `{ provider, model, modelVersion, reasoningEffort,
+  /// inputTokens, outputTokens, durationMs }`; null en Runs previos o si la generación no devolvió resultado.
+  generation     Json?
+  executions       AnalysisRunExecution[]
   createdAt      DateTime                    @default(now())
 
+  @@unique([analysisRunId, analysisSymbolId])
   @@index([analysisRunId])
   @@map("generated_test_proposals")
 }
@@ -364,12 +565,41 @@ model FunctionalQuestion {
   answerChoice   FunctionalAnswerChoice?
   answerText     String?
   knowledgeId    String?
+  /// WI-CORE-018: escenario de la construcción que disparó la pregunta. Nulo en preguntas históricas.
+  scenarioKind   ScenarioKind?
+  /// WI-CORE-018 (DEC-FK-004): clave derivada por Core. Nula en preguntas históricas (se expone como `LEGACY`).
+  scenarioKey    String?
   createdAt      DateTime                 @default(now())
   answeredAt     DateTime?
+  abstentions    FunctionalQuestionAbstention[]
 
   @@index([analysisRunId])
   @@index([projectId, status])
   @@map("functional_questions")
+}
+
+/// WI-CORE-018 (DEC-FK-002): abstención auditada (`UNKNOWN`). No es una respuesta: la pregunta
+/// sigue `PENDING` y el Run sigue `ACTION_REQUIRED`. Cada fila registra quién, con qué rol y cuándo.
+model FunctionalQuestionAbstention {
+  id         String             @id @default(uuid())
+  questionId String
+  question   FunctionalQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  userId     String
+  role       ProjectRole
+  createdAt  DateTime           @default(now())
+
+  @@index([questionId])
+  @@map("functional_question_abstentions")
+}
+
+/// WI-CORE-018 (DEC-FK-004): escenario de una pregunta o regla funcional.
+enum ScenarioKind {
+  EXPECTED_RESULT
+  BOUNDARY
+  EXCEPTION
+  STATE_TRANSITION
+  OBSERVABLE_SIDE_EFFECT
+  FUNCTIONAL_PRECONDITION
 }
 
 /// HU35: regla funcional versionada por Project+scope+símbolo. Nunca se
@@ -379,18 +609,36 @@ model FunctionalQuestion {
 /// para scope `PROJECT` (no hay jerarquía MODULE/CLASS todavía — ver
 /// `functional-knowledge.service.ts`).
 model FunctionalKnowledge {
-  id               String                    @id @default(uuid())
-  projectId        String
-  project          Project                   @relation(fields: [projectId], references: [id])
-  scope            FunctionalScope
-  targetRef        String?
-  originalQuestion String
-  originalAnswer   String
-  normalizedRule   String
-  source           FunctionalKnowledgeSource @default(HUMAN_ANSWER)
-  status           FunctionalKnowledgeStatus @default(ACTIVE)
-  supersedesId     String?
-  createdAt        DateTime                  @default(now())
+  id                String                    @id @default(uuid())
+  projectId         String
+  project           Project                   @relation(fields: [projectId], references: [id])
+  scope             FunctionalScope
+  targetRef         String?
+  originalQuestion  String
+  originalAnswer    String
+  normalizedRule    String
+  source            FunctionalKnowledgeSource @default(HUMAN_ANSWER)
+  status            FunctionalKnowledgeStatus @default(ACTIVE)
+  supersedesId      String?
+  /// WI-CORE-019 (INTEROP-2.7): procedencia. Nula en reglas históricas anteriores a esta versión.
+  /// Usuario que respondió la pregunta que originó la regla.
+  confirmedByUserId String?
+  /// Rol del AccessGrant de quien confirmó (ADMIN o MAINTAINER).
+  confirmedRole     ConfirmingRole?
+  /// `headSha` del AnalysisRun de la pregunta respondida. Procedencia, no vencimiento: no invalida la regla.
+  originHeadSha     String?
+  /// Referencia de origen. Solo admisible si `source = APPROVED_IMPORT` (invariante en el repositorio).
+  sourceRef         String?
+  /// WI-CORE-020 (DEC-FK-004): escenario heredado de la pregunta que originó la regla. Nunca lo escribe
+  /// la respuesta ni una persona, y no tiene default: el repositorio exige el valor. Reglas históricas:
+  /// `EXPECTED_RESULT`.
+  scenarioKind      ScenarioKind
+  /// WI-CORE-020 (DEC-FK-004): clave de escenario heredada de la pregunta. Reglas históricas: `LEGACY`.
+  /// Una sola regla ACTIVE por (projectId, scope, COALESCE(targetRef, ''), scenarioKey). Ese índice único
+  /// parcial (`WHERE status = 'ACTIVE'`, con expresión `COALESCE`) existe solo en la migración SQL: Prisma
+  /// no modela índices parciales ni con expresión, así que `migrate diff` lo mostrará como deriva esperada.
+  scenarioKey       String
+  createdAt         DateTime                  @default(now())
 
   @@index([projectId, scope, targetRef, status])
   @@map("functional_knowledge")
@@ -421,6 +669,8 @@ model ProjectVersion {
   project           Project              @relation("ProjectVersions", fields: [projectId], references: [id])
   currentFor        Project?             @relation("ProjectCurrentVersion")
   status            ProjectVersionStatus @default(PENDING)
+  language          ProjectLanguage      @default(TYPESCRIPT)
+  effectiveProjectRoot String             @default(".")
   originalFileName  String?
   sizeBytes         Int?
   snapshotKey       String?
@@ -436,9 +686,12 @@ model ProjectVersion {
   chunks            CodeChunk[]
   testTargets       TestTarget[]
   analysisRuns      AnalysisRun[]
+  retrievalComparisons RetrievalComparison[]
+  contextTraces     ContextTrace[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
+  @@unique([id, projectId])
   @@index([projectId])
   @@map("project_versions")
 }
@@ -479,8 +732,10 @@ model TestTarget {
   testFilePaths    String[]          @default([])
   targetRunResults TargetRunResult[]
   experimentRuns   ExperimentRun[]
+  contextTraces    ContextTrace[]
   createdAt        DateTime          @default(now())
 
+  @@unique([id, projectVersionId])
   @@index([projectVersionId])
   @@map("test_targets")
 }
@@ -564,20 +819,38 @@ model ExperimentRun {
   failureMessage       String?
   startedAt            DateTime?
   completedAt          DateTime?
+  /// WI-CORE-023 (DEC-EXP-004): LLMEffectiveConfig resuelta una vez por experimento; null en corridas previas.
+  modelConfig          Json?
+  /// WI-CORE-025 (HU17, OE5 pareado): semilla de aleatorización del orden por par; null en corridas previas.
+  randomizationSeed    String?
+  /// WI-CORE-025: presupuesto resuelto al crear (toolCallCap, contextTokenBudget, maxDurationMs); null en corridas previas.
+  budget               Json?
+  /// WI-CORE-025: perfil de ejecución del Sandbox persistido al crear; null en corridas previas.
+  executionProfile     String?
+  /// WI-CORE-025: runner detectado (JEST|VITEST) persistido al crear; null en corridas previas.
+  runnerHint           String?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. Identificador del análisis asociado; sin FK (referencia lógica). Null en corridas previas.
+  analysisRunId        String?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. commitSha de la versión del proyecto copiado al crear; null en corridas previas.
+  commitSha            String?
   repetitions          ExperimentRepetition[]
+  contextTraces        ContextTrace[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
+  @@unique([id, projectId, projectVersionId, targetId])
   @@index([projectId])
   @@map("experiment_runs")
 }
 
 model ExperimentRepetition {
-  id                   String             @id @default(uuid())
+  id                   String                    @id @default(uuid())
   experimentId         String
-  experiment           ExperimentRun      @relation(fields: [experimentId], references: [id])
+  experiment           ExperimentRun             @relation(fields: [experimentId], references: [id])
   repetition           Int
   strategy             ExperimentStrategy
+  attempt              Int                       @default(1)
+  state                ExperimentRepetitionState @default(RUNNING)
   compiled             Boolean?
   executed             Boolean?
   passed               Boolean?
@@ -597,10 +870,170 @@ model ExperimentRepetition {
   toolCalls            Int?
   filesInspected       Int?
   trajectory           Json?
-  createdAt            DateTime           @default(now())
+  /// WI-CORE-025: identidad compartida por las dos estrategias de un mismo par; null en filas previas.
+  pairId               String?
+  /// WI-CORE-025: 1 = primera posición del par, 2 = segunda; null en filas previas.
+  pairPosition         Int?
+  /// WI-CORE-025: false cuando el slot agotó el reintento externo sin evaluación técnica; true por defecto.
+  technicallyEvaluable Boolean                   @default(true)
+  /// WI-CORE-025: interno, no expuesto en DTO ni INTEROP. true cuando el Sandbox devolvió TIMED_OUT
+  /// (discriminador de la redelivery, en lugar del texto de errorSummary); null en filas previas o sin timeout.
+  sandboxTimedOut      Boolean?
+  /// WI-CORE-025 (HU17): interno, no expuesto en DTO ni INTEROP. Latido del intento en curso (se escribe
+  /// al iniciarlo y se renueva mientras corre); un RUNNING con latido vencido es un intento interrumpido.
+  /// NULL solo en filas previas a la migración (se evalúan por createdAt).
+  lastHeartbeatAt      DateTime?
+  /// WI-CORE-007 (HU12/HU17): interno, no expuesto en DTO ni INTEROP; lo leerá WI-CORE-027 como evidencia.
+  /// Hecho de fallo `{ stage, category, code, message }` del Sandbox, con `message` ya saneado. NULL si el
+  /// Sandbox no devolvió hecho de fallo (filas previas, excepciones del cliente, timeouts sin hecho, éxito).
+  failure              Json?
+  /// WI-CORE-027 (DEC-EVID-003): interno. Identidad y hechos de la ejecución del Sandbox de la repetición;
+  /// null si la repetición no invocó al Sandbox o en filas previas. Sin backfill.
+  sandboxExecutionId   String?
+  sandboxRequestId     String?
+  sandboxCorrelationId String?
+  /// WI-CORE-027: 14 claves cerradas de §6.16 (solo conteos y banderas); null si no hubo invocación.
+  sandboxFacts         Json?
+  /// WI-CORE-027: SHA-256 del contenido de prueba enviado al Sandbox; null si no hubo contenido ni invocación.
+  artifactHash         String?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. Inicio del intento (escritura de inserción o terminal); null en filas previas.
+  startedAt            DateTime?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. Fin del intento (escritura terminal); null en filas previas o intento abierto.
+  finishedAt           DateTime?
+  /// WI-CORE-060: interno, no expuesto en DTO ni INTEROP. SHA-256 del prompt (solo el hash; el texto no se persiste, DEC-VAL-001 PENDING). Null en filas previas.
+  promptSha256         String?
+  /// WI-CORE-053: interno y privado, no expuesto en DTO ni INTEROP. Evidencia persistida de la repetición
+  /// (contenido de prueba y hechos normalizados del Sandbox); null si no se escribió.
+  artifact             ExperimentRepetitionArtifact?
+  contextTraces        ContextTrace[]
+  createdAt            DateTime                  @default(now())
 
+  @@unique([experimentId, strategy, repetition, attempt])
+  @@unique([id, experimentId, strategy, repetition, attempt])
   @@index([experimentId])
   @@map("experiment_repetitions")
+}
+
+/// WI-CORE-053: evidencia interna 1:1 de una repetición. Interna y privada: no se expone en
+/// `ExperimentRepetitionResponse` ni en §6.16. Sin purga (DEC-VAL-001 PENDING). Sin salida cruda del Sandbox.
+model ExperimentRepetitionArtifact {
+  id                   String               @id @default(uuid())
+  repetitionId         String               @unique
+  repetition           ExperimentRepetition @relation(fields: [repetitionId], references: [id], onDelete: Cascade)
+  /// Contenido de la prueba; acotado a 256 KiB UTF-8 (`testContentTruncated` indica el recorte).
+  testContent          String?
+  /// SHA-256 hex del contenido completo (antes de truncar).
+  testContentSha256    String?
+  testContentTruncated Boolean              @default(false)
+  /// Hechos normalizados del runner (casos, fallo y duraciones) con mensajes saneados; null sin resultado del Sandbox.
+  runnerReport         Json?
+  /// SHA-256 hex del JSON canónico de `runnerReport`.
+  runnerReportSha256   String?
+  /// WI-CORE-060: interno y privado, no expuesto en DTO ni INTEROP. Evidencia acotada y saneada del Sandbox (stdout/stderr del compilador y de pruebas, RUNNER_REPORT) con tope total; null sin evidencia.
+  sandboxEvidence      Json?
+  /// WI-CORE-060: SHA-256 hex del JSON canónico de `sandboxEvidence` ya saneado; null sin evidencia.
+  sandboxEvidenceSha256 String?
+  /// WI-CORE-060: true si se recortó algún contenido o se omitieron entradas por el tope total; null sin evidencia.
+  sandboxEvidenceTruncated Boolean?
+  /// WI-CORE-060: inicio de la ejecución en el Sandbox (startedAt del resultado); null si no se informó.
+  sandboxStartedAt     DateTime?
+  /// WI-CORE-060: fin de la ejecución en el Sandbox (completedAt del resultado); null si no se informó.
+  sandboxCompletedAt   DateTime?
+  createdAt            DateTime             @default(now())
+
+  @@map("experiment_repetition_artifacts")
+}
+
+/// HU27/HU28: cabecera de evidencia observable de una repetición experimental. `detail` es
+/// JSONB tipado por `kind`; los paths descubiertos se normalizan en filas para paginarlos.
+model ContextTrace {
+  id                     String               @id @default(uuid())
+  projectId              String
+  projectVersionId       String
+  projectVersion         ProjectVersion       @relation(fields: [projectVersionId, projectId], references: [id, projectId], onDelete: Cascade)
+  targetId               String
+  target                 TestTarget           @relation(fields: [targetId, projectVersionId], references: [id, projectVersionId], onDelete: Cascade)
+  experimentId           String
+  experiment             ExperimentRun        @relation(fields: [experimentId, projectId, projectVersionId, targetId], references: [id, projectId, projectVersionId, targetId], onDelete: Cascade)
+  experimentRepetitionId String
+  experimentRepetition   ExperimentRepetition @relation(fields: [experimentRepetitionId, experimentId, strategy, repetition, attempt], references: [id, experimentId, strategy, repetition, attempt], onDelete: Cascade)
+  kind                   ContextTraceKind
+  strategy               ExperimentStrategy
+  repetition             Int
+  attempt                Int
+  current                Boolean              @default(true)
+  state                  ContextTraceState    @default(CAPTURING)
+  detail                 Json?
+  toolCalls              Int                  @default(0)
+  filesInspected         Int                  @default(0)
+  discoveredFiles        DiscoveredFile[]
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@unique([experimentRepetitionId, attempt])
+  @@unique([experimentId, strategy, repetition, attempt])
+  @@index([experimentId, current, strategy, repetition])
+  @@index([projectVersionId])
+  @@index([targetId])
+  @@map("context_traces")
+}
+
+model DiscoveredFile {
+  id             String       @id @default(uuid())
+  contextTraceId String
+  contextTrace   ContextTrace @relation(fields: [contextTraceId], references: [id], onDelete: Cascade)
+  step           Int
+  filePath       String
+  createdAt      DateTime     @default(now())
+
+  @@unique([contextTraceId, step, filePath])
+  @@index([contextTraceId, step, id])
+  @@map("discovered_files")
+}
+
+/// WI-CORE-022 (HU05, HU17; INTEROP-2.7 §6.15): comparación experimental SE vs SEM sobre un símbolo
+/// DIRECTLY_CHANGED de un AnalysisRun. Es solo retrieval: no altera el AnalysisRun ni invoca LLM.
+model RetrievalComparison {
+  id               String                    @id @default(uuid())
+  analysisRunId    String
+  analysisRun      AnalysisRun               @relation(fields: [analysisRunId], references: [id])
+  projectId        String
+  project          Project                   @relation(fields: [projectId], references: [id])
+  projectVersionId String
+  projectVersion   ProjectVersion            @relation(fields: [projectVersionId], references: [id])
+  /// Snapshot del símbolo (AnalysisSymbolResponse) tomado al crear: el resultado no depende de re-lecturas.
+  symbol           Json
+  /// Header Idempotency-Key tal como se recibió; la unicidad la garantiza IdempotencyRecord.
+  idempotencyKey   String?
+  status           RetrievalComparisonStatus @default(PENDING)
+  failureCode      String?
+  failureMessage   String?
+  /// Verdad de terreno externa y opcional: sin ella las métricas son null. Core nunca la inventa.
+  groundTruth      Json?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  results          RetrievalComparisonResult[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([analysisRunId, createdAt])
+  @@index([projectId])
+  @@map("retrieval_comparisons")
+}
+
+/// WI-CORE-022: resultado de un modo (SE o SEM) de una comparación. `id` es el `retrievalId` de §6.15.
+model RetrievalComparisonResult {
+  id           String              @id @default(uuid())
+  comparisonId String
+  comparison   RetrievalComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+  mode         RetrievalMode
+  config       Json
+  candidates   Json
+  metrics      Json?
+  createdAt    DateTime            @default(now())
+
+  @@unique([comparisonId, mode])
+  @@map("retrieval_comparison_results")
 }
 
 model Job {
@@ -614,6 +1047,11 @@ model Job {
   availableAt DateTime  @default(now())
   lockedAt    DateTime?
   lockedBy    String?
+  /// 014 (HU61): clave de deduplicación de los jobs de acceso (`ACCESS_RECONCILIATION`,
+  /// `ACCESS_REVERIFY`); nula en los demás tipos. La unicidad NO la declara Prisma: la
+  /// migración crea un índice único PARCIAL (`WHERE status = 'PENDING' AND "dedupeKey" IS
+  /// NOT NULL`), es decir, solo sobre filas PENDING, nunca sobre RUNNING.
+  dedupeKey   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -640,4 +1078,20 @@ model IdempotencyRecord {
 
   @@unique([scope, idempotencyKey])
   @@map("idempotency_records")
+}
+
+/// 014 (HU62, DEC-ORG-001): vínculo `PlatformUser -> githubUserId`. `userId` es
+/// el `sub` de Supabase (mismo tipo que `Project.ownerUserId`). Se puebla una
+/// vez con la Admin API de Supabase (`identities[].id` del provider `github`),
+/// nunca desde `user_metadata`. `githubLogin` es solo presentación y nunca
+/// autoriza. El `githubUserId` es único e inmutable: la aplicación no lo
+/// actualiza tras crearlo.
+model UserGithubIdentity {
+  userId       String   @id
+  githubUserId String   @unique
+  githubLogin  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_github_identities")
 }

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20260927-005
+source: core
+sourceWorkItem: WI-CORE-015
+targets: [console, github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - Elimina referencias transitorias al envío de CS-CORE-20260927-004; sin cambio de comportamiento ni versiones.
+requiredAction:
+  - Console y GitHub Integration deben importar byte a byte los contratos SYSTEM y GH-INTEROP desde esta revisión y resolver el evento con evidencia.
+sourceRevision: 383e23c
+status: C-PENDING

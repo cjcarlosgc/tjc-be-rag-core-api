@@ -1,0 +1,7 @@
+# WI-CORE-053 — aprobación de alcance
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+**Fecha:** 2026-10-13 · **Autoriza:** Jean, directamente en el chat de Core vía el coordinador: «WI-053 tal cual: tabla Postgres `experiment_repetition_artifacts` (1:1, cascada), límites test 256 KiB / mensaje 2 KiB / 200 casos con marca de recorte, sin purga (DEC-VAL-001 PENDING), solo hechos normalizados del Sandbox»; y ordenó aplicar la migración a la base real, que **ejecuta el coordinador** con `pg_dump` previo y `prisma migrate deploy` (Core no la aplica).
+
+## Alcance
+Tabla nueva `experiment_repetition_artifacts` (1:1 con `experiment_repetitions`, `ON DELETE CASCADE`, índice único por repetición, RLS con revocación a `anon`/`authenticated`): `testContent`, `testContentSha256` (del contenido completo), `testContentTruncated`, `runnerReport` (JSONB con casos, hecho de fallo y duraciones por etapa, con mensajes saneados) y `runnerReportSha256`, con límites explícitos (test 256 KiB; mensaje por caso 2 KiB, sujeto además al máximo de 500 caracteres de `sanitizeFailureMessage`; 200 casos) y marca de recorte. Migración estrictamente aditiva (CREATE TABLE e índices), creada y probada en local. No se expone en `ExperimentRepetitionResponse` ni en §6.16; sin salida cruda (stdout/stderr) del Sandbox. Best-effort: un fallo al escribir la evidencia no degrada el resultado de la repetición. Sin purga.

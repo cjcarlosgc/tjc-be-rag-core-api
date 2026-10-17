@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-CONSOLE-20261010-001
+source: console
+sourceWorkItem: WI-CONSOLE-020
+targets: [core]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - Core local accepts the legacy experiment request while INTEROP 2.7 section 6.5 requires the OE5 V3 request fields
+requiredAction:
+  - Replace the legacy experiments request DTO and project access target with the published OE5 V3 analysis run and symbol fields then verify POST experiments compatibility
+sourceRevision: feature/jean@working-tree
+consumerImportedAt: 2026-10-11T04:55:36.832Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/wi-core-035-contract-sync-acknowledgement.md
+resolutionEvidence: harness/reports/wi-core-035-implementation.md

@@ -1,24 +1,40 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectAccessService } from '../project-access/project-access.service.js';
 import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { TestTargetsRepository } from '../project-versions/persistence/test-targets.repository.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { ProjectVersionStatus, ExperimentStatus as PrismaExperimentStatus } from '../generated/prisma/enums.js';
-import { ExperimentRunsRepository } from './persistence/experiment-runs.repository.js';
+import { ExperimentRunsRepository, type ExperimentBudget } from './persistence/experiment-runs.repository.js';
 import { EXPERIMENT_JOB_TYPE, type ExperimentJobPayload } from './experiment-job.handler.js';
+import { generateRandomizationSeed } from './pair-order.js';
+import { EXECUTION_PROFILE_BY_RUNNER } from '../sandbox/sandbox-execution.service.js';
+import { LLMConfigurationError } from '../providers/llm-configuration.error.js';
+import {
+  DEFAULT_AGENT_MAX_TOOL_CALLS,
+  DEFAULT_GENERATION_TIMEOUT_MS,
+  DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+} from '../config/generation-budget.defaults.js';
 import type { CreateExperimentDto } from './dto/create-experiment.dto.js';
 import type {
   ExperimentAcceptedResponse,
+  ExperimentBudgetResponse,
+  ExperimentModelConfigResponse,
   ExperimentResultsResponse,
   ExperimentStatusResponse,
   FailureType,
   StrategyMetricsResponse,
 } from './dto/experiment.response.js';
 import type { ExperimentRepetition } from '../generated/prisma/client.js';
+import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.interface.js';
+import { LLM_PROVIDER } from '../providers/providers.constants.js';
+import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
+import { AnalysisSymbolsRepository } from '../analysis-runs/persistence/analysis-symbols.repository.js';
+import { findMatchingTestTarget } from '../validation/symbol-target.util.js';
 
 const DEFAULT_POLL_AFTER_MS = 1500;
 const TOTAL_REPETITIONS = 6;
@@ -29,20 +45,66 @@ function mean(values: Array<number | null>): number | null {
   return nonNull.length > 0 ? nonNull.reduce((sum, value) => sum + value, 0) / nonNull.length : null;
 }
 
-function rate(repetitions: ExperimentRepetition[], predicate: (r: ExperimentRepetition) => boolean): number {
-  return repetitions.length > 0 ? repetitions.filter(predicate).length / repetitions.length : 0;
+function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** Filas previas a WI-CORE-023 no tienen modelConfig: se devuelve null, nunca valores inventados. */
+function toModelConfigResponse(raw: unknown): ExperimentModelConfigResponse | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const provider = asString(record.provider);
+  const model = asString(record.model);
+  if (provider === null || model === null) return null;
+
+  return {
+    provider,
+    model,
+    modelVersion: asString(record.modelVersion),
+    reasoningEffort: asString(record.reasoningEffort),
+    temperature: asFiniteNumber(record.temperature),
+    maxOutputTokens: asFiniteNumber(record.maxOutputTokens),
+  };
+}
+
+/** Presupuesto persistido al crear; null en corridas previas. */
+function toBudgetResponse(raw: unknown): ExperimentBudgetResponse | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const toolCallCap = asFiniteNumber(record.toolCallCap);
+  const contextTokenBudget = asFiniteNumber(record.contextTokenBudget);
+  const maxDurationMs = asFiniteNumber(record.maxDurationMs);
+  if (toolCallCap === null || contextTokenBudget === null || maxDurationMs === null) return null;
+
+  return { toolCallCap, contextTokenBudget, maxDurationMs };
+}
+
+function toPairPosition(value: number | null): 1 | 2 | null {
+  return value === 1 || value === 2 ? value : null;
+}
+
+/** WI-CORE-027 (DEC-EVID-001): sin repeticiones evaluables la tasa es null (sin datos), nunca 0. */
+function rate(repetitions: ExperimentRepetition[], predicate: (r: ExperimentRepetition) => boolean): number | null {
+  return repetitions.length > 0 ? repetitions.filter(predicate).length / repetitions.length : null;
 }
 
 @Injectable()
 export class ExperimentsService {
   constructor(
-    private readonly projectsRepository: ProjectsRepository,
+    private readonly projectAccess: ProjectAccessService,
+    private readonly analysisRunsService: AnalysisRunsService,
+    private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
     private readonly projectVersionsRepository: ProjectVersionsRepository,
     private readonly testTargetsRepository: TestTargetsRepository,
     private readonly experimentRunsRepository: ExperimentRunsRepository,
     private readonly jobsService: JobsService,
     private readonly configService: ConfigService,
     private readonly idempotencyService: IdempotencyService,
+    @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
   ) {}
 
   async createRun(
@@ -50,82 +112,114 @@ export class ExperimentsService {
     idempotencyKey: string | undefined,
     ownerUserId: string,
   ): Promise<ExperimentAcceptedResponse> {
-    const project = await this.projectsRepository.findById(dto.projectId, ownerUserId);
+    // El AnalysisRun es el recurso de autorización y la única fuente del Project/version.
+    const analysisRun = await this.analysisRunsService.getById(dto.analysisRunId, ownerUserId);
+    await this.projectAccess.require(ownerUserId, analysisRun.projectId, 'WRITER');
+    this.idempotencyService.validateKey(idempotencyKey);
 
-    if (!project) {
+    if (!analysisRun.projectVersionId) {
       throw new AppException(
-        ErrorCode.PROJECT_NOT_FOUND,
-        `No existe el proyecto ${dto.projectId}.`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    if (await this.projectVersionsRepository.hasActiveVersion(dto.projectId)) {
-      throw new AppException(
-        ErrorCode.PROJECT_INDEXING_IN_PROGRESS,
-        'El proyecto tiene una indexación en curso; espera a que termine antes de experimentar.',
+        ErrorCode.ANALYSIS_NOT_FINISHED,
+        'El AnalysisRun todavía no tiene una versión de análisis; reintenta cuando termine el snapshot.',
         HttpStatus.CONFLICT,
       );
     }
 
-    if (!project.currentVersionId) {
-      throw new AppException(
-        ErrorCode.PROJECT_NOT_READY,
-        'El proyecto todavía no tiene una versión indexada exitosamente.',
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    const version = await this.projectVersionsRepository.findById(project.currentVersionId);
+    const projectVersionId = analysisRun.projectVersionId;
+    const version = await this.projectVersionsRepository.findById(projectVersionId);
 
     if (!version || version.status !== ProjectVersionStatus.COMPLETED) {
       throw new AppException(
         ErrorCode.ANALYSIS_NOT_FINISHED,
-        'La versión actual del proyecto no terminó de analizarse.',
+        'La versión congelada del AnalysisRun no terminó de analizarse.',
         HttpStatus.CONFLICT,
       );
     }
 
-    const target = await this.testTargetsRepository.findByIdForOwner(dto.targetId, ownerUserId);
+    const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(analysisRun.id);
+    const symbol = symbols.find(
+      (candidate) => candidate.filePath === dto.symbolFilePath && candidate.qualifiedName === dto.symbolQualifiedName,
+    );
 
-    if (!target) {
+    if (!symbol) {
       throw new AppException(
-        ErrorCode.UNRESOLVABLE_TARGET,
-        `No existe el target ${dto.targetId}.`,
+        ErrorCode.ANALYSIS_SYMBOL_NOT_FOUND,
+        `No existe el símbolo "${dto.symbolQualifiedName}" en "${dto.symbolFilePath}" dentro del AnalysisRun.`,
         HttpStatus.NOT_FOUND,
       );
     }
 
-    if (target.targetType === 'CLASS') {
+    if (
+      (symbol.kind !== 'METHOD' && symbol.kind !== 'FUNCTION') ||
+      symbol.changeKind !== 'DIRECTLY_CHANGED'
+    ) {
       throw new AppException(
-        ErrorCode.INVALID_GENERATION_TARGET,
-        'El experimento requiere un target METHOD o FUNCTION.',
-        HttpStatus.BAD_REQUEST,
+        ErrorCode.UNSUPPORTED_SYMBOL_KIND,
+        'El experimento solo acepta un símbolo METHOD o FUNCTION DIRECTLY_CHANGED.',
+        HttpStatus.UNPROCESSABLE_ENTITY,
       );
     }
 
-    const projectVersionId = project.currentVersionId;
+    const target = findMatchingTestTarget(
+      await this.testTargetsRepository.findTestableTargets(projectVersionId),
+      symbol,
+    );
+    if (!target) {
+      throw new AppException(
+        ErrorCode.UNRESOLVABLE_TARGET,
+        `No existe un TestTarget para el símbolo "${dto.symbolQualifiedName}" en la versión congelada.`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
 
+    // WI-CORE-025: el runner decide el perfil del Sandbox; sin framework JEST|VITEST|PHPUNIT no se acepta
+    // y no se crea experimento ni job (antes fallaba dentro del job). WI-CORE-029: PHPUNIT se admite.
+    const runnerHint = version.detectedFramework;
+
+    if (runnerHint !== 'JEST' && runnerHint !== 'VITEST' && runnerHint !== 'PHPUNIT') {
+      throw new AppException(
+        ErrorCode.UNSUPPORTED_PROJECT,
+        'Los experimentos requieren un proyecto con Jest, Vitest o PHPUnit detectado.',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    // WI-CORE-023 (Desviación 1): la LLMEffectiveConfig se resuelve y valida una única vez al crear el
+    // experimento y se persiste en ExperimentRun.modelConfig; las repeticiones la reutilizan y nunca la
+    // vuelven a resolver. `prepare` solo corre en una creación nueva: un replay con la misma
+    // Idempotency-Key no re-resuelve ni re-valida con el entorno actual. Un LLMConfigurationError se
+    // propaga antes de crear el run o encolar el job.
     return this.idempotencyService.run({
       scope: 'EXPERIMENT_CREATE',
       key: idempotencyKey,
       fingerprintInput: dto,
-      create: async (tx) => {
+      prepare: () => this.resolveModelConfig(),
+      create: async (tx, modelConfig) => {
+        // WI-CORE-025: la semilla se genera dentro de la misma inserción (replay no la regenera), junto con
+        // el presupuesto, el perfil de ejecución y el runner.
         const run = await this.experimentRunsRepository.create(
           {
-            projectId: dto.projectId,
+            projectId: analysisRun.projectId,
             projectVersionId,
-            targetId: dto.targetId,
+            targetId: target.id,
             totalRepetitions: TOTAL_REPETITIONS,
+            modelConfig,
+            randomizationSeed: generateRandomizationSeed(),
+            budget: this.resolveBudget(),
+            executionProfile: EXECUTION_PROFILE_BY_RUNNER[runnerHint],
+            runnerHint,
+            // WI-CORE-060: interno (no expuesto). Análisis asociado y commitSha de la versión congelada.
+            analysisRunId: analysisRun.id,
+            commitSha: version.commitSha ?? null,
           },
           tx,
         );
 
         const payload: ExperimentJobPayload = {
           experimentId: run.id,
-          projectId: dto.projectId,
+          projectId: analysisRun.projectId,
           projectVersionId,
-          targetId: dto.targetId,
+          targetId: target.id,
         };
 
         await this.jobsService.enqueue(EXPERIMENT_JOB_TYPE, { ...payload }, tx);
@@ -133,6 +227,7 @@ export class ExperimentsService {
         return {
           operationId: run.id,
           response: {
+            analysisRunId: analysisRun.id,
             experimentId: run.id,
             projectVersionId,
             status: 'PENDING' as const,
@@ -152,6 +247,7 @@ export class ExperimentsService {
         }
 
         return {
+          analysisRunId: analysisRun.id,
           experimentId: run.id,
           projectVersionId: run.projectVersionId,
           status: 'PENDING' as const,
@@ -176,6 +272,11 @@ export class ExperimentsService {
       failureMessage: run.failureMessage,
       startedAt: run.startedAt?.toISOString() ?? null,
       completedAt: run.completedAt?.toISOString() ?? null,
+      model: toModelConfigResponse(run.modelConfig),
+      budget: toBudgetResponse(run.budget),
+      executionProfile: run.executionProfile,
+      runnerHint: run.runnerHint,
+      randomizationSeed: run.randomizationSeed,
     };
   }
 
@@ -191,6 +292,7 @@ export class ExperimentsService {
     }
 
     const repetitions = await this.experimentRunsRepository.findRepetitions(experimentId);
+    const model = toModelConfigResponse(run.modelConfig);
 
     return {
       experimentId: run.id,
@@ -201,6 +303,7 @@ export class ExperimentsService {
         this.aggregateStrategy(
           strategy,
           repetitions.filter((repetition) => repetition.strategy === strategy),
+          model,
         ),
       ),
       repetitions: repetitions.map((repetition) => ({
@@ -208,14 +311,23 @@ export class ExperimentsService {
         strategy: repetition.strategy,
         valid: repetition.valid ?? false,
         failureType: (repetition.failureType ?? 'UNKNOWN') as FailureType,
-        errorSummary: repetition.errorSummary,
+        // WI-CORE-027 (IDEA-015): saneado idempotente al mapear; cubre filas escritas antes del saneado. El
+        // contenido cambia, la forma del DTO no.
+        errorSummary:
+          typeof repetition.errorSummary === 'string'
+            ? sanitizeFailureMessage(repetition.errorSummary)
+            : repetition.errorSummary,
         generationDurationMs: repetition.generationDurationMs ?? 0,
-        executionDurationMs: repetition.executionDurationMs ?? 0,
+        executionDurationMs: repetition.executionDurationMs,
         totalDurationMs: repetition.totalDurationMs ?? 0,
         inputTokens: repetition.inputTokens,
         outputTokens: repetition.outputTokens,
         totalTokens: repetition.totalTokens,
         estimatedCost: repetition.estimatedCost,
+        pairId: repetition.pairId,
+        pairPosition: toPairPosition(repetition.pairPosition),
+        attempt: repetition.attempt,
+        technicallyEvaluable: repetition.technicallyEvaluable,
       })),
       completedAt: (run.completedAt ?? new Date()).toISOString(),
     };
@@ -223,8 +335,13 @@ export class ExperimentsService {
 
   private aggregateStrategy(
     strategy: 'RAG' | 'GENERALIST_AGENT',
-    repetitions: ExperimentRepetition[],
+    allRepetitions: ExperimentRepetition[],
+    model: ExperimentModelConfigResponse | null,
   ): StrategyMetricsResponse {
+    // WI-CORE-025: un slot no evaluable (agotó el reintento externo) no entra en tasas, promedios
+    // ni conteo de fallos; cambia el denominador de las métricas, no la forma de StrategyMetricsResponse.
+    // WI-CORE-027 (DEC-EVID-001): los contadores dicen cuántas repeticiones sustentan cada métrica.
+    const repetitions = allRepetitions.filter((repetition) => repetition.technicallyEvaluable !== false);
     const failures: Partial<Record<FailureType, number>> = {};
 
     for (const repetition of repetitions) {
@@ -236,13 +353,21 @@ export class ExperimentsService {
 
     return {
       strategy,
+      evaluableRepetitions: repetitions.length,
+      nonEvaluableRepetitions: allRepetitions.length - repetitions.length,
       validRate: rate(repetitions, (r) => r.valid === true),
       compilationRate: rate(repetitions, (r) => r.compiled === true),
       executionRate: rate(repetitions, (r) => r.executed === true),
       passedRate: rate(repetitions, (r) => r.passed === true),
-      generationDurationMs: Math.round(mean(repetitions.map((r) => r.generationDurationMs)) ?? 0),
-      executionDurationMs: Math.round(mean(repetitions.map((r) => r.executionDurationMs)) ?? 0),
-      totalDurationMs: Math.round(mean(repetitions.map((r) => r.totalDurationMs)) ?? 0),
+      // INTEROP-2.13: diagnóstico técnico; compila y se ejecuta, y el único fallo posible es una aserción.
+      technicallyValidRate: rate(
+        repetitions,
+        (r) => r.compiled === true && r.executed === true && (r.failureType === 'NONE' || r.failureType === 'TEST_ASSERTION'),
+      ),
+      generationDurationMs: roundOrNull(mean(repetitions.map((r) => r.generationDurationMs))),
+      // Media de no nulos: null si ninguna evaluable invocó el Sandbox (interpretación aprobada, DEC-EVID-001).
+      executionDurationMs: roundOrNull(mean(repetitions.map((r) => r.executionDurationMs))),
+      totalDurationMs: roundOrNull(mean(repetitions.map((r) => r.totalDurationMs))),
       inputTokens: roundOrNull(mean(repetitions.map((r) => r.inputTokens))),
       outputTokens: roundOrNull(mean(repetitions.map((r) => r.outputTokens))),
       totalTokens: roundOrNull(mean(repetitions.map((r) => r.totalTokens))),
@@ -253,6 +378,68 @@ export class ExperimentsService {
       toolCalls: roundOrNull(mean(repetitions.map((r) => r.toolCalls))),
       filesInspected: roundOrNull(mean(repetitions.map((r) => r.filesInspected))),
       failures,
+      assertionFailureCount: repetitions.filter((r) => r.failureType === 'TEST_ASSERTION').length,
+      modelVersion: model?.modelVersion ?? null,
+      reasoningEffort: model?.reasoningEffort ?? null,
+      temperature: model?.temperature ?? null,
+      maxOutputTokens: model?.maxOutputTokens ?? null,
+    };
+  }
+
+  /**
+   * WI-CORE-025: traduce la falla de configuración del proveedor a respuesta HTTP antes de crear el run.
+   * Nunca fuerza un esfuerzo ni degrada en silencio.
+   */
+  private async resolveModelConfig(): Promise<LLMEffectiveConfig> {
+    try {
+      return await this.llmProvider.resolveEffectiveConfig();
+    } catch (error) {
+      if (error instanceof LLMConfigurationError && error.code === 'REASONING_EFFORT_UNSUPPORTED') {
+        throw new AppException(
+          ErrorCode.REASONING_EFFORT_UNSUPPORTED,
+          `El modelo "${error.model}" no admite el esfuerzo de razonamiento solicitado.`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          {
+            model: error.model,
+            requestedEffort: error.requestedEffort,
+            supportedEfforts: error.supportedEfforts,
+          },
+        );
+      }
+
+      if (error instanceof LLMConfigurationError && error.code === 'TEMPERATURE_UNSUPPORTED_WITH_REASONING') {
+        throw new AppException(
+          ErrorCode.REASONING_EFFORT_UNSUPPORTED,
+          `La temperatura configurada es incompatible con el razonamiento activo del modelo "${error.model}". Use esfuerzo "none" o quite la temperatura.`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          {
+            model: error.model,
+            requestedEffort: error.requestedEffort,
+            supportedEfforts: error.supportedEfforts,
+          },
+        );
+      }
+
+      if (error instanceof LLMConfigurationError && error.code === 'MODEL_UNAVAILABLE') {
+        throw new AppException(
+          ErrorCode.LLM_PROVIDER_UNAVAILABLE,
+          'El modelo de experimentos no está disponible en este momento.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  private resolveBudget(): ExperimentBudget {
+    return {
+      toolCallCap: this.configService.get<number>('AGENT_MAX_TOOL_CALLS', DEFAULT_AGENT_MAX_TOOL_CALLS),
+      contextTokenBudget: this.configService.get<number>(
+        'RETRIEVAL_MAX_CONTEXT_TOKENS',
+        DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
+      ),
+      maxDurationMs: this.configService.get<number>('GENERATION_TIMEOUT_MS', DEFAULT_GENERATION_TIMEOUT_MS),
     };
   }
 

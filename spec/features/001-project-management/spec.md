@@ -1,7 +1,7 @@
 # 001-project-management — Especificación
 
 **Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED.  
-**Historias:** HU01
+**Historias:** HU01, HU02
 
 ## Objetivo
 
@@ -12,7 +12,8 @@ Gestionar la identidad estable de un proyecto y su versión actual exitosa.
 - `Project` representa el proyecto lógico.
 - `Project.currentVersionId` solo cambia al completar exitosamente una indexación.
 - Crear proyecto no implica indexarlo.
-- No borrar historial de versiones/runs desde V1.
+- No borrar físicamente historial de versiones/runs. Eliminar un Project (`DELETE /projects/{projectId}`) es lógico (`deletedAt`): conserva versiones, Runs y Functional Knowledge como evidencia, los oculta por API y libera el binding de repositorio; no hay restauración.
+- Un `Project` pertenece a un workspace personal u organizacional (`DEC-ORG-001`) que se fija al crearlo. `PATCH /projects/{projectId}` renombra (solo Admin) y `DELETE` solo lo hace un Admin; crear en una organización exige ser su owner. Un Project nace sin repositorio y solo lo ven sus Admin hasta que se vincula uno. Un Project personal solo lo ve su creador (siempre Admin); no se comparte con colaboradores, solo mediante organizaciones (`DEC-ORG-002`). Detalle: `INTEROP-2.6` §6.1 y §6.13.
 
 ## Fuera de alcance
 

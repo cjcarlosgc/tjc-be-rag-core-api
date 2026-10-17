@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261008-005
+source: core
+sourceWorkItem: WI-CORE-020
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.7 6.11: FunctionalKnowledgeResponse agrega scenarioKind y scenarioKey (heredados de la pregunta; reglas historicas EXPECTED_RESULT/LEGACY; nunca los envia el navegador). Varias reglas ACTIVE coexisten por target con distinto scenarioKey, de modo que la lista por target puede devolver mas de una. Conflicto y SUPERSEDE solo dentro del mismo scenarioKey; el 409 FUNCTIONAL_KNOWLEDGE_CONFLICT conserva su forma (conflictingKnowledge gana los dos campos aditivos).
+requiredAction:
+  - Importar y acusar; tolerar varias reglas ACTIVE por target, mostrar o agrupar por scenarioKind/scenarioKey (estado vacio no aplica: siempre presentes), no enviar esos campos al responder. Sin cambios en Sandbox ni GitHub Integration.
+sourceRevision: 2f4ef6aa2133bc7ec7b988b17babd354045c0882
+status: C-PENDING

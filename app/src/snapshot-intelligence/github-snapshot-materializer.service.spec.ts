@@ -17,7 +17,6 @@ const binding: RepositoryBinding = {
 };
 
 describe('GithubSnapshotMaterializerService', () => {
-  let githubAppAuthService: { getInstallationToken: ReturnType<typeof vi.fn> };
   let githubRepositoryContentService: {
     getTree: ReturnType<typeof vi.fn>;
     getFileContent: ReturnType<typeof vi.fn>;
@@ -31,10 +30,8 @@ describe('GithubSnapshotMaterializerService', () => {
   });
 
   function setup(): void {
-    githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
     githubRepositoryContentService = { getTree: vi.fn(), getFileContent: vi.fn() };
     service = new GithubSnapshotMaterializerService(
-      githubAppAuthService as never,
       githubRepositoryContentService as never,
     );
   }
@@ -49,14 +46,19 @@ describe('GithubSnapshotMaterializerService', () => {
       { path: 'package.json' },
     ]);
     githubRepositoryContentService.getFileContent.mockImplementation(
-      async (_repo: string, path: string) => `// content of ${path}`,
+      async (_installationId: string, _repo: string, path: string) => `// content of ${path}`,
     );
 
     const workspace = await service.materialize(binding, 'head-sha');
     createdDirs.push(workspace.dir);
 
-    expect(githubAppAuthService.getInstallationToken).toHaveBeenCalledWith('999');
-    expect(githubRepositoryContentService.getTree).toHaveBeenCalledWith('org/repo', 'head-sha', 'installation-token');
+    expect(githubRepositoryContentService.getTree).toHaveBeenCalledWith('999', 'org/repo', 'head-sha');
+    expect(githubRepositoryContentService.getFileContent).toHaveBeenCalledWith(
+      '999',
+      'org/repo',
+      'src/a.ts',
+      'head-sha',
+    );
 
     const written = await readFile(join(workspace.dir, 'src/a.ts'), 'utf8');
     expect(written).toBe('// content of src/a.ts');
@@ -75,7 +77,7 @@ describe('GithubSnapshotMaterializerService', () => {
       { path: 'pnpm-lock.yaml' },
     ]);
     githubRepositoryContentService.getFileContent.mockImplementation(
-      async (_repo: string, path: string) => `// content of ${path}`,
+      async (_installationId: string, _repo: string, path: string) => `// content of ${path}`,
     );
 
     const workspace = await service.materialize(binding, 'head-sha');
@@ -83,6 +85,51 @@ describe('GithubSnapshotMaterializerService', () => {
 
     const written = await readFile(join(workspace.dir, 'pnpm-lock.yaml'), 'utf8');
     expect(written).toBe('// content of pnpm-lock.yaml');
+  });
+
+  it('materializes nested PHP applications when the only Composer manifest is below repository root', async () => {
+    setup();
+    githubRepositoryContentService.getTree.mockResolvedValue([
+      { path: 'backend/composer.json' },
+      { path: 'backend/composer.lock' },
+      { path: 'backend/src/Service.php' },
+      { path: 'web/package.json' },
+      { path: 'web/src/main.ts' },
+      { path: 'vendor/acme/ignored.php' },
+    ]);
+    githubRepositoryContentService.getFileContent.mockImplementation(
+      async (_installationId: string, _repo: string, path: string) => `// content of ${path}`,
+    );
+
+    const workspace = await service.materialize(binding, 'head-sha');
+    createdDirs.push(workspace.dir);
+
+    expect(githubRepositoryContentService.getFileContent.mock.calls.map((call) => call[2])).toEqual([
+      'backend/composer.json', 'backend/composer.lock', 'backend/src/Service.php',
+    ]);
+    expect(await readFile(join(workspace.dir, 'backend/composer.json'), 'utf8')).toContain('backend/composer.json');
+    await expect(stat(join(workspace.dir, 'web/src/main.ts'))).rejects.toThrow();
+  });
+
+  it('keeps TypeScript sources when only a differently-cased Composer name exists', async () => {
+    setup();
+    githubRepositoryContentService.getTree.mockResolvedValue([
+      { path: 'COMPOSER.JSON' },
+      { path: 'src/index.ts' },
+      { path: 'src/Service.php' },
+    ]);
+    githubRepositoryContentService.getFileContent.mockImplementation(
+      async (_installationId: string, _repo: string, path: string) => `// content of ${path}`,
+    );
+
+    const workspace = await service.materialize(binding, 'head-sha');
+    createdDirs.push(workspace.dir);
+
+    expect(githubRepositoryContentService.getFileContent.mock.calls.map((call) => call[2])).toEqual([
+      'src/index.ts',
+    ]);
+    expect(await readFile(join(workspace.dir, 'src/index.ts'), 'utf8')).toContain('src/index.ts');
+    await expect(stat(join(workspace.dir, 'COMPOSER.JSON'))).rejects.toThrow();
   });
 
   it('cleans up the temp dir if materialization fails partway through', async () => {

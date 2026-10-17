@@ -1,9 +1,9 @@
 # 011-context-traces — Especificación
 
-**Estado:** aprobado para implementar. No implementado en código todavía.
-**Historias:** HU27, HU28
+**Estado:** capacidad implementada con evidencia histórica en Git y `harness/reports/`; la aceptación de HU15/HU17 requiere sus criterios vigentes.
+**Historias:** HU15, HU17
 
-> **Nota SDD 2.1:** la variante de traza sobre `test-runs` (generación manual) queda retirada (`CHANGELOG.md`); `GET /experiments/{id}/context-traces` permanece vigente para HU27/HU28 sobre Experiments.
+`GET /experiments/{id}/context-traces` es la ruta vigente para HU17. El trace operativo del `AnalysisRun` (HU15) está definido en `INTEROP-2.7` §6.16 y pendiente de implementar (`WI-CORE-026`); no se confunde con el `ContextTrace` experimental de esta feature.
 
 ## Objetivo
 
@@ -11,19 +11,19 @@ Persistir y exponer evidencia navegable de cómo se adquirió el contexto de una
 
 ## Reglas y comportamiento
 
-- Cada traza pertenece a una `ProjectVersion` inmutable, un `TestTarget` y un intento lógico. Puede originarse en un target de `TestGenerationRun` o en una repetición de `ExperimentRun`, nunca en ambos.
-- Una generación normal produce una traza `RAG` por target procesado. Un experimento produce una traza `RAG` o `AGENT` por estrategia/repetición.
-- Un retry manual crea un nuevo intento y conserva los anteriores. Los listados devuelven solo el intento vigente por defecto; `includeSuperseded=true` permite auditar el historial.
-- La entrada general de un run lista todos sus targets. La entrada desde un artefacto filtra las trazas asociadas a los targets materializados en ese archivo; `ArtifactResponse.targetIds` hace explícita esa relación.
+- Cada traza experimental pertenece a una `ProjectVersion` inmutable, un target interno y una repetición de `ExperimentRun`; no constituye una traza operativa completa del `AnalysisRun`.
+- Cada repetición produce una traza `RAG` o `AGENT`, según su estrategia. Un experimento tiene hasta seis trazas: tres repeticiones por cada estrategia.
+- Los listados devuelven solo el intento vigente por defecto; `includeSuperseded=true` permite auditar intentos anteriores cuando existan.
+- La entrada principal lista las trazas del experimento y permite filtrar por estrategia y repetición. El contrato conserva `testRunId` y `artifactIds` por compatibilidad de DTO: para las trazas vigentes de Experiments, `testRunId` es `null` y `artifactIds` es una lista vacía.
 
-### Contexto RAG — HU27
+### Contexto RAG experimental
 
 - Conservar el target raíz y todos los candidatos recuperados después de deduplicar por `chunkId`, incluidos seleccionados y descartados.
 - Cada candidato registra señales `SEMANTIC`, `IMPORTS` o `IMPORTED_BY`, score semántico nullable, relación estructural nullable, score combinado, ranking, tokens y configuración efectiva de `ContextBuilder`.
 - La decisión es `SELECTED` o `DISCARDED`. Un descarte declara exactamente `BELOW_MINIMUM_SCORE`, `TOP_K_LIMIT` o `TOKEN_BUDGET`; no se inventa una causa que el algoritmo no observó.
 - El score explica el ranking configurado y no se presenta como probabilidad, confianza científica o prueba causal.
 
-### Exploración del agente — HU28
+### Exploración experimental del agente
 
 - Conservar la secuencia cronológica observable de `list_files`, `search_text`, `inspect_symbol` y `read_file`, con número de paso, argumentos, estado, resumen, hash, truncamiento y observaciones normalizadas.
 - `list_files` persiste el conjunto descubierto, pero el contrato principal devuelve solo el total; las rutas se consultan paginadas mediante “Mostrar descubiertos”.
@@ -38,10 +38,15 @@ Persistir y exponer evidencia navegable de cómo se adquirió el contexto de una
 
 ## Transporte
 
-Las rutas y DTOs son los de `INTEROP-2.1`, sección 6.7, y deben adaptarse a AnalysisRun/HEAD al implementar HU27-HU28. Un trace inexistente o ajeno al propietario se responde como `CONTEXT_TRACE_NOT_FOUND`; consultar antes del estado terminal produce `CONTEXT_TRACE_NOT_FINISHED`.
+Las tres rutas y DTOs son los de `INTEROP-2.6`, sección 6.7: listado desde Experiments, detalle de traza y archivos descubiertos paginados. La autorización sigue el acceso Reader al Project del experimento. Una traza inexistente o no visible se responde como `CONTEXT_TRACE_NOT_FOUND`; consultar antes del estado terminal produce `CONTEXT_TRACE_NOT_FINISHED`.
+
+## Alineación SMART V3 — trace operativo (SDD 2026-10-08; implementación pendiente)
+
+El trace operativo reconstruye `AnalysisRun → target → retrieval_id → context_id → proposal → execution_id → result → Check/companion PR` sobre los nueve enlaces de `SYSTEM-2.6` («Calidad, métricas y evidencia»). Core introduce `retrieval_id` y `context_id`, reutiliza el `execution_id` del Sandbox y no crea `changeset_id`, `test_candidate_id` ni identificadores de evidencia académica. Un enlace es `NOT_APPLICABLE` solo cuando el flujo termina legítimamente antes. No se persiste chain-of-thought y los fragmentos de código siguen tratándose como datos confidenciales. Contrato: `INTEROP-2.7` §6.16. Implementación: `WI-CORE-026` (trace) y `WI-CORE-027` (exportación versionada de evidencia). El `context_id` persistido conserva los `functionalRuleIds` seleccionados por `WI-CORE-021`, las cantidades recuperadas, seleccionadas y omitidas, y el motivo de omisión (al menos `TOKEN_BUDGET`), con el `knowledgeId` suficiente para reconstruir la procedencia desde Functional Knowledge sin duplicarla; es una obligación de `WI-CORE-026` y no existe aún (el `ContextTrace` experimental actual no guarda reglas funcionales).
 
 ## Fuera de alcance
 
 - Visualizar razonamiento interno, mensajes ocultos del modelo o influencia causal.
+- Inferir trazas operativas completas del `AnalysisRun` sin un contrato y evidencia de captura aprobados.
 - Reemplazar las métricas experimentales agregadas; las trazas las complementan.
 - Hacer test-aware retrieval mientras `DEC-RAG-001` permanezca `PENDING`.

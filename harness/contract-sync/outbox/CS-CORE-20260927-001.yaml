@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20260927-001
+source: core
+sourceWorkItem: WI-CORE-012
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.6 adds required ProjectVersion.language (TYPESCRIPT|PHP) and PHPUNIT to detectedFramework and test inventory DTOs; existing ProjectVersions default to TYPESCRIPT.
+requiredAction:
+  - Import INTEROP-2.6 as the Console mirror, update shared API types for language and PHPUNIT, and verify PHP projects are not presented as PHPUnit generation-ready until WI-CORE-013 is delivered.
+sourceRevision: 242ffbfa3eb0a6251aa42cc83bbbc06f0e5be279
+status: C-PENDING

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261012-008
+source: core
+sourceWorkItem: WI-CORE-047
+targets: [github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.10: DEC-VAL-002 APROBADA (fallo de plataforma por símbolo y precedencia BEHAVIORAL_MISMATCH > TECHNICAL_GENERATION_FAILURE > INFRASTRUCTURE_FAILURE > SUCCESS > NO_ADDITIONAL_TESTS_REQUIRED/NO_TEST_RELEVANT_CHANGES) con la condición de no afectar experimentos, evidencia ni métricas; implementación pendiente. INTEROP-2.10 (aclaratoria): cabecera alineada y mensaje objetivo de OC11 en §6.10 reemplazado por un resultSummary genérico veraz para compare UNVERIFIABLE (pendiente en WI-CORE-046). Sin cambio de rutas, campos, códigos ni estados.
+requiredAction:
+  - Espejar SYSTEM-2.10 e INTEROP-2.10 si mantiene copia; sin cambio de código ni de GH-INTEROP: el Check neutral por INFRASTRUCTURE_FAILURE ya es el mapeo vigente y el límite de 300 archivos sigue siendo suyo
+sourceRevision: f501aef7c0bf36c702e8703abf4f522ab29a54b8
+status: C-PENDING

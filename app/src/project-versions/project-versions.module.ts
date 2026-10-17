@@ -1,18 +1,20 @@
 import { Module } from '@nestjs/common';
-import { ProjectsModule } from '../projects/projects.module.js';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
 import { ProjectVersionsController } from './project-versions.controller.js';
 import { ProjectVersionsService } from './project-versions.service.js';
 import { ProjectVersionsRepository } from './project-versions.repository.js';
 import { ZipExtractionService } from './zip/zip-extraction.service.js';
 import { FileDiscoveryService } from './discovery/file-discovery.service.js';
 import { TypeScriptParserService } from './parsing/typescript-parser.service.js';
+import { PhpParserService } from './parsing/php-parser.service.js';
 import { TestTargetExtractorService } from './inventory/test-target-extractor.service.js';
 import { ExistingTestResolverService } from './inventory/existing-test-resolver.service.js';
+import { PhpExistingTestResolverService } from './inventory/php-existing-test-resolver.service.js';
 import { CodeChunksRepository } from './persistence/code-chunks.repository.js';
 import { TestTargetsRepository } from './persistence/test-targets.repository.js';
 
 @Module({
-  imports: [ProjectsModule],
+  imports: [ProjectAccessModule],
   controllers: [ProjectVersionsController],
   providers: [
     ProjectVersionsService,
@@ -20,8 +22,10 @@ import { TestTargetsRepository } from './persistence/test-targets.repository.js'
     ZipExtractionService,
     FileDiscoveryService,
     TypeScriptParserService,
+    PhpParserService,
     TestTargetExtractorService,
     ExistingTestResolverService,
+    PhpExistingTestResolverService,
     CodeChunksRepository,
     TestTargetsRepository,
   ],
@@ -32,8 +36,10 @@ import { TestTargetsRepository } from './persistence/test-targets.repository.js'
     ZipExtractionService,
     FileDiscoveryService,
     TypeScriptParserService,
+    PhpParserService,
     TestTargetExtractorService,
     ExistingTestResolverService,
+    PhpExistingTestResolverService,
   ],
 })
 export class ProjectVersionsModule {}

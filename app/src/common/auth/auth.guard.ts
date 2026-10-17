@@ -1,13 +1,14 @@
-import { CanActivate, ExecutionContext, HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { CanActivate, ExecutionContext, HttpStatus, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { WsException } from '@nestjs/websockets';
 import type { Request } from 'express';
 import type { Socket } from 'socket.io';
 import { AppException } from '../errors/app.exception.js';
 import { ErrorCode } from '../errors/error-code.enum.js';
-import { AUTH_TOKEN_VERIFIER, IS_PUBLIC_KEY } from './auth.constants.js';
-import { InvalidTokenError, type TokenVerifierPort } from './token-verifier.port.js';
+import { IS_PUBLIC_KEY } from './auth.constants.js';
+import { extractHandshakeToken } from './handshake-token.util.js';
+import { SessionAuthService, type SessionIdentity } from './session-auth.service.js';
+import { InvalidTokenError } from './token-verifier.port.js';
 
 const BEARER_PREFIX = 'Bearer ';
 
@@ -15,8 +16,7 @@ const BEARER_PREFIX = 'Bearer ';
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly config: ConfigService,
-    @Inject(AUTH_TOKEN_VERIFIER) private readonly verifier: TokenVerifierPort,
+    private readonly sessionAuth: SessionAuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -35,18 +35,16 @@ export class AuthGuard implements CanActivate {
       this.fail(isWs, ErrorCode.AUTH_REQUIRED, 'Falta un access token válido.');
     }
 
-    if (this.config.get<boolean>('AUTH_BYPASS_ENABLED', false)) {
-      this.setUserId(context, isWs, this.config.get<string>('AUTH_BYPASS_USER_ID', 'local-dev-user'));
-      return true;
-    }
-
     try {
-      const { userId } = await this.verifier.verify(token as string);
-      this.setUserId(context, isWs, userId);
+      this.setIdentity(context, isWs, await this.sessionAuth.authenticate(token as string));
       return true;
     } catch (error) {
       if (error instanceof InvalidTokenError) {
         this.fail(isWs, ErrorCode.INVALID_ACCESS_TOKEN, 'El access token es inválido o expiró.');
+      }
+      if (isWs && error instanceof AppException) {
+        // GITHUB_IDENTITY_REQUIRED / IDENTITY_UNAVAILABLE en un mensaje WebSocket.
+        throw new WsException({ code: error.code, message: error.message });
       }
       throw error;
     }
@@ -62,26 +60,19 @@ export class AuthGuard implements CanActivate {
   }
 
   private extractWsToken(context: ExecutionContext): string | null {
-    const client = context.switchToWs().getClient<Socket>();
-    const authToken = client.handshake.auth?.token as string | undefined;
-    if (authToken) {
-      return authToken;
-    }
-    const header = client.handshake.headers?.authorization;
-    if (typeof header === 'string' && header.startsWith(BEARER_PREFIX)) {
-      return header.slice(BEARER_PREFIX.length).trim() || null;
-    }
-    return null;
+    return extractHandshakeToken(context.switchToWs().getClient<Socket>().handshake);
   }
 
-  private setUserId(context: ExecutionContext, isWs: boolean, userId: string): void {
+  private setIdentity(context: ExecutionContext, isWs: boolean, identity: SessionIdentity): void {
     if (isWs) {
       const client = context.switchToWs().getClient<Socket>();
-      client.data.userId = userId;
+      client.data.userId = identity.userId;
+      client.data.githubUserId = identity.githubUserId;
       return;
     }
     const request = context.switchToHttp().getRequest<Request>();
-    request.userId = userId;
+    request.userId = identity.userId;
+    request.githubUserId = identity.githubUserId;
   }
 
   private fail(isWs: boolean, code: ErrorCode, message: string): never {

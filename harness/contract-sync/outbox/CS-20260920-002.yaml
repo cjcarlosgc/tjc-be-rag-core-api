@@ -1,0 +1,11 @@
+type: CONTRACT_SYNC
+id: CS-20260920-002
+source: core
+targets: [console]
+breaking: false
+changed:
+  - INTEROP-2.3 §6.1 DELETE /projects/{projectId} -> 204 borrado logico sin restauracion (HU56); §6.8 POST /projects/{projectId}/integrations/github/enable -> 200 ProjectRepositoryBindingResponse, idempotente, reactiva DISABLED y REVOKED si la App recupero acceso (HU57); §6.8 409 REPOSITORY_ALREADY_BOUND con orden de validacion; desconectar = DISABLED sin degradar REVOKED. Respuesta a CS-20260920-001. Contrato DEFINIDO, implementacion PENDIENTE (llegara un segundo CONTRACT_SYNC al terminar)
+requiredAction:
+  - Copiar los mirrors SYSTEM-2.3 e INTEROP-2.3 desde Core (byte por byte). Mantener el adapter live de enable y DELETE como PendingContractError hasta el CONTRACT_SYNC de implementacion completada. Manejar 409 REPOSITORY_ALREADY_BOUND y 404 PROJECT_NOT_FOUND en los adapters.
+sourceRevision: caa4336
+status: PENDING

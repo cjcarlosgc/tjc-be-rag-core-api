@@ -1,3 +1,5 @@
+import type { ProjectLanguage, TestFramework } from '../../generated/prisma/enums.js';
+
 export interface TestTargetResponse {
   id: string;
   filePath: string;
@@ -10,7 +12,8 @@ export interface TestTargetResponse {
 
 export interface TestInventoryResponse {
   projectVersionId: string;
-  detectedFramework: string | null;
+  language: ProjectLanguage;
+  detectedFramework: TestFramework | null;
   targetsTotal: number;
   targetsWithTest: number;
   targetsMissingTest: number;

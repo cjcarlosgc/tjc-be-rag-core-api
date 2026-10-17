@@ -1,0 +1,17 @@
+{
+  "workflow": "fan-out-fan-in",
+  "workItem": "example-contract-cut",
+  "sequence": [
+    "leader",
+    "sdd-analyst",
+    "implementer",
+    ["reviewer", "contract-reviewer"],
+    "leader"
+  ],
+  "handoffs": {
+    "sdd-analyst": {"status": "APPROVED", "findings": [], "blockers": [], "filesAffected": ["spec/contracts/interoperability-contract.md"], "evidence": ["decision gate checked"], "recommendedNextStep": "Implement approved cut."},
+    "implementer": {"status": "APPROVED", "findings": [], "blockers": [], "filesAffected": ["app/example.ts"], "evidence": ["tests passed", "CONTRACT_SYNC PULL passed"], "recommendedNextStep": "Run parallel reviews."},
+    "reviewer": {"status": "APPROVED", "findings": [], "blockers": [], "filesAffected": ["app/example.ts"], "evidence": ["independent review passed"], "recommendedNextStep": "Fan in."},
+    "contract-reviewer": {"status": "APPROVED", "findings": [], "blockers": [], "filesAffected": ["spec/contracts/interoperability-contract.md"], "evidence": ["consumers identified", "CONTRACT_SYNC required"], "recommendedNextStep": "Publish sync before DONE."}
+  }
+}

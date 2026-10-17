@@ -1,19 +1,20 @@
 # async-jobs — Especificación
 
-**Estado:** aprobado para SDD 1.0 salvo elementos marcados PENDING/PROPOSED.  
+**Estado:** vigente para jobs del flujo PR-driven; adapters legacy se retiran en WI-CORE-002.
 **Historias:** capacidad técnica transversal
 
 ## Objetivo
 
-Garantizar que indexaciones y generaciones sobrevivan al ciclo HTTP y reinicios razonables.
+Garantizar que indexación, generación, validación y experimentos ligados a `AnalysisRun` sobrevivan al ciclo HTTP y reinicios razonables.
 
 ## Reglas y comportamiento
 
 - Indexación, generación, experimento y validación sobreviven al request HTTP mediante la cola DB-backed aprobada.
-- Toda aceptación devuelve `202`, identidad estable y `pollAfterMs` según `INTEROP-2.1`.
+- Las operaciones asíncronas expuestas responden según `INTEROP-2.6`, con identidad estable y `pollAfterMs` cuando el contrato lo declara.
 - Los handlers son idempotentes frente a reintentos y los estados terminales permanecen consultables.
-- `POST /test-runs`, `POST /experiments` y el POST de retry reservan `Idempotency-Key` + huella canónica bajo unicidad y crean el recurso/job de forma atómica o recuperable. Un replay equivalente no agenda trabajo adicional.
+- `POST /experiments` y las demás operaciones que el contrato vigente declara idempotentes reservan `Idempotency-Key` y huella canónica bajo unicidad; recurso y job se crean atómicamente o de modo recuperable. Un replay equivalente no agenda trabajo adicional.
 - Los jobs que hacen fan-out derivan UUID v5 por unidad lógica para Sandbox y los conservan durante cualquier retry.
+- **Recuperación de locks vencidos (`DEC-JOBS-001`, `DEC-JOBS-002`, `WI-CORE-030`):** el worker renueva `lockedAt` mientras el handler corre (latido de job, `JOBS_HEARTBEAT_INTERVAL_MS`, ≤ `JOBS_STALE_LOCK_MS/3`) y `complete/fail/reschedule` solo escriben si `lockedBy` sigue siendo ese worker. `releaseStale` libera los `RUNNING` con latido vencido de los jobs con `dedupeKey` y de una lista cerrada de tipos sin clave, hoy `experiment-run` y, por enmienda de `DEC-RC-002` (2026-10-09, `WI-CORE-022`), `retrieval-comparison` (solo lectura e idempotente); no se liberan `snapshot-analysis`, `functional-continuation`, `analysis-run-validation` ni `test-publication` (gates de estado, costo LLM o escrituras externas; recuperación por entidad: `IDEA-011`). Cada liberación consume un intento y respeta `JOBS_MAX_ATTEMPTS`; al agotarlos, el handler del tipo cierra su entidad (`ExperimentRun` queda `FAILED` con `failureCode` `EXPERIMENT_WORKER_LOST`).
 - Los resultados detallados se consultan por una ruta separada y antes de terminar responden `409 *_NOT_FINISHED`.
 
 ## Fuera de alcance
@@ -21,6 +22,4 @@ Garantizar que indexaciones y generaciones sobrevivan al ciclo HTTP y reinicios 
 - No ampliar a capacidades no mencionadas en esta spec.
 - No convertir decisiones PENDING en implementación definitiva sin aprobación.
 
-## Cierre de la brecha de implementación SDD 1.14
-
-Resuelto en SDD 1.15. `JobsService.enqueue`/`JobsRepository.create` aceptan un `Prisma.TransactionClient` opcional, permitiendo encolar el job dentro de la misma transacción que crea el recurso y el `IdempotencyRecord` (`IdempotencyService`). `TestGenerationJobHandler`, `ExperimentJobHandler` y `RetryTargetJobHandler` derivan y reutilizan las identidades hijas UUID v5 exactas de `DEC-IDEMP-001` (namespace `6ba7b811-9dad-11d1-80b4-00c04fd430c8`, `sandboxGenerationRequestId`/`sandboxExperimentRequestId`/`sandboxManualRetryRequestId`) a partir del `jobId` (segundo parámetro de `JobHandler.handle`, estable entre reintentos internos del mismo job).
+`JobsService.enqueue`/`JobsRepository.create` aceptan un `Prisma.TransactionClient` opcional para encolar en la misma transacción que crea recurso e `IdempotencyRecord`. La identidad hija UUID v5 de Sandbox se deriva del job durable y de la unidad lógica; los handlers exclusivos del flujo manual se retiran en WI-CORE-002 después de inventariar datos.

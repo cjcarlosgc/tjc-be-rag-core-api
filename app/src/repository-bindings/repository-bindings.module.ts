@@ -4,17 +4,19 @@ import { RepositoryBindingsService } from './repository-bindings.service.js';
 import { RepositoryBindingsRepository } from './repository-bindings.repository.js';
 import { GithubUserRepositoriesService } from './github/github-user-repositories.service.js';
 import { GithubRepositoryAccessService } from './github/github-repository-access.service.js';
-import { ProjectsModule } from '../projects/projects.module.js';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
 import { GithubAppModule } from '../github-app/github-app.module.js';
+import { VerifiedRepositoryBindingService } from './verified-repository-binding.service.js';
 
 @Module({
-  imports: [ProjectsModule, GithubAppModule],
+  imports: [ProjectAccessModule, GithubAppModule],
   controllers: [RepositoryBindingsController],
   providers: [
     RepositoryBindingsService,
     RepositoryBindingsRepository,
     GithubUserRepositoriesService,
     GithubRepositoryAccessService,
+    VerifiedRepositoryBindingService,
   ],
   exports: [RepositoryBindingsService, RepositoryBindingsRepository],
 })

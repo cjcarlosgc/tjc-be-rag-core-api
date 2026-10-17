@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20260927-001
+source: github-integration
+sourceWorkItem: WI-GH-007
+targets: [core, console]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - WI-GH-007 implements GH-INTEROP-1.2: webhook createdAt is normalized to ISO-8601 UTC or null; pull-request-head returns OK only with a verified creation date and otherwise returns UNVERIFIABLE without value.
+requiredAction:
+  - Import the namespaced availability event and verify the consumer is compatible with the canonical GH-INTEROP-1.2 createdAt field. Core continues its eligibility and durable recovery work; Console records its local consumer compatibility in its own WI.
+sourceRevision: 35bd9f2006240ebcd12ce0c3353d3a43bb1c1d0c
+consumerImportedAt: 2026-09-27T22:24:48.204Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/external-dependency-verification-wi-core-011.json
+resolutionEvidence: harness/reports/wi-core-011-implementation.md

@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20260926-001
+source: github-integration
+sourceWorkItem: WI-GH-006
+targets: [core, console]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GH-INTEROP-1.1 añade rutas autenticadas de usuario para Console y autorización síncrona Integration→Core; Core emite evidencia breve para persistir bindings y se mantienen temporalmente las rutas Core equivalentes.
+requiredAction:
+  - Revisar el contrato espejo y verificar las rutas/DTOs, autorización, manejo efímero de tokens y compatibilidad antes de aprobar el WI consumidor.
+sourceRevision: feature/jean@working-tree
+consumerImportedAt: 2026-09-26T07:48:26.072Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/contract-sync-resolution-cs-gh-20260926-001.md
+resolutionEvidence: harness/reports/contract-sync-resolution-cs-gh-20260926-001.md

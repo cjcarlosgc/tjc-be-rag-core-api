@@ -8,12 +8,14 @@ import type { FunctionalKnowledgeResponse } from './dto/functional-knowledge.res
 import type { FunctionalAnswerAcceptedResponse } from './dto/functional-answer-accepted.response.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
 import type { Page } from '../common/dto/page.response.js';
+import { ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 @Controller()
 export class FunctionalKnowledgeController {
   constructor(private readonly functionalKnowledgeService: FunctionalKnowledgeService) {}
 
   @Get('action-required')
+  @RequireProjectRole('READER', ProjectTargets.optionalQueryProject('projectId'))
   listActionRequired(
     @Query() query: ListActionRequiredQueryDto,
     @CurrentUserId() userId: string,
@@ -22,6 +24,7 @@ export class FunctionalKnowledgeController {
   }
 
   @Get('analysis-runs/:analysisRunId/context-questions')
+  @RequireProjectRole('READER', ProjectTargets.param('analysisRun', 'analysisRunId'))
   getQuestionSet(
     @Param('analysisRunId') analysisRunId: string,
     @CurrentUserId() userId: string,
@@ -30,6 +33,7 @@ export class FunctionalKnowledgeController {
   }
 
   @Post('analysis-runs/:analysisRunId/context-questions/:questionId/answers')
+  @RequireProjectRole('MAINTAINER', ProjectTargets.param('analysisRun', 'analysisRunId'))
   @HttpCode(HttpStatus.ACCEPTED)
   submitAnswer(
     @Param('analysisRunId') analysisRunId: string,
@@ -41,6 +45,7 @@ export class FunctionalKnowledgeController {
   }
 
   @Get('projects/:projectId/functional-knowledge')
+  @RequireProjectRole('READER', ProjectTargets.project('projectId'))
   listKnowledge(
     @Param('projectId') projectId: string,
     @Query() query: ListFunctionalKnowledgeQueryDto,

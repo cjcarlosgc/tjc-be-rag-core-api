@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20260925-003
+source: github-integration
+sourceWorkItem: WI-GH-004
+targets: [core]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GH-INTEROP-1.0 normatively returns only {status: READY}, while descriptive prose says READY with current branch/base; GH interprets branch/base as internal verification and does not add response fields.
+requiredAction:
+  - Clarify whether branch/base are verification inputs or intended response fields; any wire-field addition requires an approved canonical GH-INTEROP change before Core cutover.
+sourceRevision: 65e102f9a8414e42d371ca4a44626b0f32faf7cb
+consumerImportedAt: 2026-09-25T18:06:09.000Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/contract-sync-review-wi-core-003.md
+resolutionEvidence: harness/reports/wi-core-003-implementation.md

@@ -1,0 +1,16 @@
+type: CONTRACT_SYNC
+id: CS-GH-20261010-001
+source: github-integration
+sourceWorkItem: WI-GH-012
+targets: [core]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GH-INTEROP-1.3 requires an existing Check for the same headSha and name to retain its checkId, but does not define selection, multiple candidates, or concurrent creation.
+requiredAction:
+  - Core must publish a canonical clarification that defines the Check identity and selection/update semantics, including duplicates and concurrent requests, before GitHub Integration implements the endpoint.
+sourceRevision: 5e4772cd04aa4ff9a086cee754310f84ba206436
+consumerImportedAt: 2026-10-11T04:55:36.731Z
+status: C-RESOLVED
+acknowledgementEvidence: harness/reports/wi-core-034-sync-review.md
+resolutionEvidence: harness/reports/wi-core-034-implementation.md

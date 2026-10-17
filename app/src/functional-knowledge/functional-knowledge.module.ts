@@ -6,11 +6,14 @@ import { FunctionalKnowledgeRepository } from './functional-knowledge.repository
 import { FunctionalContextEvaluatorService } from './functional-context-evaluator.service.js';
 import { FunctionalContinuationJobHandler } from './functional-continuation-job.handler.js';
 import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
-import { ProjectsModule } from '../projects/projects.module.js';
+import { ProjectAccessModule } from '../project-access/project-access.module.js';
 import { ChecksModule } from '../checks/checks.module.js';
+import { GithubAppModule } from '../github-app/github-app.module.js';
+import { SymbolBehaviorConstructsService } from './symbol-behavior-constructs.service.js';
+import { ProjectVersionsModule } from '../project-versions/project-versions.module.js';
 
 @Module({
-  imports: [AnalysisRunsModule, ProjectsModule, ChecksModule],
+  imports: [AnalysisRunsModule, ProjectAccessModule, ProjectVersionsModule, ChecksModule, GithubAppModule],
   controllers: [FunctionalKnowledgeController],
   providers: [
     FunctionalKnowledgeService,
@@ -18,11 +21,13 @@ import { ChecksModule } from '../checks/checks.module.js';
     FunctionalKnowledgeRepository,
     FunctionalContextEvaluatorService,
     FunctionalContinuationJobHandler,
+    SymbolBehaviorConstructsService,
   ],
   exports: [
     FunctionalQuestionsRepository,
     FunctionalKnowledgeRepository,
     FunctionalContextEvaluatorService,
+    SymbolBehaviorConstructsService,
   ],
 })
 export class FunctionalKnowledgeModule {}

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ExperimentsService } from './experiments.service.js';
 import { CreateExperimentDto } from './dto/create-experiment.dto.js';
 import type {
@@ -6,13 +16,25 @@ import type {
   ExperimentResultsResponse,
   ExperimentStatusResponse,
 } from './dto/experiment.response.js';
+import type { Page } from '../common/dto/page.response.js';
+import type { ContextTraceSummaryResponse } from './dto/context-trace.response.js';
+import { ListContextTracesQueryDto } from './dto/context-traces-query.dto.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
+import {
+  ProjectTargets,
+  RequireProjectRole,
+} from '../project-access/access-policy.js';
+import { ContextTracesService } from '../context-traces/context-traces.service.js';
 
 @Controller('experiments')
 export class ExperimentsController {
-  constructor(private readonly experimentsService: ExperimentsService) {}
+  constructor(
+    private readonly experimentsService: ExperimentsService,
+    private readonly contextTracesService: ContextTracesService,
+  ) {}
 
   @Post()
+  @RequireProjectRole('WRITER', ProjectTargets.body('analysisRun', 'analysisRunId'))
   @HttpCode(HttpStatus.ACCEPTED)
   create(
     @Body() dto: CreateExperimentDto,
@@ -23,6 +45,7 @@ export class ExperimentsController {
   }
 
   @Get(':id')
+  @RequireProjectRole('READER', ProjectTargets.param('experiment', 'id'))
   getStatus(
     @Param('id') id: string,
     @CurrentUserId() userId: string,
@@ -31,10 +54,28 @@ export class ExperimentsController {
   }
 
   @Get(':id/results')
+  @RequireProjectRole('READER', ProjectTargets.param('experiment', 'id'))
   getResults(
     @Param('id') id: string,
     @CurrentUserId() userId: string,
   ): Promise<ExperimentResultsResponse> {
     return this.experimentsService.getResults(id, userId);
+  }
+
+  @Get(':experimentId/context-traces')
+  @RequireProjectRole(
+    'READER',
+    ProjectTargets.param('experiment', 'experimentId'),
+  )
+  listContextTraces(
+    @Param('experimentId') experimentId: string,
+    @CurrentUserId() userId: string,
+    @Query() query: ListContextTracesQueryDto,
+  ): Promise<Page<ContextTraceSummaryResponse>> {
+    return this.contextTracesService.listContextTraces(
+      experimentId,
+      userId,
+      query,
+    );
   }
 }

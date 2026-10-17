@@ -1,16 +1,90 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
+  ExecutionProfile,
+  SandboxExecutionEvidenceFact,
+  SandboxExecutionEvidenceKind,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFailureFact,
 } from './sandbox.types.js';
 
+const EVIDENCE_KINDS: ReadonlySet<string> = new Set<SandboxExecutionEvidenceKind>([
+  'COMPILER_STDOUT',
+  'COMPILER_STDERR',
+  'TEST_STDOUT',
+  'TEST_STDERR',
+  'RUNNER_REPORT',
+]);
+
+/**
+ * WI-CORE-060: lee la evidencia acotada del Sandbox sin confiar en su forma. Un campo ausente o que no es
+ * arreglo da []; una entrada sin un `kind` conocido, con `content` no string o con `truncated` no booleano
+ * se descarta. Nunca lanza.
+ */
+export function parseSandboxEvidence(raw: unknown): SandboxExecutionEvidenceFact[] {
+  if (!Array.isArray(raw)) return [];
+  const facts: SandboxExecutionEvidenceFact[] = [];
+  for (const entry of raw) {
+    if (entry === null || typeof entry !== 'object') continue;
+    const candidate = entry as Record<string, unknown>;
+    if (typeof candidate.kind !== 'string' || !EVIDENCE_KINDS.has(candidate.kind)) continue;
+    if (typeof candidate.content !== 'string') continue;
+    if (typeof candidate.truncated !== 'boolean') continue;
+    facts.push({
+      kind: candidate.kind as SandboxExecutionEvidenceKind,
+      stage: typeof candidate.stage === 'string' ? candidate.stage : null,
+      content: candidate.content,
+      truncated: candidate.truncated,
+      originalBytes: typeof candidate.originalBytes === 'number' ? candidate.originalBytes : null,
+    });
+  }
+  return facts;
+}
+
+/**
+ * WI-CORE-061: acepta solo una cadena ISO-8601 en UTC (termina en `Z`) que Date pueda parsear.
+ * Cualquier otro valor se trata como ausente.
+ */
+function isUtcIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && value.endsWith('Z') && !Number.isNaN(Date.parse(value));
+}
+
+/**
+ * WI-CORE-061: conserva `stage` y `durationMs` tal como los devuelve el Sandbox y añade `startedAt`/`completedAt`
+ * solo cuando son ISO-8601 UTC válidos. Una entrada que no es objeto se pasa sin cambios.
+ */
+function normalizeStageDurations(raw: unknown): SandboxExecutionResult['stageDurations'] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((entry: unknown) => {
+    if (entry === null || typeof entry !== 'object') return entry as SandboxExecutionResult['stageDurations'][number];
+    const candidate = entry as Record<string, unknown>;
+    const stage: SandboxExecutionResult['stageDurations'][number] = {
+      stage: candidate.stage as SandboxExecutionResult['stageDurations'][number]['stage'],
+      durationMs: candidate.durationMs as number,
+    };
+    if (isUtcIsoTimestamp(candidate.startedAt)) stage.startedAt = candidate.startedAt;
+    if (isUtcIsoTimestamp(candidate.completedAt)) stage.completedAt = candidate.completedAt;
+    return stage;
+  });
+}
+
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
-const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
-const DEFAULT_MAX_POLL_ATTEMPTS = 120;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
+
+// Keep the mapping exhaustive: adding a runner requires selecting its profile.
+export const EXECUTION_PROFILE_BY_RUNNER: Record<
+  SandboxExecutionRequest['runnerHint'],
+  ExecutionProfile
+> = {
+  JEST: 'NODE_TYPESCRIPT',
+  VITEST: 'NODE_TYPESCRIPT',
+  PHPUNIT: 'PHP_LARAVEL_PHPUNIT',
+};
 
 interface EphemeralDownloadRef {
   role: 'PROJECT_SNAPSHOT' | 'GENERATED_ARTIFACT';
@@ -22,6 +96,37 @@ interface EphemeralDownloadRef {
 
 export class SandboxUnavailableError extends Error {}
 
+/**
+ * Fallo posterior a la aceptación del Sandbox (`POST /executions` ya respondió): conserva el
+ * `executionId` para que Core lo persista aunque la ejecución no llegue a un resultado (WI-CORE-026).
+ * Es un `SandboxUnavailableError`, así que los llamadores existentes no cambian de comportamiento.
+ */
+export class SandboxAcceptedExecutionError extends SandboxUnavailableError {
+  /**
+   * WI-CORE-027: `requestId`, `correlationId` y `durationMs` solo existen tras la aceptación; por defecto son
+   * `null` (no observados). Un fallo previo a `POST /executions` no los informa, nunca con valores inventados.
+   */
+  constructor(
+    message: string,
+    readonly executionId: string,
+    readonly executionProfile: ExecutionProfile,
+    readonly requestId: string | null = null,
+    readonly correlationId: string | null = null,
+    readonly durationMs: number | null = null,
+  ) {
+    super(message);
+  }
+}
+
+type SandboxExecutionOutcome = Omit<
+  SandboxExecutionResult,
+  | 'executionId'
+  | 'executionProfile'
+  | 'requestId'
+  | 'correlationId'
+  | 'durationMs'
+>;
+
 @Injectable()
 export class SandboxExecutionService {
   private readonly logger = new Logger(SandboxExecutionService.name);
@@ -31,17 +136,23 @@ export class SandboxExecutionService {
     private readonly objectStorageService: ObjectStorageService,
   ) {}
 
-  async execute(request: SandboxExecutionRequest): Promise<SandboxExecutionResult> {
+  async execute(
+    request: SandboxExecutionRequest,
+  ): Promise<SandboxExecutionResult> {
     const baseUrl = this.configService.get<string>('SANDBOX_URL');
 
     if (!baseUrl) {
       throw new SandboxUnavailableError('SANDBOX_URL no está configurado.');
     }
 
-    const serviceToken = this.configService.get<string>('SANDBOX_SERVICE_TOKEN');
+    const serviceToken = this.configService.get<string>(
+      'SANDBOX_SERVICE_TOKEN',
+    );
 
     if (!serviceToken) {
-      throw new SandboxUnavailableError('SANDBOX_SERVICE_TOKEN no está configurado (DEC-AUTH-001).');
+      throw new SandboxUnavailableError(
+        'SANDBOX_SERVICE_TOKEN no está configurado (DEC-AUTH-001).',
+      );
     }
 
     const { requestId } = request;
@@ -51,16 +162,27 @@ export class SandboxExecutionService {
       DEFAULT_DOWNLOAD_TTL_SECONDS,
     );
 
-    const snapshot = await this.buildSnapshotRef(request.snapshotKey, request.snapshotBuffer, ttl);
+    const snapshot = await this.buildSnapshotRef(
+      request.snapshotKey,
+      request.snapshotBuffer,
+      ttl,
+    );
     const artifacts = await Promise.all(
       request.artifacts.map(async (artifact) => ({
         artifactId: artifact.artifactId,
         relativePath: artifact.relativePath,
         artifactType: artifact.artifactType,
-        download: await this.buildArtifactRef(request.testRunId, artifact.content, ttl),
+        download: await this.buildArtifactRef(
+          request.testRunId,
+          artifact.content,
+          ttl,
+        ),
       })),
     );
 
+    const executionProfile =
+      request.executionProfile ??
+      EXECUTION_PROFILE_BY_RUNNER[request.runnerHint];
     const body = {
       requestId,
       testRunId: request.testRunId,
@@ -69,26 +191,57 @@ export class SandboxExecutionService {
       artifacts,
       scope: request.scope,
       targetIds: request.targetIds,
+      executionProfile,
       runnerHint: request.runnerHint,
+      ...(request.projectRoot === undefined
+        ? {}
+        : { projectRoot: request.projectRoot }),
     };
 
-    const accepted = await this.postJson<{ executionId: string; pollAfterMs: number }>(
-      `${baseUrl}/executions`,
-      body,
-      requestId,
-      correlationId,
-      serviceToken,
-    );
+    // WI-CORE-027: el cronómetro cubre la llamada real, desde el envío de `POST /executions`.
+    const startedAt = Date.now();
+    const accepted = await this.postJson<{
+      executionId: string;
+      pollAfterMs: number;
+    }>(`${baseUrl}/executions`, body, requestId, correlationId, serviceToken);
 
-    await this.pollUntilTerminal(
-      baseUrl,
-      accepted.executionId,
-      accepted.pollAfterMs,
-      correlationId,
-      serviceToken,
-    );
+    try {
+      await this.pollUntilTerminal(
+        baseUrl,
+        accepted.executionId,
+        accepted.pollAfterMs,
+        correlationId,
+        serviceToken,
+      );
 
-    return this.fetchResult(baseUrl, accepted.executionId, correlationId, serviceToken);
+      const outcome = await this.fetchResult(
+        baseUrl,
+        accepted.executionId,
+        correlationId,
+        serviceToken,
+      );
+      return {
+        ...outcome,
+        executionId: accepted.executionId,
+        executionProfile,
+        requestId,
+        correlationId,
+        durationMs: Date.now() - startedAt,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Fallo desconocido tras aceptar la ejecución.';
+      throw new SandboxAcceptedExecutionError(
+        message,
+        accepted.executionId,
+        executionProfile,
+        requestId,
+        correlationId,
+        Date.now() - startedAt,
+      );
+    }
   }
 
   private async buildSnapshotRef(
@@ -96,8 +249,16 @@ export class SandboxExecutionService {
     snapshotBuffer: Buffer,
     ttlSeconds: number,
   ): Promise<EphemeralDownloadRef> {
-    const url = await this.objectStorageService.presignGet(snapshotKey, ttlSeconds);
-    return this.toDownloadRef('PROJECT_SNAPSHOT', url, snapshotBuffer, ttlSeconds);
+    const url = await this.objectStorageService.presignGet(
+      snapshotKey,
+      ttlSeconds,
+    );
+    return this.toDownloadRef(
+      'PROJECT_SNAPSHOT',
+      url,
+      snapshotBuffer,
+      ttlSeconds,
+    );
   }
 
   private async buildArtifactRef(
@@ -142,11 +303,10 @@ export class SandboxExecutionService {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, pollAfterMs));
 
-      const status = await this.getJson<{ status: string; pollAfterMs?: number }>(
-        `${baseUrl}/executions/${executionId}`,
-        correlationId,
-        serviceToken,
-      );
+      const status = await this.getJson<{
+        status: string;
+        pollAfterMs?: number;
+      }>(`${baseUrl}/executions/${executionId}`, correlationId, serviceToken);
 
       if (['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(status.status)) {
         return;
@@ -165,15 +325,22 @@ export class SandboxExecutionService {
     executionId: string,
     correlationId: string,
     serviceToken: string,
-  ): Promise<SandboxExecutionResult> {
+  ): Promise<SandboxExecutionOutcome> {
     const result = await this.getJson<{
       status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
       facts: SandboxExecutionResult['facts'];
       failure: SandboxFailureFact | null;
-      stageDurations?: SandboxExecutionResult['stageDurations'];
-    }>(`${baseUrl}/executions/${executionId}/result`, correlationId, serviceToken);
+      stageDurations?: unknown;
+      evidence?: unknown;
+      startedAt?: unknown;
+      completedAt?: unknown;
+    }>(
+      `${baseUrl}/executions/${executionId}/result`,
+      correlationId,
+      serviceToken,
+    );
 
-    const stageDurations = result.stageDurations ?? [];
+    const stageDurations = normalizeStageDurations(result.stageDurations);
 
     if (stageDurations.length > 0) {
       this.logger.debug(
@@ -188,12 +355,21 @@ export class SandboxExecutionService {
       // `ExperimentRepetition` (ese modelo no tiene columna de mensaje); sin
       // este log, el detalle real del Sandbox (p. ej. qué dependencia falta)
       // se pierde para siempre en los experimentos.
+      // WI-CORE-027 (IDEA-016): el mensaje se registra saneado; el canal de logs no debe recibir secretos.
       this.logger.warn(
-        `Ejecución ${executionId} falló en ${result.failure.stage} (${result.failure.category}/${result.failure.code}): ${result.failure.message}`,
+        `Ejecución ${executionId} falló en ${result.failure.stage} (${result.failure.category}/${result.failure.code}): ${sanitizeFailureMessage(String(result.failure.message))}`,
       );
     }
 
-    return { status: result.status, facts: result.facts, failure: result.failure, stageDurations };
+    return {
+      status: result.status,
+      facts: result.facts,
+      failure: result.failure,
+      stageDurations,
+      evidence: parseSandboxEvidence(result.evidence),
+      startedAt: typeof result.startedAt === 'string' ? result.startedAt : null,
+      completedAt: typeof result.completedAt === 'string' ? result.completedAt : null,
+    };
   }
 
   private async postJson<T>(
@@ -215,10 +391,17 @@ export class SandboxExecutionService {
     });
   }
 
-  private async getJson<T>(url: string, correlationId: string, serviceToken: string): Promise<T> {
+  private async getJson<T>(
+    url: string,
+    correlationId: string,
+    serviceToken: string,
+  ): Promise<T> {
     return this.request<T>(url, {
       method: 'GET',
-      headers: { 'x-correlation-id': correlationId, authorization: `Bearer ${serviceToken}` },
+      headers: {
+        'x-correlation-id': correlationId,
+        authorization: `Bearer ${serviceToken}`,
+      },
     });
   }
 
@@ -234,7 +417,9 @@ export class SandboxExecutionService {
       const response = await fetch(url, { ...init, signal: controller.signal });
 
       if (!response.ok) {
-        throw new SandboxUnavailableError(`Sandbox respondió ${response.status} para ${url}.`);
+        throw new SandboxUnavailableError(
+          `Sandbox respondió ${response.status} para ${url}.`,
+        );
       }
 
       return (await response.json()) as T;
@@ -243,7 +428,9 @@ export class SandboxExecutionService {
         throw error;
       }
 
-      this.logger.warn(`Fallo al comunicarse con el Sandbox (${url}): ${(error as Error).message}`);
+      this.logger.warn(
+        `Fallo al comunicarse con el Sandbox (${url}): ${(error as Error).message}`,
+      );
       throw new SandboxUnavailableError((error as Error).message);
     } finally {
       clearTimeout(timeout);

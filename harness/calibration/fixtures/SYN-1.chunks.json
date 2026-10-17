@@ -1,0 +1,137 @@
+[
+  {
+    "id": "c-anchor",
+    "filePath": "app/Orders/Pricer.php",
+    "symbolKind": "METHOD",
+    "symbolName": "price",
+    "parentSymbolName": "Acme\\Orders\\Pricer",
+    "importsUsed": [
+      "\\Acme\\Orders\\Gateway",
+      "\\Acme\\Orders\\Money"
+    ],
+    "content": "public function price(Gateway $gateway, Money $base): Money { $rate = $gateway->rate(); return new Money($base->amount() * $rate); }",
+    "tokenCount": 60
+  },
+  {
+    "id": "c-ctor",
+    "filePath": "app/Orders/Pricer.php",
+    "symbolKind": "CONSTRUCTOR",
+    "symbolName": "constructor",
+    "parentSymbolName": "Acme\\Orders\\Pricer",
+    "importsUsed": [
+      "\\Acme\\Tax\\Tax"
+    ],
+    "content": "public function __construct(private Tax $tax) {}",
+    "tokenCount": 20
+  },
+  {
+    "id": "c-pricer",
+    "filePath": "app/Orders/Pricer.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Orders\\Pricer",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "final class Pricer { public function __construct(private Tax $tax) {} public function price(Gateway $gateway, Money $base): Money { $rate = $gateway->rate(); return new Money($base->amount() * $rate); } }",
+    "tokenCount": 90
+  },
+  {
+    "id": "c-money",
+    "filePath": "app/Orders/Money.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Orders\\Money",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "final readonly class Money { public function __construct(public int $amount) {} public function amount(): int { return $this->amount; } }",
+    "tokenCount": 45
+  },
+  {
+    "id": "c-gateway",
+    "filePath": "app/Orders/Gateway.php",
+    "symbolKind": "INTERFACE",
+    "symbolName": "Acme\\Orders\\Gateway",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "interface Gateway { public function rate(): float; }",
+    "tokenCount": 25
+  },
+  {
+    "id": "c-tax",
+    "filePath": "app/Tax/Tax.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Tax\\Tax",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "final class Tax { public function rateFor(string $code): float { return 0.1; } }",
+    "tokenCount": 35
+  },
+  {
+    "id": "c-rate",
+    "filePath": "app/Orders/Gateway.php",
+    "symbolKind": "METHOD",
+    "symbolName": "rate",
+    "parentSymbolName": "Acme\\Orders\\Gateway",
+    "importsUsed": [],
+    "content": "public function rate(): float;",
+    "tokenCount": 12
+  },
+  {
+    "id": "c-other",
+    "filePath": "app/Orders/Other.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Orders\\Other",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "class Other { public function total(): int { return 1; } }",
+    "tokenCount": 30
+  },
+  {
+    "id": "c-total",
+    "filePath": "app/Orders/Other.php",
+    "symbolKind": "METHOD",
+    "symbolName": "total",
+    "parentSymbolName": "Acme\\Orders\\Other",
+    "importsUsed": [],
+    "content": "public function total(): int { return 1; }",
+    "tokenCount": 14
+  },
+  {
+    "id": "c-pricertest",
+    "filePath": "tests/Orders/PricerTest.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Tests\\PricerTest",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "class PricerTest { public function testPrice() { $this->price(); } }",
+    "tokenCount": 40
+  },
+  {
+    "id": "c-othertest",
+    "filePath": "tests/Orders/OtherTest.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Tests\\OtherTest",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "class OtherTest { public function testTotal() { $x->total(); } }",
+    "tokenCount": 31
+  },
+  {
+    "id": "c-discount",
+    "filePath": "app/Orders/Discount.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Orders\\Discount",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "class Discount {}",
+    "tokenCount": 8
+  },
+  {
+    "id": "c-foo",
+    "filePath": "app/Misc/Foo.php",
+    "symbolKind": "CLASS",
+    "symbolName": "Acme\\Misc\\Foo",
+    "parentSymbolName": null,
+    "importsUsed": [],
+    "content": "class Foo {}",
+    "tokenCount": 6
+  }
+]

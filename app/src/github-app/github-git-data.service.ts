@@ -1,179 +1,165 @@
 import { Injectable } from '@nestjs/common';
 import { GithubAppUnavailableError } from './github-app-auth.service.js';
+import { GithubIntegrationClient } from './github-integration.client.js';
 
-const GITHUB_API_VERSION = '2022-11-28';
-
-export interface TreeEntryInput {
-  path: string;
-  content: string;
+export interface PublicationRequest {
+  installationId: string;
+  repositoryName: string;
+  pullRequestNumber: number;
+  sourceHeadSha: string;
 }
 
-export interface PullRequestRef {
-  number: number;
-  url: string;
-  state: 'open' | 'closed';
+export type PublicationPreflight =
+  | { status: 'READY' }
+  | { status: 'STALE' }
+  | { status: 'EXISTING_PR_CLOSED'; number: number };
+
+export type ProposalBlobResult =
+  | { status: 'UPLOADED'; path: string; blobSha: string }
+  | { status: 'STALE' }
+  | { status: 'EXISTING_PR_CLOSED'; number: number };
+
+export type CompanionPullRequestResult =
+  | {
+      status: 'PUBLISHED';
+      branchName: string;
+      commitSha: string;
+      pullRequest: { number: number; url: string };
+    }
+  | { status: 'STALE' }
+  | { status: 'EXISTING_PR_CLOSED'; number: number };
+
+export interface ProposalFileBlob {
+  path: string;
+  blobSha: string;
 }
 
 /**
- * HU40: escritura vía Git Data API + Pulls API para publicar el companion
- * PR. `contents y pull requests: write` (mínimo privilegio, aprobado en
- * `system-contract.md`, "solo al habilitar publicación"). `repoFullName` es
- * `owner/repo`.
+ * Fachada de publicación de Core. Lee blobs desde su Storage y transmite el
+ * contenido temporalmente a GitHub Integration, que es el único componente
+ * que ejecuta Git Data API y Pulls API.
  */
 @Injectable()
 export class GithubGitDataService {
-  /** `null` si la rama todavía no existe (companion PR nuevo, no un reintento). */
-  async getBranchHeadSha(repoFullName: string, branchName: string, token: string): Promise<string | null> {
-    const response = await fetch(
-      `https://api.github.com/repos/${repoFullName}/git/ref/heads/${branchName}`,
-      { headers: this.headers(token) },
+  constructor(private readonly integration: GithubIntegrationClient) {}
+
+  async preflight(request: PublicationRequest): Promise<PublicationPreflight> {
+    const result = await this.integration.post<PublicationPreflight>(
+      '/publications/companion-pull-request/preflight',
+      request,
     );
-
-    if (response.status === 404) {
-      return null;
-    }
-
-    const data = (await this.parse<{ object: { sha: string } }>(response, repoFullName)) ;
-    return data.object.sha;
+    return validatePreflight(result);
   }
 
-  async createBranch(repoFullName: string, branchName: string, fromSha: string, token: string): Promise<void> {
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/refs`, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: fromSha }),
-    });
-
-    await this.parse(response, repoFullName);
-  }
-
-  async getCommitTreeSha(repoFullName: string, commitSha: string, token: string): Promise<string> {
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/commits/${commitSha}`, {
-      headers: this.headers(token),
-    });
-    const data = await this.parse<{ tree: { sha: string } }>(response, repoFullName);
-    return data.tree.sha;
-  }
-
-  async createBlob(repoFullName: string, content: string, token: string): Promise<string> {
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/blobs`, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({ content, encoding: 'utf-8' }),
-    });
-    const data = await this.parse<{ sha: string }>(response, repoFullName);
-    return data.sha;
-  }
-
-  async createTree(
-    repoFullName: string,
-    baseTreeSha: string,
-    entries: TreeEntryInput[],
-    token: string,
-  ): Promise<string> {
-    const blobShas = await Promise.all(
-      entries.map((entry) => this.createBlob(repoFullName, entry.content, token)),
+  async uploadProposalBlob(
+    request: PublicationRequest & { path: string; contentBase64: string },
+  ): Promise<ProposalBlobResult> {
+    const result = await this.integration.post<ProposalBlobResult>(
+      '/publications/companion-pull-request/proposal-blobs',
+      request,
+      { timeoutMs: 180_000 },
     );
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees`, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({
-        base_tree: baseTreeSha,
-        tree: entries.map((entry, index) => ({
-          path: entry.path,
-          mode: '100644',
-          type: 'blob',
-          sha: blobShas[index],
-        })),
-      }),
-    });
-    const data = await this.parse<{ sha: string }>(response, repoFullName);
-    return data.sha;
+    return validateBlobResult(result, request.path);
   }
 
-  async createCommit(
-    repoFullName: string,
-    message: string,
-    treeSha: string,
-    parentSha: string,
-    token: string,
-  ): Promise<string> {
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/commits`, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({ message, tree: treeSha, parents: [parentSha] }),
-    });
-    const data = await this.parse<{ sha: string }>(response, repoFullName);
-    return data.sha;
-  }
-
-  async updateRef(repoFullName: string, branchName: string, commitSha: string, token: string): Promise<void> {
-    const response = await fetch(
-      `https://api.github.com/repos/${repoFullName}/git/refs/heads/${branchName}`,
-      {
-        method: 'PATCH',
-        headers: this.headers(token),
-        body: JSON.stringify({ sha: commitSha, force: false }),
-      },
+  async finalize(
+    request: PublicationRequest & {
+      sourceHeadRef: string;
+      analysisRunId: string;
+      proposalFiles: ProposalFileBlob[];
+    },
+  ): Promise<CompanionPullRequestResult> {
+    const result = await this.integration.post<CompanionPullRequestResult>(
+      '/publications/companion-pull-request',
+      request,
+      { timeoutMs: 180_000 },
     );
-    await this.parse(response, repoFullName);
+    return validateFinalizeResult(result);
   }
+}
 
-  /** Busca un PR (abierto o cerrado) con ese head branch, sin importar el estado. */
-  async findPullRequestByHead(
-    repoFullName: string,
-    branchName: string,
-    token: string,
-  ): Promise<PullRequestRef | null> {
-    const owner = repoFullName.split('/')[0];
-    const response = await fetch(
-      `https://api.github.com/repos/${repoFullName}/pulls?head=${owner}:${branchName}&state=all`,
-      { headers: this.headers(token) },
-    );
-    const data = await this.parse<Array<{ number: number; html_url: string; state: 'open' | 'closed' }>>(
-      response,
-      repoFullName,
-    );
-
-    if (data.length === 0) {
-      return null;
-    }
-
-    return { number: data[0].number, url: data[0].html_url, state: data[0].state };
+function validatePreflight(value: unknown): PublicationPreflight {
+  if (isRecord(value) && value.status === 'READY') return { status: 'READY' };
+  if (isRecord(value) && value.status === 'STALE') return { status: 'STALE' };
+  if (
+    isRecord(value) &&
+    value.status === 'EXISTING_PR_CLOSED' &&
+    Number.isSafeInteger(value.number) &&
+    (value.number as number) > 0
+  ) {
+    return { status: 'EXISTING_PR_CLOSED', number: value.number as number };
   }
+  throw malformedResponse();
+}
 
-  async createPullRequest(
-    repoFullName: string,
-    input: { title: string; head: string; base: string; body: string },
-    token: string,
-  ): Promise<PullRequestRef> {
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/pulls`, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({ title: input.title, head: input.head, base: input.base, body: input.body }),
-    });
-    const data = await this.parse<{ number: number; html_url: string }>(response, repoFullName);
-    return { number: data.number, url: data.html_url, state: 'open' };
+function validateBlobResult(value: unknown, requestedPath: string): ProposalBlobResult {
+  if (isRecord(value) && value.status === 'STALE') return { status: 'STALE' };
+  if (
+    isRecord(value) &&
+    value.status === 'EXISTING_PR_CLOSED' &&
+    Number.isSafeInteger(value.number) &&
+    (value.number as number) > 0
+  ) {
+    return { status: 'EXISTING_PR_CLOSED', number: value.number as number };
   }
+  if (
+    isRecord(value) &&
+    value.status === 'UPLOADED' &&
+    value.path === requestedPath &&
+    typeof value.blobSha === 'string' &&
+    value.blobSha.length > 0
+  ) {
+    return { status: 'UPLOADED', path: value.path, blobSha: value.blobSha };
+  }
+  throw malformedResponse();
+}
 
-  private headers(token: string): Record<string, string> {
+function validateFinalizeResult(value: unknown): CompanionPullRequestResult {
+  if (isRecord(value) && value.status === 'STALE') return { status: 'STALE' };
+  if (
+    isRecord(value) &&
+    value.status === 'EXISTING_PR_CLOSED' &&
+    Number.isSafeInteger(value.number) &&
+    (value.number as number) > 0
+  ) {
+    return { status: 'EXISTING_PR_CLOSED', number: value.number as number };
+  }
+  if (
+    isRecord(value) &&
+    value.status === 'PUBLISHED' &&
+    typeof value.branchName === 'string' &&
+    typeof value.commitSha === 'string' &&
+    isRecord(value.pullRequest) &&
+    Number.isSafeInteger(value.pullRequest.number) &&
+    (value.pullRequest.number as number) > 0 &&
+    typeof value.pullRequest.url === 'string' &&
+    isHttpsUrl(value.pullRequest.url)
+  ) {
     return {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      status: 'PUBLISHED',
+      branchName: value.branchName,
+      commitSha: value.commitSha,
+      pullRequest: {
+        number: value.pullRequest.number as number,
+        url: value.pullRequest.url,
+      },
     };
   }
+  throw malformedResponse();
+}
 
-  private async parse<T>(response: Response, repoFullName: string): Promise<T> {
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new GithubAppUnavailableError(
-        `GitHub API ${response.status} en "${repoFullName}": ${body}`,
-        response.status,
-      );
-    }
+function malformedResponse(): GithubAppUnavailableError {
+  return new GithubAppUnavailableError('GitHub Integration devolvió una respuesta inválida.', 503);
+}
 
-    return (await response.json()) as T;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
   }
 }

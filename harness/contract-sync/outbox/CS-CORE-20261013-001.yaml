@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261013-001
+source: core
+sourceWorkItem: WI-CORE-054
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.13: StrategyMetricsResponse (§6.5.1) agrega technicallyValidRate: number|null (compiled ∧ executed ∧ failureType ∈ {NONE, TEST_ASSERTION}; null sin evaluables) y assertionFailureCount: number, aditivo y retrocompatible; valid, passed y la evidencia §6.16 sin cambio
+requiredAction:
+  - Sincronizar el espejo INTEROP-2.13 byte a byte; opcionalmente mostrar ambas metricas tolerando su ausencia en un Core anterior y null como sin datos; sin derivar CF/CO ni ganador
+sourceRevision: 15f03e5355b39821fcf98d5e5e45bbdcf8cf47ce
+status: C-PENDING

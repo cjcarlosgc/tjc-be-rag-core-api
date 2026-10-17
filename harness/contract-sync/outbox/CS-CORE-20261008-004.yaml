@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261008-004
+source: core
+sourceWorkItem: WI-CORE-019
+targets: [console, github-integration]
+scopePaths: [spec/contracts/system-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.6, seccion de roles por Project: se corrige la frase que atribuia al Writer 'salvo la autoridad funcional (binding, publicaciones, experimentos y comparaciones de retrieval)'. El Writer opera el dia a dia (dispara Runs, vincula, pausa y reactiva, publica tests, envia cambios a una rama nueva y los acepta, ejecuta experimentos y comparaciones) salvo responder preguntas funcionales y registrar UNKNOWN, conforme a INTEROP-2.7 6.13. Sin cambio de version ni de comportamiento.
+requiredAction:
+  - Refrescar la copia espejo de SYSTEM-2.6 con la frase corregida; sin cambios de codigo. Core no modifica Console ni GitHub Integration.
+sourceRevision: 68d4476ca249208ade51591746d53a0fdab68e2e
+status: C-PENDING

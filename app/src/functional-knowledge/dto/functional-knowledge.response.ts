@@ -11,6 +11,17 @@ export interface FunctionalKnowledgeResponse {
   source: FunctionalKnowledge['source'];
   status: FunctionalKnowledge['status'];
   supersedesId: string | null;
+  /** INTEROP-2.7 (WI-CORE-019): null en reglas históricas anteriores a la procedencia. */
+  confirmedByUserId: string | null;
+  confirmedRole: FunctionalKnowledge['confirmedRole'];
+  /** Procedencia, no vencimiento: la vigencia no depende de este campo. */
+  originHeadSha: string | null;
+  /** Solo para `source = APPROVED_IMPORT`. */
+  sourceRef: string | null;
+  /** INTEROP-2.7 (WI-CORE-020): heredado de la pregunta; `EXPECTED_RESULT` en reglas históricas. */
+  scenarioKind: FunctionalKnowledge['scenarioKind'];
+  /** INTEROP-2.7 (WI-CORE-020): clave de escenario heredada; `LEGACY` en reglas históricas. */
+  scenarioKey: string;
   createdAt: string;
 }
 
@@ -34,6 +45,13 @@ export function toFunctionalKnowledgeResponse(knowledge: FunctionalKnowledge): F
     source: knowledge.source,
     status: knowledge.status,
     supersedesId: knowledge.supersedesId,
+    // `?? null` cubre tanto NULL de histórico como propiedades ausentes en filas parciales.
+    confirmedByUserId: knowledge.confirmedByUserId ?? null,
+    confirmedRole: knowledge.confirmedRole ?? null,
+    originHeadSha: knowledge.originHeadSha ?? null,
+    sourceRef: knowledge.sourceRef ?? null,
+    scenarioKind: knowledge.scenarioKind,
+    scenarioKey: knowledge.scenarioKey,
     createdAt: knowledge.createdAt.toISOString(),
   };
 }

@@ -1,18 +1,5 @@
-# 011-context-traces — Tareas
+# 011-context-traces — Subtareas vigentes
 
-- [ ] Migrar `ContextTrace` y almacenamiento paginable de archivos descubiertos, con índices y relación a `ProjectVersion`, target, run/repetición e intento.
-- [ ] Instrumentar `ContextBuilder` para registrar ranking, señales, configuración, selección y motivo de descarte sin cambiar el prompt resultante.
-- [ ] Persistir una traza RAG por target de generación y por repetición RAG experimental.
-- [ ] Normalizar y persistir la trayectoria observable de cada repetición `GENERALIST_AGENT` con hashes, rangos y truncamiento.
-- [ ] Implementar reconstrucción segura de hasta tres líneas circundantes desde el snapshot inmutable.
-- [ ] Exponer los cuatro endpoints de `INTEROP-2.1` sección 6.7, con filtros, paginación y último intento por defecto.
-- [ ] Agregar `targetIds` a `ArtifactResponse` y su mapeo real.
-- [ ] Agregar `CONTEXT_TRACE_NOT_FOUND` y `CONTEXT_TRACE_NOT_FINISHED` al catálogo de errores.
+- [x] **ST-CORE-033 · T-DONE · WI-CORE-026 · HU12, HU15:** trace operativo de nueve enlaces con `retrieval_id`, `context_id` y `execution_id` según INTEROP-2.7 §6.16; `NOT_APPLICABLE` solo en terminación legítima; sin otros identificadores ni chain-of-thought. **Obligación heredada de WI-CORE-021:** el `context_id` persiste `functionalRuleIds` seleccionados, conteos de recuperadas/seleccionadas/omitidas y motivo de omisión (al menos `TOKEN_BUDGET`) con `knowledgeId` para reconstruir la procedencia desde Functional Knowledge; prueba de persistencia real que invierta la aserción actual de ausencia en `experiment-job.handler.spec.ts`; INTEROP-2.7 §6.16 y Contract Sync a Console si se exponen en el trace o el bundle (ver `plan.md`).
 
-## Calidad
-
-- [ ] Agregar/actualizar pruebas unitarias, integración y e2e.
-- [ ] Verificar autorización por propietario y aislamiento entre versiones.
-- [ ] Verificar que snippets/argumentos/resultados no se registren en logs ordinarios.
-- [ ] Ejecutar lint/test/build/SDD check.
-- [ ] Registrar evidencia de revisión.
+Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.

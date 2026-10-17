@@ -1,35 +1,16 @@
-# 008-experimental-comparison — Tareas
+# 008 — Subtareas vigentes
 
-- [x] `DEC-EXP-002` ya resuelta (`APROBADO`); agente generalista implementado conforme al diseño en `spec.md`.
-- [x] GenerationStrategy `RAG|GENERALIST_AGENT` (`ExperimentJobHandler.runRagArm`/`runAgentArm`, reutilizando `RetrievalService`/`ContextBuilder`/`PromptBuilder`/`LLMProvider` para RAG).
-- [x] GeneralistAgentGenerationStrategy con el set de herramientas read-only aprobado (`WorkspaceAgentTools`: `list_files`, `read_file`, `search_text`, `inspect_symbol` — este último cubre ir a definición + buscar referencias vía ts-morph, combinado en una sola herramienta como simplificación documentada), acotado al snapshot materializado (`ZipExtractionService`, mismo mecanismo que indexación/generación) y con tope configurable de tool calls (`AGENT_MAX_TOOL_CALLS`, default 20).
-- [x] Excluir `*.test.ts`/`*.spec.ts` del target actual de la vista de archivos del agente (`WorkspaceAgentTools` recibe `target.testFilePaths` como exclusión explícita).
-- [x] Persistir trayectoria completa de tool calls (orden, argumentos, resultado resumido) como evidencia auditable (`ExperimentRepetition.trajectory`, JSON).
-- [ ] Migrar la trayectoria resumida existente a `011-context-traces` con observaciones normalizadas, hashes, rangos, truncamiento, estados y archivos descubiertos paginables (HU28).
-- [x] ExperimentRun/Result (`ExperimentRun`, `ExperimentRepetition` en Prisma; `ExperimentRunsRepository`).
-- [x] Ejecución de 3x2 runs por target (`ExperimentJobHandler`: 2 strategies × 3 repeticiones = 6, cada una con workspace propio fresco).
-- [x] Captura de tokens/costos/tiempos (`generationDurationMs`/`executionDurationMs`/`totalDurationMs`, `inputTokens`/`outputTokens`/`totalTokens`, `estimatedCost` vía `cost-calculator.ts`, configurable por `LLM_INPUT_COST_PER_1K_TOKENS`/`LLM_OUTPUT_COST_PER_1K_TOKENS`, null — nunca 0 — cuando el proveedor no reporta tokens).
-- [x] Agregación y endpoint de resultados (`GET /experiments/:id/results`: tasas, medias redondeadas de tiempos/tokens/chunks/tool calls, media sin redondear de `estimatedCost`, distribución de `failureType` por estrategia).
-- [x] Garantizar auto-repair OFF en experimento (no existe autorreparación implementada en ningún punto del pipeline; nada que desactivar).
-- [x] Captura de tool calls/archivos inspeccionados/contexto del agente generalista (`toolCallCount`/`filesInspected` derivados de la trayectoria completa, no un conteo independiente).
-- [x] Tests de aislamiento del snapshot, límites de exploración (tope de tool calls, paridad de presupuesto de tokens/timeout con RAG) y paridad experimental (`experiment-job.handler.spec.ts`, `generalist-agent.service.spec.ts`, `workspace-agent-tools.spec.ts`; timeout compartido `GENERATION_TIMEOUT_MS` aplicado a ambos brazos vía `withTimeout`).
-- [x] Aplicar `DEC-IDEMP-001` en `POST /experiments` y derivar por repetición `requestId` UUID v5 estable de `experiment:{jobId}:{strategy}:{repetition}`.
+- [x] **ST-CORE-007 · T-DONE · WI-CORE-007 · HU12, HU17:** persistir el detalle diagnóstico de `SandboxFailureFact` como JSONB nulo `failure` en `ExperimentRepetition` (solo experimentos; `TargetRunResult` intacto), con migración aditiva sin backfill, mensaje saneado de secretos y sin cambio de contrato (`ExperimentRepetitionResponse` no cambia; lo expone solo la evidencia de `WI-CORE-027`); probar lecturas sin exponer secretos. Detalle verificado en `plan.md`.
+- [x] **ST-CORE-031 · T-DONE · WI-CORE-024 · HU17:** exploración del agente generalista con `list_files`, `read_file`, `search_text` e `inspect_symbol`, pruebas existentes visibles (`DEC-EXP-003`), tope de tool calls y presupuesto de contexto persistidos; sin shell, runners, escritura ni red. Detalle verificado en `plan.md` («Detalle técnico verificado (WI-CORE-024)»).
+- [x] **ST-CORE-032 · T-DONE · WI-CORE-025 · HU17:** pareado OE5 con `pairId`, `pairPosition`, `attempt`, `randomizationSeed`, presupuesto y configuración de modelo comunes (la persistencia de `modelConfig` vive en `WI-CORE-023`; aquí solo se consume), política de reintentos y `technicallyEvaluable`, según INTEROP-2.7 §6.5.1; sin ganador automático. Detalle verificado en `plan.md` («Detalle técnico verificado (WI-CORE-025)»).
+- [x] **ST-CORE-036 · T-DONE · WI-CORE-029 · HU17:** OE5 con PHP/PHPUnit; diferida hasta cerrar `WI-CORE-013`, `WI-CORE-025` y `WI-CORE-028`.
+- [x] **ST-CORE-042 · T-DONE · WI-CORE-035 · HU17:** adaptar `POST /experiments` al request OE5 V3 (`analysisRunId`, `symbolFilePath`, `symbolQualifiedName`), autorizar el Project desde el AnalysisRun y resolver el TestTarget heredado sobre la ProjectVersion congelada del Run; preservar `Idempotency-Key`, respuesta `202` y encolado. Sin cambios en Console ni en el contrato canónico.
 
-## Calidad
-
-- [x] Agregar/actualizar pruebas (`workspace-agent-tools.spec.ts`, `generalist-agent.service.spec.ts`, `cost-calculator.spec.ts`, `experiment-job.handler.spec.ts`, `experiments.service.spec.ts`, `map-sandbox-result.spec.ts`, e2e `experiments.e2e-spec.ts`).
-- [x] Verificar manejo de errores (`EXPERIMENT_NOT_FOUND`, `EXPERIMENT_NOT_FINISHED`, `INVALID_GENERATION_TARGET` para target CLASS, fallos de Sandbox/LLM por repetición sin abortar el experimento).
-- [x] Verificar observabilidad mínima (`Logger.warn` por repetición fallida, con estrategia/número de repetición).
-- [x] Ejecutar lint/test/build.
-- [x] Registrar evidencia de revisión en `harness/reports/` (`008-experimental-comparison.md`).
-
-## Simplificaciones deliberadas de V1 (documentadas, no son bugs)
-
-- **`inspect_symbol` combina 3 sub-capacidades del punto 1 de `DEC-EXP-002`** ("ir a definición, buscar referencias, inspeccionar tipos") en una sola herramienta: devuelve la declaración completa (incluye su firma/tipos) y una lista de archivos que referencian el símbolo por coincidencia textual — no se construyó un `ts.LanguageService` incremental completo con "find all references" basado en el compilador.
-- **Paridad de límites**: se comparte el mismo presupuesto orientativo (`RETRIEVAL_MAX_CONTEXT_TOKENS`, mencionado en las instrucciones del agente) y el mismo timeout de generación (`GENERATION_TIMEOUT_MS`, aplicado a ambos brazos vía `withTimeout`). No se implementó un contador exacto de tokens de contexto consumidos por el agente (el modelo no expone eso directamente); la paridad es de presupuesto orientativo y límite de tool calls, no de conteo exacto de tokens de exploración.
-- **Batch validation**: cada repetición valida un target aislado (`scope: TARGET`), igual que en `005/006`. No existe una fase de validación batch adicional.
-- **`Coverage` como métrica secundaria**: no implementado (la propia spec lo declara Sprint 4, fuera de alcance de PI1).
-
-## Backlog Sprint 4
-
-- [ ] Persistir el mensaje detallado de fallo del Sandbox en `ExperimentRepetition` (ver tarea homónima en `spec/transversal/persistence/tasks.md`) — hoy `failureType` solo guarda la categoría, sin el mensaje real de `SandboxFailureFact`.
+No se modifica almacenamiento persistido antes de inventario y revisión contractual.
+- [x] **ST-CORE-060 · T-DONE · WI-CORE-053 · HU17:** persistir evidencia privada por repetición: código exacto del test enviado y reporte del runner (hechos normalizados) con sha256, límites explícitos y migración nueva sin aplicar a la base real.
+- [x] **ST-CORE-061 · T-DONE · WI-CORE-054 · HU17:** `technicallyValidRate` y `assertionFailureCount` en `StrategyMetricsResponse`, aditivo y retrocompatible, con contract-reviewer.
+- [x] **ST-CORE-062 · T-DONE · WI-CORE-055 · HU17:** `inspect_symbol` del GENERALIST_AGENT con nombres PHP calificados con `\`.
+- [x] **ST-CORE-063 · T-DONE · WI-CORE-056 · HU15, HU17:** análisis offline para reducir el ruido del contexto RAG (informe; sin aplicar).
+- [x] **ST-CORE-067 · T-DONE · WI-CORE-060 · HU15, HU17:** persistir de forma aditiva e interna `analysisRunId`, `commitSha`, tiempos por intento, `promptSha256` (solo hash) y la evidencia acotada del Sandbox (`evidence[]`, `startedAt`/`completedAt`) para reconstruir un trial sin cruzar tablas; migración aditiva sin aplicar; sin DTO público ni cambios en el Sandbox.
+- [x] **ST-CORE-068 · T-DONE · WI-CORE-061 · HU12, HU17:** leer y persistir de forma aditiva e interna `startedAt`/`completedAt` por etapa del Sandbox (`CS-SANDBOX-20261014-001`, `WI-SANDBOX-007`) dentro de `runnerReport.stageDurations`, tolerando Sandboxes sin los campos; sin DTO público, contrato ni migración.
+- [x] **ST-CORE-069 · T-DONE · WI-CORE-062 · HU12, HU17:** transcribir `CS-SANDBOX-20261014-001` al inbox de Core (con `originalPath` y `originalSha256`) e incorporar `startedAt`/`completedAt` opcionales por etapa a INTEROP §7.3 como INTEROP-2.16 documental y aditiva, con Contract Sync a Console; sin cambios en `app/`.

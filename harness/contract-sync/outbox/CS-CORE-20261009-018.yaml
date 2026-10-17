@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-018
+source: core
+sourceWorkItem: WI-CORE-029
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.7 §6.5 (aditivo): POST /experiments acepta proyectos PHP con PHPUnit (runnerHint PHPUNIT, executionProfile PHP_LARAVEL_PHPUNIT); 422 UNSUPPORTED_PROJECT solo sin framework JEST/VITEST/PHPUNIT. Una respuesta sin <?php se registra como repetición INVALID/COMPILATION, sin reintento.
+requiredAction:
+  - Console: sincronizar el espejo INTEROP-2.7; permitir crear experimentos en proyectos PHP con PHPUnit y mostrar runnerHint PHPUNIT/perfil PHP_LARAVEL_PHPUNIT.
+sourceRevision: c1343cf
+status: C-PENDING

@@ -6,6 +6,7 @@ import {
   type GeneratedTestProposalSetResponse,
 } from './dto/generated-test-proposal.response.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
+import { ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 @Controller()
 export class AnalysisRunValidationController {
@@ -15,6 +16,7 @@ export class AnalysisRunValidationController {
   ) {}
 
   @Get('analysis-runs/:analysisRunId/test-proposals')
+  @RequireProjectRole('READER', ProjectTargets.param('analysisRun', 'analysisRunId'))
   async listProposals(
     @Param('analysisRunId') analysisRunId: string,
     @CurrentUserId() userId: string,

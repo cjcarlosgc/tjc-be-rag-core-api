@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261009-010
+source: core
+sourceWorkItem: WI-CORE-030
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - Se documenta en INTEROP que ExperimentStatusResponse.failureCode (string | null, abierto, sin cambio de tipo) toma hoy los valores EXPERIMENT_FAILED (error capturado durante la ejecucion) y EXPERIMENT_WORKER_LOST (worker caido y cola con intentos agotados). Un run FAILED puede reanudarse y, al completar, failureCode y failureMessage vuelven a null.
+requiredAction:
+  - Console debe tolerar cualquier valor desconocido de failureCode y mostrar un mensaje claro para los dos conocidos (EXPERIMENT_FAILED: el experimento fallo durante la ejecucion; EXPERIMENT_WORKER_LOST: se interrumpio el procesamiento y puede reanudarse), usando failureMessage como detalle. Sin cambio de tipos ni de rutas.
+sourceRevision: 0d64a63b42121da6bdf66edb1e0e9a969bbdd057
+status: C-PENDING

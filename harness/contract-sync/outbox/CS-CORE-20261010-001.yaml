@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261010-001
+source: core
+sourceWorkItem: WI-CORE-034
+targets: [github-integration]
+scopePaths: [spec/contracts/github-integration-contract.md]
+breaking: false
+changed:
+  - GH-INTEROP-1.4 precisa que POST /internal/v1/github/checks reutiliza de forma durable un checkId por repositorio GitHub estable, GitHub App, headSha y name; solicitudes concurrentes convergen y duplicados candidatos responden GITHUB_CHECK_IDENTITY_AMBIGUOUS.
+requiredAction:
+  - Importar GH-INTEROP-1.4, implementar la identidad durable y pruebas de creación, actualización, concurrencia y duplicados; responder con Contract Sync al finalizar.
+sourceRevision: 46c7046d015d18e49b0e737f6b61cceef1d6889c
+status: C-PENDING

@@ -7,6 +7,9 @@ export const INDEXING_IGNORED_DIRS = new Set([
   'build',
   'coverage',
   '.next',
+  'vendor',
+  'storage',
+  'cache',
 ]);
 
 const CONFIG_FILE_PATTERNS = [
@@ -14,18 +17,35 @@ const CONFIG_FILE_PATTERNS = [
   /^tsconfig\.json$/,
   /^jest\.config\..+$/,
   /^vitest\.config\..+$/,
+  /^composer\.json$/,
+  /^composer\.lock$/,
+  /^phpunit\.xml(?:\.dist)?$/,
 ];
 
 export function isIgnoredPath(relativePath: string): boolean {
   return relativePath.split('/').some((segment) => INDEXING_IGNORED_DIRS.has(segment));
 }
 
+export function isComposerManifest(relativePath: string): boolean {
+  return relativePath.split('/').at(-1) === 'composer.json';
+}
+
 export function isSourceFile(relativePath: string): boolean {
+  return isTypeScriptSourceFile(relativePath) || isPhpSourceFile(relativePath);
+}
+
+export function isTypeScriptSourceFile(relativePath: string): boolean {
   return /\.tsx?$/.test(relativePath);
 }
 
+export function isPhpSourceFile(relativePath: string): boolean {
+  return /\.php$/i.test(relativePath) && !/\.blade\.php$/i.test(relativePath);
+}
+
 export function isTestFile(relativePath: string): boolean {
-  return /\.(spec|test)\.tsx?$/.test(relativePath);
+  return /\.(spec|test)\.tsx?$/.test(relativePath)
+    || (/\.php$/i.test(relativePath)
+      && (/(^|\/)tests?\//i.test(relativePath) || /(?:^|\/)[^/]*Test\.php$/i.test(relativePath)));
 }
 
 export function isConfigFile(relativePath: string): boolean {
@@ -35,4 +55,17 @@ export function isConfigFile(relativePath: string): boolean {
 
 export function isPoolFile(relativePath: string): boolean {
   return !isIgnoredPath(relativePath) && (isSourceFile(relativePath) || isConfigFile(relativePath));
+}
+
+export function isTypeScriptPoolFile(relativePath: string): boolean {
+  return !isIgnoredPath(relativePath)
+    && (isTypeScriptSourceFile(relativePath) || /(^|\/)(?:package\.json|tsconfig\.json|pnpm-lock\.yaml)$/.test(relativePath)
+      || /(^|\/)(?:jest|vitest)\.config\..+$/.test(relativePath));
+}
+
+export function isPhpPoolFile(relativePath: string): boolean {
+  return !isIgnoredPath(relativePath)
+    && (isPhpSourceFile(relativePath)
+      || isComposerManifest(relativePath)
+      || /(?:^|\/)(?:composer\.lock|phpunit\.xml(?:\.dist)?)$/i.test(relativePath));
 }

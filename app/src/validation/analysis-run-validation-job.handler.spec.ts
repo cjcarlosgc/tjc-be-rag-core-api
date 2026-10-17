@@ -1,9 +1,17 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunValidationJobHandler } from './analysis-run-validation-job.handler.js';
-import { SandboxUnavailableError } from '../sandbox/sandbox-execution.service.js';
+import {
+  SandboxAcceptedExecutionError,
+  SandboxUnavailableError,
+} from '../sandbox/sandbox-execution.service.js';
+import { ContextBuilder } from '../retrieval/context-builder.service.js';
+import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import { countFunctionalRuleTokens } from '../retrieval/functional-rule-format.js';
 import type {
   AnalysisRun,
   AnalysisSymbol,
@@ -22,6 +30,7 @@ function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
     headSha: 'head-sha',
     status: 'PROCESSING',
     projectVersionId: 'version-1',
+    attemptCount: 0,
     ...overrides,
   } as AnalysisRun;
 }
@@ -47,66 +56,217 @@ function buildSymbol(overrides: Partial<AnalysisSymbol> = {}): AnalysisSymbol {
     qualifiedName: 'Thing.doIt',
     filePath: 'src/thing.ts',
     changeKind: 'DIRECTLY_CHANGED',
+    behaviorConstructs: null,
     createdAt: new Date(),
     ...overrides,
   };
 }
 
 function buildVersion(overrides: Partial<ProjectVersion> = {}): ProjectVersion {
-  return { id: 'version-1', detectedFramework: 'JEST', ...overrides } as ProjectVersion;
+  return {
+    id: 'version-1',
+    detectedFramework: 'JEST',
+    effectiveProjectRoot: '.',
+    ...overrides,
+  } as ProjectVersion;
 }
 
-function sandboxResult(overrides: Partial<{ status: string; facts: unknown; failure: unknown }> = {}) {
+/** `GenerationContext` mínimo con la auditoría que `ContextBuilder` produce (WI-CORE-026). */
+function buildGenerationContext(overrides: Record<string, unknown> = {}) {
   return {
-    status: 'COMPLETED',
-    facts: { runner: 'JEST', compiled: true, executed: true, passed: true, totalTests: 1, passedTests: 1, failedTests: 0, skippedTests: 0, testCases: [], testCasesTruncated: false },
-    failure: null,
-    stageDurations: [],
+    target: {
+      filePath: 'src/thing.ts',
+      symbolName: 'Thing',
+      methodName: 'doIt',
+      targetType: 'METHOD',
+      content: 'doIt() {}',
+    },
+    relatedChunks: [],
+    functionalRules: [],
+    metadata: { language: 'typescript', framework: 'JEST' },
+    retrievedChunks: 0,
+    selectedChunks: 0,
+    contextTokens: 0,
+    audit: {
+      functionalRules: {
+        retrieved: 0,
+        selected: 0,
+        tokenCount: 0,
+        omitted: [],
+      },
+      target: { chunkIds: [], chunks: [], tokenCount: 0 },
+      candidates: [],
+      configuration: {
+        minimumScore: 0,
+        topK: 10,
+        maxContextTokens: 1000,
+        semanticWeight: 0.7,
+        structuralWeight: 0.3,
+      },
+    },
     ...overrides,
   };
 }
+
+function sandboxResult(
+  overrides: Partial<{
+    status: string;
+    facts: unknown;
+    failure: unknown;
+    executionId: string;
+    executionProfile: string;
+    durationMs: number;
+  }> = {},
+) {
+  return {
+    status: 'COMPLETED',
+    facts: {
+      runner: 'JEST',
+      compiled: true,
+      executed: true,
+      passed: true,
+      totalTests: 1,
+      passedTests: 1,
+      failedTests: 0,
+      skippedTests: 0,
+      testCases: [],
+      testCasesTruncated: false,
+    },
+    failure: null,
+    stageDurations: [],
+    executionId: 'exec-1',
+    executionProfile: 'NODE_TYPESCRIPT',
+    requestId: 'request-1',
+    correlationId: 'correlation-1',
+    durationMs: 7,
+    ...overrides,
+  };
+}
+
+/** `sandboxFacts` de una ejecución COMPLETED y aprobada: solo conteos y banderas, sin testCases. */
+const PASSED_FACTS = {
+  executionProfile: 'NODE_TYPESCRIPT',
+  runner: 'JEST',
+  compiled: true,
+  executed: true,
+  passed: true,
+  totalTests: 1,
+  passedTests: 1,
+  failedTests: 0,
+  skippedTests: 0,
+  testCasesTruncated: false,
+  failureStage: null,
+  failureCategory: null,
+  failureCode: null,
+  failureMessage: null,
+};
+
+/** `sandboxFacts` de una ejecución aceptada sin resultado: solo el perfil es observado. */
+const NOT_OBSERVED_FACTS = {
+  executionProfile: 'NODE_TYPESCRIPT',
+  runner: null,
+  compiled: null,
+  executed: null,
+  passed: null,
+  totalTests: null,
+  passedTests: null,
+  failedTests: null,
+  skippedTests: null,
+  testCasesTruncated: null,
+  failureStage: null,
+  failureCategory: null,
+  failureCode: null,
+  failureMessage: null,
+};
 
 describe('AnalysisRunValidationJobHandler', () => {
   let createdDirs: string[] = [];
 
   afterEach(async () => {
-    await Promise.all(createdDirs.map((dir) => rm(dir, { recursive: true, force: true })));
+    await Promise.all(
+      createdDirs.map((dir) => rm(dir, { recursive: true, force: true })),
+    );
     createdDirs = [];
   });
 
   async function setup() {
-    const workspaceDir = await mkdtemp(join(tmpdir(), 'rag-core-validation-test-'));
+    const workspaceDir = await mkdtemp(
+      join(tmpdir(), 'rag-core-validation-test-'),
+    );
     createdDirs.push(workspaceDir);
 
     const jobsService = { registerHandler: vi.fn() };
     const analysisRunsRepository = { findById: vi.fn() };
     const analysisRunsService = {
-      completeRunFromSystem: vi.fn().mockImplementation(async (run: AnalysisRun, status: string, patch: object) => ({
-        ...run,
-        status,
-        ...patch,
-      })),
+      completeRunFromSystem: vi
+        .fn()
+        .mockImplementation(
+          async (run: AnalysisRun, status: string, patch: object) => ({
+            ...run,
+            status,
+            ...patch,
+          }),
+        ),
     };
-    const analysisSymbolsRepository = { findByAnalysisRun: vi.fn().mockResolvedValue([buildSymbol()]) };
-    const repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
-    const projectVersionsRepository = { findById: vi.fn().mockResolvedValue(buildVersion()) };
-    const testTargetsRepository = { findByProjectVersion: vi.fn().mockResolvedValue([] as TestTarget[]) };
+    const analysisSymbolsRepository = {
+      findByAnalysisRun: vi.fn().mockResolvedValue([buildSymbol()]),
+    };
+    const repositoryBindingsRepository = {
+      findForRun: vi.fn().mockResolvedValue(binding),
+    };
+    const projectVersionsRepository = {
+      findById: vi.fn().mockResolvedValue(buildVersion()),
+    };
+    const testTargetsRepository = {
+      findByProjectVersion: vi.fn().mockResolvedValue([] as TestTarget[]),
+    };
     const workspaceCleanup = vi.fn().mockResolvedValue(undefined);
     const githubSnapshotMaterializerService = {
-      materialize: vi.fn().mockResolvedValue({ dir: workspaceDir, cleanup: workspaceCleanup }),
+      materialize: vi
+        .fn()
+        .mockResolvedValue({ dir: workspaceDir, cleanup: workspaceCleanup }),
     };
-    const retrievalService = { retrieve: vi.fn().mockResolvedValue({ targetChunks: [], candidates: [] }) };
-    const contextBuilder = { build: vi.fn().mockReturnValue({ retrievedChunks: 0, selectedChunks: 0, contextTokens: 0 }) };
+    const retrievalService = {
+      retrieve: vi.fn().mockResolvedValue({ targetChunks: [], candidates: [] }),
+    };
+    const contextBuilder = {
+      build: vi.fn().mockReturnValue(buildGenerationContext()),
+    };
+    const functionalRulesRetriever = {
+      retrieve: vi.fn().mockResolvedValue([]),
+    };
+    const phpDependencyContextService = {
+      resolve: vi.fn().mockResolvedValue(null),
+    };
     const promptBuilder = { build: vi.fn().mockReturnValue('prompt') };
     const testFileMergeService = {
       applyCreate: vi.fn((content: string) => `created:${content}`),
-      applyMerge: vi.fn((existing: string, content: string) => `merged:${existing}:${content}`),
+      applyMerge: vi.fn(
+        (existing: string, content: string) => `merged:${existing}:${content}`,
+      ),
     };
-    const sandboxExecutionService = { execute: vi.fn().mockResolvedValue(sandboxResult()) };
+    const sandboxExecutionService = {
+      execute: vi.fn().mockResolvedValue(sandboxResult()),
+    };
     const objectStorageService = { put: vi.fn().mockResolvedValue(undefined) };
-    const generatedTestProposalsRepository = { create: vi.fn().mockResolvedValue({ id: 'proposal-1' }) };
-    const llmProvider = { generate: vi.fn().mockResolvedValue({ content: 'test content', inputTokens: 10, outputTokens: 20 }) };
-    const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
+    const generatedTestProposalsRepository = {
+      upsertForSymbol: vi.fn().mockResolvedValue({ id: 'proposal-1' }),
+    };
+    const analysisTraceRepository = {
+      upsertRetrieval: vi.fn().mockResolvedValue({ id: 'retrieval-1' }),
+      upsertContext: vi.fn().mockResolvedValue({ id: 'context-1' }),
+      upsertExecution: vi.fn().mockResolvedValue({ id: 'execution-1' }),
+    };
+    const llmProvider = {
+      generate: vi.fn().mockResolvedValue({
+        content: 'test content',
+        inputTokens: 10,
+        outputTokens: 20,
+      }),
+    };
+    const analysisRunChecksService = {
+      publishForRun: vi.fn().mockResolvedValue(undefined),
+    };
 
     const handler = new AnalysisRunValidationJobHandler(
       jobsService as never,
@@ -119,6 +279,8 @@ describe('AnalysisRunValidationJobHandler', () => {
       githubSnapshotMaterializerService as never,
       retrievalService as never,
       contextBuilder as never,
+      functionalRulesRetriever as never,
+      phpDependencyContextService as never,
       promptBuilder as never,
       testFileMergeService as never,
       sandboxExecutionService as never,
@@ -126,6 +288,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       generatedTestProposalsRepository as never,
       analysisRunChecksService as never,
       llmProvider as never,
+      analysisTraceRepository as never,
     );
 
     analysisRunsRepository.findById.mockResolvedValue(buildRun());
@@ -142,6 +305,8 @@ describe('AnalysisRunValidationJobHandler', () => {
       githubSnapshotMaterializerService,
       retrievalService,
       contextBuilder,
+      functionalRulesRetriever,
+      phpDependencyContextService,
       promptBuilder,
       testFileMergeService,
       sandboxExecutionService,
@@ -149,6 +314,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       generatedTestProposalsRepository,
       llmProvider,
       analysisRunChecksService,
+      analysisTraceRepository,
       workspaceCleanup,
     };
   }
@@ -160,26 +326,516 @@ describe('AnalysisRunValidationJobHandler', () => {
   });
 
   it('is a no-op when the run does not exist', async () => {
-    const { handler, analysisRunsRepository, repositoryBindingsRepository } = await setup();
+    const { handler, analysisRunsRepository, repositoryBindingsRepository } =
+      await setup();
     analysisRunsRepository.findById.mockResolvedValue(null);
 
     await handler.handle({ analysisRunId: 'missing' }, 'job-1');
 
-    expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
-  it('is a no-op when the run is not PROCESSING', async () => {
-    const { handler, analysisRunsRepository, repositoryBindingsRepository } = await setup();
-    analysisRunsRepository.findById.mockResolvedValue(buildRun({ status: 'SUCCESS' }));
+  describe('PHP con PHPUnit (WI-CORE-013, corte C)', () => {
+    const PHP_RELATIVE_PATH =
+      'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php';
+    const PHP_FILE =
+      '<?php\n\nnamespace Tests\\Unit\\Pricing;\n\nfinal class PremiumDiscountPolicyDiscountForTest {}';
+
+    async function setupPhp(version: Partial<ProjectVersion> = {}) {
+      const context = await setup();
+      context.analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'app/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+      context.projectVersionsRepository.findById.mockResolvedValue(
+        buildVersion({
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+          ...version,
+        } as Partial<ProjectVersion>),
+      );
+      context.llmProvider.generate.mockResolvedValue({
+        content: PHP_FILE,
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+      return context;
+    }
+
+    it('calls the PHP dependency service with the target chunks and passes its result as the sixth build argument (WI-CORE-057)', async () => {
+      const context = await setupPhp();
+      const chunk = { id: 'target-chunk-1', content: 'target', tokenCount: 3 };
+      const dependencyContext = {
+        entries: [],
+        unresolvedCount: 1,
+        tokenCount: 9,
+        truncated: false,
+        text: 'SECCION_DEPENDENCIAS',
+      };
+      context.retrievalService.retrieve.mockResolvedValue({ targetChunks: [chunk], candidates: [] });
+      context.phpDependencyContextService.resolve.mockResolvedValue(dependencyContext);
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.phpDependencyContextService.resolve).toHaveBeenCalledWith(
+        expect.any(String),
+        [chunk],
+        'php',
+      );
+      expect(context.contextBuilder.build).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        { framework: 'PHPUNIT', language: 'php' },
+        {},
+        [],
+        dependencyContext,
+      );
+    });
+
+    it('generates a new PHPUnit file under tests/Unit and sends runnerHint PHPUNIT with the PHP context and prompt', async () => {
+      const context = await setupPhp();
+      context.llmProvider.generate.mockResolvedValue({
+        content: '```php\n' + PHP_FILE + '\n```',
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.contextBuilder.build).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        { framework: 'PHPUNIT', language: 'php' },
+        {},
+        [],
+        null,
+      );
+      expect(context.promptBuilder.build).toHaveBeenCalledWith(
+        expect.anything(),
+        {
+          testNamespace: 'Tests\\Unit\\Pricing',
+          testPath: PHP_RELATIVE_PATH,
+        },
+      );
+      expect(context.sandboxExecutionService.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runnerHint: 'PHPUNIT',
+          projectRoot: '.',
+          scope: 'TARGET',
+          targetIds: ['symbol-1'],
+          artifacts: [
+            expect.objectContaining({
+              relativePath: PHP_RELATIVE_PATH,
+              artifactType: 'CREATED',
+              content: Buffer.from(`${PHP_FILE}\n`, 'utf8'),
+            }),
+          ],
+        }),
+      );
+      expect(
+        context.generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'AVAILABLE',
+          relativePath: PHP_RELATIVE_PATH,
+          failureSummary: null,
+        }),
+      );
+      expect(
+        context.analysisRunsService.completeRunFromSystem,
+      ).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.objectContaining({ generatedTestsCount: 1 }),
+      );
+    });
+
+    it('transports the frozen nested root and keeps generated artifacts repo-relative', async () => {
+      const context = await setupPhp({ effectiveProjectRoot: 'backend' });
+      context.analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'App\\Pricing\\PremiumDiscountPolicy.discountFor',
+          filePath: 'backend/app/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.sandboxExecutionService.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: expect.any(String),
+          projectRoot: 'backend',
+          artifacts: [
+            expect.objectContaining({
+              relativePath:
+                'backend/tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php',
+            }),
+          ],
+        }),
+      );
+    });
+
+    it('holds the proposal without calling the LLM or the Sandbox when the PHP project does not declare PHPUnit', async () => {
+      const context = await setupPhp({ detectedFramework: null });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.llmProvider.generate).not.toHaveBeenCalled();
+      expect(context.sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(
+        context.generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          relativePath: PHP_RELATIVE_PATH,
+          failureSummary:
+            'El proyecto PHP no declara PHPUnit; solo PHPUnit está soportado en V1.',
+        }),
+      );
+      expect(
+        context.analysisRunsService.completeRunFromSystem,
+      ).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('holds the proposal as a technical failure without calling the Sandbox when the LLM response has no <?php', async () => {
+      const context = await setupPhp();
+      context.llmProvider.generate.mockResolvedValue({
+        content: 'Lo siento, no puedo generar ese test.',
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(
+        context.generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          relativePath: PHP_RELATIVE_PATH,
+          failureSummary:
+            'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+        }),
+      );
+      expect(context.objectStorageService.put).toHaveBeenCalledWith(
+        expect.stringContaining('analysis-runs/run-1/proposals/'),
+        Buffer.from('Lo siento, no puedo generar ese test.', 'utf8'),
+        'text/plain',
+      );
+      expect(
+        context.analysisRunsService.completeRunFromSystem,
+      ).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('classifies a failing case with failureKind ERROR as TECHNICAL_GENERATION_FAILURE', async () => {
+      const context = await setupPhp();
+      context.sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: {
+            runner: 'PHPUNIT',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [
+              {
+                suitePath: null,
+                name: 'discounts',
+                status: 'FAILED',
+                durationMs: 1,
+                errorMessage: 'Class not found',
+                failureKind: 'ERROR',
+              },
+            ],
+            testCasesTruncated: false,
+          },
+        }),
+      );
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        context.generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          failureSummary: 'Class not found',
+        }),
+      );
+      expect(
+        context.analysisRunsService.completeRunFromSystem,
+      ).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('classifies a failing case with only failureKind ASSERTION as BEHAVIORAL_MISMATCH', async () => {
+      const context = await setupPhp();
+      context.sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: {
+            runner: 'PHPUNIT',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [
+              {
+                suitePath: null,
+                name: 'discounts',
+                status: 'FAILED',
+                durationMs: 1,
+                errorMessage: 'Failed asserting that 0 is 10.',
+                failureKind: 'ASSERTION',
+              },
+            ],
+            testCasesTruncated: false,
+          },
+        }),
+      );
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        context.analysisRunsService.completeRunFromSystem,
+      ).toHaveBeenCalledWith(
+        expect.anything(),
+        'BEHAVIORAL_MISMATCH',
+        expect.anything(),
+      );
+    });
+  });
+
+  it('keeps the TypeScript flow on the co-located spec path with language typescript and no PHP prompt options', async () => {
+    const { handler, contextBuilder, promptBuilder, sandboxExecutionService } =
+      await setup();
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
-    expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
+    expect(contextBuilder.build).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { framework: 'JEST', language: 'typescript' },
+      {},
+      [],
+      null,
+    );
+    expect(promptBuilder.build).toHaveBeenCalledWith(expect.anything());
+    expect(sandboxExecutionService.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runnerHint: 'JEST',
+        artifacts: [
+          expect.objectContaining({
+            relativePath: 'src/thing.spec.ts',
+            artifactType: 'CREATED',
+          }),
+        ],
+      }),
+    );
+  });
+
+  describe('símbolos de archivos de test excluidos de la generación (WI-CORE-044, corte 2)', () => {
+    async function setupPhpCase() {
+      const context = await setup();
+      context.projectVersionsRepository.findById.mockResolvedValue(
+        buildVersion({
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+        } as Partial<ProjectVersion>),
+      );
+      context.llmProvider.generate.mockResolvedValue({
+        content:
+          '<?php\n\nnamespace Tests\\Unit\\Pricing;\n\nfinal class PremiumDiscountPolicyDiscountForTest {}',
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+      return context;
+    }
+
+    it('does not generate a proposal, call the LLM or the Sandbox for a PHP test-file method', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, sandboxExecutionService, generatedTestProposalsRepository, analysisRunsService, retrievalService } =
+        await setupPhpCase();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicyTest.testDiscountFor',
+          filePath: 'tests/Unit/Pricing/PremiumDiscountPolicyTest.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(retrievalService.retrieve).not.toHaveBeenCalled();
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(generatedTestProposalsRepository.upsertForSymbol).not.toHaveBeenCalled();
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'NO_TEST_RELEVANT_CHANGES',
+        expect.objectContaining({ generatedTestsCount: 0 }),
+      );
+    });
+
+    it('does not generate a proposal, call the LLM or the Sandbox for a TypeScript spec-file method', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, sandboxExecutionService, generatedTestProposalsRepository, analysisRunsService, retrievalService } =
+        await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          kind: 'METHOD',
+          qualifiedName: 'Thing.doIt',
+          filePath: 'src/foo.spec.ts',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(retrievalService.retrieve).not.toHaveBeenCalled();
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(generatedTestProposalsRepository.upsertForSymbol).not.toHaveBeenCalled();
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'NO_TEST_RELEVANT_CHANGES',
+        expect.objectContaining({ generatedTestsCount: 0 }),
+      );
+    });
+
+    it('generates only for the production symbol when the run mixes it with a test-file symbol', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, generatedTestProposalsRepository, analysisRunsService } =
+        await setupPhpCase();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          id: 'symbol-test',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicyTest.testDiscountFor',
+          filePath: 'tests/Unit/Pricing/PremiumDiscountPolicyTest.php',
+        }),
+        buildSymbol({
+          id: 'symbol-prod',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'app/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ analysisSymbolId: 'symbol-prod' }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.anything(),
+      );
+    });
+
+    it('keeps a production symbol under a non-root Tests/ directory as a generation candidate', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, generatedTestProposalsRepository } =
+        await setupPhpCase();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          id: 'symbol-app-tests',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'app/Tests/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ analysisSymbolId: 'symbol-app-tests' }),
+      );
+    });
+
+    it('excludes test files under projectRoot "backend" and keeps production files under backend/src/tests/', async () => {
+      const { handler, analysisSymbolsRepository, llmProvider, generatedTestProposalsRepository, analysisRunsService, projectVersionsRepository } =
+        await setupPhpCase();
+      projectVersionsRepository.findById.mockResolvedValue(
+        buildVersion({
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+          effectiveProjectRoot: 'backend',
+        } as Partial<ProjectVersion>),
+      );
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          id: 'symbol-backend-test',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicyTest.testDiscountFor',
+          filePath: 'backend/tests/Unit/Pricing/PremiumDiscountPolicyTest.php',
+        }),
+        buildSymbol({
+          id: 'symbol-backend-prod',
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'backend/src/tests/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledTimes(1);
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({ analysisSymbolId: 'symbol-backend-prod' }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.anything(),
+      );
+    });
+  });
+
+  it('is a no-op when the run is not PROCESSING', async () => {
+    const { handler, analysisRunsRepository, repositoryBindingsRepository } =
+      await setup();
+    analysisRunsRepository.findById.mockResolvedValue(
+      buildRun({ status: 'SUCCESS' }),
+    );
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
   it('completes as INFRASTRUCTURE_FAILURE when the repository binding no longer exists', async () => {
-    const { handler, repositoryBindingsRepository, analysisRunsService } = await setup();
-    repositoryBindingsRepository.findByRepositoryId.mockResolvedValue(null);
+    const { handler, repositoryBindingsRepository, analysisRunsService } =
+      await setup();
+    repositoryBindingsRepository.findForRun.mockResolvedValue(null);
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
@@ -203,7 +859,12 @@ describe('AnalysisRunValidationJobHandler', () => {
   });
 
   it('skips a symbol that already has an existing test and completes NO_ADDITIONAL_TESTS_REQUIRED', async () => {
-    const { handler, testTargetsRepository, retrievalService, analysisRunsService } = await setup();
+    const {
+      handler,
+      testTargetsRepository,
+      retrievalService,
+      analysisRunsService,
+    } = await setup();
     testTargetsRepository.findByProjectVersion.mockResolvedValue([
       {
         id: 'target-1',
@@ -223,33 +884,57 @@ describe('AnalysisRunValidationJobHandler', () => {
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'run-1' }),
       'NO_ADDITIONAL_TESTS_REQUIRED',
-      expect.objectContaining({ generatedTestsCount: 0, functionalBehaviorValidated: true }),
+      expect.objectContaining({
+        generatedTestsCount: 0,
+        functionalBehaviorValidated: true,
+      }),
     );
   });
 
-  it('completes NO_ADDITIONAL_TESTS_REQUIRED when there are no DIRECTLY_CHANGED METHOD/FUNCTION candidates', async () => {
-    const { handler, analysisSymbolsRepository, analysisRunsService } = await setup();
-    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([buildSymbol({ kind: 'CLASS' })]);
+  it('completes NO_TEST_RELEVANT_CHANGES without claiming coverage when there are no DIRECTLY_CHANGED METHOD/FUNCTION candidates', async () => {
+    const { handler, analysisSymbolsRepository, analysisRunsService } =
+      await setup();
+    analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+      buildSymbol({ kind: 'CLASS' }),
+    ]);
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
-      'NO_ADDITIONAL_TESTS_REQUIRED',
-      expect.anything(),
+      'NO_TEST_RELEVANT_CHANGES',
+      expect.objectContaining({
+        generatedTestsCount: 0,
+        functionalBehaviorValidated: false,
+        resultSummary: expect.stringContaining(
+          'cobertura existente no evaluada',
+        ),
+      }),
     );
   });
 
   it('holds a proposal with a CONFIGURATION failure when the framework could not be detected', async () => {
-    const { handler, projectVersionsRepository, llmProvider, generatedTestProposalsRepository, analysisRunsService } =
-      await setup();
-    projectVersionsRepository.findById.mockResolvedValue(buildVersion({ detectedFramework: null }));
+    const {
+      handler,
+      projectVersionsRepository,
+      llmProvider,
+      generatedTestProposalsRepository,
+      analysisRunsService,
+    } = await setup();
+    projectVersionsRepository.findById.mockResolvedValue(
+      buildVersion({ detectedFramework: null }),
+    );
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
     expect(llmProvider.generate).not.toHaveBeenCalled();
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'HELD', failureSummary: expect.stringContaining('framework') }),
+    expect(
+      generatedTestProposalsRepository.upsertForSymbol,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'HELD',
+        failureSummary: expect.stringContaining('framework'),
+      }),
     );
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
@@ -259,21 +944,38 @@ describe('AnalysisRunValidationJobHandler', () => {
   });
 
   it('completes SUCCESS and persists an AVAILABLE proposal when the sandbox run passes', async () => {
-    const { handler, generatedTestProposalsRepository, analysisRunsService, sandboxExecutionService, analysisRunChecksService } =
-      await setup();
+    const {
+      handler,
+      generatedTestProposalsRepository,
+      analysisRunsService,
+      sandboxExecutionService,
+      analysisRunChecksService,
+    } = await setup();
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
     expect(sandboxExecutionService.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: 'TARGET', targetIds: ['symbol-1'], runnerHint: 'JEST' }),
+      expect.objectContaining({
+        scope: 'TARGET',
+        targetIds: ['symbol-1'],
+        runnerHint: 'JEST',
+      }),
     );
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'AVAILABLE', qualifiedName: 'Thing.doIt' }),
+    expect(
+      generatedTestProposalsRepository.upsertForSymbol,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'AVAILABLE',
+        qualifiedName: 'Thing.doIt',
+      }),
     );
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
       'SUCCESS',
-      expect.objectContaining({ generatedTestsCount: 1, functionalBehaviorValidated: true }),
+      expect.objectContaining({
+        generatedTestsCount: 1,
+        functionalBehaviorValidated: true,
+      }),
     );
     expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'SUCCESS' }),
@@ -281,17 +983,46 @@ describe('AnalysisRunValidationJobHandler', () => {
   });
 
   it('classifies a TEST_ASSERTION failure as BEHAVIORAL_MISMATCH', async () => {
-    const { handler, sandboxExecutionService, analysisRunsService, generatedTestProposalsRepository } = await setup();
+    const {
+      handler,
+      sandboxExecutionService,
+      analysisRunsService,
+      generatedTestProposalsRepository,
+    } = await setup();
     sandboxExecutionService.execute.mockResolvedValue(
       sandboxResult({
-        facts: { runner: 'JEST', compiled: true, executed: true, passed: false, totalTests: 1, passedTests: 0, failedTests: 1, skippedTests: 0, testCases: [{ suitePath: null, name: 'it works', status: 'FAILED', durationMs: 1, errorMessage: 'expected true, got false' }], testCasesTruncated: false },
+        facts: {
+          runner: 'JEST',
+          compiled: true,
+          executed: true,
+          passed: false,
+          totalTests: 1,
+          passedTests: 0,
+          failedTests: 1,
+          skippedTests: 0,
+          testCases: [
+            {
+              suitePath: null,
+              name: 'it works',
+              status: 'FAILED',
+              durationMs: 1,
+              errorMessage: 'expected true, got false',
+            },
+          ],
+          testCasesTruncated: false,
+        },
       }),
     );
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'HELD', failureSummary: 'expected true, got false' }),
+    expect(
+      generatedTestProposalsRepository.upsertForSymbol,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'HELD',
+        failureSummary: 'expected true, got false',
+      }),
     );
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
@@ -301,10 +1032,22 @@ describe('AnalysisRunValidationJobHandler', () => {
   });
 
   it('classifies a COMPILATION failure as TECHNICAL_GENERATION_FAILURE', async () => {
-    const { handler, sandboxExecutionService, analysisRunsService } = await setup();
+    const { handler, sandboxExecutionService, analysisRunsService } =
+      await setup();
     sandboxExecutionService.execute.mockResolvedValue(
       sandboxResult({
-        facts: { runner: 'JEST', compiled: false, executed: false, passed: false, totalTests: 0, passedTests: 0, failedTests: 0, skippedTests: 0, testCases: [], testCasesTruncated: false },
+        facts: {
+          runner: 'JEST',
+          compiled: false,
+          executed: false,
+          passed: false,
+          totalTests: 0,
+          passedTests: 0,
+          failedTests: 0,
+          skippedTests: 0,
+          testCases: [],
+          testCasesTruncated: false,
+        },
       }),
     );
 
@@ -317,24 +1060,67 @@ describe('AnalysisRunValidationJobHandler', () => {
     );
   });
 
-  it('treats a Sandbox-unavailable symbol as a per-symbol failure without aborting the whole run', async () => {
-    const { handler, sandboxExecutionService, analysisRunsService, generatedTestProposalsRepository } = await setup();
-    sandboxExecutionService.execute.mockRejectedValue(new SandboxUnavailableError('Sandbox no disponible.'));
+  it('persists the failure summary sanitized when the exception message carries a secret (WI-CORE-027, IDEA-015)', async () => {
+    const {
+      handler,
+      sandboxExecutionService,
+      generatedTestProposalsRepository,
+    } = await setup();
+    sandboxExecutionService.execute.mockRejectedValue(
+      new SandboxUnavailableError(
+        'Descarga fallida https://u:hunter@storage.example/o.zip?X-Amz-Signature=abc password hunter2',
+      ),
+    );
 
     await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
 
-    expect(generatedTestProposalsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'HELD', failureSummary: 'Sandbox no disponible.' }),
+    const persisted =
+      generatedTestProposalsRepository.upsertForSymbol.mock.calls
+        .map((call) => call[0].failureSummary)
+        .join('\n');
+    expect(persisted).toContain(
+      'Descarga fallida https://[REDACTED]@storage.example/o.zip password [REDACTED]',
     );
+    expect(persisted).not.toMatch(/hunter|X-Amz-Signature|abc/);
+  });
+
+  it('treats a Sandbox-unavailable symbol as a per-symbol failure without aborting the whole run', async () => {
+    const {
+      handler,
+      sandboxExecutionService,
+      analysisRunsService,
+      generatedTestProposalsRepository,
+    } = await setup();
+    sandboxExecutionService.execute.mockRejectedValue(
+      new SandboxUnavailableError('Sandbox no disponible.'),
+    );
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    expect(
+      generatedTestProposalsRepository.upsertForSymbol,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'HELD',
+        failureSummary: 'Sandbox no disponible.',
+      }),
+    );
+    // DEC-VAL-002 (OC08): un Sandbox no disponible es fallo de plataforma por símbolo; el Run lo refleja como
+    // INFRASTRUCTURE_FAILURE. La evidencia por ejecución de la propuesta no cambia (recordExecutionBestEffort).
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
-      'TECHNICAL_GENERATION_FAILURE',
+      'INFRASTRUCTURE_FAILURE',
       expect.anything(),
     );
   });
 
   it('BEHAVIORAL_MISMATCH takes priority over an AVAILABLE proposal on another symbol', async () => {
-    const { handler, analysisSymbolsRepository, sandboxExecutionService, analysisRunsService } = await setup();
+    const {
+      handler,
+      analysisSymbolsRepository,
+      sandboxExecutionService,
+      analysisRunsService,
+    } = await setup();
     analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
       buildSymbol({ id: 'symbol-1', qualifiedName: 'Thing.ok' }),
       buildSymbol({ id: 'symbol-2', qualifiedName: 'Thing.mismatch' }),
@@ -343,7 +1129,18 @@ describe('AnalysisRunValidationJobHandler', () => {
       .mockResolvedValueOnce(sandboxResult())
       .mockResolvedValueOnce(
         sandboxResult({
-          facts: { runner: 'JEST', compiled: true, executed: true, passed: false, totalTests: 1, passedTests: 0, failedTests: 1, skippedTests: 0, testCases: [], testCasesTruncated: false },
+          facts: {
+            runner: 'JEST',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [],
+            testCasesTruncated: false,
+          },
         }),
       );
 
@@ -357,10 +1154,15 @@ describe('AnalysisRunValidationJobHandler', () => {
   });
 
   it('completes INFRASTRUCTURE_FAILURE and rethrows when materializing the snapshot fails', async () => {
-    const { handler, githubSnapshotMaterializerService, analysisRunsService } = await setup();
-    githubSnapshotMaterializerService.materialize.mockRejectedValue(new Error('GitHub API 503'));
+    const { handler, githubSnapshotMaterializerService, analysisRunsService } =
+      await setup();
+    githubSnapshotMaterializerService.materialize.mockRejectedValue(
+      new Error('GitHub API 503'),
+    );
 
-    await expect(handler.handle({ analysisRunId: 'run-1' }, 'job-1')).rejects.toThrow('GitHub API 503');
+    await expect(
+      handler.handle({ analysisRunId: 'run-1' }, 'job-1'),
+    ).rejects.toThrow('GitHub API 503');
 
     expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
       expect.anything(),
@@ -373,8 +1175,1174 @@ describe('AnalysisRunValidationJobHandler', () => {
     const { handler, objectStorageService, workspaceCleanup } = await setup();
     objectStorageService.put.mockRejectedValue(new Error('storage down'));
 
-    await expect(handler.handle({ analysisRunId: 'run-1' }, 'job-1')).rejects.toThrow('storage down');
+    await expect(
+      handler.handle({ analysisRunId: 'run-1' }, 'job-1'),
+    ).rejects.toThrow('storage down');
 
     expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('retrieves the functional rules of the run project per symbol and passes them to the context builder', async () => {
+    const { handler, functionalRulesRetriever, contextBuilder } = await setup();
+    const rule = {
+      knowledgeId: 'rule-1',
+      scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+      normalizedRule: 'Devuelve true.',
+      scope: 'METHOD',
+      targetRef: 'src/thing.ts::Thing.doIt',
+      source: 'HUMAN_ANSWER',
+      provenance: {
+        confirmedByUserId: null,
+        confirmedRole: 'ADMIN',
+        originHeadSha: null,
+        sourceRef: null,
+      },
+    };
+    functionalRulesRetriever.retrieve.mockResolvedValue([rule]);
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    expect(functionalRulesRetriever.retrieve).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({
+        filePath: 'src/thing.ts',
+        symbolName: 'Thing',
+        methodName: 'doIt',
+        targetType: 'METHOD',
+      }),
+    );
+    expect(contextBuilder.build).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      {},
+      [rule],
+      null,
+    );
+  });
+
+  describe('ejecuciones del Sandbox y propuestas por símbolo (WI-CORE-026, corte B)', () => {
+    it('upserts the proposal by symbol and records the accepted execution with the attempt of the run', async () => {
+      const {
+        handler,
+        generatedTestProposalsRepository,
+        analysisTraceRepository,
+      } = await setup();
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          analysisRunId: 'run-1',
+          analysisSymbolId: 'symbol-1',
+          status: 'AVAILABLE',
+          failureSummary: null,
+        }),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith({
+        analysisRunId: 'run-1',
+        proposalId: 'proposal-1',
+        executionId: 'exec-1',
+        attempt: 1,
+        executionProfile: 'NODE_TYPESCRIPT',
+        outcome: 'SUCCESS',
+        requestId: 'request-1',
+        correlationId: 'correlation-1',
+        durationMs: 7,
+        facts: PASSED_FACTS,
+        failure: null,
+      });
+    });
+
+    it('keeps a valid proposal AVAILABLE and logs without failing when recording the execution fails', async () => {
+      const {
+        handler,
+        analysisTraceRepository,
+        generatedTestProposalsRepository,
+        analysisRunsService,
+        analysisRunChecksService,
+      } = await setup();
+      analysisTraceRepository.upsertExecution.mockRejectedValueOnce(
+        new Error('connection string postgresql://user:secret@host'),
+      );
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await expect(
+        handler.handle({ analysisRunId: 'run-1' }, 'job-1'),
+      ).resolves.toBeUndefined();
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'AVAILABLE', failureSummary: null }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.objectContaining({ generatedTestsCount: 1 }),
+      );
+      expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'SUCCESS' }),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('exec-1'));
+      expect(
+        warn.mock.calls.map((call) => String(call[0])).join(' '),
+      ).not.toContain('secret');
+      warn.mockRestore();
+    });
+
+    it('keeps a BEHAVIORAL_MISMATCH proposal with its classification when recording the execution fails', async () => {
+      const {
+        handler,
+        sandboxExecutionService,
+        analysisTraceRepository,
+        generatedTestProposalsRepository,
+        analysisRunsService,
+      } = await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: {
+            runner: 'JEST',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [
+              {
+                suitePath: null,
+                name: 'it works',
+                status: 'FAILED',
+                durationMs: 1,
+                errorMessage: 'expected true, got false',
+              },
+            ],
+            testCasesTruncated: false,
+          },
+        }),
+      );
+      analysisTraceRepository.upsertExecution.mockRejectedValueOnce(
+        new Error('connection string postgresql://user:secret@host'),
+      );
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await expect(
+        handler.handle({ analysisRunId: 'run-1' }, 'job-1'),
+      ).resolves.toBeUndefined();
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          failureSummary: 'expected true, got false',
+          contextId: 'context-1',
+        }),
+      );
+      const stored = generatedTestProposalsRepository.upsertForSymbol.mock
+        .calls[0]![0] as { contentSha256: string };
+      expect(stored.contentSha256).not.toBe(
+        createHash('sha256').update('').digest('hex'),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'BEHAVIORAL_MISMATCH',
+        expect.anything(),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('exec-1'));
+      expect(
+        warn.mock.calls.map((call) => String(call[0])).join(' '),
+      ).not.toContain('secret');
+      warn.mockRestore();
+    });
+
+    it('does not leave the handler when recording an accepted execution fails inside the catch, and keeps the held classification', async () => {
+      const {
+        handler,
+        sandboxExecutionService,
+        analysisTraceRepository,
+        generatedTestProposalsRepository,
+        analysisRunsService,
+      } = await setup();
+      sandboxExecutionService.execute.mockRejectedValue(
+        new SandboxAcceptedExecutionError(
+          'La ejecución exec-9 no terminó.',
+          'exec-9',
+          'NODE_TYPESCRIPT',
+        ),
+      );
+      analysisTraceRepository.upsertExecution.mockRejectedValueOnce(
+        new Error('connection string postgresql://user:secret@host'),
+      );
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await expect(
+        handler.handle({ analysisRunId: 'run-1' }, 'job-1'),
+      ).resolves.toBeUndefined();
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          failureSummary: 'La ejecución exec-9 no terminó.',
+        }),
+      );
+      // DEC-VAL-002 (OC08): la ejecución aceptada sin resultado es fallo de plataforma por símbolo (Run INFRASTRUCTURE_FAILURE).
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.anything(),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('exec-9'));
+      expect(
+        warn.mock.calls.map((call) => String(call[0])).join(' '),
+      ).not.toContain('secret');
+      warn.mockRestore();
+    });
+
+    it('numbers the attempt after the continuations of the run (attemptCount + 1)', async () => {
+      const context = await setup();
+      context.analysisRunsRepository.findById.mockResolvedValue(
+        buildRun({ attemptCount: 1 }),
+      );
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        context.analysisTraceRepository.upsertExecution,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ attempt: 2, executionId: 'exec-1' }),
+      );
+    });
+
+    it('records a BEHAVIORAL_MISMATCH execution with the Run vocabulary for a failing assertion', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: {
+            runner: 'JEST',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [],
+            testCasesTruncated: false,
+          },
+          executionId: 'exec-assert',
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          proposalId: 'proposal-1',
+          executionId: 'exec-assert',
+          outcome: 'BEHAVIORAL_MISMATCH',
+        }),
+      );
+    });
+
+    it('keeps the executionId of an accepted execution that failed afterwards and holds its proposal', async () => {
+      const {
+        handler,
+        sandboxExecutionService,
+        analysisTraceRepository,
+        generatedTestProposalsRepository,
+      } = await setup();
+      sandboxExecutionService.execute.mockRejectedValue(
+        new SandboxAcceptedExecutionError(
+          'La ejecución exec-9 no terminó.',
+          'exec-9',
+          'NODE_TYPESCRIPT',
+        ),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          failureSummary: 'La ejecución exec-9 no terminó.',
+        }),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith({
+        analysisRunId: 'run-1',
+        proposalId: 'proposal-1',
+        executionId: 'exec-9',
+        attempt: 1,
+        executionProfile: 'NODE_TYPESCRIPT',
+        outcome: 'TECHNICAL_GENERATION_FAILURE',
+        requestId: null,
+        correlationId: null,
+        durationMs: null,
+        facts: NOT_OBSERVED_FACTS,
+        failure: null,
+      });
+    });
+
+    it('records no execution when the Sandbox never accepted the request', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockRejectedValue(
+        new SandboxUnavailableError('Sandbox no disponible.'),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).not.toHaveBeenCalled();
+    });
+
+    it('records no execution for a symbol that already has a test, so its executions are NOT_APPLICABLE', async () => {
+      const { handler, testTargetsRepository, analysisTraceRepository } =
+        await setup();
+      testTargetsRepository.findByProjectVersion.mockResolvedValue([
+        {
+          id: 'target-1',
+          projectVersionId: 'version-1',
+          filePath: 'src/thing.ts',
+          symbolName: 'Thing',
+          methodName: 'doIt',
+          targetType: 'METHOD',
+          hasTest: true,
+          testFilePaths: [],
+        } as unknown as TestTarget,
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('trazas de retrieval y contexto (WI-CORE-026)', () => {
+    const chunk = {
+      id: 'chunk-target',
+      filePath: 'src/thing.ts',
+      symbolKind: 'METHOD',
+      symbolName: 'Thing',
+      parentSymbolName: 'Thing',
+      startLine: 1,
+      endLine: 3,
+      content: 'SECRETO_DE_CODIGO target',
+      tokenCount: 5,
+    };
+    const rule = {
+      knowledgeId: 'rule-1',
+      scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa',
+      normalizedRule: 'TEXTO_REGLA_NO_PERSISTIDO',
+      scope: 'METHOD',
+      targetRef: 'src/thing.ts::Thing.doIt',
+      source: 'HUMAN_ANSWER',
+      provenance: {
+        confirmedByUserId: 'user-1',
+        confirmedRole: 'ADMIN',
+        originHeadSha: 'head-1',
+        sourceRef: 'ref-1',
+      },
+    };
+
+    it('persists the retrieval and the context per target and links the context_id into the proposal', async () => {
+      const {
+        handler,
+        analysisTraceRepository,
+        generatedTestProposalsRepository,
+        retrievalService,
+      } = await setup();
+      retrievalService.retrieve.mockResolvedValue({
+        targetChunks: [chunk],
+        candidates: [
+          {
+            chunk: {
+              ...chunk,
+              id: 'chunk-near',
+              content: 'SECRETO_DE_CODIGO near',
+            },
+            semanticScore: 0.9,
+            structuralMatch: null,
+          },
+        ],
+      });
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertRetrieval).toHaveBeenCalledWith({
+        analysisRunId: 'run-1',
+        analysisSymbolId: 'symbol-1',
+        mode: 'SE',
+        config: {
+          mode: 'SE',
+          vectorTopK: 20,
+          targetChunkIds: ['chunk-target'],
+        },
+        candidates: [
+          expect.objectContaining({
+            chunkId: 'chunk-near',
+            semanticScore: 0.9,
+            structuralMatch: null,
+          }),
+        ],
+      });
+      expect(
+        JSON.stringify(
+          analysisTraceRepository.upsertRetrieval.mock.calls[0][0],
+        ),
+      ).not.toContain('SECRETO_DE_CODIGO');
+      expect(analysisTraceRepository.upsertContext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          analysisRunId: 'run-1',
+          analysisSymbolId: 'symbol-1',
+          retrievalId: 'retrieval-1',
+          tokenBudget: 1000,
+          functionalRuleIds: [],
+          functionalRulesOmitted: 0,
+          omittedFunctionalRules: [],
+        }),
+      );
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'AVAILABLE',
+          contextId: 'context-1',
+        }),
+      );
+    });
+
+    it('keeps the GenerationContext and the prompt unchanged by the trace persistence', async () => {
+      const context = await setup();
+      const generationContext = buildGenerationContext({
+        functionalRules: [rule],
+      });
+      context.contextBuilder.build.mockReturnValue(generationContext);
+      const realPromptBuilder = new PromptBuilder();
+      context.promptBuilder.build.mockImplementation((ctx: never) =>
+        realPromptBuilder.build(ctx),
+      );
+      const before = structuredClone(generationContext);
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.promptBuilder.build).toHaveBeenCalledWith(
+        generationContext,
+      );
+      expect(generationContext).toEqual(before);
+      expect(context.llmProvider.generate).toHaveBeenCalledWith(
+        realPromptBuilder.build(before as never),
+      );
+    });
+
+    it('persists the functional rule omitted by TOKEN_BUDGET with its knowledgeId and reason, without rule text or provenance', async () => {
+      const context = await setup();
+      const kept = { ...rule, knowledgeId: 'rule-kept' };
+      // El presupuesto admite exactamente una regla: la segunda (mismo texto renderizado) queda omitida.
+      const budget = countFunctionalRuleTokens(kept as never);
+      const realBuilder = new ContextBuilder({
+        get: (key: string, fallback: unknown) =>
+          key === 'RETRIEVAL_MAX_CONTEXT_TOKENS' ? budget : fallback,
+      } as never);
+      context.contextBuilder.build.mockImplementation((...args: unknown[]) =>
+        (realBuilder.build as (...a: unknown[]) => unknown).apply(
+          realBuilder,
+          args,
+        ),
+      );
+      context.retrievalService.retrieve.mockResolvedValue({
+        targetChunks: [{ ...chunk, tokenCount: 0 }],
+        candidates: [],
+      });
+      context.functionalRulesRetriever.retrieve.mockResolvedValue([
+        kept,
+        { ...rule, knowledgeId: 'rule-omitted' },
+      ] as never);
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [contextArgs] =
+        context.analysisTraceRepository.upsertContext.mock.calls[0];
+      expect(contextArgs).toMatchObject({
+        functionalRuleIds: ['rule-kept'],
+        functionalRulesRetrieved: 2,
+        functionalRulesSelected: 1,
+        functionalRulesOmitted: 1,
+        omittedFunctionalRules: [
+          { knowledgeId: 'rule-omitted', reason: 'TOKEN_BUDGET' },
+        ],
+      });
+      const serialized = JSON.stringify(contextArgs);
+      expect(serialized).not.toContain('TEXTO_REGLA_NO_PERSISTIDO');
+      expect(serialized).not.toContain('confirmedRole');
+      expect(serialized).not.toContain('user-1');
+    });
+
+    it('records no retrieval or context for a symbol that already has a test', async () => {
+      const {
+        handler,
+        testTargetsRepository,
+        analysisTraceRepository,
+        retrievalService,
+      } = await setup();
+      testTargetsRepository.findByProjectVersion.mockResolvedValue([
+        {
+          id: 'target-1',
+          projectVersionId: 'version-1',
+          filePath: 'src/thing.ts',
+          symbolName: 'Thing',
+          methodName: 'doIt',
+          targetType: 'METHOD',
+          hasTest: true,
+          testFilePaths: [],
+        } as unknown as TestTarget,
+      ]);
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(retrievalService.retrieve).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertRetrieval).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertContext).not.toHaveBeenCalled();
+    });
+
+    it('holds the proposal with a null context_id and persists no retrieval or context when retrieval fails', async () => {
+      const {
+        handler,
+        retrievalService,
+        analysisTraceRepository,
+        generatedTestProposalsRepository,
+      } = await setup();
+      retrievalService.retrieve.mockRejectedValue(
+        new Error('No se encontró un chunk indexado'),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertRetrieval).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertContext).not.toHaveBeenCalled();
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', contextId: null }),
+      );
+    });
+
+    it('keeps the context_id of a generation failure after the context was persisted', async () => {
+      const { handler, llmProvider, generatedTestProposalsRepository } =
+        await setup();
+      llmProvider.generate.mockRejectedValue(new Error('LLM caído'));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', contextId: 'context-1' }),
+      );
+    });
+  });
+
+  describe('evidencia de ejecución y de generación (WI-CORE-027, corte B)', () => {
+    const COMPILE_FAILURE = {
+      stage: 'COMPILING',
+      category: 'COMPILATION',
+      code: 'TS2304',
+      message: "Cannot find name 'foo'",
+    };
+
+    function evidenceOf(analysisTraceRepository: {
+      upsertExecution: ReturnType<typeof vi.fn>;
+    }) {
+      return analysisTraceRepository.upsertExecution.mock.calls.map(
+        (call: unknown[]) => call[0] as Record<string, unknown>,
+      );
+    }
+
+    it('records the generation of the proposal with the effective provider, model, tokens and a non-negative duration', async () => {
+      const { handler, llmProvider, generatedTestProposalsRepository } =
+        await setup();
+      llmProvider.generate.mockResolvedValueOnce({
+        content: 'test content',
+        inputTokens: 10,
+        outputTokens: 20,
+        effective: {
+          provider: 'openai',
+          model: 'gpt-x',
+          reasoningEffort: 'high',
+        },
+      });
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generation: {
+            provider: 'openai',
+            model: 'gpt-x',
+            modelVersion: null,
+            reasoningEffort: 'high',
+            inputTokens: 10,
+            outputTokens: 20,
+            durationMs: expect.any(Number),
+          },
+        }),
+      );
+      const generation = generatedTestProposalsRepository.upsertForSymbol.mock
+        .calls[0]![0].generation as { durationMs: number };
+      expect(generation.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('stores null for each generation field the adapter did not report, keeping the reported tokens', async () => {
+      const { handler, generatedTestProposalsRepository } = await setup();
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generation: expect.objectContaining({
+            provider: null,
+            model: null,
+            modelVersion: null,
+            reasoningEffort: null,
+            inputTokens: 10,
+            outputTokens: 20,
+          }),
+        }),
+      );
+    });
+
+    it('records COMPLETED with failing tests as TEST_ASSERTION without stage, code or message (DEC-EVID-006)', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          facts: {
+            runner: 'JEST',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 2,
+            passedTests: 1,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [
+              {
+                suitePath: null,
+                name: 'falla',
+                status: 'FAILED',
+                durationMs: 1,
+                errorMessage: 'expected 1 got 2 token=abc123',
+              },
+            ],
+            testCasesTruncated: false,
+          },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [execution] = evidenceOf(analysisTraceRepository);
+      expect(execution).toMatchObject({
+        outcome: 'BEHAVIORAL_MISMATCH',
+        failure: null,
+        facts: {
+          runner: 'JEST',
+          passed: false,
+          totalTests: 2,
+          failedTests: 1,
+          failureCategory: 'TEST_ASSERTION',
+          failureStage: null,
+          failureCode: null,
+          failureMessage: null,
+        },
+      });
+      expect(JSON.stringify(execution)).not.toContain('expected 1 got 2');
+      expect(JSON.stringify(execution)).not.toContain('abc123');
+      expect(Object.keys(execution.facts as object)).not.toContain('testCases');
+    });
+
+    it('records the validated fact of a FAILED result with its secrets redacted and no raw field', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'FAILED',
+          facts: null,
+          failure: {
+            ...COMPILE_FAILURE,
+            message:
+              "Cannot find name 'foo' token xoxb-123456789012-abcdefghijk",
+          },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [execution] = evidenceOf(analysisTraceRepository);
+      expect(execution.failure).toEqual({
+        stage: 'COMPILING',
+        category: 'COMPILATION',
+        code: 'TS2304',
+        message: "Cannot find name 'foo' token [REDACTED]",
+      });
+      expect(execution.facts).toMatchObject({
+        executionProfile: 'NODE_TYPESCRIPT',
+        failureStage: 'COMPILING',
+        failureCategory: 'COMPILATION',
+        failureCode: 'TS2304',
+        failureMessage: "Cannot find name 'foo' token [REDACTED]",
+      });
+      expect(JSON.stringify(execution)).not.toContain('xoxb-');
+    });
+
+    it('records a TIMED_OUT execution without a fact as the observed identity only, with no invented category', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({ status: 'TIMED_OUT', facts: null, failure: null }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const [execution] = evidenceOf(analysisTraceRepository);
+      expect(execution).toMatchObject({
+        executionId: 'exec-1',
+        requestId: 'request-1',
+        correlationId: 'correlation-1',
+        durationMs: 7,
+        failure: null,
+        facts: {
+          executionProfile: 'NODE_TYPESCRIPT',
+          passed: null,
+          failureCategory: null,
+          failureStage: null,
+        },
+      });
+    });
+
+    it('keeps the identity and duration of an accepted execution that failed afterwards when the error carries them', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockRejectedValue(
+        new SandboxAcceptedExecutionError(
+          'La ejecución exec-8 no terminó.',
+          'exec-8',
+          'NODE_TYPESCRIPT',
+          'req-8',
+          'corr-8',
+          12,
+        ),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(evidenceOf(analysisTraceRepository)[0]).toMatchObject({
+        executionId: 'exec-8',
+        requestId: 'req-8',
+        correlationId: 'corr-8',
+        durationMs: 12,
+      });
+    });
+
+    it('records a null generation and no execution when the provider fails before a result', async () => {
+      const {
+        handler,
+        llmProvider,
+        generatedTestProposalsRepository,
+        sandboxExecutionService,
+        analysisTraceRepository,
+      } = await setup();
+      llmProvider.generate.mockRejectedValue(new Error('LLM caído'));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'HELD', generation: null }),
+      );
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertExecution).not.toHaveBeenCalled();
+    });
+
+    it('keeps the proposal and its contents when writing the generation fails, retries without it and logs only the error name', async () => {
+      const {
+        handler,
+        generatedTestProposalsRepository,
+        analysisTraceRepository,
+      } = await setup();
+      const failing = new Error(
+        'connection string postgresql://user:secret@host',
+      );
+      failing.name = 'PrismaClientKnownRequestError';
+      generatedTestProposalsRepository.upsertForSymbol.mockImplementation(
+        async (input: { generation: unknown }) => {
+          if (input.generation !== null) {
+            throw failing;
+          }
+          return { id: 'proposal-1' };
+        },
+      );
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await expect(
+        handler.handle({ analysisRunId: 'run-1' }, 'job-1'),
+      ).resolves.toBeUndefined();
+
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenCalledTimes(2);
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol,
+      ).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: 'AVAILABLE',
+          generation: null,
+          failureSummary: null,
+        }),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          proposalId: 'proposal-1',
+          outcome: 'SUCCESS',
+        }),
+      );
+      const logged = warn.mock.calls.map((call) => String(call[0])).join(' ');
+      expect(logged).toContain('PrismaClientKnownRequestError');
+      expect(logged).not.toContain('secret');
+      warn.mockRestore();
+    });
+  });
+
+  describe('fallo de plataforma por símbolo y precedencia del Run (DEC-VAL-002, WI-CORE-048 / OC08)', () => {
+    const TWO_SYMBOLS = [
+      buildSymbol({ id: 'symbol-1', qualifiedName: 'Thing.first' }),
+      buildSymbol({ id: 'symbol-2', qualifiedName: 'Thing.second' }),
+    ];
+
+    const mismatchFacts = {
+      runner: 'JEST',
+      compiled: true,
+      executed: true,
+      passed: false,
+      totalTests: 1,
+      passedTests: 0,
+      failedTests: 1,
+      skippedTests: 0,
+      testCases: [],
+      testCasesTruncated: false,
+    };
+
+    const compilationFacts = {
+      runner: 'JEST',
+      compiled: false,
+      executed: false,
+      passed: false,
+      totalTests: 0,
+      passedTests: 0,
+      failedTests: 0,
+      skippedTests: 0,
+      testCases: [],
+      testCasesTruncated: false,
+    };
+
+    it('reports a platform failure on one symbol as INFRASTRUCTURE_FAILURE and keeps the other AVAILABLE proposal', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+        generatedTestProposalsRepository,
+        analysisTraceRepository,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(
+          new SandboxAcceptedExecutionError(
+            'La ejecución exec-9 no terminó.',
+            'exec-9',
+            'NODE_TYPESCRIPT',
+          ),
+        )
+        .mockResolvedValueOnce(sandboxResult());
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.objectContaining({
+          generatedTestsCount: 1,
+          functionalBehaviorValidated: false,
+          resultSummary: expect.stringContaining(
+            '1 fallo(s) de plataforma sin veredicto (Thing.first)',
+          ),
+        }),
+      );
+      expect(
+        generatedTestProposalsRepository.upsertForSymbol.mock.calls.map(
+          (call) => call[0].status,
+        ),
+      ).toEqual(['HELD', 'AVAILABLE']);
+      // La evidencia por ejecución del fallo de plataforma no cambia de valor (condición del usuario).
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-9',
+          outcome: 'TECHNICAL_GENERATION_FAILURE',
+        }),
+      );
+    });
+
+    it('keeps BEHAVIORAL_MISMATCH over a timeout platform failure on another symbol', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockResolvedValueOnce(
+          sandboxResult({ status: 'TIMED_OUT', facts: null, failure: null }),
+        )
+        .mockResolvedValueOnce(sandboxResult({ facts: mismatchFacts }));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'BEHAVIORAL_MISMATCH',
+        expect.objectContaining({
+          resultSummary: expect.stringContaining(
+            '1 fallo(s) de plataforma sin veredicto (Thing.first)',
+          ),
+        }),
+      );
+    });
+
+    it('completes INFRASTRUCTURE_FAILURE when a symbol fails with the INFRASTRUCTURE category', async () => {
+      const { handler, sandboxExecutionService, analysisRunsService } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'FAILED',
+          facts: null,
+          failure: { category: 'INFRASTRUCTURE', message: 'Docker no responde.' },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.objectContaining({ generatedTestsCount: 0 }),
+      );
+    });
+
+    it('keeps TECHNICAL_GENERATION_FAILURE over a platform failure when another symbol fails to compile', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(new SandboxUnavailableError('Sandbox no disponible.'))
+        .mockResolvedValueOnce(sandboxResult({ facts: compilationFacts }));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.objectContaining({
+          resultSummary: expect.stringContaining(
+            '1 fallo(s) de plataforma sin veredicto (Thing.first)',
+          ),
+        }),
+      );
+    });
+
+    it('keeps INFRASTRUCTURE_FAILURE over a symbol that already has a test when a platform failure is present', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        testTargetsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ id: 'symbol-1', qualifiedName: 'Thing.first' }),
+        buildSymbol({
+          id: 'symbol-2',
+          qualifiedName: 'Thing.skipped',
+          filePath: 'src/skipped.ts',
+        }),
+      ]);
+      testTargetsRepository.findByProjectVersion.mockResolvedValue([
+        {
+          id: 'target-2',
+          projectVersionId: 'version-1',
+          filePath: 'src/skipped.ts',
+          symbolName: 'Thing',
+          methodName: 'skipped',
+          targetType: 'METHOD',
+          hasTest: true,
+          testFilePaths: ['src/skipped.spec.ts'],
+        } as TestTarget,
+      ]);
+      sandboxExecutionService.execute.mockRejectedValueOnce(
+        new SandboxUnavailableError('Sandbox no disponible.'),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('keeps TECHNICAL_GENERATION_FAILURE for an UNKNOWN failure and a generic exception, with the previous summary text', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue(
+        TWO_SYMBOLS,
+      );
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(new Error('fallo genérico del proveedor'))
+        .mockResolvedValueOnce(
+          sandboxResult({
+            status: 'FAILED',
+            facts: null,
+            failure: { category: 'UNKNOWN', message: 'Causa desconocida.' },
+          }),
+        );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.objectContaining({
+          resultSummary:
+            'TECHNICAL_GENERATION_FAILURE: 0 propuesta(s) disponible(s), 0 símbolo(s) ya cubiertos por tests existentes, 0 behavioral mismatch, 2 fallo(s) técnico(s) de generación.',
+        }),
+      );
+    });
+
+    it('records TECHNICAL_GENERATION_FAILURE as execution evidence when the Sandbox times out', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository, analysisRunsService } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'TIMED_OUT',
+          facts: null,
+          failure: null,
+          executionId: 'exec-timeout',
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'INFRASTRUCTURE_FAILURE',
+        expect.anything(),
+      );
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-timeout',
+          outcome: 'TECHNICAL_GENERATION_FAILURE',
+        }),
+      );
+    });
+
+    it('records TECHNICAL_GENERATION_FAILURE as execution evidence when the Sandbox fails with the INFRASTRUCTURE category', async () => {
+      const { handler, sandboxExecutionService, analysisTraceRepository } =
+        await setup();
+      sandboxExecutionService.execute.mockResolvedValue(
+        sandboxResult({
+          status: 'FAILED',
+          facts: null,
+          failure: { category: 'INFRASTRUCTURE', message: 'Docker no responde.' },
+          executionId: 'exec-infra',
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisTraceRepository.upsertExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-infra',
+          outcome: 'TECHNICAL_GENERATION_FAILURE',
+        }),
+      );
+    });
+
+    it('reports the exact summary with a platform failure, a compilation failure and an AVAILABLE proposal', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        sandboxExecutionService,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ id: 'symbol-1', qualifiedName: 'Thing.first' }),
+        buildSymbol({ id: 'symbol-2', qualifiedName: 'Thing.second' }),
+        buildSymbol({ id: 'symbol-3', qualifiedName: 'Thing.third' }),
+      ]);
+      sandboxExecutionService.execute
+        .mockRejectedValueOnce(new SandboxUnavailableError('Sandbox no disponible.'))
+        .mockResolvedValueOnce(sandboxResult({ facts: compilationFacts }))
+        .mockResolvedValueOnce(sandboxResult());
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.objectContaining({
+          resultSummary:
+            'TECHNICAL_GENERATION_FAILURE: 1 propuesta(s) disponible(s), 0 símbolo(s) ya cubiertos por tests existentes, 0 behavioral mismatch, 1 fallo(s) técnico(s) de generación, 1 fallo(s) de plataforma sin veredicto (Thing.first).',
+        }),
+      );
+    });
   });
 });

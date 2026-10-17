@@ -1,0 +1,7 @@
+{
+  "id": "SYN-1",
+  "pv": "syn-pv",
+  "filePath": "app/Orders/Pricer.php",
+  "symbolName": "Acme\\Orders\\Pricer",
+  "methodName": "price"
+}

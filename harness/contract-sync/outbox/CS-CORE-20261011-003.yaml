@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261011-003
+source: core
+sourceWorkItem: WI-CORE-036
+targets: [github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - Refresh the SYSTEM and INTEROP contract mirrors for SYSTEM-2.7/INTEROP-2.8; GitHub tree/blob-by-SHA behavior and product APIs do not change.
+requiredAction:
+  - Import both contract mirrors and acknowledge the update; no product/API change or Composer/PHPUnit root-selection policy is required from GitHub Integration.
+sourceRevision: 187b0383817e341aa7c82e91cb36d7dcce343479
+status: C-PENDING

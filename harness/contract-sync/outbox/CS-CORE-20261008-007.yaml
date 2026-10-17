@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261008-007
+source: core
+sourceWorkItem: WI-CORE-020
+targets: [console, github-integration]
+scopePaths: [spec/contracts/system-contract.md]
+breaking: false
+changed:
+  - Sincronizacion documental sin cambio funcional (sustituye en la practica la revision de system-contract.md de CS-CORE-20261008-006, que no se modifica): DEC-FK-005 pasa de PENDING a APROBADO (opcion A, 2026-10-08) en SYSTEM-2.6; la migracion de WI-CORE-020 aborta sin cambiar estados ante varias ACTIVE por project+scope+targetRef+scenarioKey y la resolucion es explicita con SUPERSEDE/KEEP_EXISTING. Sin cambio de DTO, rutas ni versiones. Console y GitHub Integration refrescan el espejo SYSTEM tomando esta revision (al importar ambos eventos, prevalece esta).
+requiredAction:
+  - Console y GitHub Integration: refrescar el espejo SYSTEM byte por byte desde sourceRevision y acusar. Sin cambio de codigo.
+sourceRevision: 0c9965e8639678c90f97609f662f522399497499
+status: C-PENDING

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261011-006
+source: core
+sourceWorkItem: WI-CORE-040
+targets: [github-integration, console]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/github-integration-contract.md]
+breaking: true
+changed:
+  - SYSTEM-2.8/GH-INTEROP-1.7: single active GitHub Integration instance with volatile per-process Check coordination replaces PostgreSQL multi-instance coordination; restart duplicate risk is accepted; no public DTO changes.
+requiredAction:
+  - GitHub Integration: import and acknowledge under a local WI; update mirrors to SYSTEM-2.8/GH-INTEROP-1.7; revise or supersede blocked WI-GH-012 to remove PostgreSQL/multi-instance requirements, then implement and verify against GH-INTEROP-1.7. Console: import and acknowledge under a local WI; mirror SYSTEM-2.8 and GH-INTEROP-1.7 and verify sync only, with no UI changes. C-ACKNOWLEDGED records receipt/commitment only; resolve only with local WI completion evidence.
+sourceRevision: 313f560d405a582cd549255e27d5630bd668ad7e
+status: C-PENDING

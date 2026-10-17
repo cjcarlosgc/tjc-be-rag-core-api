@@ -2,13 +2,15 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-**Línea base vigente:** SDD 2.1 / SYSTEM-2.2 / INTEROP-2.2.
+**Línea base de planificación Core/Console:** SDD 3.0 / INTEROP-2.16. Core mantiene SYSTEM-2.12 como contrato canónico; Console sincronizó los espejos SYSTEM-2.9 e INTEROP-2.8 en `WI-CONSOLE-025` (`CS-CORE-20261012-001`). **Homologación global pendiente:** Sandbox conserva SDD 2.1 y SYSTEM-2.2; su `WI-SANDBOX-003` registra solo el preflight/ACK de la decisión aplicable, no aprobación local de `DEC-INF-001`, despliegue ni compatibilidad global.
 
-Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> constitución aplicable -> `backlog.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables.
+Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> `constitution/planning-model.md` y constitución aplicable -> `backlog.md`/`operational-cases.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables -> `harness/work-items.json`. La extracción está detallada en `features/016-github-integration/`; las dependencias entre repos y sus puertas locales, en `features/017-cross-repository-dependency-gates/`. Cada repo mantiene solo WIs locales y se coordina por Contract Sync.
 
 ## Versionado
 
-La especificación vigente se consolida; no se acumulan enmiendas. Los cambios se registran en `CHANGELOG.md` y en Git. `sddVersion` representa la línea base conjunta de los tres repositorios.
+La numeración HU anterior se retiró de la especificación vigente. El mapa de capacidades históricas se conserva en `harness/reports/hu-rebaseline-audit.md`, `CHANGELOG.md` y Git; ninguna casilla histórica acredita `H-DONE`.
+
+La especificación vigente se consolida; no se acumulan enmiendas. Los cambios se registran en `CHANGELOG.md` y en Git. `sddVersion: 3.0` identifica la nueva línea base Core/Console solicitada por el usuario; aún no está homologada globalmente con Sandbox, por lo que no se publica como línea base común hasta completar ese trabajo. Los 18 IDs HU vigentes no heredan automáticamente el estado de las antiguas HU homónimas.
 
 ## Estados de decisión
 
@@ -31,6 +33,6 @@ No existe un registro central adicional que duplique decisiones. Cada decisión 
 
 ## Contrato entre componentes
 
-`contracts/system-contract.md` es el propietario canónico de las decisiones que deben compartir RAG Core, Developer Console y Test Execution Sandbox. Las copias espejo declaran `SYSTEM-*`; no sustituyen las specs internas ni cierran operaciones marcadas `PENDING`.
+`contracts/system-contract.md` es el propietario canónico de las decisiones compartidas actuales. Las copias espejo declaran `SYSTEM-*`; no sustituyen specs internas ni cierran operaciones `PENDING`. `contracts/github-integration-contract.md` es el contrato entre Core, Console y GitHub Integration: incluye rutas de usuario Console→Integration y operaciones privadas, incluida autorización síncrona Integration→Core. `GH-INTEROP-1.7` conserva la identidad y respuesta de Checks, pero sustituye la coordinación PostgreSQL de `GH-INTEROP-1.5` por una sola instancia activa con mutex efímero en proceso; no agrega una base ni garantiza coordinación entre procesos o reinicios. El cutover y la configuración externa siguen pendientes.
 
-`contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte universales. Su versión `INTEROP-*` evoluciona independientemente de la línea base SDD conjunta.
+`contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte públicos vigentes. Su versión `INTEROP-*` evoluciona independientemente de la línea base SDD conjunta.

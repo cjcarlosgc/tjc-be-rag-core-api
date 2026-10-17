@@ -1,0 +1,4 @@
+# WI-CORE-048 — solicitud de veredicto al usuario
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Estado `W-IN_REVIEW`; reviewer independiente: el usuario (`human-reviewer`). Diff de código: dos archivos de `app/src/validation/` (commit de código en el log, mensaje «clasificar por plataforma…»). Evidencia: `harness/reports/wi-core-048-technical-checks.md`. Precedencia `BEHAVIORAL_MISMATCH` > `TECHNICAL_GENERATION_FAILURE` > `INFRASTRUCTURE_FAILURE` > `SUCCESS`; evidencia por ejecución, experimentos, OE2/OE5 y métricas sin cambios; `sandbox/map-sandbox-result.ts` sin tocar. Consecuencia aprobada: Run `INFRASTRUCTURE_FAILURE` con propuestas `AVAILABLE` conservadas, Check `neutral`, no publicable hasta reintentar. Deuda editorial: SYSTEM-2.10 dice «implementación pendiente» y INTEROP-2.10 §6.10 «objetivo pendiente» de OC11 (ya implementado) para el siguiente bump.

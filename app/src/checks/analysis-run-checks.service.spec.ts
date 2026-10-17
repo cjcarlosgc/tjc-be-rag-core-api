@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunChecksService } from './analysis-run-checks.service.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
-import { GithubAppAuthService } from '../github-app/github-app-auth.service.js';
+import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
 import { GithubChecksService } from '../github-app/github-checks.service.js';
 import type { AnalysisRun, RepositoryBinding } from '../generated/prisma/client.js';
 
@@ -12,6 +12,7 @@ function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
     repositoryId: '123',
     headSha: 'head-sha',
     status: 'SUCCESS',
+    current: true,
     resultSummary: 'todo bien',
     ...overrides,
   } as AnalysisRun;
@@ -25,21 +26,25 @@ const binding: RepositoryBinding = {
   repositoryName: 'org/repo',
   integrationBranch: 'main',
   status: 'ENABLED',
+  disabledReason: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
 
 describe('AnalysisRunChecksService', () => {
   let service: AnalysisRunChecksService;
-  let repositoryBindingsRepository: { findByRepositoryId: ReturnType<typeof vi.fn> };
-  let githubAppAuthService: { getInstallationToken: ReturnType<typeof vi.fn> };
+  let repositoryBindingsRepository: { findForRun: ReturnType<typeof vi.fn> };
+  let analysisRunsRepository: { findById: ReturnType<typeof vi.fn>; markCheckPublished: ReturnType<typeof vi.fn> };
   let githubChecksService: { createCheckRun: ReturnType<typeof vi.fn> };
   let configService: { get: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
-    githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
-    githubChecksService = { createCheckRun: vi.fn().mockResolvedValue(undefined) };
+    analysisRunsRepository = {
+      findById: vi.fn().mockImplementation(async (id: string) => buildRun({ id })),
+      markCheckPublished: vi.fn().mockResolvedValue(buildRun()),
+    };
+    repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
+    githubChecksService = { createCheckRun: vi.fn().mockResolvedValue({ checkId: null }) };
     configService = {
       get: vi.fn((key: string, fallback?: unknown) => {
         if (key === 'GITHUB_CHECK_NAME') return fallback ?? 'RAG Core Analysis';
@@ -48,8 +53,8 @@ describe('AnalysisRunChecksService', () => {
       }),
     };
     service = new AnalysisRunChecksService(
+      analysisRunsRepository as unknown as AnalysisRunsRepository,
       repositoryBindingsRepository as unknown as RepositoryBindingsRepository,
-      githubAppAuthService as unknown as GithubAppAuthService,
       githubChecksService as unknown as GithubChecksService,
       configService as never,
     );
@@ -58,11 +63,12 @@ describe('AnalysisRunChecksService', () => {
   it('publishes a check-run with the mapped conclusion for a terminal status', async () => {
     await service.publishForRun(buildRun({ status: 'SUCCESS' }));
 
-    expect(repositoryBindingsRepository.findByRepositoryId).toHaveBeenCalledWith('123');
-    expect(githubAppAuthService.getInstallationToken).toHaveBeenCalledWith('999');
+    expect(repositoryBindingsRepository.findForRun).toHaveBeenCalledWith(
+      expect.objectContaining({ repositoryId: '123' }),
+    );
     expect(githubChecksService.createCheckRun).toHaveBeenCalledWith(
+      '999',
       'org/repo',
-      'installation-token',
       expect.objectContaining({ headSha: 'head-sha', conclusion: 'success', summary: 'todo bien' }),
     );
   });
@@ -76,8 +82,8 @@ describe('AnalysisRunChecksService', () => {
     await service.publishForRun(buildRun());
 
     expect(githubChecksService.createCheckRun).toHaveBeenCalledWith(
+      '999',
       'org/repo',
-      'installation-token',
       expect.objectContaining({ detailsUrl: 'https://console.example.com/projects/project-1/runs/run-1' }),
     );
   });
@@ -85,19 +91,59 @@ describe('AnalysisRunChecksService', () => {
   it('does nothing for a non-publishable status (e.g. PROCESSING)', async () => {
     await service.publishForRun(buildRun({ status: 'PROCESSING' }));
 
-    expect(repositoryBindingsRepository.findByRepositoryId).not.toHaveBeenCalled();
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
   });
 
-  it('does nothing when there is no repository binding', async () => {
-    repositoryBindingsRepository.findByRepositoryId.mockResolvedValue(null);
+  it('does not publish a check after the run stopped being current or changed status', async () => {
+    analysisRunsRepository.findById.mockResolvedValue(buildRun({ status: 'OBSOLETE', current: false }));
 
     await service.publishForRun(buildRun());
 
-    expect(githubAppAuthService.getInstallationToken).not.toHaveBeenCalled();
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
+    expect(githubChecksService.createCheckRun).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when there is no repository binding', async () => {
+    repositoryBindingsRepository.findForRun.mockResolvedValue(null);
+
+    await service.publishForRun(buildRun());
+
+    expect(githubChecksService.createCheckRun).not.toHaveBeenCalled();
   });
 
   it('never throws when publishing the check fails (best-effort)', async () => {
     githubChecksService.createCheckRun.mockRejectedValue(new Error('GitHub API 403'));
+
+    await expect(service.publishForRun(buildRun())).resolves.toBeUndefined();
+  });
+
+  it('persists the checkId returned by GitHub Integration on the run (WI-CORE-026)', async () => {
+    githubChecksService.createCheckRun.mockResolvedValue({ checkId: 'chk-42' });
+
+    await service.publishForRun(buildRun({ id: 'run-9' }));
+
+    expect(analysisRunsRepository.markCheckPublished).toHaveBeenCalledWith('run-9', 'chk-42');
+  });
+
+  it('marks the publication without an id when GitHub Integration answers 204 (transition, DEC-TRACE-002)', async () => {
+    githubChecksService.createCheckRun.mockResolvedValue({ checkId: null });
+
+    await service.publishForRun(buildRun({ id: 'run-7' }));
+
+    expect(analysisRunsRepository.markCheckPublished).toHaveBeenCalledWith('run-7', null);
+  });
+
+  it('does not mark the publication when the Check was not created', async () => {
+    githubChecksService.createCheckRun.mockRejectedValue(new Error('GitHub API 403'));
+
+    await service.publishForRun(buildRun());
+
+    expect(analysisRunsRepository.markCheckPublished).not.toHaveBeenCalled();
+  });
+
+  it('stays best-effort when persisting the publication mark fails', async () => {
+    githubChecksService.createCheckRun.mockResolvedValue({ checkId: 'chk-42' });
+    analysisRunsRepository.markCheckPublished.mockRejectedValue(new Error('db down'));
 
     await expect(service.publishForRun(buildRun())).resolves.toBeUndefined();
   });

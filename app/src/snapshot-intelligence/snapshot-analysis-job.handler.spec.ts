@@ -1,8 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { SnapshotAnalysisJobHandler } from './snapshot-analysis-job.handler.js';
 import { ANALYSIS_RUN_VALIDATION_JOB_TYPE } from '../validation/analysis-run-validation-job.handler.js';
 import type { ParsedChunk } from '../project-versions/parsing/typescript-parser.service.js';
 import type { AnalysisRun, RepositoryBinding, ProjectVersion } from '../generated/prisma/client.js';
+import { RescheduleJobError } from '../jobs/reschedule-job.error.js';
+import { GithubAppUnavailableError } from '../github-app/github-app-auth.service.js';
 
 function buildRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
   return {
@@ -68,22 +74,30 @@ function buildChunk(overrides: Partial<ParsedChunk> = {}): ParsedChunk {
 }
 
 describe('SnapshotAnalysisJobHandler', () => {
+  const workspaceDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(workspaceDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
   function setup() {
+    const workspaceDirPromise = mkdtemp(join(tmpdir(), 'snapshot-handler-test-'));
     const jobsService = { registerHandler: vi.fn(), enqueue: vi.fn() };
     const analysisRunsRepository = { findById: vi.fn() };
     const analysisRunsService = {
       startProcessing: vi.fn(),
       recordSnapshot: vi.fn(),
       completeRunFromSystem: vi.fn(),
-      markActionRequiredFromSystem: vi.fn(),
     };
-    const repositoryBindingsRepository = { findByRepositoryId: vi.fn().mockResolvedValue(binding) };
+    const repositoryBindingsRepository = { findForRun: vi.fn().mockResolvedValue(binding) };
     const projectVersionsRepository = {
       findLatestCompletedByProject: vi.fn().mockResolvedValue(null),
       createPending: vi.fn().mockResolvedValue({ id: 'version-1' } as ProjectVersion),
       markStarted: vi.fn().mockResolvedValue(undefined),
       completeAndPromote: vi.fn().mockResolvedValue(undefined),
+      setSnapshotKey: vi.fn().mockResolvedValue(undefined),
     };
+    const objectStorageService = { put: vi.fn().mockResolvedValue(undefined) };
     const codeChunksRepository = {
       insertMany: vi.fn().mockResolvedValue(undefined),
       findByProjectVersion: vi.fn().mockResolvedValue([]),
@@ -91,17 +105,26 @@ describe('SnapshotAnalysisJobHandler', () => {
     const testTargetsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
     const fileDiscoveryService = { discover: vi.fn().mockResolvedValue(['src/a.ts', 'package.json']) };
     const typeScriptParserService = { parse: vi.fn().mockReturnValue([buildChunk()]) };
+    const phpParserService = { analyze: vi.fn().mockResolvedValue({ chunks: [], candidates: [] }) };
     const testTargetExtractorService = { extract: vi.fn().mockReturnValue([]) };
     const existingTestResolverService = { resolve: vi.fn().mockReturnValue([]) };
-    const githubAppAuthService = { getInstallationToken: vi.fn().mockResolvedValue('installation-token') };
+    const phpExistingTestResolverService = { resolve: vi.fn().mockResolvedValue([]) };
     const githubRepositoryContentService = {
       compare: vi.fn().mockResolvedValue([{ filename: 'src/a.ts', status: 'modified' }]),
     };
     const workspaceCleanup = vi.fn().mockResolvedValue(undefined);
     const githubSnapshotMaterializerService = {
-      materialize: vi.fn().mockResolvedValue({ dir: '/tmp/fake-workspace', cleanup: workspaceCleanup }),
+      materialize: vi.fn(async () => {
+        const dir = await workspaceDirPromise;
+        workspaceDirs.push(dir);
+        await mkdir(join(dir, 'backend'), { recursive: true });
+        return { dir, cleanup: workspaceCleanup };
+      }),
     };
     const analysisSymbolsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
+    const symbolBehaviorConstructsService = {
+      compute: vi.fn().mockImplementation(async (_request: unknown, symbols: unknown[]) => symbols.map(() => null)),
+    };
     const functionalContextEvaluatorService = { evaluate: vi.fn().mockResolvedValue({ actionRequired: false }) };
     const analysisRunChecksService = { publishForRun: vi.fn().mockResolvedValue(undefined) };
     const embeddingProvider = { embedMany: vi.fn().mockResolvedValue([[0.1, 0.2]]) };
@@ -118,10 +141,6 @@ describe('SnapshotAnalysisJobHandler', () => {
       ...run,
       status,
     }));
-    analysisRunsService.markActionRequiredFromSystem.mockImplementation(async (run: AnalysisRun) => ({
-      ...run,
-      status: 'ACTION_REQUIRED',
-    }));
 
     const handler = new SnapshotAnalysisJobHandler(
       jobsService as never,
@@ -133,19 +152,23 @@ describe('SnapshotAnalysisJobHandler', () => {
       testTargetsRepository as never,
       fileDiscoveryService as never,
       typeScriptParserService as never,
+      phpParserService as never,
       testTargetExtractorService as never,
       existingTestResolverService as never,
-      githubAppAuthService as never,
+      phpExistingTestResolverService as never,
       githubRepositoryContentService as never,
       githubSnapshotMaterializerService as never,
       analysisSymbolsRepository as never,
+      symbolBehaviorConstructsService as never,
       functionalContextEvaluatorService as never,
       analysisRunChecksService as never,
       embeddingProvider as never,
+      objectStorageService as never,
     );
 
     return {
       handler,
+      objectStorageService,
       jobsService,
       analysisRunsRepository,
       analysisRunsService,
@@ -155,12 +178,14 @@ describe('SnapshotAnalysisJobHandler', () => {
       testTargetsRepository,
       fileDiscoveryService,
       typeScriptParserService,
+      phpParserService,
       testTargetExtractorService,
       existingTestResolverService,
-      githubAppAuthService,
+      phpExistingTestResolverService,
       githubRepositoryContentService,
       githubSnapshotMaterializerService,
       analysisSymbolsRepository,
+      symbolBehaviorConstructsService,
       functionalContextEvaluatorService,
       analysisRunChecksService,
       embeddingProvider,
@@ -196,7 +221,7 @@ describe('SnapshotAnalysisJobHandler', () => {
 
   it('fails as INFRASTRUCTURE_FAILURE when the repository binding no longer exists', async () => {
     const { handler, repositoryBindingsRepository, analysisRunsService, initialRun } = setup();
-    repositoryBindingsRepository.findByRepositoryId.mockResolvedValue(null);
+    repositoryBindingsRepository.findForRun.mockResolvedValue(null);
 
     await handler.handle({ analysisRunId: 'run-1' });
 
@@ -217,13 +242,271 @@ describe('SnapshotAnalysisJobHandler', () => {
     expect(projectVersionsRepository.createPending).toHaveBeenCalledWith({
       projectId: 'project-1',
       commitSha: 'head-sha',
+      language: 'TYPESCRIPT',
+      effectiveProjectRoot: '.',
     });
+    expect(projectVersionsRepository.completeAndPromote).toHaveBeenCalledWith(
+      'project-1', 'version-1', expect.objectContaining({ projectRoot: '.' }),
+    );
     expect(analysisRunsService.recordSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'PROCESSING' }),
       { indexMode: 'BOOTSTRAP', indexDeltaBaseSha: null, projectVersionId: 'version-1' },
     );
     expect(workspaceCleanup).toHaveBeenCalled();
   });
+
+  it('indexes a PHP snapshot with the PHP parser, PHPUnit inventory and PHP symbol language', async () => {
+    const {
+      handler,
+      fileDiscoveryService,
+      typeScriptParserService,
+      phpParserService,
+      phpExistingTestResolverService,
+      githubRepositoryContentService,
+      projectVersionsRepository,
+      analysisSymbolsRepository,
+      symbolBehaviorConstructsService,
+    } = setup();
+    const phpChunk = buildChunk({
+      filePath: 'app/Service.php',
+      symbolKind: 'CLASS',
+      symbolName: 'App\\Service',
+    });
+    const candidate = {
+      filePath: 'app/Service.php',
+      symbolName: 'App\\Service',
+      methodName: 'run',
+      targetType: 'METHOD',
+      startLine: 4,
+      endLine: 6,
+    };
+    fileDiscoveryService.discover.mockResolvedValue([
+      'composer.json', 'phpunit.xml', 'app/Service.php', 'tests/ServiceTest.php',
+    ]);
+    githubRepositoryContentService.compare.mockResolvedValue([
+      { filename: 'app/Service.php', status: 'modified' },
+    ]);
+    phpParserService.analyze.mockResolvedValue({ chunks: [phpChunk], candidates: [candidate] });
+    phpExistingTestResolverService.resolve.mockResolvedValue([
+      { ...candidate, hasTest: true, testFilePaths: ['tests/ServiceTest.php'] },
+    ]);
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(phpParserService.analyze).toHaveBeenCalledWith(
+      expect.stringContaining('snapshot-handler-test-'), ['app/Service.php', 'tests/ServiceTest.php'],
+    );
+    expect(phpExistingTestResolverService.resolve).toHaveBeenCalledWith(
+      expect.stringContaining('snapshot-handler-test-'), ['tests/ServiceTest.php'], [candidate],
+    );
+    expect(projectVersionsRepository.createPending).toHaveBeenCalledWith({
+      projectId: 'project-1', commitSha: 'head-sha', language: 'PHP', effectiveProjectRoot: '.',
+    });
+    expect(projectVersionsRepository.completeAndPromote).toHaveBeenCalledWith(
+      'project-1', 'version-1', expect.objectContaining({ detectedFramework: 'PHPUNIT', projectRoot: '.' }),
+    );
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith(
+      'run-1', [expect.objectContaining({ language: 'PHP', kind: 'CLASS' })],
+    );
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists behavior constructs for PHP symbols (WI-CORE-052), including an empty list', async () => {
+    const {
+      handler,
+      fileDiscoveryService,
+      phpParserService,
+      phpExistingTestResolverService,
+      githubRepositoryContentService,
+      analysisSymbolsRepository,
+      symbolBehaviorConstructsService,
+      workspaceCleanup,
+    } = setup();
+    const phpChunk = buildChunk({ filePath: 'app/Service.php', symbolKind: 'CLASS', symbolName: 'App\\Service' });
+    fileDiscoveryService.discover.mockResolvedValue([
+      'composer.json', 'phpunit.xml', 'app/Service.php', 'tests/ServiceTest.php',
+    ]);
+    githubRepositoryContentService.compare.mockResolvedValue([
+      { filename: 'app/Service.php', status: 'modified' },
+    ]);
+    phpParserService.analyze.mockResolvedValue({ chunks: [phpChunk], candidates: [] });
+    phpExistingTestResolverService.resolve.mockResolvedValue([]);
+    symbolBehaviorConstructsService.compute.mockImplementation(async (_request: unknown, symbols: unknown[]) =>
+      symbols.map(() => []),
+    );
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledWith(
+      {
+        workspaceDir: expect.stringContaining('snapshot-handler-test-'),
+        installationId: '999',
+        repositoryName: 'org/repo',
+        baseSha: 'base-sha',
+        changesetFiles: [{ filename: 'app/Service.php', status: 'modified' }],
+      },
+      [expect.objectContaining({ language: 'PHP', kind: 'CLASS', filePath: 'app/Service.php' })],
+    );
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith('run-1', [
+      expect.objectContaining({ language: 'PHP', kind: 'CLASS', behaviorConstructs: [] }),
+    ]);
+    expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('selects a unique nested Composer root and isolates PHP indexing while preserving repository-relative paths', async () => {
+    const { handler, fileDiscoveryService, phpParserService, phpExistingTestResolverService, projectVersionsRepository, analysisSymbolsRepository, githubRepositoryContentService, typeScriptParserService, testTargetsRepository } = setup();
+    const nestedChunk = buildChunk({ filePath: 'src/Service.php', symbolName: 'App\\Service' });
+    fileDiscoveryService.discover.mockResolvedValue([
+      'backend/composer.json', 'backend/phpunit.xml', 'backend/src/Service.php',
+      'backend/tests/ServiceTest.php', 'COMPOSER.JSON', 'frontend/COMPOSER.JSON',
+      'frontend/package.json', 'frontend/src/main.ts',
+    ]);
+    githubRepositoryContentService.compare.mockResolvedValue([
+      { filename: 'backend/src/Service.php', status: 'modified' },
+    ]);
+    phpParserService.analyze.mockResolvedValue({ chunks: [nestedChunk], candidates: [] });
+    phpExistingTestResolverService.resolve.mockResolvedValue([
+      { ...nestedChunk, targetType: 'METHOD', methodName: 'run', hasTest: true, testFilePaths: ['tests/ServiceTest.php'] },
+    ]);
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(phpParserService.analyze).toHaveBeenCalledWith(expect.stringMatching(/backend$/), [
+      'src/Service.php', 'tests/ServiceTest.php',
+    ]);
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.createPending).toHaveBeenCalledWith(expect.objectContaining({
+      language: 'PHP', effectiveProjectRoot: 'backend',
+    }));
+    expect(projectVersionsRepository.completeAndPromote).toHaveBeenCalledWith(
+      'project-1', 'version-1', expect.objectContaining({ projectRoot: 'backend' }),
+    );
+    expect(testTargetsRepository.insertMany).toHaveBeenCalledWith('version-1', [
+      expect.objectContaining({ filePath: 'backend/src/Service.php', testFilePaths: ['backend/tests/ServiceTest.php'] }),
+    ]);
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith('run-1', [
+      expect.objectContaining({ filePath: 'backend/src/Service.php' }),
+    ]);
+  });
+
+  it('parks multi-manifest snapshots before compare, analysis, persistence, or public Run results', async () => {
+    const {
+      handler,
+      fileDiscoveryService,
+      projectVersionsRepository,
+      codeChunksRepository,
+      testTargetsRepository,
+      typeScriptParserService,
+      phpParserService,
+      analysisRunsService,
+      analysisRunsRepository,
+      githubRepositoryContentService,
+      workspaceCleanup,
+    } = setup();
+    fileDiscoveryService.discover.mockResolvedValue([
+      'backend/composer.json', 'backend/src/Service.php',
+      'other/composer.json', 'other/src/Other.php', 'COMPOSER.JSON', 'web/COMPOSER.JSON', 'web/src/main.ts',
+    ]);
+
+    const outcome = handler.handle({ analysisRunId: 'run-1' });
+    await expect(outcome).rejects.toMatchObject({
+      delayMs: 60_000,
+      payload: {
+        analysisRunId: 'run-1',
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 1 },
+      },
+    });
+    await expect(outcome).rejects.toBeInstanceOf(RescheduleJobError);
+
+    expect(analysisRunsService.startProcessing).not.toHaveBeenCalled();
+    expect(githubRepositoryContentService.compare).not.toHaveBeenCalled();
+    expect(analysisRunsRepository.findById).toHaveBeenCalledTimes(1);
+    expect(projectVersionsRepository.createPending).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.completeAndPromote).not.toHaveBeenCalled();
+    expect(codeChunksRepository.insertMany).not.toHaveBeenCalled();
+    expect(testTargetsRepository.insertMany).not.toHaveBeenCalled();
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(phpParserService.analyze).not.toHaveBeenCalled();
+    expect(analysisRunsService.recordSnapshot).not.toHaveBeenCalled();
+    expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+    expect(workspaceCleanup).toHaveBeenCalled();
+    expect(githubRepositoryContentService.compare).not.toHaveBeenCalled();
+  });
+
+  it('keeps a parked immutable SHA sticky without rematerializing it and caps remote rechecks at 24 hours', async () => {
+    const {
+      handler,
+      repositoryBindingsRepository,
+      githubSnapshotMaterializerService,
+      fileDiscoveryService,
+      githubRepositoryContentService,
+      typeScriptParserService,
+      phpParserService,
+      projectVersionsRepository,
+      codeChunksRepository,
+      testTargetsRepository,
+      analysisRunsService,
+    } = setup();
+
+    await expect(handler.handle({
+      analysisRunId: 'run-1',
+      ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 12 },
+    })).rejects.toMatchObject({
+      delayMs: 86_400_000,
+      payload: {
+        analysisRunId: 'run-1',
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 13 },
+      },
+    });
+
+    expect(repositoryBindingsRepository.findForRun).not.toHaveBeenCalled();
+    expect(githubSnapshotMaterializerService.materialize).not.toHaveBeenCalled();
+    expect(fileDiscoveryService.discover).not.toHaveBeenCalled();
+    expect(githubRepositoryContentService.compare).not.toHaveBeenCalled();
+    expect(typeScriptParserService.parse).not.toHaveBeenCalled();
+    expect(phpParserService.analyze).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.createPending).not.toHaveBeenCalled();
+    expect(projectVersionsRepository.completeAndPromote).not.toHaveBeenCalled();
+    expect(codeChunksRepository.insertMany).not.toHaveBeenCalled();
+    expect(testTargetsRepository.insertMany).not.toHaveBeenCalled();
+    expect(analysisRunsService.startProcessing).not.toHaveBeenCalled();
+    expect(analysisRunsService.recordSnapshot).not.toHaveBeenCalled();
+    expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+  });
+
+  it('invalidates sticky ambiguity parking when its head SHA differs from the current Run', async () => {
+    const { handler, githubSnapshotMaterializerService, fileDiscoveryService } = setup();
+    fileDiscoveryService.discover.mockResolvedValue(['a/composer.json', 'b/composer.json']);
+
+    await expect(handler.handle({
+      analysisRunId: 'run-1',
+      ambiguousSnapshotParking: { headSha: 'old-head', policyVersion: 1, deferrals: 99 },
+    })).rejects.toMatchObject({
+      payload: {
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 1 },
+      },
+    });
+
+    expect(githubSnapshotMaterializerService.materialize).toHaveBeenCalledWith(binding, 'head-sha');
+  });
+
+  it('invalidates sticky ambiguity parking when the explicit policy version changes', async () => {
+    const { handler, githubSnapshotMaterializerService, fileDiscoveryService } = setup();
+    fileDiscoveryService.discover.mockResolvedValue(['a/composer.json', 'b/composer.json']);
+
+    await expect(handler.handle({
+      analysisRunId: 'run-1',
+      ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 0, deferrals: 99 },
+    })).rejects.toMatchObject({
+      payload: {
+        ambiguousSnapshotParking: { headSha: 'head-sha', policyVersion: 1, deferrals: 1 },
+      },
+    });
+
+    expect(githubSnapshotMaterializerService.materialize).toHaveBeenCalledWith(binding, 'head-sha');
+  });
+
 
   it('marks INCREMENTAL with the previous commit as indexDeltaBaseSha when a previous version exists', async () => {
     const { handler, analysisRunsService, projectVersionsRepository } = setup();
@@ -330,27 +613,22 @@ describe('SnapshotAnalysisJobHandler', () => {
     );
     expect(jobsService.enqueue).toHaveBeenCalledWith(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: 'run-1' });
     expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
-    expect(analysisRunsService.markActionRequiredFromSystem).not.toHaveBeenCalled();
   });
 
   it('marks ACTION_REQUIRED when the functional context evaluator says a question is needed', async () => {
     const { handler, analysisRunsService, analysisRunChecksService, functionalContextEvaluatorService, jobsService } =
       setup();
-    functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true });
+    const actionRequiredRun = buildRun({ status: 'ACTION_REQUIRED', actionRequiredCount: 1 });
+    functionalContextEvaluatorService.evaluate.mockResolvedValue({ actionRequired: true, analysisRun: actionRequiredRun });
 
     await handler.handle({ analysisRunId: 'run-1' });
 
-    expect(analysisRunsService.markActionRequiredFromSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'PROCESSING' }),
-    );
     expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
     expect(jobsService.enqueue).not.toHaveBeenCalledWith(
       ANALYSIS_RUN_VALIDATION_JOB_TYPE,
       expect.anything(),
     );
-    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'ACTION_REQUIRED' }),
-    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalledWith(actionRequiredRun);
   });
 
   it('does not evaluate functional context when the CHANGESET does not touch source', async () => {
@@ -375,7 +653,121 @@ describe('SnapshotAnalysisJobHandler', () => {
       'INFRASTRUCTURE_FAILURE',
       expect.objectContaining({ resultSummary: 'GitHub API 503' }),
     );
-    expect(workspaceCleanup).not.toHaveBeenCalled();
+    expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('completes as INFRASTRUCTURE_FAILURE with the exact neutral summary and does not rethrow when compare is UNVERIFIABLE', async () => {
+    const { handler, githubRepositoryContentService, analysisRunsService, analysisRunChecksService, workspaceCleanup, processingRun } =
+      setup();
+    githubRepositoryContentService.compare.mockRejectedValue(
+      new GithubAppUnavailableError('x', 503, 'UNVERIFIABLE'),
+    );
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      processingRun,
+      'INFRASTRUCTURE_FAILURE',
+      {
+        resultSummary:
+          'No se pudo verificar el compare de GitHub (por ejemplo, un PR con 300 o más archivos); análisis no realizado',
+      },
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
+    expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('keeps rethrowing a GitHub unavailable error without UNVERIFIABLE lookup status from compare', async () => {
+    const { handler, githubRepositoryContentService, analysisRunsService, analysisRunChecksService } = setup();
+    githubRepositoryContentService.compare.mockRejectedValue(new GithubAppUnavailableError('x', 503));
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('x');
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      expect.anything(),
+      'INFRASTRUCTURE_FAILURE',
+      expect.objectContaining({ resultSummary: 'x' }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
+  });
+
+  it('keeps rethrowing an UNVERIFIABLE lookup from another operation with its own message', async () => {
+    const { handler, githubSnapshotMaterializerService, analysisRunsService, analysisRunChecksService, processingRun } =
+      setup();
+    githubSnapshotMaterializerService.materialize.mockRejectedValue(
+      new GithubAppUnavailableError('No se pudo verificar el árbol de GitHub.', 503, 'UNVERIFIABLE'),
+    );
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('No se pudo verificar el árbol de GitHub.');
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      processingRun,
+      'INFRASTRUCTURE_FAILURE',
+      expect.objectContaining({ resultSummary: 'No se pudo verificar el árbol de GitHub.' }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
+  });
+
+  it('does not overwrite or publish a late failure when the run became obsolete', async () => {
+    const { handler, githubRepositoryContentService, analysisRunsService, analysisRunChecksService } = setup();
+    githubRepositoryContentService.compare.mockRejectedValue(new Error('GitHub API 503'));
+    analysisRunsService.completeRunFromSystem.mockResolvedValue(null);
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+    expect(analysisRunChecksService.publishForRun).not.toHaveBeenCalled();
+  });
+
+  it('persists the behavior constructs computed for TypeScript symbols before inserting them', async () => {
+    const { handler, analysisSymbolsRepository, symbolBehaviorConstructsService, workspaceCleanup } = setup();
+    const constructs = [
+      { scenarioKind: 'EXCEPTION', scenarioKey: 'EXCEPTION:abc', order: 0, snippet: 'throw new Error()' },
+    ];
+    symbolBehaviorConstructsService.compute.mockResolvedValue([constructs]);
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledWith(
+      {
+        workspaceDir: expect.stringContaining('snapshot-handler-test-'),
+        installationId: '999',
+        repositoryName: 'org/repo',
+        baseSha: 'base-sha',
+        changesetFiles: [{ filename: 'src/a.ts', status: 'modified' }],
+      },
+      [expect.objectContaining({ qualifiedName: 'doThing', changeKind: 'DIRECTLY_CHANGED', kind: 'FUNCTION' })],
+    );
+    expect(analysisSymbolsRepository.insertMany).toHaveBeenCalledWith('run-1', [
+      expect.objectContaining({ qualifiedName: 'doThing', behaviorConstructs: constructs }),
+    ]);
+    expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  it('computes behavior constructs while the materialized workspace still exists', async () => {
+    const { handler, symbolBehaviorConstructsService, workspaceCleanup } = setup();
+    symbolBehaviorConstructsService.compute.mockImplementation(async () => {
+      expect(workspaceCleanup).not.toHaveBeenCalled();
+      return [null];
+    });
+
+    await handler.handle({ analysisRunId: 'run-1' });
+
+    expect(symbolBehaviorConstructsService.compute).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails as INFRASTRUCTURE_FAILURE and rethrows when the behavior constructs computation fails', async () => {
+    const { handler, symbolBehaviorConstructsService, analysisRunsService, analysisRunChecksService, processingRun } =
+      setup();
+    symbolBehaviorConstructsService.compute.mockRejectedValue(new Error('GitHub base 502'));
+
+    await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('GitHub base 502');
+
+    expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+      processingRun,
+      'INFRASTRUCTURE_FAILURE',
+      expect.objectContaining({ resultSummary: 'GitHub base 502' }),
+    );
+    expect(analysisRunChecksService.publishForRun).toHaveBeenCalled();
   });
 
   it('cleans up the materialized workspace even when a later step fails', async () => {
@@ -385,5 +777,80 @@ describe('SnapshotAnalysisJobHandler', () => {
     await expect(handler.handle({ analysisRunId: 'run-1' })).rejects.toThrow('db unavailable');
 
     expect(workspaceCleanup).toHaveBeenCalled();
+  });
+
+  describe('snapshot persistence', () => {
+    it('stores the zipped workspace under a version-scoped key and links it to the ProjectVersion', async () => {
+      const { handler, objectStorageService, projectVersionsRepository } = setup();
+
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      const expectedKey = 'project-versions/version-1/snapshot.zip';
+      expect(objectStorageService.put).toHaveBeenCalledWith(
+        expectedKey,
+        expect.any(Buffer),
+        'application/zip',
+      );
+      expect(projectVersionsRepository.setSnapshotKey).toHaveBeenCalledWith('version-1', expectedKey);
+    });
+
+    it('persists the snapshot after completeAndPromote and before symbol persistence', async () => {
+      const { handler, objectStorageService, projectVersionsRepository, analysisSymbolsRepository } = setup();
+
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      const promoteOrder = projectVersionsRepository.completeAndPromote.mock.invocationCallOrder[0];
+      const putOrder = objectStorageService.put.mock.invocationCallOrder[0];
+      const linkOrder = projectVersionsRepository.setSnapshotKey.mock.invocationCallOrder[0];
+      const symbolsOrder = analysisSymbolsRepository.insertMany.mock.invocationCallOrder[0];
+      expect(promoteOrder).toBeLessThan(putOrder);
+      expect(putOrder).toBeLessThan(linkOrder);
+      expect(linkOrder).toBeLessThan(symbolsOrder);
+    });
+
+    it('keeps the run completing and the check queued when the storage put rejects, without linking or leaking the error', async () => {
+      const { handler, objectStorageService, projectVersionsRepository, jobsService, analysisRunsService } = setup();
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      objectStorageService.put.mockRejectedValue(new Error('https://signed.example/secret?token=abc'));
+
+      await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+      expect(projectVersionsRepository.setSnapshotKey).not.toHaveBeenCalled();
+      expect(analysisRunsService.completeRunFromSystem).not.toHaveBeenCalled();
+      expect(jobsService.enqueue).toHaveBeenCalledWith(ANALYSIS_RUN_VALIDATION_JOB_TYPE, { analysisRunId: 'run-1' });
+      expect(warn).toHaveBeenCalledWith(
+        'ProjectVersion version-1: no se pudo persistir el snapshot (Error); snapshotKey queda sin definir.',
+      );
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('signed.example');
+      warn.mockRestore();
+    });
+
+    it('keeps the run completing when setSnapshotKey rejects, without leaking the error', async () => {
+      const { handler, projectVersionsRepository, objectStorageService, analysisSymbolsRepository } = setup();
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      projectVersionsRepository.setSnapshotKey.mockRejectedValue(new TypeError('db secret detail'));
+
+      await expect(handler.handle({ analysisRunId: 'run-1' })).resolves.toBeUndefined();
+
+      expect(objectStorageService.put).toHaveBeenCalled();
+      expect(analysisSymbolsRepository.insertMany).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        'ProjectVersion version-1: no se pudo persistir el snapshot (TypeError); snapshotKey queda sin definir.',
+      );
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('db secret detail');
+      warn.mockRestore();
+    });
+
+    it('uses the same key when the same version is persisted again', async () => {
+      const { handler, objectStorageService, projectVersionsRepository } = setup();
+
+      await handler.handle({ analysisRunId: 'run-1' });
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      const keys = objectStorageService.put.mock.calls.map((call) => call[0]);
+      expect(keys).toHaveLength(2);
+      expect(new Set(keys).size).toBe(1);
+      expect(projectVersionsRepository.setSnapshotKey.mock.calls.map((call) => call[1])).toEqual([keys[0], keys[0]]);
+    });
   });
 });

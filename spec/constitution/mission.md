@@ -1,6 +1,6 @@
 # Misión
 
-**Estado:** aprobado — SDD 2.1
+**Estado:** aprobado — SDD 3.0 (Core/Console; Sandbox pendiente)
 
 Diseñar e implementar RAG Core, backend principal de RAG Test Studio, para analizar automáticamente el changeset de Pull Requests vinculados mediante GitHub App, construir contexto semántico-estructural-funcional trazable, generar y validar pruebas unitarias y devolver evidencia objetiva a GitHub y Developer Console.
 
@@ -11,7 +11,7 @@ Developer and/or coding agent produce cambios en una feature branch; una persona
 ## Principios
 
 - `AnalysisRun` por PR/HEAD y `CHANGESET` son la unidad operativa; un Job/Attempt no es un Run.
-- GitHub App automatiza repositorios; Supabase Auth autentica personas por correo/contraseña o GitHub OAuth.
+- GitHub App automatiza repositorios; Supabase Auth autentica personas únicamente con GitHub OAuth.
 - Context Builder combina target, código semántico, relaciones estructurales, Functional Knowledge y tests existentes con trazabilidad.
 - RAG Core interpreta resultados; Sandbox ejecuta perfiles aislados y devuelve hechos sin conocer GitHub, usuario o estrategia.
 - TypeScript/Jest/Vitest permanece compatible; PHP/Laravel/PHPUnit es el foco activo de stack.

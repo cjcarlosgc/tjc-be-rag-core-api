@@ -9,12 +9,14 @@ import type { TestInventoryResponse } from './dto/test-target.response.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import type { Page } from '../common/dto/page.response.js';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator.js';
+import { ProjectTargets, RequireProjectRole } from '../project-access/access-policy.js';
 
 @Controller()
 export class ProjectVersionsController {
   constructor(private readonly projectVersionsService: ProjectVersionsService) {}
 
   @Get('project-versions/:id')
+  @RequireProjectRole('READER', ProjectTargets.param('projectVersion', 'id'))
   getStatus(
     @Param('id') id: string,
     @CurrentUserId() userId: string,
@@ -23,6 +25,7 @@ export class ProjectVersionsController {
   }
 
   @Get('project-versions/:id/results')
+  @RequireProjectRole('READER', ProjectTargets.param('projectVersion', 'id'))
   getResults(
     @Param('id') id: string,
     @CurrentUserId() userId: string,
@@ -31,6 +34,7 @@ export class ProjectVersionsController {
   }
 
   @Get('project-versions/:id/test-inventory')
+  @RequireProjectRole('READER', ProjectTargets.param('projectVersion', 'id'))
   getTestInventory(
     @Param('id') id: string,
     @CurrentUserId() userId: string,
@@ -39,6 +43,7 @@ export class ProjectVersionsController {
   }
 
   @Get('projects/:id/versions')
+  @RequireProjectRole('READER', ProjectTargets.project('id'))
   listVersions(
     @Param('id') id: string,
     @Query() query: PaginationQueryDto,

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20260926-001
+source: core
+sourceWorkItem: WI-CORE-003
+targets: [console]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.5 section 6.11 now defines actionable questions as PENDING records linked to a current ACTION_REQUIRED AnalysisRun; obsolete runs cannot leave actionable inbox entries.
+requiredAction:
+  - Update the INTEROP-2.5 mirror byte-for-byte and verify Console treats only current ACTION_REQUIRED runs as actionable; report any UI/cache adaptation as a separate Console work item.
+sourceRevision: e610677c266ad174ee57df799014c98ea7ae8553
+status: C-PENDING

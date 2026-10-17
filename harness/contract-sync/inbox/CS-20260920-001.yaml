@@ -1,0 +1,20 @@
+type: CONTRACT_SYNC
+id: CS-20260920-001
+source: console
+targets: [core]
+breaking: false
+changed:
+  - INTEROP-2.2 §6.8 POST /projects/{projectId}/integrations/github hoy da 500 INTERNAL_ERROR si el repositoryId ya esta vinculado a otro Project (RepositoryBinding.repositoryId es @unique y create() solo comprueba el binding del mismo proyecto). Solicitud - responder 409 con codigo nuevo REPOSITORY_ALREADY_BOUND
+  - INTEROP-2.2 §6.8 nueva ruta POST /projects/{projectId}/integrations/github/enable -> 200 ProjectRepositoryBindingResponse (DISABLED pasa a ENABLED). enable() ya existe en RepositoryBindingsService pero sin ruta
+  - INTEROP-2.2 §6.1/§6.8 nueva ruta DELETE /projects/{projectId} -> 204 con borrado logico (deletedAt), sin endpoint de restauracion
+  - INTEROP-2.2 §6.8 semantica de Desconectar confirmada como DISABLED (pausa reversible, la fila y su repositoryId se conservan). No requiere cambio de Core, coherente con system-contract.md y §6.8
+requiredAction:
+  - "1. POST binding - antes de insertar y despues de requireInstallation y de resolver el repositoryId real contra GitHub (no confiar en el enviado por el cliente), comprobar si otro Project ya usa ese repositoryId y responder 409 REPOSITORY_ALREADY_BOUND con mensaje generico que no revele proyecto ni usuario ajeno. Mapear P2002 (repositoryId y projectId) a 409, nunca 500. Se mantiene REPOSITORY_BINDING_ALREADY_EXISTS solo para 'este proyecto ya tiene binding'. Orden - 404 PROJECT_NOT_FOUND, 409 REPOSITORY_BINDING_ALREADY_EXISTS, 403 GITHUB_APP_ACCESS_REQUIRED, 409 REPOSITORY_ALREADY_BOUND, 404 INTEGRATION_BRANCH_NOT_FOUND"
+  - "2. POST enable - idempotente (ENABLED responde 200 con el mismo body). Sin proyecto o ajeno 404 PROJECT_NOT_FOUND. Sin binding 404 REPOSITORY_BINDING_NOT_FOUND. Antes de reactivar revalidar el acceso de la App (requireInstallation) y refrescar installationId, o 403 GITHUB_APP_ACCESS_REQUIRED. DECISION APROBADA POR EL USUARIO - un binding REVOKED tambien se reactiva por esta via si la revalidacion confirma que la App volvio a tener acceso al repositorio (asi un Project sale de REVOKED sin borrarse); si no hay acceso responde 403 GITHUB_APP_ACCESS_REQUIRED y el estado no cambia"
+  - "3. DELETE integrations/github (disable) - no debe degradar REVOKED a DISABLED (hoy disable() sobrescribe REVOKED). Sobre REVOKED responder 204 sin cambio. Revisar que installation.unsuspend no reactive bindings pausados por el usuario (github-webhooks.service.ts, updateStatusByInstallation)"
+  - "4. DELETE /projects/{projectId} - 204. Transaccion unica que fija deletedAt, borra la fila RepositoryBinding para liberar repositoryId, y cancela u obsoleta los AnalysisRun y jobs en curso. Proyecto ajeno, inexistente o ya borrado responde 404 PROJECT_NOT_FOUND. Conservar Runs, versions y Functional Knowledge, no visibles por API. Un webhook de un repo sin binding sigue ignorandose (ya ocurre en github-webhooks.service.ts)"
+  - "5. Filtrar deletedAt null en todas las lecturas owner-scoped - projects.repository findById/findAll (GET /projects y GET /projects/{id} 404 PROJECT_NOT_FOUND), repository-bindings, analysis-runs (incluido futuro GET /analysis-runs HU55), functional-knowledge, functional-questions, test-publications, project-versions, test-targets, experiment-runs. GET /projects/{id}/integrations/github de un Project borrado responde 404 PROJECT_NOT_FOUND"
+  - "6. Los job handlers (checks, publications, validation, snapshot-intelligence) resuelven el binding con findByRepositoryId global. Validar binding.projectId igual a run.projectId y que el Project no este borrado, para que un repo re-vinculado a otro Project no procese ni publique Runs del Project borrado"
+  - "7. Publicar en el contrato canonico REPOSITORY_ALREADY_BOUND (409), las rutas enable y DELETE /projects/{id}, y la nota de idempotencia y ocultacion (no se revela el Project ajeno). Console consumira via CONTRACT_SYNC de Core cuando este disponible; hasta entonces el adapter live de enable y DELETE queda como PendingContractError"
+sourceRevision: 5e4c2c3
+status: ACKNOWLEDGED
