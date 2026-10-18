@@ -1,0 +1,33 @@
+{
+  "requestId": "00000000-0000-4000-8000-000000000001",
+  "testRunId": "00000000-0000-4000-8000-000000000002",
+  "projectVersionId": "00000000-0000-4000-8000-000000000003",
+  "snapshot": {
+    "role": "PROJECT_SNAPSHOT",
+    "url": "https://storage.example.test/snapshot.zip?sig=EXAMPLE",
+    "expiresAt": "2026-10-18T12:00:00.000Z",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sizeBytes": 2048
+  },
+  "artifacts": [
+    {
+      "artifactId": "00000000-0000-4000-8000-000000000004",
+      "relativePath": "src/foo.spec.ts",
+      "artifactType": "CREATED",
+      "download": {
+        "role": "GENERATED_ARTIFACT",
+        "url": "https://storage.example.test/foo.spec.ts?sig=EXAMPLE",
+        "expiresAt": "2026-10-18T12:00:00.000Z",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 512
+      }
+    }
+  ],
+  "scope": "TARGET",
+  "targetIds": [
+    "00000000-0000-4000-8000-000000000005"
+  ],
+  "executionProfile": "NODE_TYPESCRIPT",
+  "runnerHint": "VITEST",
+  "phase": "GENERATED_TESTS"
+}

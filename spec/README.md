@@ -2,7 +2,7 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-**Línea base común:** SDD 3.1 / Harness V3 en los cuatro repositorios. Core mantiene los contratos canónicos SYSTEM-2.12, INTEROP-2.16 y GH-INTEROP-1.7; GitHub Integration y Console los espejan byte a byte, y Sandbox espeja SYSTEM e INTEROP.
+**Línea base común:** SDD 3.1 / Harness V3 en los cuatro repositorios. Core mantiene los contratos canónicos SYSTEM-2.13, INTEROP-2.17 y GH-INTEROP-1.8, más los esquemas JSON de `spec/contracts/schemas/`; GitHub Integration y Console los espejan byte a byte, y Sandbox espeja SYSTEM e INTEROP.
 
 Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> `constitution/planning-model.md` y constitución aplicable -> `backlog.md`/`operational-cases.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables -> `harness/work-items.json`. La extracción está detallada en `features/016-github-integration/`; las dependencias entre repos y sus puertas locales, en `features/017-cross-repository-dependency-gates/`. Cada repo mantiene solo WIs locales y se coordina por Contract Sync.
 
@@ -33,6 +33,6 @@ No existe un registro central adicional que duplique decisiones. Cada decisión 
 
 ## Contrato entre componentes
 
-`contracts/system-contract.md` es el propietario canónico de las decisiones compartidas actuales. Las copias espejo declaran `SYSTEM-*`; no sustituyen specs internas ni cierran operaciones `PENDING`. `contracts/github-integration-contract.md` es el contrato entre Core, Console y GitHub Integration: incluye rutas de usuario Console→Integration y operaciones privadas, incluida autorización síncrona Integration→Core. `GH-INTEROP-1.7` conserva la identidad y respuesta de Checks, pero sustituye la coordinación PostgreSQL de `GH-INTEROP-1.5` por una sola instancia activa con mutex efímero en proceso; no agrega una base ni garantiza coordinación entre procesos o reinicios. El cutover y la configuración externa siguen pendientes.
+`contracts/system-contract.md` es el propietario canónico de las decisiones compartidas actuales. Las copias espejo declaran `SYSTEM-*`; no sustituyen specs internas ni cierran operaciones `PENDING`. `contracts/github-integration-contract.md` es el contrato entre Core, Console y GitHub Integration: incluye rutas de usuario Console→Integration y operaciones privadas, incluida autorización síncrona Integration→Core. `GH-INTEROP-1.8` conserva la identidad y respuesta de Checks, pero sustituye la coordinación PostgreSQL de `GH-INTEROP-1.5` por una sola instancia activa con mutex efímero en proceso; no agrega una base ni garantiza coordinación entre procesos o reinicios. El cutover y la configuración externa siguen pendientes.
 
 `contracts/interoperability-contract.md` contiene los DTOs, rutas, estados, errores y reglas de transporte públicos vigentes. Su versión `INTEROP-*` evoluciona independientemente de la línea base SDD conjunta.

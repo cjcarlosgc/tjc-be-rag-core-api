@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tjc.local/contracts/error-envelope.schema.json",
+  "title": "ErrorEnvelope",
+  "description": "Forma única de todo error HTTP de la solución (INTEROP §4). Los consumidores ignoran campos desconocidos.",
+  "type": "object",
+  "required": ["statusCode", "code", "message", "details", "correlationId", "timestamp", "path"],
+  "properties": {
+    "statusCode": { "type": "integer", "minimum": 400, "maximum": 599 },
+    "code": { "type": "string", "minLength": 1, "description": "Código estable en UPPER_SNAKE_CASE." },
+    "message": { "type": "string", "description": "Mensaje neutral; no incluye tokens, secretos, URLs firmadas ni texto crudo de terceros." },
+    "details": { "type": ["object", "array", "string", "number", "boolean", "null"], "description": "Detalle estructurado (cualquier valor JSON) o null cuando no aplica." },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "timestamp": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+    "path": { "type": "string" },
+    "retryable": { "type": "boolean", "description": "Opcional. Lo declaran los servicios cuyo contrato distingue reintentos (p. ej. GitHub Integration, GH-INTEROP). Ausente = el consumidor no debe asumir reintento." }
+  }
+}

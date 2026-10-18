@@ -1,0 +1,36 @@
+{
+  "executionId": "00000000-0000-4000-8000-000000000031",
+  "requestId": "00000000-0000-4000-8000-000000000011",
+  "testRunId": "00000000-0000-4000-8000-000000000012",
+  "projectVersionId": "00000000-0000-4000-8000-000000000013",
+  "status": "FAILED",
+  "facts": null,
+  "failure": {
+    "stage": "INSTALLING_DEPENDENCIES",
+    "category": "DEPENDENCY",
+    "code": "COMPOSER_INSTALL_FAILED",
+    "message": "composer install terminó con código 2"
+  },
+  "stageDurations": [
+    {
+      "stage": "PREPARING",
+      "durationMs": 80
+    },
+    {
+      "stage": "INSTALLING_DEPENDENCIES",
+      "durationMs": 4000
+    }
+  ],
+  "appliedArtifactIds": [],
+  "evidence": [
+    {
+      "kind": "COMPILER_STDERR",
+      "stage": "INSTALLING_DEPENDENCIES",
+      "content": "Your requirements could not be resolved",
+      "truncated": true,
+      "originalBytes": 20480
+    }
+  ],
+  "startedAt": "2026-10-18T10:05:00.000Z",
+  "completedAt": "2026-10-18T10:05:04.100Z"
+}

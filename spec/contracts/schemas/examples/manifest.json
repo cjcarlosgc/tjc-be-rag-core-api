@@ -1,0 +1,45 @@
+{
+  "description": "Ejemplos canónicos válidos; Core, Sandbox y GitHub Integration los validan contra los esquemas espejados.",
+  "examples": [
+    {
+      "file": "sandbox-create-request.node.json",
+      "schema": "sandbox-execution.schema.json",
+      "definition": "CreateSandboxExecutionRequest"
+    },
+    {
+      "file": "sandbox-create-request.php.json",
+      "schema": "sandbox-execution.schema.json",
+      "definition": "CreateSandboxExecutionRequest"
+    },
+    {
+      "file": "sandbox-accepted.json",
+      "schema": "sandbox-execution.schema.json",
+      "definition": "SandboxExecutionAcceptedResponse"
+    },
+    {
+      "file": "sandbox-status.running.json",
+      "schema": "sandbox-execution.schema.json",
+      "definition": "SandboxExecutionStatusResponse"
+    },
+    {
+      "file": "sandbox-result.completed.json",
+      "schema": "sandbox-execution.schema.json",
+      "definition": "SandboxExecutionResultResponse"
+    },
+    {
+      "file": "sandbox-result.failed.json",
+      "schema": "sandbox-execution.schema.json",
+      "definition": "SandboxExecutionResultResponse"
+    },
+    {
+      "file": "error-envelope.validation.json",
+      "schema": "error-envelope.schema.json",
+      "definition": "ErrorEnvelope"
+    },
+    {
+      "file": "error-envelope.upstream.json",
+      "schema": "error-envelope.schema.json",
+      "definition": "ErrorEnvelope"
+    }
+  ]
+}

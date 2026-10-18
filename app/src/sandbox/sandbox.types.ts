@@ -1,60 +1,21 @@
-export type SandboxStage =
-  | 'PREPARING'
-  | 'INSTALLING_DEPENDENCIES'
-  | 'COMPILING'
-  | 'RUNNING_TESTS'
-  | 'FINALIZING';
+import type {
+  ExecutionProfile as ContractExecutionProfile,
+  RunnerFacts as ContractRunnerFacts,
+  SandboxExecutionStatus as ContractSandboxExecutionStatus,
+  SandboxFailureFact as ContractSandboxFailureFact,
+  SandboxStage as ContractSandboxStage,
+  StageDuration as ContractStageDuration,
+  TestCaseFact as ContractTestCaseFact,
+} from '../contracts/generated/contract-types.js';
 
-export type SandboxExecutionStatus =
-  'PENDING' | SandboxStage | 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
-
-export interface TestCaseFact {
-  suitePath: string | null;
-  name: string;
-  status: 'PASSED' | 'FAILED' | 'SKIPPED' | 'TODO';
-  durationMs: number | null;
-  errorMessage: string | null;
-  /** DEC-PHP-GEN-002: ausente en Sandboxes anteriores; `ERROR` = fallo técnico (clase/método inexistente, excepción). */
-  failureKind?: 'ASSERTION' | 'ERROR' | null;
-}
-
-export interface RunnerFacts {
-  runner: 'JEST' | 'VITEST' | 'PHPUNIT';
-  compiled: boolean;
-  executed: boolean;
-  passed: boolean;
-  totalTests: number;
-  passedTests: number;
-  failedTests: number;
-  skippedTests: number;
-  testCases: TestCaseFact[];
-  testCasesTruncated: boolean;
-}
-
-export type SandboxFailureCategory =
-  | 'COMPILATION'
-  | 'TEST_ASSERTION'
-  | 'TEST_RUNTIME'
-  | 'DEPENDENCY'
-  | 'CONFIGURATION'
-  | 'INFRASTRUCTURE'
-  | 'UNKNOWN';
-
-export interface SandboxFailureFact {
-  stage: SandboxStage;
-  category: SandboxFailureCategory;
-  code: string;
-  message: string;
-}
-
-export interface StageDuration {
-  stage: SandboxStage;
-  durationMs: number;
-  /** WI-CORE-061: inicio de la etapa en el Sandbox (ISO-8601 UTC); ausente en Sandboxes anteriores. */
-  startedAt?: string;
-  /** WI-CORE-061: fin de la etapa en el Sandbox (ISO-8601 UTC); ausente en Sandboxes anteriores. */
-  completedAt?: string;
-}
+// Tipos de cable: se derivan del contrato generado (spec/contracts/schemas); no se redefinen a mano.
+export type SandboxStage = ContractSandboxStage;
+export type SandboxExecutionStatus = ContractSandboxExecutionStatus;
+export type TestCaseFact = ContractTestCaseFact;
+export type RunnerFacts = ContractRunnerFacts;
+export type SandboxFailureFact = ContractSandboxFailureFact;
+export type StageDuration = ContractStageDuration;
+export type SandboxFailureCategory = SandboxFailureFact['category'];
 
 /** Tipo de evidencia acotada que devuelve el Sandbox (contrato: `ExecutionEvidenceKind`). */
 export type SandboxExecutionEvidenceKind =
@@ -103,7 +64,7 @@ export interface SandboxArtifactInput {
   content: Buffer;
 }
 
-export type ExecutionProfile = 'NODE_TYPESCRIPT' | 'PHP_LARAVEL_PHPUNIT';
+export type ExecutionProfile = ContractExecutionProfile;
 
 export interface SandboxExecutionRequest {
   requestId: string;

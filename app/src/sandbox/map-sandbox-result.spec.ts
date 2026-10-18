@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { mapSandboxResult, SANDBOX_TIMED_OUT_ERROR_SUMMARY } from './map-sandbox-result.js';
 import type { SandboxExecutionResult } from './sandbox.types.js';
 
-function makeFacts(overrides: Partial<SandboxExecutionResult['facts']> = {}) {
+function makeFacts(overrides: Partial<NonNullable<SandboxExecutionResult['facts']>> = {}) {
   return {
+    executionProfile: 'NODE_TYPESCRIPT' as const,
     runner: 'VITEST' as const,
     compiled: true,
     executed: true,

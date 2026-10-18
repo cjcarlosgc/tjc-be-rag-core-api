@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
+import { validateContract } from '../contracts/contract-validator.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
   ExecutionProfile,
@@ -204,6 +205,7 @@ export class SandboxExecutionService {
       executionId: string;
       pollAfterMs: number;
     }>(`${baseUrl}/executions`, body, requestId, correlationId, serviceToken);
+    this.warnOnContractDrift('SandboxExecutionAcceptedResponse', accepted.executionId, accepted);
 
     try {
       await this.pollUntilTerminal(
@@ -340,6 +342,8 @@ export class SandboxExecutionService {
       serviceToken,
     );
 
+    this.warnOnContractDrift('SandboxExecutionResultResponse', executionId, result);
+
     const stageDurations = normalizeStageDurations(result.stageDurations);
 
     if (stageDurations.length > 0) {
@@ -370,6 +374,22 @@ export class SandboxExecutionService {
       startedAt: typeof result.startedAt === 'string' ? result.startedAt : null,
       completedAt: typeof result.completedAt === 'string' ? result.completedAt : null,
     };
+  }
+
+  /**
+   * INTEROP-2.17 §10: compara la respuesta del Sandbox con el esquema canónico y avisa de cualquier desvío. No lanza
+   * ni altera el flujo (Core tolera Sandboxes anteriores); el aviso solo lista rutas y motivos, nunca valores.
+   */
+  private warnOnContractDrift(
+    definition: 'SandboxExecutionAcceptedResponse' | 'SandboxExecutionResultResponse',
+    executionId: string,
+    payload: unknown,
+  ): void {
+    const check = validateContract('sandbox-execution.schema.json', definition, payload);
+    if (check.valid) return;
+    this.logger.warn(
+      `Contrato Core↔Sandbox (INTEROP §7): la respuesta ${definition} de la ejecución ${executionId} no cumple el esquema canónico: ${check.errors.slice(0, 5).join('; ')}`,
+    );
   }
 
   private async postJson<T>(

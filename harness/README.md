@@ -9,6 +9,7 @@ Verificable con `shasum`; si difiere, el repo está desalineado.
 - `harness/agent-assignment.mjs`, `harness/contract-sync-id.mjs`, `harness/contract-sync-lifecycle.mjs`.
 - `harness/roles/human-reviewer.md`.
 - `.claude/settings.json` y los agentes `.claude/agents/` `sdd-analyst`, `implementer`, `implementer-high`, `contract-reviewer`, `reviewer`, `merge-reviewer`.
+- `spec/contracts/schemas/` completa (esquemas JSON y `examples/`), `scripts/generate-contract-types.mjs` (en `app/`) y `src/contracts/contract-validator.ts`; los tipos de `src/contracts/generated/` salen idénticos al regenerar.
 - Contratos espejados desde Core con Contract Sync: `spec/contracts/system-contract.md` e `interoperability-contract.md` en los cuatro; `github-integration-contract.md` en Core, `GH` y `CONSOLE`.
 
 ## Mismas reglas, parámetros propios del componente

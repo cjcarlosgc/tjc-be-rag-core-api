@@ -1,0 +1,13 @@
+{
+  "executionId": "00000000-0000-4000-8000-000000000021",
+  "requestId": "00000000-0000-4000-8000-000000000001",
+  "projectVersionId": "00000000-0000-4000-8000-000000000003",
+  "status": "RUNNING_TESTS",
+  "stage": "RUNNING_TESTS",
+  "failureCode": null,
+  "failureMessage": null,
+  "startedAt": "2026-10-18T10:00:01.000Z",
+  "completedAt": null,
+  "createdAt": "2026-10-18T10:00:00.000Z",
+  "updatedAt": "2026-10-18T10:00:05.000Z"
+}

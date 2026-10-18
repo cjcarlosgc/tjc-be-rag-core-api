@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { CORRELATION_ID_HEADER } from '../middleware/correlation-id.middleware.js';
 import { ErrorCode } from '../errors/error-code.enum.js';
@@ -15,7 +16,7 @@ interface ErrorEnvelope {
   code: ErrorCode;
   message: string;
   details: unknown;
-  correlationId: string | undefined;
+  correlationId: string;
   timestamp: string;
   path: string;
 }
@@ -28,7 +29,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const correlationId = request.headers[CORRELATION_ID_HEADER] as string | undefined;
+    // INTEROP-2.17 §4: `correlationId` es obligatorio en el ErrorEnvelope; el middleware siempre lo fija, y sin él se genera uno.
+    const correlationId = (request.headers[CORRELATION_ID_HEADER] as string | undefined) ?? randomUUID();
 
     const envelope = this.buildEnvelope(exception, request.url, correlationId);
 
@@ -45,7 +47,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private buildEnvelope(
     exception: unknown,
     path: string,
-    correlationId: string | undefined,
+    correlationId: string,
   ): ErrorEnvelope {
     const timestamp = new Date().toISOString();
 

@@ -16,6 +16,7 @@ function makeResult(overrides: Partial<SandboxExecutionResult> = {}): SandboxExe
   return {
     status: 'COMPLETED',
     facts: {
+      executionProfile: 'NODE_TYPESCRIPT',
       runner: 'VITEST',
       compiled: true,
       executed: true,
@@ -365,7 +366,7 @@ describe('buildRepetitionArtifact stage timestamps (WI-CORE-061)', () => {
     const baseline: SandboxExecutionResult = {
       status: 'COMPLETED',
       facts: {
-        runner: 'VITEST', compiled: true, executed: true, passed: true, totalTests: 1, passedTests: 1,
+        executionProfile: 'NODE_TYPESCRIPT', runner: 'VITEST', compiled: true, executed: true, passed: true, totalTests: 1, passedTests: 1,
         failedTests: 0, skippedTests: 0,
         testCases: [{ suitePath: 'suite', name: 'a', status: 'PASSED', durationMs: 3, errorMessage: null, failureKind: null }],
         testCasesTruncated: false,

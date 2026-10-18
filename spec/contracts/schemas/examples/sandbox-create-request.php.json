@@ -1,0 +1,19 @@
+{
+  "requestId": "00000000-0000-4000-8000-000000000011",
+  "testRunId": "00000000-0000-4000-8000-000000000012",
+  "projectVersionId": "00000000-0000-4000-8000-000000000013",
+  "snapshot": {
+    "role": "PROJECT_SNAPSHOT",
+    "url": "https://storage.example.test/snapshot.zip?sig=EXAMPLE",
+    "expiresAt": "2026-10-18T12:00:00.000Z",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sizeBytes": 4096
+  },
+  "projectRoot": "apps/api",
+  "artifacts": [],
+  "scope": "BATCH",
+  "targetIds": [],
+  "executionProfile": "PHP_LARAVEL_PHPUNIT",
+  "runnerHint": "PHPUNIT",
+  "phase": "BASELINE"
+}

@@ -1,0 +1,64 @@
+{
+  "executionId": "00000000-0000-4000-8000-000000000021",
+  "requestId": "00000000-0000-4000-8000-000000000001",
+  "testRunId": "00000000-0000-4000-8000-000000000002",
+  "projectVersionId": "00000000-0000-4000-8000-000000000003",
+  "status": "COMPLETED",
+  "facts": {
+    "executionProfile": "NODE_TYPESCRIPT",
+    "runner": "VITEST",
+    "compiled": true,
+    "executed": true,
+    "passed": false,
+    "totalTests": 2,
+    "passedTests": 1,
+    "failedTests": 1,
+    "skippedTests": 0,
+    "testCases": [
+      {
+        "suitePath": "src/foo.spec.ts",
+        "name": "suma",
+        "status": "PASSED",
+        "durationMs": 3,
+        "errorMessage": null,
+        "failureKind": null
+      },
+      {
+        "suitePath": "src/foo.spec.ts",
+        "name": "resta",
+        "status": "FAILED",
+        "durationMs": 5,
+        "errorMessage": "expected 1 to be 2",
+        "failureKind": "ASSERTION"
+      }
+    ],
+    "testCasesTruncated": false
+  },
+  "failure": null,
+  "stageDurations": [
+    {
+      "stage": "PREPARING",
+      "durationMs": 120,
+      "startedAt": "2026-10-18T10:00:01.000Z",
+      "completedAt": "2026-10-18T10:00:01.120Z"
+    },
+    {
+      "stage": "RUNNING_TESTS",
+      "durationMs": 900
+    }
+  ],
+  "appliedArtifactIds": [
+    "00000000-0000-4000-8000-000000000004"
+  ],
+  "evidence": [
+    {
+      "kind": "TEST_STDOUT",
+      "stage": "RUNNING_TESTS",
+      "content": "1 failed | 1 passed",
+      "truncated": false,
+      "originalBytes": 19
+    }
+  ],
+  "startedAt": "2026-10-18T10:00:01.000Z",
+  "completedAt": "2026-10-18T10:00:03.000Z"
+}
