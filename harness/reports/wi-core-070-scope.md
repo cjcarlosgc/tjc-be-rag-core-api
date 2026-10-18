@@ -10,7 +10,7 @@ Origen: pedido de la sesión cross como «WI-B» (informe `cross-fase3-estabilid
 3. **Fuera de alcance (decisión del leader tras la verificación SDD):** F3 de WI-CORE-069 (`sandboxHttpBoundMs` ignora los reintentos de GET). Sumarlos cambia el valor por defecto de `heartbeatStaleMs` (hasta ~4x) y cuándo se relanza un intento vencido (`attempt-recovery.spec.ts` fija 1_220_000), por lo que no es un refactor sin cambio de comportamiento; requiere WI y decisión propios.
 4. Dos cortes: **A** pruebas de caracterización + descomposición de `runAttempt` (sin tocar el handler de validación); **B** extracción del pipeline compartido en `app/src/generation/test-generation-pipeline.ts` y adopción en ambos handlers. Revisión de hunks entre cortes.
 
-5. **Corte C (pedido de cross, pendiente de aprobación del usuario):** los reintentos de GET por transporte al Sandbox (`withTransientRetries`) dejan de ser silenciosos: se registran en log (sin payload ni secretos) y se cuentan con un contador, para que la inestabilidad quede visible (tesis 3.3.8). Es el **único cambio observable** de este WI (logs y contador); no cambia reintentos, tiempos, DTO ni contratos ni repite el trial.
+5. **Corte C (pedido de cross; NO aprobado: queda fuera del WI hasta que el usuario lo apruebe de forma expresa en el chat):** los reintentos de GET por transporte al Sandbox (`withTransientRetries`) dejan de ser silenciosos: se registran en log (sin payload ni secretos) y se cuentan con un contador, para que la inestabilidad quede visible (tesis 3.3.8). Es el **único cambio observable** de este WI (logs y contador); no cambia reintentos, tiempos, DTO ni contratos ni repite el trial.
 
 ## Reglas
 

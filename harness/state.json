@@ -18462,9 +18462,9 @@
     "id": "WI-CORE-070",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-AWAITING_APPROVAL",
+    "status": "W-IN_PROGRESS",
     "title": "Refactor de runAttempt y extracción del pipeline compartido entre los handlers de experimentos y de validación",
-    "approved": false,
+    "approved": true,
     "storyIds": [
       "HU10",
       "HU11",
@@ -18480,7 +18480,8 @@
       "spec/features/008-experimental-comparison/tasks.md",
       "app/src/experiments/experiment-job.handler.ts",
       "app/src/validation/analysis-run-validation-job.handler.ts",
-      "harness/reports/wi-core-070-sdd-verification.md"
+      "harness/reports/wi-core-070-sdd-verification.md",
+      "harness/reports/wi-core-070-scope-approval.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -18496,7 +18497,7 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": null,
-      "implementationAgent": null,
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
       "reviewAgent": null,
       "handoffs": [
@@ -18560,7 +18561,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-070-scope.md",
-      "harness/reports/wi-core-070-sdd-verification.md"
+      "harness/reports/wi-core-070-sdd-verification.md",
+      "harness/reports/wi-core-070-scope-approval.md"
     ],
     "blockedReason": null,
     "analysisAgent": "sdd-analyst",
