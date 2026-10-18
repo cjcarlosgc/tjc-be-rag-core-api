@@ -222,7 +222,7 @@ describe('validateEnv', () => {
       expect(() =>
         validateEnv(baseConfig({
           NODE_ENV: 'production',
-          SANDBOX_URL: 'https://136-115-2-208.sslip.io',
+          SANDBOX_URL: 'https://203-0-113-10.sslip.io',
           ...sandboxSecret,
         })),
       ).not.toThrow();

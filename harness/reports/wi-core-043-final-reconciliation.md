@@ -12,7 +12,7 @@ Modelo: leader · configurado gpt-6-luna · atendido unknown · esfuerzo xhigh
 
 ## Verificación GCE recibida y límite de esta sesión
 
-El usuario aportó desde Cross una inspección de solo lectura previa al hardening: la VM `rag-test-execution-sandbox` aparecía `RUNNING` en `us-central1-a`, NIC `10.128.0.2`, IP externa `136.115.2.208`, tags `http-server` y `https-server`; las reglas efectivas permitían desde `0.0.0.0/0` TCP 22, 80, 443, RDP 3389 e ICMP, sin ingreso IAP. No se intentó conexión SSH pública.
+El usuario aportó desde Cross una inspección de solo lectura previa al hardening: la VM `rag-test-execution-sandbox` aparecía `RUNNING` en `us-central1-a`, NIC `10.128.0.2`, IP externa `<SANDBOX_IP>`, tags `http-server` y `https-server`; las reglas efectivas permitían desde `0.0.0.0/0` TCP 22, 80, 443, RDP 3389 e ICMP, sin ingreso IAP. No se intentó conexión SSH pública.
 
 Tras la autorización explícita del usuario, Cross aplicó y verificó en modo lectura: `iap.googleapis.com` habilitada; tag exclusivo `rag-test-execution-sandbox-iap-only` solo en esta VM; prioridad 900 permite `35.235.240.0/20` a TCP 22 y 3001; prioridad 901 deniega el resto de TCP/UDP/ICMP IPv4. `get-effective-firewalls` confirma que esas reglas efectivas superan los `default-allow-http/https/ssh/rdp/icmp/internal`; las reglas default no se modificaron. No se añadió IAM porque el usuario ya tenía rol Owner; no se infieren políticas heredadas.
 
