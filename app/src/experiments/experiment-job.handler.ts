@@ -22,6 +22,7 @@ import { LLM_PROVIDER } from '../providers/providers.constants.js';
 import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.interface.js';
 import { WorkspaceAgentTools } from '../generation/agent/workspace-agent-tools.js';
 import { GeneralistAgentService, type AgentToolStepEvent } from '../generation/agent/generalist-agent.service.js';
+import type { SandboxExecutionRequest, SandboxExecutionResult } from '../sandbox/sandbox.types.js';
 import { SandboxAcceptedExecutionError, SandboxExecutionService, SandboxUnavailableError, DEFAULT_MAX_POLL_ATTEMPTS, DEFAULT_REQUEST_TIMEOUT_MS } from '../sandbox/sandbox-execution.service.js';
 import { toAcceptedSandboxEvidence, toSandboxExecutionEvidence, type SandboxExecutionEvidence } from '../sandbox/sandbox-evidence-facts.js';
 import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-result.js';
@@ -50,6 +51,75 @@ export interface ExperimentJobPayload {
 export const EXPERIMENT_JOB_TYPE = 'experiment-run';
 /** `failureCode` del run cuando el job agota sus intentos por un worker caído (WI-CORE-030). */
 export const EXPERIMENT_WORKER_LOST_FAILURE_CODE = 'EXPERIMENT_WORKER_LOST';
+
+/** Resultado de la repetición que se persiste en la escritura terminal (sin evidencia). */
+type RepetitionOutcome = {
+  status: 'VALID' | 'INVALID' | 'FAILED';
+  compiled: boolean | null;
+  executed: boolean | null;
+  passed: boolean | null;
+  valid: boolean | null;
+  failureType: FailureTypeValue | null;
+  errorSummary: string | null;
+};
+
+/** Ubicación del test generado y contenido previo (null si no existe o es PHP). */
+interface AttemptTarget {
+  relativePath: string;
+  existingContent: string | null;
+}
+
+/** Resultado de la ejecución en Sandbox que consume el cierre de `runAttempt`. */
+interface SandboxStepResult {
+  repetitionOutcome: RepetitionOutcome;
+  executionDurationMs: number;
+  sandboxTimedOut: boolean;
+  /** WI-CORE-007: hecho de fallo saneado solo cuando el Sandbox lo devuelve en un resultado no COMPLETED. */
+  sandboxFailure: ExperimentRepetitionFailure | null;
+}
+
+/** Estado mutable de un intento compartido por los pasos de `runAttempt` y su catch externo. */
+interface AttemptState {
+  workspace: ExtractedWorkspace | undefined;
+  generationStart: number;
+  generationDurationMs: number;
+  generation: GenerationOutcome;
+  externalFailure: boolean;
+  finalized: boolean;
+  /** WI-CORE-027: evidencia del Sandbox y hash del contenido enviado; null mientras no haya invocación. */
+  sandboxEvidence: SandboxExecutionEvidence | null;
+  artifactHash: string | null;
+  /** WI-CORE-053: artefacto interno de la repetición; null salvo en los caminos que enviaron contenido. */
+  artifact: RepetitionArtifactRecord | null;
+}
+
+function frameworkMissingOutcome(language: 'php' | 'typescript'): RepetitionOutcome {
+  return {
+    status: 'FAILED',
+    compiled: null,
+    executed: null,
+    passed: null,
+    valid: null,
+    failureType: 'CONFIGURATION',
+    errorSummary:
+      language === 'php'
+        ? 'No se pudo determinar el framework de test (PHPUnit) durante la indexación.'
+        : 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+  };
+}
+
+function phpNotPhpOutcome(): RepetitionOutcome {
+  return {
+    status: 'INVALID',
+    compiled: false,
+    executed: false,
+    passed: false,
+    valid: false,
+    failureType: 'COMPILATION',
+    errorSummary:
+      'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+  };
+}
 
 @Injectable()
 export class ExperimentJobHandler
@@ -471,6 +541,32 @@ export class ExperimentJobHandler
     await this.runAttempt({ ...context, ...slot, attempt: 1 });
   }
 
+  /** Estado inicial de un intento; lo comparten los pasos y el catch externo de `runAttempt`. */
+  private createAttemptState(): AttemptState {
+    return {
+      workspace: undefined,
+      generationStart: Date.now(),
+      generationDurationMs: 0,
+      generation: {
+        content: '',
+        promptSha256: null,
+        inputTokens: null,
+        outputTokens: null,
+        retrievedChunks: null,
+        selectedChunks: null,
+        contextTokens: null,
+        toolCalls: null,
+        filesInspected: null,
+        trajectory: undefined,
+      },
+      externalFailure: false,
+      finalized: false,
+      sandboxEvidence: null,
+      artifactHash: null,
+      artifact: null,
+    };
+  }
+
   /** Devuelve true si el intento terminó en fallo externo (plan punto 6). */
   private async runAttempt(context: AttemptContext): Promise<boolean> {
     // WI-CORE-060: inicio del intento, antes de generar; se persiste como startedAt de la escritura terminal.
@@ -488,36 +584,14 @@ export class ExperimentJobHandler
     });
     // Latido mientras el intento corre; se detiene en el `finally` (WI-CORE-025 (3c)).
     const stopHeartbeat = this.startHeartbeat(begun.repetition.id);
-    let workspace: ExtractedWorkspace | undefined;
-    const generationStart = Date.now();
-    let generationDurationMs = 0;
-    let generation: GenerationOutcome = {
-      content: '',
-      promptSha256: null,
-      inputTokens: null,
-      outputTokens: null,
-      retrievedChunks: null,
-      selectedChunks: null,
-      contextTokens: null,
-      toolCalls: null,
-      filesInspected: null,
-      trajectory: undefined,
-    };
-    let externalFailure = false;
-    let finalized = false;
-    // WI-CORE-027: evidencia del Sandbox y hash del contenido enviado; null mientras no haya invocación.
-    let sandboxEvidence: SandboxExecutionEvidence | null = null;
-    let artifactHash: string | null = null;
-    // WI-CORE-053: artefacto interno de la repetición; null salvo en los caminos que enviaron contenido.
-    let artifact: RepetitionArtifactRecord | null = null;
+    const state = this.createAttemptState();
 
     try {
       await this.initializeTraceDetail(begun.trace.id, context);
-      workspace = await this.zipExtractionService.extract(
+      state.workspace = await this.zipExtractionService.extract(
         context.snapshotBuffer,
       );
-      const workspaceDir = workspace.dir;
-      const timeoutMs = context.budget.maxDurationMs;
+      const workspaceDir = state.workspace.dir;
       // WI-CORE-029: PHP usa la ubicación DEC-PHP-GEN-001 (archivo nuevo); TypeScript conserva la suya.
       const phpPlacement =
         context.language === 'php'
@@ -528,295 +602,410 @@ export class ExperimentJobHandler
             )
           : null;
 
-      generation =
-        context.strategy === 'RAG'
-          ? await withTimeout(
-              this.runRagArm(
-                begun.trace.id,
-                context.projectId,
-                context.projectVersionId,
-                context.target,
-                context.framework,
-                context.language,
-                phpPlacement,
-                context.config,
-                context.budget,
-              ),
-              timeoutMs,
-              'La generación RAG agotó el tiempo límite.',
-            )
-          : await withTimeout(
-              this.runAgentArm(
-                begun.trace.id,
-                workspace.dir,
-                context.target,
-                context.framework,
-                phpPlacement,
-                context.config,
-                context.budget,
-              ),
-              timeoutMs,
-              'La generación del agente generalista agotó el tiempo límite.',
-            );
+      state.generation = await this.generateForAttempt(
+        begun.trace.id,
+        context,
+        workspaceDir,
+        phpPlacement,
+      );
+      state.generationDurationMs = Date.now() - state.generationStart;
+      const target = await this.resolveAttemptTarget(
+        context,
+        workspaceDir,
+        phpPlacement,
+      );
 
-      generationDurationMs = Date.now() - generationStart;
-      // TypeScript: ruta co-ubicada o la del primer test existente, con fusión. PHP: archivo nuevo, sin leer ni fusionar.
-      const relativePath = phpPlacement
-        ? phpPlacement.relativePath
-        : context.target.hasTest && context.target.testFilePaths.length > 0
-          ? context.target.testFilePaths[0]
-          : coLocatedSpecPath(context.target.filePath);
-      const existingContent = phpPlacement
-        ? null
-        : await readFile(join(workspace.dir, relativePath), 'utf8').catch(
-            () => null,
-          );
-
-      if (!context.framework) {
-        await this.recordRepetition(
+      const runner = context.framework;
+      if (!runner) {
+        return this.finalizeWithoutSandbox(
           begun,
           context,
-          generation,
-          generationDurationMs,
-          null,
-          {
-            status: 'FAILED',
-            compiled: null,
-            executed: null,
-            passed: null,
-            valid: null,
-            failureType: 'CONFIGURATION',
-            errorSummary:
-              context.language === 'php'
-                ? 'No se pudo determinar el framework de test (PHPUnit) durante la indexación.'
-                : 'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
-          },
-          false,
-          false,
-          null,
-          { sandbox: null, artifactHash: null, artifact: null, startedAt: attemptStartedAt },
+          state,
+          attemptStartedAt,
+          frameworkMissingOutcome(context.language),
         );
-        finalized = true;
-        return false;
       }
 
-      let mergedContent: string;
-      if (phpPlacement) {
-        const phpContent = sanitizeGeneratedPhp(generation.content);
-        if (phpContent === null) {
-          // Resultado técnico desfavorable de la estrategia (no fallo externo): sin Sandbox y sin reintento.
-          await this.recordRepetition(
-            begun,
-            context,
-            generation,
-            generationDurationMs,
-            null,
-            {
-              status: 'INVALID',
-              compiled: false,
-              executed: false,
-              passed: false,
-              valid: false,
-              failureType: 'COMPILATION',
-              errorSummary:
-                'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
-            },
-            false,
-            false,
-            null,
-            { sandbox: null, artifactHash: null, artifact: null, startedAt: attemptStartedAt },
-          );
-          finalized = true;
-          return false;
-        }
-        mergedContent = `${phpContent}\n`;
-      } else {
-        mergedContent =
-          existingContent === null
-            ? this.testFileMergeService.applyCreate(generation.content)
-            : this.testFileMergeService.applyMerge(
-                existingContent,
-                generation.content,
-              );
+      const mergedContent = this.mergeAttemptContent(
+        state.generation.content,
+        target.existingContent,
+        phpPlacement,
+      );
+      if (mergedContent === null) {
+        // Resultado técnico desfavorable de la estrategia (no fallo externo): sin Sandbox y sin reintento.
+        return this.finalizeWithoutSandbox(
+          begun,
+          context,
+          state,
+          attemptStartedAt,
+          phpNotPhpOutcome(),
+        );
       }
 
-      const executionStart = Date.now();
-      let repetitionOutcome: {
-        status: 'VALID' | 'INVALID' | 'FAILED';
-        compiled: boolean | null;
-        executed: boolean | null;
-        passed: boolean | null;
-        valid: boolean | null;
-        failureType: FailureTypeValue | null;
-        errorSummary: string | null;
-      };
-      let executionDurationMs: number;
-      let sandboxTimedOut = false;
-      // WI-CORE-007: hecho de fallo saneado solo cuando el Sandbox lo devuelve en un resultado no COMPLETED.
-      let sandboxFailure: ExperimentRepetitionFailure | null = null;
+      const execution = await this.executeInSandbox(
+        context,
+        runner,
+        state,
+        target,
+        mergedContent,
+      );
+      await this.recordRepetition(
+        begun,
+        context,
+        state.generation,
+        state.generationDurationMs,
+        execution.executionDurationMs,
+        execution.repetitionOutcome,
+        state.externalFailure,
+        execution.sandboxTimedOut,
+        execution.sandboxFailure,
+        this.evidenceOf(state, attemptStartedAt),
+      );
+      state.finalized = true;
+      return state.externalFailure;
+    } catch (error) {
+      return this.recordAttemptFailure(
+        begun,
+        context,
+        state,
+        attemptStartedAt,
+        error,
+      );
+    } finally {
+      stopHeartbeat();
+      await this.cleanupWorkspace(state.workspace);
+    }
+  }
 
-      try {
-        // WI-CORE-027: mismo contenido que se envía al Sandbox; sin contenido generado no hay artefacto.
-        artifactHash =
-          generation.content.trim().length > 0
-            ? createHash('sha256').update(mergedContent, 'utf8').digest('hex')
-            : null;
-        const sandboxResult = await this.sandboxExecutionService.execute({
-          requestId: sandboxExperimentRequestId(
-            context.jobId,
-            context.strategy,
-            context.repetition,
-            context.attempt,
+  /** Genera con el brazo de la estrategia dentro del límite de `maxDurationMs` (un único `withTimeout`). */
+  private generateForAttempt(
+    traceId: string,
+    context: AttemptContext,
+    workspaceDir: string,
+    placement: PhpTestLocation | null,
+  ): Promise<GenerationOutcome> {
+    const timeoutMs = context.budget.maxDurationMs;
+    return context.strategy === 'RAG'
+      ? withTimeout(
+          this.runRagArm(
+            traceId,
+            context.projectId,
+            context.projectVersionId,
+            context.target,
+            context.framework,
+            context.language,
+            placement,
+            context.config,
+            context.budget,
           ),
-          testRunId: context.experimentId,
-          projectVersionId: context.projectVersionId,
-          snapshotKey: context.snapshotKey,
-          snapshotBuffer: context.snapshotBuffer,
-          artifacts: [
-            {
-              artifactId: randomUUID(),
-              relativePath,
-              artifactType: existingContent === null ? 'CREATED' : 'MODIFIED',
-              content: Buffer.from(mergedContent, 'utf8'),
-            },
-          ],
-          scope: 'TARGET',
-          targetIds: [context.target.id],
-          runnerHint: context.framework,
-          executionProfile: context.executionProfile,
-          ...(context.language === 'php'
-            ? { projectRoot: context.projectRoot }
-            : {}),
-        });
-        executionDurationMs = Date.now() - executionStart;
-        const outcome = mapSandboxResult(sandboxResult);
-        artifact =
-          generation.content.trim().length > 0
-            ? this.safeBuildArtifact(mergedContent, sandboxResult, context)
-            : null;
-        sandboxEvidence = toSandboxExecutionEvidence(
-          sandboxResult,
-          outcome.failureType,
+          timeoutMs,
+          'La generación RAG agotó el tiempo límite.',
+        )
+      : withTimeout(
+          this.runAgentArm(
+            traceId,
+            workspaceDir,
+            context.target,
+            context.framework,
+            placement,
+            context.config,
+            context.budget,
+          ),
+          timeoutMs,
+          'La generación del agente generalista agotó el tiempo límite.',
         );
-        // TIMED_OUT es fallo de la prueba generada, no externo: se persiste con la columna interna.
-        sandboxTimedOut = sandboxResult.status === 'TIMED_OUT';
-        sandboxFailure =
-          sandboxResult.status === 'COMPLETED'
-            ? null
-            : toExperimentRepetitionFailure(sandboxResult.failure);
-        // Fallo externo del Sandbox: INFRASTRUCTURE salvo timeout (no es externo, WI-CORE-025).
-        externalFailure =
-          outcome.status === 'FAILED' &&
-          outcome.failureType === 'INFRASTRUCTURE' &&
-          !sandboxTimedOut;
+  }
 
-        if (outcome.compiled === false) {
-          this.logger.debug(
-            `La repetición ${context.repetition} (${context.strategy}) no compiló.`,
-          );
-        }
-
-        repetitionOutcome = {
-          status: outcome.status,
-          compiled: outcome.compiled,
-          executed: outcome.executed,
-          passed: outcome.passed,
-          valid: outcome.valid,
-          failureType: outcome.failureType,
-          errorSummary: outcome.errorSummary,
-        };
-      } catch (error) {
-        // Cualquier excepción del cliente de Sandbox se trata como infraestructura (fallo externo con
-        // un único reintento), sea SandboxUnavailableError u otro error (red, respuesta inesperada).
-        // Decisión del usuario, WI-CORE-025 (2).
-        executionDurationMs = Date.now() - executionStart;
-        // WI-CORE-027: una ejecución aceptada que no llegó a resultado conserva su executionId y sus ids.
-        if (error instanceof SandboxAcceptedExecutionError) {
-          sandboxEvidence = toAcceptedSandboxEvidence(error);
-        }
-        // WI-CORE-053: el contenido ya se envió (artifactHash calculado): se persiste sin informe del Sandbox.
-        if (artifactHash !== null) {
-          artifact = this.safeBuildArtifact(mergedContent, null, context);
-        }
-        const sandboxErrorSummary =
-          error instanceof SandboxUnavailableError
-            ? 'Sandbox no disponible.'
-            : 'Falló la validación en Sandbox.';
-        this.logger.warn(
-          `La repetición ${context.repetition} (${context.strategy}) no pudo validarse.`,
+  /** TypeScript: ruta co-ubicada o la del primer test existente, con fusión. PHP: archivo nuevo, sin leer ni fusionar. */
+  private async resolveAttemptTarget(
+    context: AttemptContext,
+    workspaceDir: string,
+    placement: PhpTestLocation | null,
+  ): Promise<AttemptTarget> {
+    const relativePath = placement
+      ? placement.relativePath
+      : context.target.hasTest && context.target.testFilePaths.length > 0
+        ? context.target.testFilePaths[0]
+        : coLocatedSpecPath(context.target.filePath);
+    const existingContent = placement
+      ? null
+      : await readFile(join(workspaceDir, relativePath), 'utf8').catch(
+          () => null,
         );
-        repetitionOutcome = {
+    return { relativePath, existingContent };
+  }
+
+  /** Cierre sin Sandbox (sin framework o PHP no válido): una única escritura terminal, sin reintento. */
+  private async finalizeWithoutSandbox(
+    begun: BegunContextTraceAttempt,
+    context: AttemptContext,
+    state: AttemptState,
+    startedAt: Date,
+    outcome: RepetitionOutcome,
+  ): Promise<boolean> {
+    await this.recordRepetition(
+      begun,
+      context,
+      state.generation,
+      state.generationDurationMs,
+      null,
+      outcome,
+      false,
+      false,
+      null,
+      { sandbox: null, artifactHash: null, artifact: null, startedAt },
+    );
+    state.finalized = true;
+    return false;
+  }
+
+  /** Contenido final a enviar: PHP sin fusión (null si la respuesta no es PHP); TypeScript con creación o fusión. */
+  private mergeAttemptContent(
+    generatedContent: string,
+    existingContent: string | null,
+    placement: PhpTestLocation | null,
+  ): string | null {
+    if (placement) {
+      const phpContent = sanitizeGeneratedPhp(generatedContent);
+      return phpContent === null ? null : `${phpContent}\n`;
+    }
+    return existingContent === null
+      ? this.testFileMergeService.applyCreate(generatedContent)
+      : this.testFileMergeService.applyMerge(existingContent, generatedContent);
+  }
+
+  /**
+   * Envía el contenido al Sandbox. Cualquier excepción del cliente es fallo de infraestructura
+   * (fallo externo con un único reintento); la evidencia y el artefacto se guardan en `state`.
+   */
+  private async executeInSandbox(
+    context: AttemptContext,
+    runner: NonNullable<AttemptContext['framework']>,
+    state: AttemptState,
+    target: AttemptTarget,
+    mergedContent: string,
+  ): Promise<SandboxStepResult> {
+    const executionStart = Date.now();
+    try {
+      // WI-CORE-027: mismo contenido que se envía al Sandbox; sin contenido generado no hay artefacto.
+      state.artifactHash =
+        state.generation.content.trim().length > 0
+          ? createHash('sha256').update(mergedContent, 'utf8').digest('hex')
+          : null;
+      const sandboxResult = await this.sandboxExecutionService.execute(
+        this.buildSandboxRequest(context, runner, target, mergedContent),
+      );
+      return this.acceptSandboxResult(
+        context,
+        state,
+        sandboxResult,
+        mergedContent,
+        Date.now() - executionStart,
+      );
+    } catch (error) {
+      return this.recordSandboxFailure(
+        context,
+        state,
+        error,
+        mergedContent,
+        Date.now() - executionStart,
+      );
+    }
+  }
+
+  private buildSandboxRequest(
+    context: AttemptContext,
+    runner: NonNullable<AttemptContext['framework']>,
+    target: AttemptTarget,
+    mergedContent: string,
+  ): SandboxExecutionRequest {
+    return {
+      requestId: sandboxExperimentRequestId(
+        context.jobId,
+        context.strategy,
+        context.repetition,
+        context.attempt,
+      ),
+      testRunId: context.experimentId,
+      projectVersionId: context.projectVersionId,
+      snapshotKey: context.snapshotKey,
+      snapshotBuffer: context.snapshotBuffer,
+      artifacts: [
+        {
+          artifactId: randomUUID(),
+          relativePath: target.relativePath,
+          artifactType: target.existingContent === null ? 'CREATED' : 'MODIFIED',
+          content: Buffer.from(mergedContent, 'utf8'),
+        },
+      ],
+      scope: 'TARGET',
+      targetIds: [context.target.id],
+      runnerHint: runner,
+      executionProfile: context.executionProfile,
+      ...(context.language === 'php'
+        ? { projectRoot: context.projectRoot }
+        : {}),
+    };
+  }
+
+  /** Resultado devuelto por el Sandbox: evidencia, artefacto y clasificación del intento. */
+  private acceptSandboxResult(
+    context: AttemptContext,
+    state: AttemptState,
+    sandboxResult: SandboxExecutionResult,
+    mergedContent: string,
+    executionDurationMs: number,
+  ): SandboxStepResult {
+    const outcome = mapSandboxResult(sandboxResult);
+    state.artifact =
+      state.generation.content.trim().length > 0
+        ? this.safeBuildArtifact(mergedContent, sandboxResult, context)
+        : null;
+    state.sandboxEvidence = toSandboxExecutionEvidence(
+      sandboxResult,
+      outcome.failureType,
+    );
+    // TIMED_OUT es fallo de la prueba generada, no externo: se persiste con la columna interna.
+    const sandboxTimedOut = sandboxResult.status === 'TIMED_OUT';
+    const sandboxFailure =
+      sandboxResult.status === 'COMPLETED'
+        ? null
+        : toExperimentRepetitionFailure(sandboxResult.failure);
+    // Fallo externo del Sandbox: INFRASTRUCTURE salvo timeout (no es externo, WI-CORE-025).
+    state.externalFailure =
+      outcome.status === 'FAILED' &&
+      outcome.failureType === 'INFRASTRUCTURE' &&
+      !sandboxTimedOut;
+
+    if (outcome.compiled === false) {
+      this.logger.debug(
+        `La repetición ${context.repetition} (${context.strategy}) no compiló.`,
+      );
+    }
+
+    return {
+      executionDurationMs,
+      sandboxTimedOut,
+      sandboxFailure,
+      repetitionOutcome: {
+        status: outcome.status,
+        compiled: outcome.compiled,
+        executed: outcome.executed,
+        passed: outcome.passed,
+        valid: outcome.valid,
+        failureType: outcome.failureType,
+        errorSummary: outcome.errorSummary,
+      },
+    };
+  }
+
+  /** Excepción del cliente de Sandbox: infraestructura y fallo externo (WI-CORE-025 (2)). */
+  private recordSandboxFailure(
+    context: AttemptContext,
+    state: AttemptState,
+    error: unknown,
+    mergedContent: string,
+    executionDurationMs: number,
+  ): SandboxStepResult {
+    // Cualquier excepción del cliente de Sandbox se trata como infraestructura (fallo externo con
+    // un único reintento), sea SandboxUnavailableError u otro error (red, respuesta inesperada).
+    // Decisión del usuario, WI-CORE-025 (2).
+    // WI-CORE-027: una ejecución aceptada que no llegó a resultado conserva su executionId y sus ids.
+    if (error instanceof SandboxAcceptedExecutionError) {
+      state.sandboxEvidence = toAcceptedSandboxEvidence(error);
+    }
+    // WI-CORE-053: el contenido ya se envió (artifactHash calculado): se persiste sin informe del Sandbox.
+    if (state.artifactHash !== null) {
+      state.artifact = this.safeBuildArtifact(mergedContent, null, context);
+    }
+    const sandboxErrorSummary =
+      error instanceof SandboxUnavailableError
+        ? 'Sandbox no disponible.'
+        : 'Falló la validación en Sandbox.';
+    this.logger.warn(
+      `La repetición ${context.repetition} (${context.strategy}) no pudo validarse.`,
+    );
+    state.externalFailure = true;
+
+    return {
+      executionDurationMs,
+      sandboxTimedOut: false,
+      sandboxFailure: null,
+      repetitionOutcome: {
+        status: 'FAILED',
+        compiled: null,
+        executed: null,
+        passed: null,
+        valid: false,
+        failureType: 'INFRASTRUCTURE',
+        errorSummary: sandboxErrorSummary,
+      },
+    };
+  }
+
+  /** Catch externo: fallos de generación, extracción o escritura antes del cierre normal. */
+  private async recordAttemptFailure(
+    begun: BegunContextTraceAttempt,
+    context: AttemptContext,
+    state: AttemptState,
+    startedAt: Date,
+    error: unknown,
+  ): Promise<boolean> {
+    state.generationDurationMs = Date.now() - state.generationStart;
+    const llmExternalFailure =
+      error instanceof LLMProviderUnavailableError && error.externalFailure;
+    state.externalFailure = state.externalFailure || llmExternalFailure;
+    const unknownErrorSummary = llmExternalFailure
+      ? LLM_EXTERNAL_FAILURE_SUMMARY
+      : 'Falló la generación o validación de esta repetición.';
+    this.logger.warn(
+      `La repetición ${context.repetition} (${context.strategy}) falló.`,
+    );
+    if (!state.finalized) {
+      await this.recordRepetition(
+        begun,
+        context,
+        state.generation,
+        state.generationDurationMs,
+        null,
+        {
           status: 'FAILED',
           compiled: null,
           executed: null,
           passed: null,
           valid: false,
-          failureType: 'INFRASTRUCTURE',
-          errorSummary: sandboxErrorSummary,
-        };
-        externalFailure = true;
-      }
+          failureType: state.externalFailure ? 'INFRASTRUCTURE' : 'UNKNOWN',
+          errorSummary: unknownErrorSummary,
+        },
+        state.externalFailure,
+        false,
+        null,
+        this.evidenceOf(state, startedAt),
+      );
+      state.finalized = true;
+    }
+    return state.externalFailure;
+  }
 
-      await this.recordRepetition(
-        begun,
-        context,
-        generation,
-        generationDurationMs,
-        executionDurationMs,
-        repetitionOutcome,
-        externalFailure,
-        sandboxTimedOut,
-        sandboxFailure,
-        { sandbox: sandboxEvidence, artifactHash, artifact, startedAt: attemptStartedAt },
-      );
-      finalized = true;
-      return externalFailure;
-    } catch (error) {
-      generationDurationMs = Date.now() - generationStart;
-      const llmExternalFailure =
-        error instanceof LLMProviderUnavailableError && error.externalFailure;
-      externalFailure = externalFailure || llmExternalFailure;
-      const unknownErrorSummary = llmExternalFailure
-        ? LLM_EXTERNAL_FAILURE_SUMMARY
-        : 'Falló la generación o validación de esta repetición.';
+  private evidenceOf(state: AttemptState, startedAt: Date): RepetitionEvidence {
+    return {
+      sandbox: state.sandboxEvidence,
+      artifactHash: state.artifactHash,
+      artifact: state.artifact,
+      startedAt,
+    };
+  }
+
+  private async cleanupWorkspace(
+    workspace: ExtractedWorkspace | undefined,
+  ): Promise<void> {
+    if (!workspace) return;
+    try {
+      await workspace.cleanup();
+    } catch {
       this.logger.warn(
-        `La repetición ${context.repetition} (${context.strategy}) falló.`,
+        'No se pudo limpiar el workspace temporal de una repetición.',
       );
-      if (!finalized) {
-        await this.recordRepetition(
-          begun,
-          context,
-          generation,
-          generationDurationMs,
-          null,
-          {
-            status: 'FAILED',
-            compiled: null,
-            executed: null,
-            passed: null,
-            valid: false,
-            failureType: externalFailure ? 'INFRASTRUCTURE' : 'UNKNOWN',
-            errorSummary: unknownErrorSummary,
-          },
-          externalFailure,
-          false,
-          null,
-          { sandbox: sandboxEvidence, artifactHash, artifact, startedAt: attemptStartedAt },
-        );
-        finalized = true;
-      }
-      return externalFailure;
-    } finally {
-      stopHeartbeat();
-      if (workspace) {
-        try {
-          await workspace.cleanup();
-        } catch {
-          this.logger.warn(
-            'No se pudo limpiar el workspace temporal de una repetición.',
-          );
-        }
-      }
     }
   }
 

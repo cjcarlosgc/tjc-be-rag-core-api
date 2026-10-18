@@ -20,6 +20,6 @@ Origen: pedido de la sesión cross como «WI-B» (informe `cross-fase3-estabilid
 
 ## Criterios de aceptación
 
-- Existe un pipeline compartido usado por ambos handlers y `runAttempt` queda descompuesto; ningún método del handler de experimentos supera ~120 líneas salvo justificación.
+- Existe un pipeline compartido usado por ambos handlers y `runAttempt` queda descompuesto; ningún método de `runAttempt` ni de los extraídos supera ~120 líneas (`handle`, ~171 líneas y preexistente, queda fuera: no forma parte de `runAttempt`).
 - `pnpm lint`, `pnpm build`, `pnpm contracts:check`, `pnpm test` en verde con el mismo conteo de tests o superior; se añaden pruebas de caracterización donde la red de seguridad sea débil.
 - El reviewer compara los hunks movidos y confirma que no cambia la lógica ni el orden de efectos; los 4 validadores en verde.

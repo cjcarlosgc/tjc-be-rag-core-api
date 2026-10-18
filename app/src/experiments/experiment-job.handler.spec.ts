@@ -4379,3 +4379,416 @@ describe('ExperimentJobHandler RAG detail constructor signature (WI-CORE-065)', 
     });
   });
 });
+
+/**
+ * WI-CORE-070, corte A: caracterización de `runAttempt` previa a la descomposición.
+ * Fijan el comportamiento actual (orden de efectos, request al Sandbox, valores de retorno y
+ * escrituras) sin depender de la estructura interna del método.
+ */
+describe('ExperimentJobHandler caracterización de runAttempt (WI-CORE-070, corte A)', () => {
+  const PHP_CHARACTERIZATION_TARGET = makeTarget({
+    filePath: 'app/Services/Calculator.php',
+    symbolName: 'App\\Services\\Calculator',
+    methodName: 'add',
+    targetType: 'METHOD',
+  });
+  const GENERIC_ATTEMPT_SUMMARY =
+    'Falló la generación o validación de esta repetición.';
+  const LLM_EXTERNAL_SUMMARY =
+    'El proveedor de LLM no respondió correctamente durante la generación.';
+
+  type DirectAttemptCaller = {
+    runAttempt(context: Record<string, unknown>): Promise<boolean>;
+  };
+
+  /** Llama a `runAttempt` directamente para observar su valor de retorno (externalFailure). */
+  function directAttempt(
+    handler: ExperimentJobHandler,
+    context: Record<string, unknown>,
+  ): Promise<boolean> {
+    return (handler as unknown as DirectAttemptCaller).runAttempt(context);
+  }
+
+  function attemptFor(overrides: Record<string, unknown> = {}) {
+    return {
+      jobId: 'job-char',
+      experimentId: 'exp-1',
+      projectId: 'project-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip'),
+      framework: 'VITEST',
+      language: 'typescript',
+      projectRoot: '.',
+      target: makeTarget(),
+      config: effectiveConfig,
+      budget: { toolCallCap: 5, contextTokenBudget: 1234, maxDurationMs: 60_000 },
+      executionProfile: 'NODE_TYPESCRIPT',
+      strategy: 'RAG',
+      repetition: 1,
+      pairId: null,
+      pairPosition: null,
+      attempt: 1,
+      ...overrides,
+    };
+  }
+
+  /** Estados (cuarto argumento de updateRepetitionById) en orden de escritura. */
+  function writeStates(deps: ReturnType<typeof makeDeps>['deps']): unknown[] {
+    return repoOf(deps).updateRepetitionById.mock.calls.map((call) => call[2]);
+  }
+
+  function expectCallOrder(steps: Array<[string, number | undefined]>): void {
+    for (const [label, order] of steps) {
+      expect(order, `${label} no fue llamado`).toBeDefined();
+    }
+    for (let index = 1; index < steps.length; index += 1) {
+      const [previous, previousOrder] = steps[index - 1];
+      const [current, currentOrder] = steps[index];
+      expect(
+        currentOrder as number,
+        `${previous} debe ocurrir antes que ${current}`,
+      ).toBeGreaterThan(previousOrder as number);
+    }
+  }
+
+  it('RAG: el orden de efectos es traza inicial, extracción, recuperación, reglas, dependencias, contexto, detalle, prompt, LLM, Sandbox y escritura', async () => {
+    const { deps } = makeDeps();
+
+    await directAttempt(makeHandler(deps), attemptFor());
+
+    const trace = deps.contextTracesRepository;
+    expectCallOrder([
+      ['beginAttempt', trace.beginAttempt.mock.invocationCallOrder[0]],
+      ['contexto vacío (esqueleto)', deps.contextBuilder.build.mock.invocationCallOrder[0]],
+      ['detalle inicial', trace.updateDetail.mock.invocationCallOrder[0]],
+      ['extract', deps.zipExtractionService.extract.mock.invocationCallOrder[0]],
+      ['retrieve', deps.retrievalService.retrieve.mock.invocationCallOrder[0]],
+      ['reglas funcionales', deps.functionalRulesRetriever.retrieve.mock.invocationCallOrder[0]],
+      ['dependencias PHP', deps.phpDependencyContextService.resolve.mock.invocationCallOrder[0]],
+      ['contexto real', deps.contextBuilder.build.mock.invocationCallOrder[1]],
+      ['detalle de contexto', trace.updateDetail.mock.invocationCallOrder[1]],
+      ['prompt', deps.promptBuilder.build.mock.invocationCallOrder[0]],
+      ['generate', deps.llmProvider.generate.mock.invocationCallOrder[0]],
+      ['execute', deps.sandboxExecutionService.execute.mock.invocationCallOrder[0]],
+      ['escritura terminal', repoOf(deps).updateRepetitionById.mock.invocationCallOrder[0]],
+    ]);
+    expect(trace.updateAgentCounters).not.toHaveBeenCalled();
+  });
+
+  it('AGENT: el orden de efectos es traza y contadores iniciales, extracción, descubrimiento, agente, detalle final, Sandbox y escritura, sin contexto RAG', async () => {
+    const { deps } = makeDeps();
+
+    await directAttempt(
+      makeHandler(deps),
+      attemptFor({ strategy: 'GENERALIST_AGENT' }),
+    );
+
+    const trace = deps.contextTracesRepository;
+    const detailCalls = trace.updateDetail.mock.invocationCallOrder;
+    expectCallOrder([
+      ['beginAttempt', trace.beginAttempt.mock.invocationCallOrder[0]],
+      ['detalle inicial', detailCalls[0]],
+      ['contadores iniciales', trace.updateAgentCounters.mock.invocationCallOrder[0]],
+      ['extract', deps.zipExtractionService.extract.mock.invocationCallOrder[0]],
+      ['discover', deps.fileDiscoveryService.discover.mock.invocationCallOrder[0]],
+      ['agente', deps.generalistAgentService.generate.mock.invocationCallOrder[0]],
+      ['detalle final', detailCalls[detailCalls.length - 1]],
+      ['execute', deps.sandboxExecutionService.execute.mock.invocationCallOrder[0]],
+      ['escritura terminal', repoOf(deps).updateRepetitionById.mock.invocationCallOrder[0]],
+    ]);
+    expect(deps.contextBuilder.build).not.toHaveBeenCalled();
+    expect(deps.promptBuilder.build).not.toHaveBeenCalled();
+    expect(deps.llmProvider.generate).not.toHaveBeenCalled();
+  });
+
+  it('envía al Sandbox exactamente la solicitud TypeScript: requestId derivado, un artefacto CREATED, runnerHint y perfil del run, sin projectRoot', async () => {
+    const { deps } = makeDeps();
+
+    await directAttempt(makeHandler(deps), attemptFor());
+
+    expect(executionsOf(deps)).toHaveLength(1);
+    const [request] = executionsOf(deps);
+    expect(request).toEqual({
+      requestId: sandboxExperimentRequestId('job-char', 'RAG', 1, 1),
+      testRunId: 'exp-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip'),
+      artifacts: [
+        {
+          artifactId: expect.any(String),
+          relativePath: 'src/foo.spec.ts',
+          artifactType: 'CREATED',
+          content: Buffer.from('export function test() {}', 'utf8'),
+        },
+      ],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'VITEST',
+      executionProfile: 'NODE_TYPESCRIPT',
+    });
+    expect(Object.keys(request)).not.toContain('projectRoot');
+  });
+
+  it('sin framework: genera primero, registra CONFIGURATION sin Sandbox ni artefacto, cierra la traza como fallida, limpia el workspace y devuelve false', async () => {
+    const { deps, cleanup } = makeDeps();
+
+    const result = await directAttempt(
+      makeHandler(deps),
+      attemptFor({ framework: null }),
+    );
+
+    expect(result).toBe(false);
+    expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.updateRepetitionById).toHaveBeenCalledTimes(1);
+    expect(writeStates(deps)).toEqual(['FAILED']);
+    expect(repoOf(deps).updateRepetitionById.mock.calls[0][1]).toMatchObject({
+      failureType: 'CONFIGURATION',
+      compiled: null,
+      executed: null,
+      valid: null,
+      errorSummary:
+        'No se pudo determinar el framework de test (Jest/Vitest) durante la indexación.',
+    });
+    expectCallOrder([
+      ['generate', deps.llmProvider.generate.mock.invocationCallOrder[0]],
+      ['escritura CONFIGURATION', repoOf(deps).updateRepetitionById.mock.invocationCallOrder[0]],
+    ]);
+    expect(deps.contextTracesRepository.failTrace).toHaveBeenCalledWith('trace-1');
+    expect(deps.contextTracesRepository.finishTrace).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.upsertRepetitionArtifact).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('PHP sin <?php: devuelve false, registra INVALID/COMPILATION completado sin Sandbox y limpia el workspace', async () => {
+    const { deps, cleanup } = makeDeps();
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: 'class X {}',
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+
+    const result = await directAttempt(
+      makeHandler(deps),
+      attemptFor({
+        language: 'php',
+        framework: 'PHPUNIT',
+        target: PHP_CHARACTERIZATION_TARGET,
+        executionProfile: 'PHP_LARAVEL_PHPUNIT',
+      }),
+    );
+
+    expect(result).toBe(false);
+    expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+    expect(writeStates(deps)).toEqual(['COMPLETED']);
+    expect(repoOf(deps).updateRepetitionById.mock.calls[0][1]).toMatchObject({
+      compiled: false,
+      executed: false,
+      passed: false,
+      valid: false,
+      failureType: 'COMPILATION',
+      errorSummary: 'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+    });
+    expect(deps.contextTracesRepository.finishTrace).toHaveBeenCalledWith('trace-1');
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('fallo de la escritura terminal en el camino feliz: reintenta sin evidencia, el catch externo cierra como FAILED/UNKNOWN y el artefacto se guarda una vez', async () => {
+    const { deps } = makeDeps();
+    const repo = repoOf(deps);
+    repo.updateRepetitionById
+      .mockRejectedValueOnce(new Error('db write failed'))
+      .mockRejectedValueOnce(new Error('db write failed'));
+
+    const result = await directAttempt(makeHandler(deps), attemptFor());
+
+    expect(result).toBe(false);
+    expect(deps.sandboxExecutionService.execute).toHaveBeenCalledTimes(1);
+    const writes = repo.updateRepetitionById.mock.calls;
+    expect(writes.map((call) => call[2])).toEqual(['COMPLETED', 'COMPLETED', 'FAILED']);
+    expect(writes[0][1]).toHaveProperty('artifactHash');
+    expect(writes[1][1]).not.toHaveProperty('artifactHash');
+    expect(writes[2][1]).toMatchObject({
+      valid: false,
+      failureType: 'UNKNOWN',
+      errorSummary: GENERIC_ATTEMPT_SUMMARY,
+    });
+    expect(deps.experimentRunsRepository.upsertRepetitionArtifact).toHaveBeenCalledTimes(1);
+    expect(deps.contextTracesRepository.failTrace).toHaveBeenCalledWith('trace-1');
+    expect(deps.contextTracesRepository.finishTrace).not.toHaveBeenCalled();
+    expect(deps.contextTracesRepository.finishRepetition).toHaveBeenCalledWith(
+      'repetition-1',
+      'FAILED',
+    );
+    expect(repo.refreshCompletedRepetitions).toHaveBeenCalledTimes(1);
+  });
+
+  it('SandboxAcceptedExecutionError: devuelve true (fallo externo), conserva executionId y hash, guarda el artefacto y cierra como FAILED/INFRASTRUCTURE', async () => {
+    const accepted = new SandboxAcceptedExecutionError(
+      'La ejecución exec-9 no terminó.',
+      'exec-9',
+      'NODE_TYPESCRIPT',
+    );
+    const { deps } = makeDeps({
+      sandboxExecutionService: { execute: vi.fn().mockRejectedValue(accepted) },
+    });
+
+    const result = await directAttempt(makeHandler(deps), attemptFor());
+
+    expect(result).toBe(true);
+    const expectedHash = createHash('sha256')
+      .update('export function test() {}', 'utf8')
+      .digest('hex');
+    const writes = writesOf(deps);
+    expect(writeStates(deps)).toEqual(['FAILED']);
+    expect(writes[0]).toMatchObject({
+      sandboxExecutionId: 'exec-9',
+      artifactHash: expectedHash,
+      valid: false,
+      failureType: 'INFRASTRUCTURE',
+      // Hereda de SandboxUnavailableError: el resumen es el de no disponible (observado, no cambiar).
+      errorSummary: 'Sandbox no disponible.',
+    });
+    expect(deps.experimentRunsRepository.upsertRepetitionArtifact).toHaveBeenCalledTimes(1);
+    expect(deps.experimentRunsRepository.upsertRepetitionArtifact.mock.calls[0][0]).toBe(
+      'repetition-1',
+    );
+  });
+
+  it('contenido generado vacío con éxito del Sandbox: el Sandbox recibe el contenido fusionado, pero no hay hash ni artefacto; devuelve false', async () => {
+    const { deps } = makeDeps();
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: '   ',
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+
+    const result = await directAttempt(makeHandler(deps), attemptFor());
+
+    expect(result).toBe(false);
+    expect(deps.sandboxExecutionService.execute).toHaveBeenCalledTimes(1);
+    expect((executionsOf(deps)[0].artifacts as Array<{ content: Buffer }>)[0].content).toEqual(
+      Buffer.from('export function test() {}', 'utf8'),
+    );
+    expect(writesOf(deps)[0]).toMatchObject({ artifactHash: null, valid: true });
+    expect(deps.experimentRunsRepository.upsertRepetitionArtifact).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'externo (HTTP 503)',
+      new LLMProviderUnavailableError('HTTP 503', true),
+      true,
+      'INFRASTRUCTURE',
+      LLM_EXTERNAL_SUMMARY,
+    ],
+    [
+      'no externo (HTTP 400)',
+      new LLMProviderUnavailableError('HTTP 400', false),
+      false,
+      'UNKNOWN',
+      GENERIC_ATTEMPT_SUMMARY,
+    ],
+    [
+      'error genérico',
+      new Error('fallo inesperado'),
+      false,
+      'UNKNOWN',
+      GENERIC_ATTEMPT_SUMMARY,
+    ],
+  ])(
+    'fallo del LLM %s: devuelve %s y registra FAILED/%s sin Sandbox',
+    async (_label, error, expectedReturn, failureType, summary) => {
+      const { deps } = makeDeps();
+      (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockRejectedValue(error);
+
+      const result = await directAttempt(makeHandler(deps), attemptFor());
+
+      expect(result).toBe(expectedReturn);
+      expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(writeStates(deps)).toEqual(['FAILED']);
+      expect(writesOf(deps)[0]).toMatchObject({
+        valid: false,
+        failureType,
+        errorSummary: summary,
+      });
+    },
+  );
+
+  it.each(['RAG', 'GENERALIST_AGENT'])(
+    'la generación %s que agota maxDurationMs no es fallo externo: devuelve false, FAILED/UNKNOWN, sin Sandbox y sin el texto del timeout',
+    async (strategy) => {
+      const { deps } = makeDeps();
+      const neverSettles = () => new Promise<never>(() => {});
+      if (strategy === 'RAG') {
+        (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockImplementation(neverSettles);
+      } else {
+        (deps.generalistAgentService.generate as ReturnType<typeof vi.fn>).mockImplementation(
+          neverSettles,
+        );
+      }
+
+      const result = await directAttempt(
+        makeHandler(deps),
+        attemptFor({
+          strategy,
+          budget: { toolCallCap: 5, contextTokenBudget: 1234, maxDurationMs: 10 },
+        }),
+      );
+
+      expect(result).toBe(false);
+      expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(writeStates(deps)).toEqual(['FAILED']);
+      const [write] = writesOf(deps);
+      expect(write).toMatchObject({
+        failureType: 'UNKNOWN',
+        valid: false,
+        errorSummary: GENERIC_ATTEMPT_SUMMARY,
+      });
+      expect(JSON.stringify(write)).not.toContain('agotó el tiempo');
+    },
+  );
+
+  it('un fallo al limpiar el workspace se registra solo como aviso, no cambia el resultado y no se propaga', async () => {
+    const { deps, cleanup } = makeDeps();
+    cleanup.mockRejectedValueOnce(new Error('EACCES: /private/workspace'));
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    try {
+      const result = await directAttempt(makeHandler(deps), attemptFor());
+
+      expect(result).toBe(false);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        'No se pudo limpiar el workspace temporal de una repetición.',
+      );
+      expect(writeStates(deps)).toEqual(['COMPLETED']);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('el latido se detiene también cuando la generación falla: durante la generación hay un temporizador y al terminar no queda ninguno', async () => {
+    vi.useFakeTimers();
+    try {
+      let timersDuringGeneration = -1;
+      const { deps } = makeDeps({
+        llmProvider: {
+          generate: vi.fn().mockImplementation(async () => {
+            timersDuringGeneration = vi.getTimerCount();
+            throw new Error('fallo inesperado');
+          }),
+          resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
+        },
+      });
+
+      const result = await directAttempt(makeHandler(deps), attemptFor());
+
+      expect(result).toBe(false);
+      expect(timersDuringGeneration).toBeGreaterThan(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
