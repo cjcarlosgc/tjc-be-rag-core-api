@@ -4065,6 +4065,37 @@
         "app/src/validation/analysis-run-validation-job.handler.ts",
         "harness/reports/wi-core-070-sdd-verification.md"
       ]
+    },
+    {
+      "id": "WI-CORE-071",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-078"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-070"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Cambio de comportamiento observable (tiempos de heartbeatStaleMs y relanzamiento de intentos vencidos): no se ejecuta sin decisión del usuario sobre el nuevo valor y la política.",
+        "Conserva la tesis 3.3.8: único reintento de trial por fallo externo demostrable; los reintentos de transporte (GET) no repiten ni cuentan como reintento del trial.",
+        "Se actualiza attempt-recovery.spec.ts con el nuevo límite y se conservan lint, build y test en verde; revisión independiente."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-071-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
     }
   ]
 }
