@@ -84,7 +84,20 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     const intervalMs = this.configService.get<number>('JOBS_POLL_INTERVAL_MS', 1000);
-    this.timer = setInterval(() => void this.runOnce(), intervalMs);
+    this.timer = setInterval(() => void this.tick(), intervalMs);
+  }
+
+  /**
+   * Un ciclo del poller que nunca rechaza: un fallo de infraestructura (p. ej. un corte de Postgres en `claimNext`,
+   * `complete` o `fail`) se registra y el siguiente tick reintenta. Sin esto, la promesa rechazada del temporizador
+   * llegaba a `unhandledRejection` y tumbaba el proceso entero.
+   */
+  async tick(): Promise<void> {
+    try {
+      await this.runOnce();
+    } catch (error) {
+      this.logger.error(`El poller de jobs falló y reintentará en el siguiente ciclo: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   onModuleDestroy(): void {

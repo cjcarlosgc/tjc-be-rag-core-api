@@ -95,7 +95,34 @@ interface EphemeralDownloadRef {
   sizeBytes: number;
 }
 
-export class SandboxUnavailableError extends Error {}
+export class SandboxUnavailableError extends Error {
+  /**
+   * `transient` = el fallo es de red/tiempo de espera o una respuesta 408/425/429/5xx del Sandbox: repetir una
+   * consulta idempotente (GET) puede tener éxito. Un 4xx de contrato no es transitorio.
+   */
+  constructor(
+    message: string,
+    readonly transient: boolean = false,
+  ) {
+    super(message);
+  }
+}
+
+export const DEFAULT_POLL_RETRIES = 3;
+export const DEFAULT_POLL_RETRY_DELAY_MS = 500;
+/** Tope de la espera entre consultas: `pollAfterMs` viene del Sandbox y no es de fiar para un `setTimeout`. */
+export const MAX_POLL_AFTER_MS = 30_000;
+const FALLBACK_POLL_AFTER_MS = 1_000;
+
+/** Acota el `pollAfterMs` que informa el Sandbox: un valor ausente, no numérico o negativo usa el de respaldo. */
+export function clampPollAfterMs(value: unknown, fallback = FALLBACK_POLL_AFTER_MS): number {
+  const candidate = typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+  return Math.min(candidate, MAX_POLL_AFTER_MS);
+}
+
+function isTransientStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
 
 /**
  * Fallo posterior a la aceptación del Sandbox (`POST /executions` ya respondió): conserva el
@@ -300,26 +327,46 @@ export class SandboxExecutionService {
       'SANDBOX_MAX_POLL_ATTEMPTS',
       DEFAULT_MAX_POLL_ATTEMPTS,
     );
-    let pollAfterMs = firstPollAfterMs;
+    let pollAfterMs = clampPollAfterMs(firstPollAfterMs);
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, pollAfterMs));
 
-      const status = await this.getJson<{
-        status: string;
-        pollAfterMs?: number;
-      }>(`${baseUrl}/executions/${executionId}`, correlationId, serviceToken);
+      const status = await this.withTransientRetries(() =>
+        this.getJson<{
+          status: string;
+          pollAfterMs?: number;
+        }>(`${baseUrl}/executions/${executionId}`, correlationId, serviceToken),
+      );
 
       if (['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(status.status)) {
         return;
       }
 
-      pollAfterMs = status.pollAfterMs ?? firstPollAfterMs;
+      pollAfterMs = clampPollAfterMs(status.pollAfterMs, clampPollAfterMs(firstPollAfterMs));
     }
 
     throw new SandboxUnavailableError(
       `La ejecución ${executionId} no terminó tras ${maxAttempts} consultas de estado.`,
     );
+  }
+
+  /**
+   * Repite una consulta idempotente ante fallos transitorios del Sandbox (red, tiempo de espera, 408/425/429/5xx) con
+   * espera creciente. Un fallo no transitorio, o agotar los reintentos, relanza el último error.
+   */
+  private async withTransientRetries<T>(operation: () => Promise<T>): Promise<T> {
+    const retries = this.configService.get<number>('SANDBOX_POLL_RETRIES', DEFAULT_POLL_RETRIES);
+    const baseDelayMs = this.configService.get<number>('SANDBOX_POLL_RETRY_DELAY_MS', DEFAULT_POLL_RETRY_DELAY_MS);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        const retryable = error instanceof SandboxUnavailableError && error.transient;
+        if (!retryable || attempt >= retries) throw error;
+        await new Promise((resolve) => setTimeout(resolve, Math.min(baseDelayMs * 2 ** attempt, MAX_POLL_AFTER_MS)));
+      }
+    }
   }
 
   private async fetchResult(
@@ -328,18 +375,16 @@ export class SandboxExecutionService {
     correlationId: string,
     serviceToken: string,
   ): Promise<SandboxExecutionOutcome> {
-    const result = await this.getJson<{
-      status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
-      facts: SandboxExecutionResult['facts'];
-      failure: SandboxFailureFact | null;
-      stageDurations?: unknown;
-      evidence?: unknown;
-      startedAt?: unknown;
-      completedAt?: unknown;
-    }>(
-      `${baseUrl}/executions/${executionId}/result`,
-      correlationId,
-      serviceToken,
+    const result = await this.withTransientRetries(() =>
+      this.getJson<{
+        status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
+        facts: SandboxExecutionResult['facts'];
+        failure: SandboxFailureFact | null;
+        stageDurations?: unknown;
+        evidence?: unknown;
+        startedAt?: unknown;
+        completedAt?: unknown;
+      }>(`${baseUrl}/executions/${executionId}/result`, correlationId, serviceToken),
     );
 
     this.warnOnContractDrift('SandboxExecutionResultResponse', executionId, result);
@@ -439,6 +484,7 @@ export class SandboxExecutionService {
       if (!response.ok) {
         throw new SandboxUnavailableError(
           `Sandbox respondió ${response.status} para ${url}.`,
+          isTransientStatus(response.status),
         );
       }
 
@@ -451,7 +497,7 @@ export class SandboxExecutionService {
       this.logger.warn(
         `Fallo al comunicarse con el Sandbox (${url}): ${(error as Error).message}`,
       );
-      throw new SandboxUnavailableError((error as Error).message);
+      throw new SandboxUnavailableError((error as Error).message, true);
     } finally {
       clearTimeout(timeout);
     }

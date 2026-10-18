@@ -18,6 +18,7 @@ import { ProjectTargets, RequireProjectRole, NoProjectRole, WsHandshakeAccess } 
 import { ProjectAccessService } from '../project-access/project-access.service.js';
 import type { ProjectVersionResponse } from '../project-versions/dto/project-version.response.js';
 import { ProjectSubscriptionsService, projectVersionRoom } from './project-subscriptions.service.js';
+import { createConsoleCorsOrigin } from '../common/cors.js';
 
 /**
  * Acknowledgment de `subscribe:project-version` (`INTEROP-2.4` §6.6) con exactamente tres
@@ -44,7 +45,7 @@ const NOT_VISIBLE: SubscribeAck = { subscribed: false, code: null, retryable: fa
  * manual (ver CHANGELOG.md); vuelven, rediseñados sobre `AnalysisRun`, cuando
  * exista un equivalente PR-driven.
  */
-@WebSocketGateway({ cors: true })
+@WebSocketGateway({ cors: { origin: createConsoleCorsOrigin() } })
 export class RealtimeGateway implements OnGatewayInit, OnGatewayDisconnect {
   @WebSocketServer()
   private server?: Server;
