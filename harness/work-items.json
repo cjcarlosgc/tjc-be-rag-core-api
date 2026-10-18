@@ -4055,7 +4055,8 @@
         "Existe un pipeline compartido (retrieval → contexto → prompt → merge → sandbox) usado por experiment-job.handler.ts y analysis-run-validation-job.handler.ts, y runAttempt queda descompuesto en pasos de responsabilidad única sin cambiar el orden de efectos, errores ni escrituras.",
         "Sin cambio de comportamiento: sin cambios en DTO, contratos, migraciones, prompts, versiones de prompt, ranking, pesos ni R-PHP; contractImpact=false.",
         "pnpm lint, build, contracts:check y test en verde con el mismo conteo de tests o superior; pruebas de caracterización donde la red sea débil; los 4 validadores en verde.",
-        "Revisión independiente por reviewer comparando los hunks movidos entre cortes; F3 (sandboxHttpBoundMs) queda fuera de alcance."
+        "Revisión independiente por reviewer comparando los hunks movidos entre cortes; F3 (sandboxHttpBoundMs) queda fuera de alcance.",
+        "Corte C: los reintentos de GET por transporte al Sandbox se registran en log y se cuentan con un contador (único cambio observable, sin payload ni secretos); sin cambio en reintentos, tiempos, DTO ni contratos."
       ],
       "specPaths": [
         "harness/reports/wi-core-070-scope.md",
