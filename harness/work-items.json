@@ -3957,6 +3957,73 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-068-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-069",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Regularizar el corte «desde cross»: esquemas JSON canónicos (SYSTEM-2.13, INTEROP-2.17, GH-INTEROP-1.8) y estabilización de Core",
+      "storyIds": [
+        "HU11",
+        "HU14",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-076"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-068"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "Los commits 3955398..6714019 de feature/jean quedan cubiertos por este WI de forma retroactiva y declarada como tal (corte ejecutado desde cross por orden expresa del usuario, sin WI previo); el reporte de regularización lo dice sin ocultar el orden real de los hechos.",
+        "Contrato: SYSTEM-2.13, INTEROP-2.17 y GH-INTEROP-1.8 consolidados; spec/contracts/schemas/ (esquemas y examples/) es fuente canónica de formas; `phase` queda opcional (tolerancia transitoria aprobada) y CONSOLE_CORS_ORIGINS opt-in aprobado.",
+        "Core: poller de jobs resiliente, enableShutdownHooks y red de seguridad de proceso, reintentos acotados en GET al Sandbox con pollAfterMs ≤ 30 s, CORS restringible, tipos generados y validador Ajv, refactor mecánico de experiment-job.handler.ts sin cambio de lógica.",
+        "Contract Sync publicado a github-integration, console y sandbox con los IDs registrados en publishedSyncIds; revisión independiente por `reviewer` y `contract-reviewer`, veredicto APPROVED en un máximo de 2 ciclos; pnpm lint, build, test, contracts:check y los 4 validadores en verde.",
+        "CI en .github/workflows/ci.yml, engines/.nvmrc/packageManager y CORS compartido con Socket.IO (realtime.gateway.ts) quedan cubiertos; el trabajo Postgres de la CI es informativo y la CI no se ha ejecutado en GitHub; el reviewer compara los hunks del refactor de experiment-job.handler.ts contra el original."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-069-regularizacion-scope.md",
+        "harness/reports/cross-fase2-esquemas-contratos-2026-10-18.md",
+        "harness/reports/cross-fase3-estabilidad-2026-10-18.md",
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/contracts/schemas/common.schema.json",
+        "spec/contracts/schemas/error-envelope.schema.json",
+        "spec/contracts/schemas/sandbox-execution.schema.json",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-069-sdd-verification.md",
+        "harness/reports/wi-core-069-scope-approval.md",
+        "harness/reports/wi-core-069-contract-sync-scope-review.md",
+        "harness/reports/wi-core-069-technical-checks.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-069 no los toca.",
+          "report": "harness/reports/wi-core-069-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-069 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-069-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

@@ -84,7 +84,7 @@ Reglas:
 
 ## 5. Operaciones asíncronas
 
-Toda creación asíncrona responde `202` con identidad estable y `pollAfterMs`. Los GET de estado son ligeros; los resultados detallados tienen una ruta separada.
+Toda creación asíncrona responde `202` con identidad estable y `pollAfterMs`. Los GET de estado son ligeros; los resultados detallados tienen una ruta separada. El GET de estado del Sandbox puede repetir `pollAfterMs` como sugerencia opcional (no figura en el esquema de estado); Core la acota a 30 s. Core reintenta los GET de estado y resultado ante fallos transitorios (red, tiempo de espera, 408/425/429/5xx) con espera creciente (`SANDBOX_POLL_RETRIES`, `SANDBOX_POLL_RETRY_DELAY_MS`); el POST de creación no se reintenta.
 
 ```ts
 interface AsyncAccepted {
@@ -1536,5 +1536,5 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 - `spec/contracts/schemas/` contiene los esquemas JSON (draft 2020-12) de las formas que cruzan fronteras entre servicios: `common.schema.json` (tipos de §2), `error-envelope.schema.json` (§4) y `sandbox-execution.schema.json` (§7).
 - Core es el propietario. Los demás repositorios espejan la carpeta byte por byte con Contract Sync, igual que los contratos Markdown.
 - La prosa define la semántica y el esquema define la forma. Ante una discrepancia de forma prevalece el esquema y la prosa se corrige en el siguiente corte.
-- Cada backend genera sus tipos TypeScript desde los esquemas (no los escribe a mano), valida con ellos las respuestas y los inputs que recibe de otro servicio en la frontera (sin `as T`) y mantiene un contract test que valida sus payloads reales contra el esquema espejado.
+- Cada backend genera sus tipos TypeScript desde los esquemas (no los escribe a mano), valida con ellos las respuestas y los inputs que recibe de otro servicio en la frontera (sin `as T`; transitoriamente Core solo avisa en log ante desvío en las respuestas de aceptación y resultado del Sandbox y conserva parsers tolerantes con Sandboxes anteriores; la validación estricta llega en un corte posterior) y mantiene un contract test que valida sus payloads reales contra el esquema espejado.
 - Alcance inicial: error envelope y Core↔Sandbox. Las demás superficies (Core↔GitHub Integration, Console↔Core) se incorporan en cortes posteriores; hasta entonces siguen gobernadas solo por la prosa.
