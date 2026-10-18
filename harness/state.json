@@ -18250,9 +18250,9 @@
       "contractReviewed": "G-NOT_RUN",
       "canonicalContractSynced": "G-PASSED",
       "contractSyncPublished": "G-PASSED",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
+      "retryLimitRespected": "G-PASSED"
     },
     "coordination": {
       "contractImpact": true,
@@ -18371,6 +18371,12 @@
       ],
       "canonicalContractSynced": [
         "harness/reports/wi-core-069-contract-sync-publication.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-069-contract-sync-scope-review.md"
+      ],
+      "retryLimitRespected": [
+        "harness/reports/wi-core-069-technical-checks.md"
       ]
     }
   }
