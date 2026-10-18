@@ -3962,7 +3962,7 @@
       "id": "WI-CORE-069",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P1",
       "sprint": "P2",
       "title": "Regularizar el corte «desde cross»: esquemas JSON canónicos (SYSTEM-2.13, INTEROP-2.17, GH-INTEROP-1.8) y estabilización de Core",
@@ -4006,7 +4006,8 @@
         "harness/reports/wi-core-069-sdd-verification.md",
         "harness/reports/wi-core-069-scope-approval.md",
         "harness/reports/wi-core-069-contract-sync-scope-review.md",
-        "harness/reports/wi-core-069-technical-checks.md"
+        "harness/reports/wi-core-069-technical-checks.md",
+        "harness/reports/wi-core-069-contract-sync-publication.md"
       ],
       "contractSyncReview": [
         {

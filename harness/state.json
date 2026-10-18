@@ -18126,7 +18126,7 @@
     "id": "WI-CORE-069",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
+    "status": "W-IN_REVIEW",
     "title": "Regularizar el corte «desde cross»: esquemas JSON canónicos (SYSTEM-2.13, INTEROP-2.17, GH-INTEROP-1.8) y estabilización de Core",
     "approved": true,
     "storyIds": [
@@ -18153,7 +18153,8 @@
       "harness/reports/wi-core-069-sdd-verification.md",
       "harness/reports/wi-core-069-scope-approval.md",
       "harness/reports/wi-core-069-contract-sync-scope-review.md",
-      "harness/reports/wi-core-069-technical-checks.md"
+      "harness/reports/wi-core-069-technical-checks.md",
+      "harness/reports/wi-core-069-contract-sync-publication.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -18195,8 +18196,8 @@
       "leaderAgent": "leader",
       "analysisAgent": null,
       "implementationAgent": "cross",
-      "contractReviewAgent": null,
-      "reviewAgent": null,
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": "reviewer",
       "handoffs": [
         {
           "agent": "sdd-analyst",
@@ -18247,8 +18248,8 @@
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_RUN",
-      "canonicalContractSynced": "G-NOT_RUN",
-      "contractSyncPublished": "G-NOT_RUN",
+      "canonicalContractSynced": "G-PASSED",
+      "contractSyncPublished": "G-PASSED",
       "interopSyncChecked": "G-NOT_RUN",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
@@ -18282,16 +18283,73 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-18T23:10:32.659Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-069",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003",
+            "CS-SANDBOX-20261014-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-18T23:26:15.334Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-069",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003",
+            "CS-SANDBOX-20261014-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-18T23:26:48.873Z"
         }
       ],
-      "publishedSyncIds": [],
+      "publishedSyncIds": [
+        "CS-CORE-20261018-001",
+        "CS-CORE-20261018-002",
+        "CS-CORE-20261018-003"
+      ],
       "pendingRelevantSyncIds": []
     },
     "evidence": [
       "harness/reports/wi-core-069-regularizacion-scope.md",
       "harness/reports/wi-core-069-sdd-verification.md",
       "harness/reports/wi-core-069-scope-approval.md",
-      "harness/reports/wi-core-069-technical-checks.md"
+      "harness/reports/wi-core-069-technical-checks.md",
+      "harness/reports/wi-core-069-contract-sync-publication.md"
     ],
     "blockedReason": null,
     "analysisAgent": "sdd-analyst",
@@ -18307,6 +18365,12 @@
       ],
       "technicalChecksPassed": [
         "harness/reports/wi-core-069-technical-checks.md"
+      ],
+      "contractSyncPublished": [
+        "harness/reports/wi-core-069-contract-sync-publication.md"
+      ],
+      "canonicalContractSynced": [
+        "harness/reports/wi-core-069-contract-sync-publication.md"
       ]
     }
   }
