@@ -1,6 +1,6 @@
 # tjc-be-rag-core-api
 
-Backend de dominio PR-driven: AnalysisRuns por PR/HEAD, indexación versionada, recuperación RAG, conocimiento funcional, generación/validación de pruebas y evaluación RAG vs GENERALIST_AGENT. La interacción GitHub hoy integrada en Core se trasladará a `tjc-be-github-integration-api`; el ZIP interno de snapshot para Docker/Sandbox permanece.
+Backend de dominio PR-driven: AnalysisRuns por PR/HEAD, indexación versionada, recuperación RAG, conocimiento funcional, generación/validación de pruebas y evaluación RAG vs GENERALIST_AGENT. Toda la interacción directa con GitHub vive en `tjc-be-github-integration-api`; Core conserva el dominio y el ZIP interno de snapshot para Docker/Sandbox.
 
 ## Estructura
 

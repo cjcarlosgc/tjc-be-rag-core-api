@@ -5,7 +5,7 @@
 ```json
 {
   "schemaVersion": 4,
-  "sddVersion": "3.0",
+  "sddVersion": "3.1",
   "planningBaseline": "2026-09-24-core-console-transition",
   "allowedStatuses": ["W-PLANNED", "W-READY", "W-SELECTED", "W-SPEC_VERIFIED", "W-AWAITING_APPROVAL", "W-IN_PROGRESS", "W-IN_REVIEW", "W-DONE", "W-BLOCKED", "W-DECISION_REQUIRED", "W-CANCELLED"],
   "completedWorkItems": [],
@@ -74,21 +74,10 @@ Los prefijos `H-`, `O-`, `T-`, `D-`, `C-` y `G-` identifican estados de otros ni
 
 Cuando el leader hace un cambio mínimo en lugar de delegarlo, su handoff declara `executedBy.agent: leader` con `reason: "cambio mínimo"` y los archivos y líneas tocados (`filesAffected`). Ver `harness/WORKFLOW.md`, «Delegación de implementación». Es informativo y el validador no lo exige.
 
-## Modo fuera de casa (`awayMode`)
+## Revisión independiente
 
-Campo opcional de primer nivel de `harness/state.json`. Ausente o `enabled: false` significa desactivado (valor por defecto). Solo el usuario lo activa o desactiva, expresamente en chat; el leader nunca lo activa por inferencia.
-
-```json
-"awayMode": {
-  "enabled": true,
-  "activatedBy": "user",
-  "activatedAt": "2026-10-09T00:00:00.000Z",
-  "quote": "cita breve y literal del usuario"
-}
-```
-
-Al desactivarse se conserva el registro con `enabled: false`, `deactivatedAt` y `deactivationQuote`. Mientras `enabled` sea `true`, la revisión independiente la hace el agente `reviewer` (`execution.reviewAgent: "reviewer"`, handoff con `executedBy`); no sustituye decisiones `DEC` ni aprobaciones de alcance o contrato, no autoriza push/PR/infraestructura externa y no relaja gates. El validador exige la forma del campo cuando existe.
+Desde SDD 3.1 no existe el «Modo fuera de casa» ni el campo `awayMode`: la revisión independiente la hace por defecto el agente `reviewer` (`execution.reviewAgent: "reviewer"`, handoff con `executedBy`). El validador rechaza un `awayMode` en `harness/state.json`.
 
 ## Merge reviewer
 
-La fusión de una rama de tercero o de integración se revisa con el agente `merge-reviewer` antes de entrar en una línea compartida o de publicarla; su veredicto vive en `harness/reports/merge-review-<scope>.md` y no es un gate de `W-DONE` de un WI ni lo sustituye `awayMode`. No añade campos a `harness/state.json`.
+La fusión de una rama de tercero o de integración se revisa con el agente `merge-reviewer` antes de entrar en una línea compartida o de publicarla; su veredicto vive en `harness/reports/merge-review-<scope>.md` y no es un gate de `W-DONE` de un WI ni lo sustituye otro revisor. No añade campos a `harness/state.json`.

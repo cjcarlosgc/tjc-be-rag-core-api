@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Revisión independiente de un Work Item (comportamiento, contratos, pruebas, seguridad, alineación con el alcance) cuando el usuario la delega o mientras el Modo fuera de casa está activo.
+description: Revisión independiente de un Work Item (comportamiento, contratos, pruebas, seguridad, alineación con el alcance) para todo WI (revisor independiente por defecto).
 model: claude-sonnet-5-5
 effort: medium
 ---

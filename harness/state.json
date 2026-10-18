@@ -1,6 +1,6 @@
 {
   "schemaVersion": 4,
-  "sddVersion": "3.0",
+  "sddVersion": "3.1",
   "planningBaseline": "2026-09-24-core-console-transition",
   "allowedStatuses": [
     "W-PLANNED",
@@ -18122,11 +18122,5 @@
       "closedAt": "2026-10-14T16:41:26.000Z"
     }
   ],
-  "activeWorkItem": null,
-  "awayMode": {
-    "enabled": true,
-    "activatedBy": "user",
-    "activatedAt": "2026-10-10T02:53:08.000Z",
-    "quote": "la revisión de 027 se haga con justamente este agente. Yo no lo voy a hacer porque estoy fuera de casa en este momento"
-  }
+  "activeWorkItem": null
 }

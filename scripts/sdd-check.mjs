@@ -8,7 +8,7 @@ const required = ['AGENTS.md','README.md','CHANGELOG.md','spec/README.md','spec/
 for (const f of required) if (!existsSync(join(root,f))) errors.push(`Falta ${f}`);
 let state=null; try { state=JSON.parse(readFileSync(join(root,'harness/state.json'),'utf8')); } catch(e){ errors.push(`state.json inválido: ${e.message}`); }
 if(state){
-  if(state.sddVersion!=='3.0') errors.push('Core/Console requiere sddVersion 3.0');
+  if(state.sddVersion!=='3.1') errors.push('requiere sddVersion 3.1');
   if(state.planningBaseline!=='2026-09-24-core-console-transition') errors.push('falta la marca de homologación Sandbox pendiente');
   const allowed=['W-PLANNED','W-READY','W-SELECTED','W-SPEC_VERIFIED','W-AWAITING_APPROVAL','W-IN_PROGRESS','W-IN_REVIEW','W-DONE','W-BLOCKED','W-DECISION_REQUIRED','W-CANCELLED'];
   if(state.schemaVersion!==4) errors.push('schemaVersion no soportado');
