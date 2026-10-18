@@ -4052,7 +4052,7 @@
       "contractImpact": false,
       "publishesContract": false,
       "acceptanceCriteria": [
-        "Existe un pipeline compartido (retrieval → contexto → prompt → merge → sandbox) usado por experiment-job.handler.ts y analysis-run-validation-job.handler.ts, y runAttempt queda descompuesto en pasos de responsabilidad única sin cambiar el orden de efectos, errores ni escrituras. Los métodos de runAttempt y los extraídos no superan ~120 líneas; handle (~171 líneas, preexistente) queda fuera.",
+        "Existe un pipeline compartido (retrieval → contexto → prompt → merge → sandbox) usado por experiment-job.handler.ts y analysis-run-validation-job.handler.ts, y runAttempt queda descompuesto en pasos de responsabilidad única sin cambiar el orden de efectos, errores ni escrituras. Ningún método del handler de experimentos supera ~120 líneas salvo justificación registrada (handle, ~171 líneas y preexistente: justificado en wi-core-070-corte-a-review.md; no se amplía el alcance sin pedirlo al usuario).",
         "Sin cambio de comportamiento: sin cambios en DTO, contratos, migraciones, prompts, versiones de prompt, ranking, pesos ni R-PHP; contractImpact=false.",
         "pnpm lint, build, contracts:check y test en verde con el mismo conteo de tests o superior; pruebas de caracterización donde la red sea débil; los 4 validadores en verde.",
         "Revisión independiente por reviewer comparando los hunks movidos entre cortes; F3 (sandboxHttpBoundMs) queda fuera de alcance.",
@@ -4065,7 +4065,8 @@
         "app/src/validation/analysis-run-validation-job.handler.ts",
         "harness/reports/wi-core-070-sdd-verification.md",
         "harness/reports/wi-core-070-scope-approval.md",
-        "harness/reports/wi-core-070-corte-a.md"
+        "harness/reports/wi-core-070-corte-a.md",
+        "harness/reports/wi-core-070-corte-a-review.md"
       ]
     },
     {

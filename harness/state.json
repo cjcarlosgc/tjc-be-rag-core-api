@@ -18482,7 +18482,8 @@
       "app/src/validation/analysis-run-validation-job.handler.ts",
       "harness/reports/wi-core-070-sdd-verification.md",
       "harness/reports/wi-core-070-scope-approval.md",
-      "harness/reports/wi-core-070-corte-a.md"
+      "harness/reports/wi-core-070-corte-a.md",
+      "harness/reports/wi-core-070-corte-a-review.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
