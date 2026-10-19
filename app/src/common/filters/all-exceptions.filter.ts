@@ -75,7 +75,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    // INTEROP-2.17 §4: `correlationId` es obligatorio en el ErrorEnvelope; el middleware siempre lo fija, y sin él se genera uno.
+    // INTEROP §4: `correlationId` es obligatorio en el ErrorEnvelope; el middleware siempre lo fija, y sin él se genera uno.
     const correlationId = (request.headers[CORRELATION_ID_HEADER] as string | undefined) ?? randomUUID();
 
     const envelope = this.buildEnvelope(exception, request.url, correlationId);

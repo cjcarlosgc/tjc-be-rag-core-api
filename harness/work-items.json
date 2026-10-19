@@ -4207,7 +4207,7 @@
       "id": "WI-CORE-073",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
@@ -4238,7 +4238,10 @@
         "harness/reports/wi-core-073-technical-checks.md",
         "app/src/common/filters/all-exceptions.filter.ts",
         "spec/transversal/errors/spec.md",
-        "harness/reports/wi-core-073-contract-sync-scope-review.md"
+        "harness/reports/wi-core-073-contract-sync-scope-review.md",
+        "harness/reports/wi-core-073-contract-review.md",
+        "harness/reports/wi-core-073-independent-review.md",
+        "harness/reports/wi-core-073-closure.md"
       ],
       "contractSyncReview": [
         {

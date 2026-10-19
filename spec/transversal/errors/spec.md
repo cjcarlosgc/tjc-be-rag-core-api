@@ -12,7 +12,7 @@ Unificar errores HTTP y distinguir fallos de plataforma de resultados inválidos
 - Todo error HTTP sigue `ErrorEnvelope` de `spec/contracts/interoperability-contract.md` y conserva `x-correlation-id`.
 - DTOs de entrada usan validación whitelist y rechazan campos desconocidos.
 - Errores de dominio se traducen centralmente; controllers no construyen envelopes manualmente.
-- Una excepción HTTP del framework sin código propio se traduce a un código genérico de `INTEROP-2.18` §4.1 (`DEC-ERR-001`): el estado HTTP se conserva, el `message` es fijo en español y no repite el texto de la excepción, y `retryable` solo aparece en `TOO_MANY_REQUESTS` (true) y `SERVICE_UNAVAILABLE` (true). Un código explícito de la aplicación siempre prevalece. El parser de body no cambia.
+- Una excepción HTTP del framework sin código propio se traduce a un código genérico de `INTEROP-2.18` §4.1 (`DEC-ERR-001`): el estado HTTP se conserva, el `message` es fijo en español y no repite el texto de la excepción, y `retryable` solo lo emiten los códigos genéricos (`true` en `TOO_MANY_REQUESTS` y `SERVICE_UNAVAILABLE`, `false` en el resto; la fuente normativa es `INTEROP-2.18` §4.1). Un código explícito de la aplicación siempre prevalece. El parser de body no cambia.
 - Un resultado de test inválido o un fallo posterior a aceptar una operación asíncrona se persiste como resultado, no se convierte automáticamente en HTTP 5xx.
 - La ausencia o formato inválido del header se normaliza como `400 IDEMPOTENCY_KEY_REQUIRED`/`400 INVALID_IDEMPOTENCY_KEY`; key válida reutilizada con otro request produce `409 IDEMPOTENCY_CONFLICT`.
 - En Sandbox, `requestId` distinto de `Idempotency-Key` produce `400 IDEMPOTENCY_KEY_MISMATCH`; Bearer ausente o inválido produce `401/403` sin revelar el token.
