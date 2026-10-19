@@ -23,7 +23,7 @@ Se mantienen con el mismo comportamiento, pero cada repo conserva sus diferencia
 
 ## Diferencias permitidas
 
-- `app/src/contracts/contract-validator.ts`: mismo contenido en los cuatro; Console lo conserva sin punto y coma (estilo propio, solo formato). Si cambia la lógica, cambia en los cuatro.
+- `app/src/contracts/contract-validator.ts`: misma lógica en los cuatro; Console difiere solo en formato (sin punto y coma). Si cambia la lógica, cambia en los cuatro.
 
 - `ux-reviewer` (rol, agente y gate `uxReviewed`) y `noMocksPresentedAsLive`: solo `CONSOLE`.
 - `external-dependency-gate`, `work-item-dependencies`, `work-item-story-scope` y `calibration/`: hoy solo en Core.
