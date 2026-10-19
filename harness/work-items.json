@@ -4207,7 +4207,7 @@
       "id": "WI-CORE-073",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-AWAITING_APPROVAL",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
@@ -4231,7 +4231,8 @@
       ],
       "specPaths": [
         "harness/reports/wi-core-073-scope.md",
-        "spec/transversal/errors/tasks.md"
+        "spec/transversal/errors/tasks.md",
+        "harness/reports/wi-core-073-sdd-verification.md"
       ]
     },
     {

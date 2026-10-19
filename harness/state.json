@@ -19195,5 +19195,128 @@
       "closedAt": "2026-10-19T19:04:48.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-073",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-AWAITING_APPROVAL",
+    "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
+    "approved": false,
+    "storyIds": [
+      "HU12",
+      "HU14"
+    ],
+    "taskIds": [
+      "ST-CORE-080"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-073-scope.md",
+      "spec/transversal/errors/tasks.md",
+      "harness/reports/wi-core-073-sdd-verification.md"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-10-19T19:30:00.000Z",
+      "note": "Sin decisiones DEC bloqueantes; seis puntos de alcance requieren decision del usuario (nombres, retryable, parser 413, version, Anexo E, DEC-ERR-001)."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": null,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "DECISION_REQUIRED",
+          "findings": [
+            "Premisa inexacta: el filtro conserva el estado HTTP y fuerza code=INVALID_REQUEST; Core no emite retryable; code es string abierto; el Anexo E no existe en spec/. Seis decisiones del usuario."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-073-sdd-verification.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-073-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Aprobacion de alcance del usuario con las decisiones.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-073",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003",
+            "CS-SANDBOX-20261014-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-19T19:05:27.798Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-073-scope.md",
+      "harness/reports/wi-core-073-sdd-verification.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-073-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-073-sdd-verification.md"
+      ]
+    }
+  }
 }
