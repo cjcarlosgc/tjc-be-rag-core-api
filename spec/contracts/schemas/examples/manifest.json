@@ -40,6 +40,11 @@
       "file": "error-envelope.upstream.json",
       "schema": "error-envelope.schema.json",
       "definition": "ErrorEnvelope"
+    },
+    {
+      "file": "error-envelope.generic.json",
+      "schema": "error-envelope.schema.json",
+      "definition": "ErrorEnvelope"
     }
   ]
 }

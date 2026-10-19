@@ -13,3 +13,7 @@ Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo 
 6. **DEC-ERR-001 (PROPOSED):** se registra para trazabilidad normativa de los códigos genéricos.
 
 Cambio aditivo/documental en el contrato (`code` es string abierto: solo cambian descripciones del esquema, un ejemplo nuevo y el `ErrorCode` interno de Core); sin push, PR ni merge; sin tag.
+
+## Errata (implementación)
+
+El informe SDD y el alcance decían «59 códigos existentes»; el enum tenía **62** en `HEAD`. La regla aprobada no cambia: ningún código existente cambia (ni sus mensajes) y un 400 sigue siendo `INVALID_REQUEST`.

@@ -1,0 +1,10 @@
+{
+  "statusCode": 429,
+  "code": "TOO_MANY_REQUESTS",
+  "message": "Se superó el límite de solicitudes; reintenta más tarde.",
+  "details": null,
+  "correlationId": "corr-3",
+  "timestamp": "2026-10-19T10:00:00.000Z",
+  "path": "/projects",
+  "retryable": true
+}

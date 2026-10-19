@@ -28,11 +28,11 @@ export type TestRunner = "JEST" | "VITEST" | "PHPUNIT";
 export interface ErrorEnvelope {
   statusCode: number;
   /**
-   * Código estable en UPPER_SNAKE_CASE.
+   * Código estable en UPPER_SNAKE_CASE. Abierto: un código explícito de la aplicación siempre prevalece; los códigos genéricos de INTEROP-2.18 §4 (UNAUTHORIZED, FORBIDDEN, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE, CONFLICT, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, UNPROCESSABLE_ENTITY, TOO_MANY_REQUESTS, SERVICE_UNAVAILABLE, INTERNAL_ERROR, HTTP_ERROR) se emiten solo cuando el error no trae código propio.
    */
   code: string;
   /**
-   * Mensaje neutral; no incluye tokens, secretos, URLs firmadas ni texto crudo de terceros.
+   * Mensaje neutral; no incluye tokens, secretos, URLs firmadas ni texto crudo de terceros. En los códigos genéricos de INTEROP-2.18 §4 es un mensaje fijo en español que no repite el texto de la excepción.
    */
   message: string;
   /**
@@ -46,7 +46,7 @@ export interface ErrorEnvelope {
   timestamp: string;
   path: string;
   /**
-   * Opcional. Lo declaran los servicios cuyo contrato distingue reintentos (p. ej. GitHub Integration, GH-INTEROP). Ausente = el consumidor no debe asumir reintento.
+   * Opcional. Lo declaran los servicios cuyo contrato distingue reintentos: GitHub Integration (GH-INTEROP) en todos sus errores, y Core solo en los códigos genéricos de INTEROP-2.18 §4 (true en TOO_MANY_REQUESTS y SERVICE_UNAVAILABLE; false en el resto de genéricos). Ausente = el consumidor no debe asumir reintento.
    */
   retryable?: boolean;
 }
