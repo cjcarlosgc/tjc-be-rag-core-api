@@ -4097,7 +4097,7 @@
       "id": "WI-CORE-071",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-AWAITING_APPROVAL",
       "priority": "P2",
       "sprint": "P2",
       "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
@@ -4121,7 +4121,8 @@
       ],
       "specPaths": [
         "harness/reports/wi-core-071-scope.md",
-        "spec/features/008-experimental-comparison/tasks.md"
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-071-sdd-verification.md"
       ]
     },
     {

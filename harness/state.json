@@ -18958,5 +18958,115 @@
       "closedAt": "2026-10-19T01:30:00.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-071",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-AWAITING_APPROVAL",
+    "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
+    "approved": false,
+    "storyIds": [
+      "HU11",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-078"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-071-scope.md",
+      "spec/features/008-experimental-comparison/tasks.md",
+      "harness/reports/wi-core-071-sdd-verification.md"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-10-19T02:00:00.000Z",
+      "note": "Sin decisiones DEC bloqueantes; falta la decision del usuario sobre la opcion (A/B/C) y el valor, que es la aprobacion de alcance."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": null,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "DECISION_REQUIRED",
+          "findings": [
+            "Spec verificada con cifras; el cambio es de tiempos y relanzamientos y requiere decision del usuario sobre la opcion (A/B/C) y el valor antes de implementar."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-071-sdd-verification.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-071-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Presentar opciones al usuario y pedir aprobacion de alcance.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-071",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-19T15:44:32.188Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-071-scope.md",
+      "harness/reports/wi-core-071-sdd-verification.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-071-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-071-sdd-verification.md"
+      ]
+    }
+  }
 }
