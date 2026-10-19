@@ -4179,6 +4179,67 @@
           "report": "harness/reports/wi-core-072-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-073",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
+      "storyIds": [
+        "HU12",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-080"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-071"
+      ],
+      "contractImpact": true,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "INTEROP (versión por decidir) enumera los 4xx no previstos (401/403/404/405/406/415, hoy 400 INVALID_REQUEST no reintentable sin estar enumerados) con códigos genéricos y mensajes claros; `retryable` y `phase` siguen opcionales; cambio aditivo y documental, sin romper consumidores; cita tesis Anexo E (C-01–C-10).",
+        "spec/contracts/schemas/error-envelope.schema.json y sus examples/ se actualizan; Core implementa los códigos genéricos sin cambiar el comportamiento de los códigos existentes; contract tests y contracts:check en verde.",
+        "Contract Sync: se publica una sola versión de INTEROP junto con WI-D (WI-C no publica por separado salvo decisión contraria del usuario); revisión independiente con reviewer y contract-reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-073-scope.md",
+        "spec/transversal/errors/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-074",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
+      "storyIds": [
+        "HU12"
+      ],
+      "taskIds": [
+        "ST-CORE-081"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-073"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "INTEROP §6.6 define eventos de AnalysisRun/experimento con los mismos DTO que los GET, suscripción explícita por id (sin broadcast global), polling HTTP como base sin cambios; sin citar HU21/HU22 (no existen en las 18 HU vigentes); ancla HU12.",
+        "Core emite desde el ciclo de vida del AnalysisRun y del experimento mediante RealtimeGateway (hoy emitProjectVersionUpdate no tiene llamadores); CORS del socket y HTTP con CONSOLE_CORS_ORIGINS (resuelve el aviso duplicado F5); decisión explícita del usuario sobre la autenticación del socket.",
+        "Pruebas unitarias y un e2e real con socket.io-client si es viable; Contract Sync publicado (una sola versión de INTEROP junto con WI-C) hacia github-integration, console y sandbox; revisión independiente con reviewer y contract-reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-074-scope.md",
+        "spec/features/013-pr-driven-analysis/tasks.md"
+      ]
     }
   ]
 }
