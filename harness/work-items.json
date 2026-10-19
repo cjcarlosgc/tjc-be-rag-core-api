@@ -4128,7 +4128,7 @@
       "id": "WI-CORE-072",
       "component": "CORE",
       "workItemType": "HARNESS",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Regularizar retroactivamente SDD 3.1: reviewer IA estándar, vía rápida, coordinación por cross y checklist de homologación (commits 5fa5666 y 9945342)",
@@ -4157,7 +4157,9 @@
         "harness/reports/wi-core-072-scope-approval.md",
         "harness/reports/wi-core-072-technical-checks.md",
         "harness/reports/wi-core-072-sdd-verification.md",
-        "harness/reports/wi-core-072-contract-sync-scope-review.md"
+        "harness/reports/wi-core-072-contract-sync-scope-review.md",
+        "harness/reports/wi-core-072-independent-review.md",
+        "harness/reports/wi-core-072-closure.md"
       ],
       "contractSyncReview": [
         {

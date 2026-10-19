@@ -42,3 +42,15 @@ Estado `W-IN_REVIEW`, `reviewCycles: 0`, `maxReviewCycles: 2`. Gates: `sddVerifi
 
 ## Recomendación
 Corregir F1 (y, de paso, F2 y F3) en un commit documental; no requiere nuevo Contract Sync ni cambios en state.json salvo el registro del handoff de este review. Tras la corrección, ciclo 2 (o verificación del leader de que F1 quedó resuelto) y cierre (`independentReviewPassed`, `retryLimitRespected`, `W-DONE`).
+
+## Ciclo 2 de 2 — verificación de correcciones
+Modelo: reviewer · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Veredicto final: **APPROVED**.
+
+- F1 resuelto (`spec/constitution/delivery-workflow.md:38`, commit d343aaf): el agente `reviewer` revisa por defecto de forma independiente; el usuario puede revisar cualquier WI y aprueba alcance, arquitectura y contratos. Coherente con AGENTS.md, WORKFLOW.md y roles/reviewer.md.
+- F2 resuelto: «Por defecto» con mayúscula en `harness/WORKFLOW.md`.
+- F3 resuelto: `harness/README.md` dice «misma lógica en los cuatro; Console difiere solo en formato (sin punto y coma)»; sin línea en blanco dentro de la lista.
+- Búsqueda de contradicciones del mismo tipo (`usuario revisa|reviewer por defecto|Human Reviewer|revisor independiente por defecto` en spec, harness/roles, harness/*.md, AGENTS.md, .claude, README.md): sin contradicciones vigentes. Coincidencias restantes: menciones históricas de «Human Reviewer» en `spec/features/013…/spec.md:115` y `011…/plan.md:37` (registro de aprobaciones pasadas), `.claude/README.md:5` (el Human Reviewer es el usuario, sin perfil de agente), `AGENTS.md:50` (perfiles por proveedor) y descripciones correctas del agente reviewer.
+- Validadores: sdd-check OK; validate-work-items passed (72 WI); validate-harness passed; validate-completions passed (68).
+- El commit d343aaf solo toca documentación y el propio reporte; sin cambios en `app/`.
