@@ -155,14 +155,33 @@ type SandboxExecutionOutcome = Omit<
   | 'durationMs'
 >;
 
+/** Consultas idempotentes que se reintentan ante un fallo transitorio (WI-CORE-070 corte C). */
+export type SandboxPollOperation = 'status' | 'result';
+
 @Injectable()
 export class SandboxExecutionService {
   private readonly logger = new Logger(SandboxExecutionService.name);
+  /** WI-CORE-070 corte C: reintentos transitorios realizados por esta instancia (solo los que se repiten). */
+  private transientRetriesTotal = 0;
+  private readonly transientRetryCountByOperation: Record<SandboxPollOperation, number> = {
+    status: 0,
+    result: 0,
+  };
 
   constructor(
     private readonly configService: ConfigService,
     private readonly objectStorageService: ObjectStorageService,
   ) {}
+
+  /** Número de reintentos transitorios realizados por esta instancia (no cuenta el intento inicial). */
+  get transientRetryCount(): number {
+    return this.transientRetriesTotal;
+  }
+
+  /** Reintentos transitorios realizados, desglosados por operación de consulta. Copia de solo lectura. */
+  get transientRetriesByOperation(): Readonly<Record<SandboxPollOperation, number>> {
+    return { ...this.transientRetryCountByOperation };
+  }
 
   async execute(
     request: SandboxExecutionRequest,
@@ -332,7 +351,7 @@ export class SandboxExecutionService {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, pollAfterMs));
 
-      const status = await this.withTransientRetries(() =>
+      const status = await this.withTransientRetries('status', executionId, () =>
         this.getJson<{
           status: string;
           pollAfterMs?: number;
@@ -354,17 +373,31 @@ export class SandboxExecutionService {
   /**
    * Repite una consulta idempotente ante fallos transitorios del Sandbox (red, tiempo de espera, 408/425/429/5xx) con
    * espera creciente. Un fallo no transitorio, o agotar los reintentos, relanza el último error.
+   * WI-CORE-070 corte C: cada reintento que se realiza queda registrado (operación, executionId, número y total,
+   * clase del error, espera; el mensaje va saneado) y cuenta en los contadores de la instancia. No cambia
+   * cuántos reintentos hay ni las esperas.
    */
-  private async withTransientRetries<T>(operation: () => Promise<T>): Promise<T> {
+  private async withTransientRetries<T>(
+    operation: SandboxPollOperation,
+    executionId: string,
+    run: () => Promise<T>,
+  ): Promise<T> {
     const retries = this.configService.get<number>('SANDBOX_POLL_RETRIES', DEFAULT_POLL_RETRIES);
     const baseDelayMs = this.configService.get<number>('SANDBOX_POLL_RETRY_DELAY_MS', DEFAULT_POLL_RETRY_DELAY_MS);
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return await operation();
+        return await run();
       } catch (error) {
         const retryable = error instanceof SandboxUnavailableError && error.transient;
         if (!retryable || attempt >= retries) throw error;
-        await new Promise((resolve) => setTimeout(resolve, Math.min(baseDelayMs * 2 ** attempt, MAX_POLL_AFTER_MS)));
+        const delayMs = Math.min(baseDelayMs * 2 ** attempt, MAX_POLL_AFTER_MS);
+        this.transientRetriesTotal += 1;
+        this.transientRetryCountByOperation[operation] += 1;
+        this.logger.warn(
+          `Reintento transitorio (${operation}) de la ejecución ${executionId}: reintento ${attempt + 1} de ${retries}, ` +
+            `error ${error.constructor.name}, espera ${delayMs}ms: ${sanitizeFailureMessage(String(error.message))}`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
   }
@@ -375,7 +408,7 @@ export class SandboxExecutionService {
     correlationId: string,
     serviceToken: string,
   ): Promise<SandboxExecutionOutcome> {
-    const result = await this.withTransientRetries(() =>
+    const result = await this.withTransientRetries('result', executionId, () =>
       this.getJson<{
         status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
         facts: SandboxExecutionResult['facts'];
