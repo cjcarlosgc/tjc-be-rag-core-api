@@ -4157,9 +4157,7 @@
         "harness/reports/wi-core-072-scope-approval.md",
         "harness/reports/wi-core-072-technical-checks.md",
         "harness/reports/wi-core-072-sdd-verification.md",
-        "harness/reports/wi-core-072-contract-sync-scope-review.md",
-        "harness/reports/wi-core-072-independent-review.md",
-        "harness/reports/wi-core-072-closure.md"
+        "harness/reports/wi-core-072-contract-sync-scope-review.md"
       ],
       "contractSyncReview": [
         {
