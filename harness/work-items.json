@@ -4097,7 +4097,7 @@
       "id": "WI-CORE-071",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-AWAITING_APPROVAL",
+      "status": "W-IN_PROGRESS",
       "priority": "P2",
       "sprint": "P2",
       "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
@@ -4115,14 +4115,15 @@
       "contractImpact": false,
       "publishesContract": false,
       "acceptanceCriteria": [
-        "Cambio de comportamiento observable (tiempos de heartbeatStaleMs y relanzamiento de intentos vencidos): no se ejecuta sin decisión del usuario sobre el nuevo valor y la política.",
-        "Conserva la tesis 3.3.8: único reintento de trial por fallo externo demostrable; los reintentos de transporte (GET) no repiten ni cuentan como reintento del trial.",
-        "Se actualiza attempt-recovery.spec.ts con el nuevo límite y se conservan lint, build y test en verde; revisión independiente."
+        "heartbeatStaleMs (y sandboxHttpBoundMs) incluye el tiempo máximo de los reintentos de GET derivado de SANDBOX_POLL_RETRIES y SANDBOX_POLL_RETRY_DELAY_MS, sin constantes nuevas; con los defaults pasa de 1_340_000 a 5_393_500 ms y con SANDBOX_POLL_RETRIES=0 no cambia; EXPERIMENT_HEARTBEAT_STALE_MS configurado sigue mandando.",
+        "La política de relanzamiento (resolveSlotAction) no cambia salvo el momento en que un intento se considera vencido; los reintentos de GET no incrementan attempt ni cuentan como reintento del trial (tesis 3.3.8); el POST de creación sigue sin reintentarse.",
+        "attempt-recovery.spec.ts actualizado (1_220_000 y 1_340_000 cambian) con pruebas de firma y valores nuevos, R=0 igual a la fórmula actual, esperas acotadas por MAX, configuredMs vigente y el handler leyendo las variables; comentario de .env.example actualizado; lint, build, contracts:check y test en verde; revisión independiente."
       ],
       "specPaths": [
         "harness/reports/wi-core-071-scope.md",
         "spec/features/008-experimental-comparison/tasks.md",
-        "harness/reports/wi-core-071-sdd-verification.md"
+        "harness/reports/wi-core-071-sdd-verification.md",
+        "harness/reports/wi-core-071-scope-approval.md"
       ]
     },
     {
