@@ -95,9 +95,43 @@ export function resolveSlotAction<Row extends AttemptRecoveryRow>(
   return { kind: 'SKIP' };
 }
 
-/** Distancia de la ruta HTTP del cliente del Sandbox: un POST, hasta N consultas de estado y un GET de resultado. */
-export function sandboxHttpBoundMs(requestTimeoutMs: number, maxPollAttempts: number): number {
-  return requestTimeoutMs * (maxPollAttempts + 2);
+/**
+ * Tiempo máximo de un GET del cliente del Sandbox con sus reintentos transitorios: `retries + 1` peticiones de
+ * `requestTimeoutMs` más las esperas entre ellas, `min(baseDelayMs * 2^k, maxPollAfterMs)` para k = 0..retries-1
+ * (las mismas que `withTransientRetries` en SandboxExecutionService). Con `retries = 0` es un único timeout.
+ */
+function sandboxGetMaxMs(
+  requestTimeoutMs: number,
+  retries: number,
+  baseDelayMs: number,
+  maxPollAfterMs: number,
+): number {
+  let waitsMs = 0;
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    waitsMs += Math.min(baseDelayMs * 2 ** attempt, maxPollAfterMs);
+  }
+  return (retries + 1) * requestTimeoutMs + waitsMs;
+}
+
+/**
+ * Distancia de la ruta HTTP del cliente del Sandbox para un intento (WI-CORE-071): un POST sin reintentos, más
+ * cada GET (hasta `maxPollAttempts` de estado y el de resultado) con el tiempo máximo de sus reintentos.
+ * Con `retries = 0` equivale a `requestTimeoutMs * (maxPollAttempts + 2)`.
+ */
+export function sandboxHttpBoundMs(
+  requestTimeoutMs: number,
+  maxPollAttempts: number,
+  retries: number,
+  baseDelayMs: number,
+  maxPollAfterMs: number,
+): number {
+  // ConfigService entrega las variables no validadas como texto (p. ej. "120"): se normalizan antes de sumar.
+  const timeoutMs = Number(requestTimeoutMs);
+  const polls = Number(maxPollAttempts);
+  const retryCount = Number(retries);
+  const safeRetries = Number.isFinite(retryCount) && retryCount > 0 ? Math.floor(retryCount) : 0;
+  const perGetMs = sandboxGetMaxMs(timeoutMs, safeRetries, Number(baseDelayMs), Number(maxPollAfterMs));
+  return timeoutMs + (polls + 1) * perGetMs;
 }
 
 /**

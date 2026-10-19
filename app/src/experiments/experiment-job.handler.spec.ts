@@ -15,6 +15,7 @@ import { ExperimentJobHandler } from './experiment-job.handler.js';
 import { PHP_PHPUNIT_CONVENTION_LINES } from '../generation/php-phpunit-conventions.js';
 import {
   SandboxAcceptedExecutionError,
+  SandboxExecutionService,
   SandboxUnavailableError,
 } from '../sandbox/sandbox-execution.service.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';
@@ -2234,7 +2235,8 @@ function rowWithHeartbeat(
   id: string,
   expired: boolean,
 ) {
-  const stamp = expired ? new Date(Date.now() - 3_600_000) : new Date();
+  // 2 h: por encima del umbral por defecto con reintentos de GET (WI-CORE-071, ~89 min con los defaults).
+  const stamp = expired ? new Date(Date.now() - 7_200_000) : new Date();
   return { ...base, id, lastHeartbeatAt: stamp, createdAt: stamp };
 }
 
@@ -4991,6 +4993,182 @@ describe('ExperimentJobHandler caracterización del pipeline de generación (WI-
       ]);
     } finally {
       await rm(workspace, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * WI-CORE-071: la cota HTTP del Sandbox incluye los reintentos de GET (SANDBOX_POLL_RETRIES y
+ * SANDBOX_POLL_RETRY_DELAY_MS), leídos del ConfigService con los mismos defaults que el servicio.
+ * Con budget.maxDurationMs = 60_000 (seededRun) el umbral por defecto es 60_000 + 5_273_500 = 5_333_500 ms;
+ * con SANDBOX_POLL_RETRIES=0 es 60_000 + 1_220_000 = 1_280_000 ms.
+ */
+describe('ExperimentJobHandler: umbral de latido con reintentos de GET del Sandbox (WI-CORE-071)', () => {
+  /** Latido de 5_000_000 ms (83 min): vigente con los defaults, vencido con R=0 o con base 1 ms (4_910_847). */
+  const AGE_MS = 5_000_000;
+
+  function staleRowsFor(age: number) {
+    const stamp = new Date(Date.now() - age);
+    return [
+      {
+        ...attemptRow('RAG', 1, 1, 'RUNNING'),
+        id: 'row-rag-1-a1',
+        lastHeartbeatAt: stamp,
+        createdAt: stamp,
+      },
+      ...COMPLETED_OTHERS,
+    ];
+  }
+
+  it('con los defaults el latido de 83 min sigue vigente y el job se reprograma (umbral 5_333_500 ms)', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository(staleRowsFor(AGE_MS)),
+    });
+
+    const error = await makeHandler(deps)
+      .handle(payload, 'job-071-default')
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(RescheduleJobError);
+    // Espera = umbral - latido (333_500 ms), menos unos milisegundos de reloj.
+    expect((error as RescheduleJobError).delayMs).toBeGreaterThan(333_000);
+    expect((error as RescheduleJobError).delayMs).toBeLessThanOrEqual(333_500);
+    expect(executionsOf(deps)).toHaveLength(0);
+    expect(repoOf(deps).closeInterruptedRepetition).not.toHaveBeenCalled();
+  });
+
+  it('con SANDBOX_POLL_RETRIES=0 el mismo latido ya está vencido y el intento 1 se relanza como intento 2', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository(staleRowsFor(AGE_MS)),
+      configService: configWith({ SANDBOX_POLL_RETRIES: 0 }),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-071-r0');
+
+    expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledWith(
+      'row-rag-1-a1',
+      { errorSummary: expect.any(String) },
+    );
+    expect(executionsOf(deps).map((execution) => execution.requestId)).toContain(
+      sandboxExperimentRequestId('job-071-r0', 'RAG', 1, 2),
+    );
+  });
+
+  it('SANDBOX_POLL_RETRY_DELAY_MS se lee del ConfigService: con base 1 ms el umbral baja a 4_910_847 ms y el latido vence', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository(staleRowsFor(AGE_MS)),
+      configService: configWith({ SANDBOX_POLL_RETRY_DELAY_MS: 1 }),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-071-base');
+
+    expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledWith(
+      'row-rag-1-a1',
+      { errorSummary: expect.any(String) },
+    );
+    expect(executionsOf(deps).map((execution) => execution.requestId)).toContain(
+      sandboxExperimentRequestId('job-071-base', 'RAG', 1, 2),
+    );
+  });
+
+  it('acepta valores de entorno en texto (ConfigService no valida estas claves): mismo umbral que con números', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository(staleRowsFor(AGE_MS)),
+      configService: configWith({
+        SANDBOX_REQUEST_TIMEOUT_MS: '10000',
+        SANDBOX_MAX_POLL_ATTEMPTS: '120',
+        SANDBOX_POLL_RETRIES: '3',
+        SANDBOX_POLL_RETRY_DELAY_MS: '500',
+      }),
+    });
+
+    const error = await makeHandler(deps)
+      .handle(payload, 'job-071-text')
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(RescheduleJobError);
+    expect((error as RescheduleJobError).delayMs).toBeGreaterThan(333_000);
+    expect((error as RescheduleJobError).delayMs).toBeLessThanOrEqual(333_500);
+  });
+
+  it('EXPERIMENT_HEARTBEAT_STALE_MS configurado sigue mandando sobre la cota con reintentos', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: withRunRepository(staleRowsFor(AGE_MS)),
+      configService: configWith({ EXPERIMENT_HEARTBEAT_STALE_MS: 600_000 }),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-071-configured');
+
+    expect(repoOf(deps).closeInterruptedRepetition).toHaveBeenCalledWith(
+      'row-rag-1-a1',
+      { errorSummary: expect.any(String) },
+    );
+  });
+});
+
+/**
+ * WI-CORE-071: un GET de estado transitorio reintentado dentro del cliente del Sandbox no es un intento nuevo:
+ * cada slot ejecuta exactamente un intento (un POST, requestId de intento 1), no se crea segunda fila ni se
+ * cierra nada, y el reintento queda solo en el contador del cliente.
+ */
+describe('ExperimentJobHandler: reintentos de GET del Sandbox no incrementan attempt (WI-CORE-071)', () => {
+  it('un 503 transitorio en un GET de estado se reintenta dentro del cliente y cada repetición sigue en un solo intento', async () => {
+    let failedStatusOnce = false;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const respond = (value: unknown, status = 200) =>
+        ({ ok: status < 400, status, json: async () => value }) as Response;
+      if ((init?.method ?? 'GET') === 'POST') {
+        return respond({ executionId: 'exec-071', pollAfterMs: 1 });
+      }
+      if (url.endsWith('/result')) {
+        return respond({
+          status: 'COMPLETED',
+          facts: successfulSandboxResult().facts,
+          failure: null,
+          stageDurations: [],
+        });
+      }
+      if (!failedStatusOnce) {
+        failedStatusOnce = true;
+        return respond({}, 503);
+      }
+      return respond({ status: 'COMPLETED' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const objectStorage = {
+        put: vi.fn().mockResolvedValue(undefined),
+        presignGet: vi.fn().mockResolvedValue('https://signed.example/snapshot'),
+      };
+      const sandbox = new SandboxExecutionService(
+        configWith({
+          SANDBOX_URL: 'http://sandbox.local',
+          SANDBOX_SERVICE_TOKEN: 'token',
+          SANDBOX_DOWNLOAD_TTL_SECONDS: 300,
+          SANDBOX_REQUEST_TIMEOUT_MS: 5000,
+          SANDBOX_MAX_POLL_ATTEMPTS: 5,
+          SANDBOX_POLL_RETRIES: 2,
+          SANDBOX_POLL_RETRY_DELAY_MS: 1,
+        }) as never,
+        objectStorage as never,
+      );
+      const execute = vi.spyOn(sandbox, 'execute');
+      const { deps } = makeDeps({ sandboxExecutionService: sandbox });
+
+      await makeHandler(deps).handle(payload, 'job-071-get');
+
+      expect(sandbox.transientRetriesByOperation).toEqual({ status: 1, result: 0 });
+      expect(execute).toHaveBeenCalledTimes(6);
+      const requestIds = execute.mock.calls.map((call) => call[0].requestId);
+      const expected = ['RAG', 'GENERALIST_AGENT'].flatMap((strategy) =>
+        [1, 2, 3].map((repetition) => sandboxExperimentRequestId('job-071-get', strategy, repetition, 1)),
+      );
+      expect([...requestIds].sort()).toEqual([...expected].sort());
+      // Un solo inicio de intento por slot (sin segundo intento) y ninguna ejecución con requestId de intento 2.
+      expect(beginsOf(deps)).toHaveLength(6);
+      expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });
