@@ -18956,119 +18956,244 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-10-19T01:30:00.000Z"
+    },
+    {
+      "id": "WI-CORE-071",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
+      "approved": true,
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-078"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-071-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-071-sdd-verification.md",
+        "harness/reports/wi-core-071-scope-approval.md",
+        "harness/reports/wi-core-071-implementation.md",
+        "harness/reports/wi-core-071-technical-checks.md",
+        "harness/reports/wi-core-071-contract-sync-scope-review.md",
+        "harness/reports/wi-core-071-independent-review.md",
+        "harness/reports/wi-core-071-closure.md",
+        "app/src/experiments/attempt-recovery.ts",
+        "app/src/experiments/experiment-job.handler.ts"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-071 solo cambia la cota de latido de intentos de experimentos.",
+          "report": "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-071 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-19T02:00:00.000Z",
+        "note": "Sin decisiones DEC bloqueantes; falta la decision del usuario sobre la opcion (A/B/C) y el valor, que es la aprobacion de alcance."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "DECISION_REQUIRED",
+            "findings": [
+              "Spec verificada con cifras; el cambio es de tiempos y relanzamientos y requiere decision del usuario sobre la opcion (A/B/C) y el valor antes de implementar."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-071-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-071-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Presentar opciones al usuario y pedir aprobacion de alcance.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Cota de latido con el tiempo maximo de los reintentos de GET; valores por defecto 5_273_500 y 5_393_500; normalizacion de entradas en texto; 13 pruebas nuevas."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/experiments/attempt-recovery.ts",
+              "app/src/experiments/experiment-job.handler.ts",
+              "app/.env.example"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-071-implementation.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED sin bloqueantes; formula verificada contra withTransientRetries, 6 mutaciones detectadas; O1-O3 bajas y no bloqueantes."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-071-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-19T15:44:32.188Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:04:26.093Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:04:26.192Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:04:26.296Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-071-scope.md",
+        "harness/reports/wi-core-071-sdd-verification.md",
+        "harness/reports/wi-core-071-scope-approval.md",
+        "harness/reports/wi-core-071-implementation.md",
+        "harness/reports/wi-core-071-technical-checks.md",
+        "harness/reports/wi-core-071-independent-review.md",
+        "harness/reports/wi-core-071-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-071-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-071-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-071-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-071-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-071-independent-review.md",
+          "harness/reports/wi-core-071-closure.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-071-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-19T18:10:00.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-071",
-    "component": "CORE",
-    "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
-    "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
-    "approved": true,
-    "storyIds": [
-      "HU11",
-      "HU17"
-    ],
-    "taskIds": [
-      "ST-CORE-078"
-    ],
-    "caseIds": [],
-    "sprint": "P2",
-    "specPaths": [
-      "harness/reports/wi-core-071-scope.md",
-      "spec/features/008-experimental-comparison/tasks.md",
-      "harness/reports/wi-core-071-sdd-verification.md",
-      "harness/reports/wi-core-071-scope-approval.md"
-    ],
-    "transversalPaths": [],
-    "deferredSyncIds": [],
-    "deferredSyncDigests": {},
-    "contractSyncReview": [],
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": "2026-10-19T02:00:00.000Z",
-      "note": "Sin decisiones DEC bloqueantes; falta la decision del usuario sobre la opcion (A/B/C) y el valor, que es la aprobacion de alcance."
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": "sdd-analyst",
-      "implementationAgent": "implementer-high",
-      "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [
-        {
-          "agent": "sdd-analyst",
-          "status": "DECISION_REQUIRED",
-          "findings": [
-            "Spec verificada con cifras; el cambio es de tiempos y relanzamientos y requiere decision del usuario sobre la opcion (A/B/C) y el valor antes de implementar."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "harness/reports/wi-core-071-sdd-verification.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-071-sdd-verification.md"
-          ],
-          "recommendedNextStep": "Presentar opciones al usuario y pedir aprobacion de alcance.",
-          "executedBy": {
-            "agent": "sdd-analyst",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "low"
-          }
-        }
-      ],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_APPLICABLE",
-      "canonicalContractSynced": "G-NOT_APPLICABLE",
-      "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
-    },
-    "coordination": {
-      "contractImpact": false,
-      "publishesContract": false,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-071",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-19T15:44:32.188Z"
-        }
-      ],
-      "publishedSyncIds": [],
-      "pendingRelevantSyncIds": []
-    },
-    "evidence": [
-      "harness/reports/wi-core-071-scope.md",
-      "harness/reports/wi-core-071-sdd-verification.md",
-      "harness/reports/wi-core-071-scope-approval.md"
-    ],
-    "blockedReason": null,
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-071-sdd-verification.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-071-sdd-verification.md"
-      ]
-    }
-  }
+  "activeWorkItem": null
 }
