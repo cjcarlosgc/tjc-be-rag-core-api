@@ -4264,7 +4264,7 @@
       "id": "WI-CORE-074",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-SELECTED",
+      "status": "W-AWAITING_APPROVAL",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
@@ -4287,7 +4287,8 @@
       ],
       "specPaths": [
         "harness/reports/wi-core-074-scope.md",
-        "spec/features/013-pr-driven-analysis/tasks.md"
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-074-sdd-verification.md"
       ]
     }
   ]

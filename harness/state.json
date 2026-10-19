@@ -19518,7 +19518,7 @@
     "id": "WI-CORE-074",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-SELECTED",
+    "status": "W-AWAITING_APPROVAL",
     "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
     "approved": false,
     "storyIds": [
@@ -19531,30 +19531,56 @@
     "sprint": "P2",
     "specPaths": [
       "harness/reports/wi-core-074-scope.md",
-      "spec/features/013-pr-driven-analysis/tasks.md"
+      "spec/features/013-pr-driven-analysis/tasks.md",
+      "harness/reports/wi-core-074-sdd-verification.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
     "deferredSyncDigests": {},
     "contractSyncReview": [],
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-ERR-001"
+      ],
+      "checkedAt": "2026-10-19T20:30:00.000Z",
+      "note": "Sin decisiones DEC bloqueantes; cuatro decisiones de alcance (D1-D4) requieren respuesta del usuario."
     },
     "execution": {
       "leaderAgent": "leader",
-      "analysisAgent": null,
+      "analysisAgent": "sdd-analyst",
       "implementationAgent": null,
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "DECISION_REQUIRED",
+          "findings": [
+            "El realtime de ProjectVersion ya autentica el handshake y exige Reader por suscripcion; solo faltan los eventos de AnalysisRun/experimento; D1-D4 requieren decision del usuario."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-074-sdd-verification.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-074-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Aprobacion de alcance del usuario con D1-D4.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -19562,7 +19588,7 @@
       "canonicalContractSynced": "G-NOT_RUN",
       "contractSyncPublished": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -19599,7 +19625,18 @@
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
-    "evidence": [],
-    "blockedReason": null
+    "evidence": [
+      "harness/reports/wi-core-074-scope.md",
+      "harness/reports/wi-core-074-sdd-verification.md"
+    ],
+    "blockedReason": null,
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-074-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-074-sdd-verification.md"
+      ]
+    }
   }
 }
