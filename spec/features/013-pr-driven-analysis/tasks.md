@@ -17,4 +17,4 @@
 - [x] **ST-CORE-018 · T-DONE · WI-CORE-011 · HU12, HU14:** reexaminar Runs históricos; conservarlos, obsoletar y ocultar los pre-binding en listas/detalles/bandejas, y mantener ocultos con reintento durable los que no puedan clasificarse por falta temporal de metadata. Evidencia: `harness/reports/wi-core-011-closure.md`.
 
 El trabajo histórico de esta feature está en `CHANGELOG.md`, `harness/reports/` y Git. Su antigua numeración de HU no se reutiliza como evidencia de aceptación de las 18 HU vigentes.
-- [ ] **ST-CORE-081 · T-BACKLOGGED · WI-CORE-074 · HU12:** WI-D en cola: tiempo real de AnalysisRun y experimento por suscripción explícita (INTEROP §6.6), CORS compartido y decisión de autenticación del socket.
+- [ ] **ST-CORE-081 · T-READY · WI-CORE-074 · HU12:** WI-D en cola: tiempo real de AnalysisRun y experimento por suscripción explícita (INTEROP §6.6), CORS compartido y decisión de autenticación del socket.

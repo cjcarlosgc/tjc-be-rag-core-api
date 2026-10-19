@@ -4264,7 +4264,7 @@
       "id": "WI-CORE-074",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-SELECTED",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
