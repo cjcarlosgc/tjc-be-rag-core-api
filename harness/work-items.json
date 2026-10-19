@@ -4207,7 +4207,7 @@
       "id": "WI-CORE-073",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-AWAITING_APPROVAL",
+      "status": "W-IN_PROGRESS",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
@@ -4225,14 +4225,15 @@
       "contractImpact": true,
       "publishesContract": false,
       "acceptanceCriteria": [
-        "INTEROP (versión por decidir) enumera los 4xx no previstos (401/403/404/405/406/415, hoy 400 INVALID_REQUEST no reintentable sin estar enumerados) con códigos genéricos y mensajes claros; `retryable` y `phase` siguen opcionales; cambio aditivo y documental, sin romper consumidores; cita tesis Anexo E (C-01–C-10).",
-        "spec/contracts/schemas/error-envelope.schema.json y sus examples/ se actualizan; Core implementa los códigos genéricos sin cambiar el comportamiento de los códigos existentes; contract tests y contracts:check en verde.",
-        "Contract Sync: se publica una sola versión de INTEROP junto con WI-D (WI-C no publica por separado salvo decisión contraria del usuario); revisión independiente con reviewer y contract-reviewer."
+        "INTEROP-2.18 (versión única, junto con WI-D) enumera los códigos genéricos aprobados (UNAUTHORIZED, FORBIDDEN, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE, CONFLICT, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, UNPROCESSABLE_ENTITY, TOO_MANY_REQUESTS, SERVICE_UNAVAILABLE, HTTP_ERROR; 5xx sin código = INTERNAL_ERROR) con estado, retryable y mensaje fijo en español sin eco de la excepción; retryable solo en los genéricos (true en 429 y 503) y phase siguen opcionales; el parser de body no cambia; cambio aditivo y documental, sin romper consumidores; Anexo E se cita por referencia.",
+        "spec/contracts/schemas/error-envelope.schema.json (solo descripciones), examples/ (ejemplo genérico y manifest) y los tipos generados se actualizan; DEC-ERR-001 (PROPOSED) registrada; Core implementa los códigos genéricos en all-exceptions.filter.ts sin cambiar los 59 códigos existentes ni el 400 INVALID_REQUEST; contract tests y contracts:check en verde.",
+        "WI-C no publica Contract Sync (publishesContract=false): la publicación única de INTEROP-2.18 la hace WI-D; revisión independiente con reviewer y contract-reviewer; lint, build y test en verde."
       ],
       "specPaths": [
         "harness/reports/wi-core-073-scope.md",
         "spec/transversal/errors/tasks.md",
-        "harness/reports/wi-core-073-sdd-verification.md"
+        "harness/reports/wi-core-073-sdd-verification.md",
+        "harness/reports/wi-core-073-scope-approval.md"
       ]
     },
     {

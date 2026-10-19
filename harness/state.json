@@ -19199,9 +19199,9 @@
     "id": "WI-CORE-073",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-AWAITING_APPROVAL",
+    "status": "W-IN_PROGRESS",
     "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
-    "approved": false,
+    "approved": true,
     "storyIds": [
       "HU12",
       "HU14"
@@ -19214,7 +19214,8 @@
     "specPaths": [
       "harness/reports/wi-core-073-scope.md",
       "spec/transversal/errors/tasks.md",
-      "harness/reports/wi-core-073-sdd-verification.md"
+      "harness/reports/wi-core-073-sdd-verification.md",
+      "harness/reports/wi-core-073-scope-approval.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -19230,7 +19231,7 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
       "reviewAgent": null,
       "handoffs": [
@@ -19307,7 +19308,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-073-scope.md",
-      "harness/reports/wi-core-073-sdd-verification.md"
+      "harness/reports/wi-core-073-sdd-verification.md",
+      "harness/reports/wi-core-073-scope-approval.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
