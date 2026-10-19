@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -15,7 +15,14 @@ import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import { PhpDependencyContextService } from '../retrieval/php-dependency-context.service.js';
-import { PromptBuilder, sanitizeGeneratedPhp } from '../generation/prompt-builder.service.js';
+import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import {
+  acquireGenerationContext,
+  buildSandboxExecuteRequest,
+  buildTestPrompt,
+  mergeGeneratedTest,
+  type MergedGeneratedTest,
+} from '../generation/test-generation-pipeline.js';
 import { phpTestLocation, type PhpTestLocation } from '../generation/php-test-path.js';
 import { TestFileMergeService, coLocatedSpecPath } from '../generation/test-file-merge.service.js';
 import { LLM_PROVIDER } from '../providers/providers.constants.js';
@@ -626,12 +633,12 @@ export class ExperimentJobHandler
         );
       }
 
-      const mergedContent = this.mergeAttemptContent(
-        state.generation.content,
-        target.existingContent,
-        phpPlacement,
-      );
-      if (mergedContent === null) {
+      const merge = mergeGeneratedTest(this.testFileMergeService, {
+        language: context.language,
+        generatedContent: state.generation.content,
+        existingContent: target.existingContent,
+      });
+      if (merge.kind === 'INVALID_PHP') {
         // Resultado técnico desfavorable de la estrategia (no fallo externo): sin Sandbox y sin reintento.
         return this.finalizeWithoutSandbox(
           begun,
@@ -647,7 +654,7 @@ export class ExperimentJobHandler
         runner,
         state,
         target,
-        mergedContent,
+        merge,
       );
       await this.recordRepetition(
         begun,
@@ -759,21 +766,6 @@ export class ExperimentJobHandler
     return false;
   }
 
-  /** Contenido final a enviar: PHP sin fusión (null si la respuesta no es PHP); TypeScript con creación o fusión. */
-  private mergeAttemptContent(
-    generatedContent: string,
-    existingContent: string | null,
-    placement: PhpTestLocation | null,
-  ): string | null {
-    if (placement) {
-      const phpContent = sanitizeGeneratedPhp(generatedContent);
-      return phpContent === null ? null : `${phpContent}\n`;
-    }
-    return existingContent === null
-      ? this.testFileMergeService.applyCreate(generatedContent)
-      : this.testFileMergeService.applyMerge(existingContent, generatedContent);
-  }
-
   /**
    * Envía el contenido al Sandbox. Cualquier excepción del cliente es fallo de infraestructura
    * (fallo externo con un único reintento); la evidencia y el artefacto se guardan en `state`.
@@ -783,23 +775,23 @@ export class ExperimentJobHandler
     runner: NonNullable<AttemptContext['framework']>,
     state: AttemptState,
     target: AttemptTarget,
-    mergedContent: string,
+    merged: MergedGeneratedTest,
   ): Promise<SandboxStepResult> {
     const executionStart = Date.now();
     try {
       // WI-CORE-027: mismo contenido que se envía al Sandbox; sin contenido generado no hay artefacto.
       state.artifactHash =
         state.generation.content.trim().length > 0
-          ? createHash('sha256').update(mergedContent, 'utf8').digest('hex')
+          ? createHash('sha256').update(merged.content, 'utf8').digest('hex')
           : null;
       const sandboxResult = await this.sandboxExecutionService.execute(
-        this.buildSandboxRequest(context, runner, target, mergedContent),
+        this.buildSandboxRequest(context, runner, target, merged),
       );
       return this.acceptSandboxResult(
         context,
         state,
         sandboxResult,
-        mergedContent,
+        merged.content,
         Date.now() - executionStart,
       );
     } catch (error) {
@@ -807,7 +799,7 @@ export class ExperimentJobHandler
         context,
         state,
         error,
-        mergedContent,
+        merged.content,
         Date.now() - executionStart,
       );
     }
@@ -817,9 +809,9 @@ export class ExperimentJobHandler
     context: AttemptContext,
     runner: NonNullable<AttemptContext['framework']>,
     target: AttemptTarget,
-    mergedContent: string,
+    merged: MergedGeneratedTest,
   ): SandboxExecutionRequest {
-    return {
+    return buildSandboxExecuteRequest({
       requestId: sandboxExperimentRequestId(
         context.jobId,
         context.strategy,
@@ -830,22 +822,15 @@ export class ExperimentJobHandler
       projectVersionId: context.projectVersionId,
       snapshotKey: context.snapshotKey,
       snapshotBuffer: context.snapshotBuffer,
-      artifacts: [
-        {
-          artifactId: randomUUID(),
-          relativePath: target.relativePath,
-          artifactType: target.existingContent === null ? 'CREATED' : 'MODIFIED',
-          content: Buffer.from(mergedContent, 'utf8'),
-        },
-      ],
-      scope: 'TARGET',
-      targetIds: [context.target.id],
+      relativePath: target.relativePath,
+      artifactType: merged.artifactType,
+      mergedContent: merged.content,
+      targetId: context.target.id,
       runnerHint: runner,
+      language: context.language,
+      projectRoot: context.projectRoot,
       executionProfile: context.executionProfile,
-      ...(context.language === 'php'
-        ? { projectRoot: context.projectRoot }
-        : {}),
-    };
+    });
   }
 
   /** Resultado devuelto por el Sandbox: evidencia, artefacto y clasificación del intento. */
@@ -1020,40 +1005,37 @@ export class ExperimentJobHandler
     config: LLMEffectiveConfig,
     budget: ExperimentBudget,
   ): Promise<GenerationOutcome> {
-    const retrievalTarget = toRetrievalTarget(target);
-    const retrieval = await this.retrievalService.retrieve(
-      projectVersionId,
-      retrievalTarget,
-    );
     // Las reglas funcionales solo llegan al brazo RAG: el agente generalista no las recibe (DEC-EXP-FK-001).
-    const functionalRules = await this.functionalRulesRetriever.retrieve(
-      projectId,
-      retrievalTarget,
-    );
-    // WI-CORE-057: dependencias FQCN del target PHP; null fuera de PHP o sin entradas.
-    const dependencyContext = await this.phpDependencyContextService.resolve(
-      projectVersionId,
-      retrieval.targetChunks,
-      language,
-    );
-    const generationContext = this.contextBuilder.build(
-      retrieval,
-      retrievalTarget,
-      { framework, language },
-      { maxContextTokens: budget.contextTokenBudget },
-      functionalRules,
-      dependencyContext,
+    const { generationContext } = await acquireGenerationContext(
+      {
+        retrievalService: this.retrievalService,
+        functionalRulesRetriever: this.functionalRulesRetriever,
+        phpDependencyContextService: this.phpDependencyContextService,
+        contextBuilder: this.contextBuilder,
+      },
+      {
+        projectId,
+        projectVersionId,
+        retrievalTarget: toRetrievalTarget(target),
+        framework,
+        language,
+        contextOptions: { maxContextTokens: budget.contextTokenBudget },
+      },
     );
     await this.contextTracesRepository.updateDetail(
       traceId,
       makeRagDetail(generationContext),
     );
-    const prompt = placement
-      ? this.promptBuilder.build(generationContext, {
-          testNamespace: placement.namespace,
-          testPath: placement.relativePath,
-        })
-      : this.promptBuilder.build(generationContext);
+    const prompt = buildTestPrompt(
+      this.promptBuilder,
+      generationContext,
+      placement
+        ? {
+            testNamespace: placement.namespace,
+            testPath: placement.relativePath,
+          }
+        : null,
+    );
     const generation = await this.llmProvider.generate(prompt, config);
 
     return {

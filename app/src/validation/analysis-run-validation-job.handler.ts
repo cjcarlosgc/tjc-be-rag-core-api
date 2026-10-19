@@ -25,10 +25,13 @@ import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import type { GenerationContext } from '../retrieval/generation-context.js';
 import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import { PhpDependencyContextService } from '../retrieval/php-dependency-context.service.js';
+import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import {
-  PromptBuilder,
-  sanitizeGeneratedPhp,
-} from '../generation/prompt-builder.service.js';
+  acquireGenerationContext,
+  buildSandboxExecuteRequest,
+  buildTestPrompt,
+  mergeGeneratedTest,
+} from '../generation/test-generation-pipeline.js';
 import { phpTestLocation } from '../generation/php-test-path.js';
 import {
   TestFileMergeService,
@@ -417,28 +420,21 @@ export class AnalysisRunValidationJobHandler
     let generation: ProposalGenerationEvidence | null = null;
 
     try {
-      const retrievalTarget = toRetrievalTarget(symbol);
-      const retrieval = await this.retrievalService.retrieve(
-        run.projectVersionId!,
-        retrievalTarget,
-      );
-      const functionalRules = await this.functionalRulesRetriever.retrieve(
-        run.projectId,
-        retrievalTarget,
-      );
-      // WI-CORE-057: dependencias FQCN del target PHP; null fuera de PHP o sin entradas.
-      const dependencyContext = await this.phpDependencyContextService.resolve(
-        run.projectVersionId!,
-        retrieval.targetChunks,
-        language,
-      );
-      const generationContext = this.contextBuilder.build(
-        retrieval,
-        retrievalTarget,
-        { framework, language },
-        {},
-        functionalRules,
-        dependencyContext,
+      const { retrieval, generationContext } = await acquireGenerationContext(
+        {
+          retrievalService: this.retrievalService,
+          functionalRulesRetriever: this.functionalRulesRetriever,
+          phpDependencyContextService: this.phpDependencyContextService,
+          contextBuilder: this.contextBuilder,
+        },
+        {
+          projectId: run.projectId,
+          projectVersionId: run.projectVersionId!,
+          retrievalTarget: toRetrievalTarget(symbol),
+          framework,
+          language,
+          contextOptions: {},
+        },
       );
       contextId = await this.persistTraceEvidence(
         run,
@@ -446,13 +442,16 @@ export class AnalysisRunValidationJobHandler
         retrieval,
         generationContext,
       );
-      const prompt =
+      const prompt = buildTestPrompt(
+        this.promptBuilder,
+        generationContext,
         language === 'php'
-          ? this.promptBuilder.build(generationContext, {
+          ? {
               testNamespace: placement.namespace ?? undefined,
               testPath: relativePath,
-            })
-          : this.promptBuilder.build(generationContext);
+            }
+          : null,
+      );
       const generationStart = Date.now();
       const llmResult = await this.llmProvider.generate(prompt);
       generation = toProposalGeneration(
@@ -460,62 +459,51 @@ export class AnalysisRunValidationJobHandler
         Date.now() - generationStart,
       );
 
-      let artifactType: 'CREATED' | 'MODIFIED';
-      let mergedContent: string;
-
-      if (language === 'php') {
-        const phpContent = sanitizeGeneratedPhp(llmResult.content);
-        if (phpContent === null) {
-          const proposalId = await this.persistProposal(run, symbol, {
-            relativePath,
-            content: llmResult.content,
-            status: 'HELD',
-            failureSummary:
-              'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
-            contextId,
-            generation,
-          });
-          this.logger.debug(
-            `Propuesta ${proposalId} retenida: respuesta PHP sin <?php.`,
-          );
-          return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
-        }
-        artifactType = 'CREATED';
-        mergedContent = `${phpContent}\n`;
-      } else {
-        const existingContent = await readFile(
-          join(workspace.dir, relativePath),
-          'utf8',
-        ).catch(() => null);
-        artifactType = existingContent === null ? 'CREATED' : 'MODIFIED';
-        mergedContent =
-          existingContent === null
-            ? this.testFileMergeService.applyCreate(llmResult.content)
-            : this.testFileMergeService.applyMerge(
-                existingContent,
-                llmResult.content,
-              );
-      }
-
-      const sandboxResult = await this.sandboxExecutionService.execute({
-        requestId: sandboxGenerationRequestId(jobId, symbol.id),
-        testRunId: run.id,
-        projectVersionId: run.projectVersionId!,
-        snapshotKey,
-        snapshotBuffer,
-        artifacts: [
-          {
-            artifactId: randomUUID(),
-            relativePath,
-            artifactType,
-            content: Buffer.from(mergedContent, 'utf8'),
-          },
-        ],
-        scope: 'TARGET',
-        targetIds: [symbol.id],
-        runnerHint: framework,
-        ...(language === 'php' ? { projectRoot } : {}),
+      // Solo TypeScript lee el test co-ubicado, después de generar; PHP es siempre archivo nuevo.
+      const existingContent =
+        language === 'php'
+          ? null
+          : await readFile(join(workspace.dir, relativePath), 'utf8').catch(
+              () => null,
+            );
+      const merge = mergeGeneratedTest(this.testFileMergeService, {
+        language,
+        generatedContent: llmResult.content,
+        existingContent,
       });
+      if (merge.kind === 'INVALID_PHP') {
+        const proposalId = await this.persistProposal(run, symbol, {
+          relativePath,
+          content: llmResult.content,
+          status: 'HELD',
+          failureSummary:
+            'La respuesta del modelo no es un archivo PHP (no empieza con <?php).',
+          contextId,
+          generation,
+        });
+        this.logger.debug(
+          `Propuesta ${proposalId} retenida: respuesta PHP sin <?php.`,
+        );
+        return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
+      }
+      const { content: mergedContent, artifactType } = merge;
+
+      const sandboxResult = await this.sandboxExecutionService.execute(
+        buildSandboxExecuteRequest({
+          requestId: sandboxGenerationRequestId(jobId, symbol.id),
+          testRunId: run.id,
+          projectVersionId: run.projectVersionId!,
+          snapshotKey,
+          snapshotBuffer,
+          relativePath,
+          artifactType,
+          mergedContent,
+          targetId: symbol.id,
+          runnerHint: framework,
+          language,
+          projectRoot,
+        }),
+      );
 
       const outcome = mapSandboxResult(sandboxResult);
       const evidence = toSandboxExecutionEvidence(

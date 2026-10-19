@@ -6,6 +6,9 @@ import { buildSandboxEvidenceArtifact } from './repetition-artifact.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentJobHandler } from './experiment-job.handler.js';
@@ -4789,6 +4792,205 @@ describe('ExperimentJobHandler caracterización de runAttempt (WI-CORE-070, cort
       expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('ExperimentJobHandler caracterización del pipeline de generación (WI-CORE-070, corte B)', () => {
+  const PHP_TARGET_B = makeTarget({
+    filePath: 'app/Services/Calculator.php',
+    symbolName: 'App\\Services\\Calculator',
+    methodName: 'add',
+    targetType: 'METHOD',
+  });
+  const PHP_PATH_B = 'tests/Unit/Services/CalculatorAddTest.php';
+  const PHP_NAMESPACE_B = 'Tests\\Unit\\Services';
+  const PHP_CONTENT_B =
+    '<?php\n\nnamespace Tests\\Unit\\Services;\n\nfinal class CalculatorAddTest {}';
+
+  type DirectAttemptCallerB = {
+    runAttempt(context: Record<string, unknown>): Promise<boolean>;
+  };
+
+  function directAttemptB(
+    handler: ExperimentJobHandler,
+    context: Record<string, unknown>,
+  ): Promise<boolean> {
+    return (handler as unknown as DirectAttemptCallerB).runAttempt(context);
+  }
+
+  function attemptB(overrides: Record<string, unknown> = {}) {
+    return {
+      jobId: 'job-char',
+      experimentId: 'exp-1',
+      projectId: 'project-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip'),
+      framework: 'VITEST',
+      language: 'typescript',
+      projectRoot: '.',
+      target: makeTarget(),
+      config: effectiveConfig,
+      budget: { toolCallCap: 5, contextTokenBudget: 1234, maxDurationMs: 60_000 },
+      executionProfile: 'NODE_TYPESCRIPT',
+      strategy: 'RAG',
+      repetition: 1,
+      pairId: null,
+      pairPosition: null,
+      attempt: 1,
+      ...overrides,
+    };
+  }
+
+  function phpAttemptB(overrides: Record<string, unknown> = {}) {
+    return attemptB({
+      language: 'php',
+      framework: 'PHPUNIT',
+      target: PHP_TARGET_B,
+      executionProfile: 'PHP_LARAVEL_PHPUNIT',
+      ...overrides,
+    });
+  }
+
+  /** Cada paso debe haberse llamado, y cada uno después del anterior. */
+  function expectInOrderB(steps: Array<[string, number | undefined]>): void {
+    for (const [label, order] of steps) {
+      expect(order, `${label} no fue llamado`).toBeDefined();
+    }
+    for (let index = 1; index < steps.length; index += 1) {
+      const [previous, previousOrder] = steps[index - 1];
+      const [current, currentOrder] = steps[index];
+      expect(
+        currentOrder as number,
+        `${previous} debe ocurrir antes que ${current}`,
+      ).toBeGreaterThan(previousOrder as number);
+    }
+  }
+
+  it('RAG: el contexto recibe el presupuesto como maxContextTokens, el prompt un único argumento y el LLM el prompt con la configuración', async () => {
+    const { deps } = makeDeps();
+
+    await directAttemptB(makeHandler(deps), attemptB());
+
+    const contextCalls = deps.contextBuilder.build.mock.calls;
+    expect(contextCalls).toHaveLength(2);
+    for (const call of contextCalls) {
+      expect(call[2]).toEqual({ framework: 'VITEST', language: 'typescript' });
+      expect(call[3]).toEqual({ maxContextTokens: 1234 });
+    }
+    expect(deps.promptBuilder.build.mock.calls[0]).toHaveLength(1);
+    expect(deps.llmProvider.generate.mock.calls[0]).toEqual(['prompt', effectiveConfig]);
+  });
+
+  it('PHP: el prompt recibe namespace y ruta como segundo argumento, y el Sandbox recibe la solicitud exacta con projectRoot y perfil PHP', async () => {
+    const { deps } = makeDeps();
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: PHP_CONTENT_B,
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+
+    await directAttemptB(makeHandler(deps), phpAttemptB());
+
+    const promptCalls = deps.promptBuilder.build.mock.calls;
+    expect(promptCalls).toHaveLength(1);
+    expect(promptCalls[0]).toHaveLength(2);
+    expect(promptCalls[0][1]).toEqual({
+      testNamespace: PHP_NAMESPACE_B,
+      testPath: PHP_PATH_B,
+    });
+
+    expect(executionsOf(deps)).toHaveLength(1);
+    const [request] = executionsOf(deps);
+    expect(request).toEqual({
+      requestId: sandboxExperimentRequestId('job-char', 'RAG', 1, 1),
+      testRunId: 'exp-1',
+      projectVersionId: 'version-1',
+      snapshotKey: 'snapshot-key',
+      snapshotBuffer: Buffer.from('zip'),
+      artifacts: [
+        {
+          artifactId: expect.any(String),
+          relativePath: PHP_PATH_B,
+          artifactType: 'CREATED',
+          content: Buffer.from(`${PHP_CONTENT_B}\n`, 'utf8'),
+        },
+      ],
+      scope: 'TARGET',
+      targetIds: ['target-1'],
+      runnerHint: 'PHPUNIT',
+      executionProfile: 'PHP_LARAVEL_PHPUNIT',
+      projectRoot: '.',
+    });
+    expect(deps.testFileMergeService.applyCreate).not.toHaveBeenCalled();
+    expect(deps.testFileMergeService.applyMerge).not.toHaveBeenCalled();
+  });
+
+  it('PHP: el orden de efectos es el mismo que TypeScript (traza, extracción, recuperación, reglas, dependencias, contexto, detalle, prompt, LLM, Sandbox y escritura)', async () => {
+    const { deps } = makeDeps();
+    (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: PHP_CONTENT_B,
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+
+    await directAttemptB(makeHandler(deps), phpAttemptB());
+
+    const trace = deps.contextTracesRepository;
+    expectInOrderB([
+      ['beginAttempt', trace.beginAttempt.mock.invocationCallOrder[0]],
+      ['contexto vacío (esqueleto)', deps.contextBuilder.build.mock.invocationCallOrder[0]],
+      ['detalle inicial', trace.updateDetail.mock.invocationCallOrder[0]],
+      ['extract', deps.zipExtractionService.extract.mock.invocationCallOrder[0]],
+      ['retrieve', deps.retrievalService.retrieve.mock.invocationCallOrder[0]],
+      ['reglas funcionales', deps.functionalRulesRetriever.retrieve.mock.invocationCallOrder[0]],
+      ['dependencias PHP', deps.phpDependencyContextService.resolve.mock.invocationCallOrder[0]],
+      ['contexto real', deps.contextBuilder.build.mock.invocationCallOrder[1]],
+      ['detalle de contexto', trace.updateDetail.mock.invocationCallOrder[1]],
+      ['prompt', deps.promptBuilder.build.mock.invocationCallOrder[0]],
+      ['generate', deps.llmProvider.generate.mock.invocationCallOrder[0]],
+      ['execute', deps.sandboxExecutionService.execute.mock.invocationCallOrder[0]],
+      ['escritura terminal', repoOf(deps).updateRepetitionById.mock.invocationCallOrder[0]],
+    ]);
+  });
+
+  it('TypeScript: un test existente se lee después de generar; si aparece durante la generación, el Sandbox recibe una fusión MODIFIED', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'rag-core-experiment-char-'));
+    try {
+      await mkdir(join(workspace, 'src'), { recursive: true });
+      const { deps } = makeDeps({
+        zipExtractionService: {
+          extract: vi.fn().mockResolvedValue({
+            dir: workspace,
+            cleanup: vi.fn().mockResolvedValue(undefined),
+          }),
+        },
+      });
+      (deps.llmProvider.generate as ReturnType<typeof vi.fn>).mockImplementation(
+        async () => {
+          await writeFile(join(workspace, 'src/foo.spec.ts'), 'describe existing', 'utf8');
+          return { content: 'rag generated test', inputTokens: 1, outputTokens: 1 };
+        },
+      );
+
+      await directAttemptB(makeHandler(deps), attemptB());
+
+      expect(deps.testFileMergeService.applyMerge).toHaveBeenCalledWith(
+        'describe existing',
+        'rag generated test',
+      );
+      expect(deps.testFileMergeService.applyCreate).not.toHaveBeenCalled();
+      expect(executionsOf(deps)).toHaveLength(1);
+      expect(executionsOf(deps)[0].artifacts).toEqual([
+        expect.objectContaining({
+          relativePath: 'src/foo.spec.ts',
+          artifactType: 'MODIFIED',
+          content: Buffer.from('merged', 'utf8'),
+        }),
+      ]);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
     }
   });
 });
