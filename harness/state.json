@@ -19518,9 +19518,9 @@
     "id": "WI-CORE-074",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-AWAITING_APPROVAL",
+    "status": "W-IN_PROGRESS",
     "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
-    "approved": false,
+    "approved": true,
     "storyIds": [
       "HU12"
     ],
@@ -19532,7 +19532,8 @@
     "specPaths": [
       "harness/reports/wi-core-074-scope.md",
       "spec/features/013-pr-driven-analysis/tasks.md",
-      "harness/reports/wi-core-074-sdd-verification.md"
+      "harness/reports/wi-core-074-sdd-verification.md",
+      "harness/reports/wi-core-074-scope-approval.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -19550,7 +19551,7 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
       "reviewAgent": null,
       "handoffs": [
@@ -19627,7 +19628,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-074-scope.md",
-      "harness/reports/wi-core-074-sdd-verification.md"
+      "harness/reports/wi-core-074-sdd-verification.md",
+      "harness/reports/wi-core-074-scope-approval.md"
     ],
     "blockedReason": null,
     "gateEvidence": {

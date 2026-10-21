@@ -4264,7 +4264,7 @@
       "id": "WI-CORE-074",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-AWAITING_APPROVAL",
+      "status": "W-IN_PROGRESS",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
@@ -4281,14 +4281,15 @@
       "contractImpact": true,
       "publishesContract": true,
       "acceptanceCriteria": [
-        "INTEROP §6.6 define eventos de AnalysisRun/experimento con los mismos DTO que los GET, suscripción explícita por id (sin broadcast global), polling HTTP como base sin cambios; sin citar HU21/HU22 (no existen en las 18 HU vigentes); ancla HU12.",
-        "Core emite desde el ciclo de vida del AnalysisRun y del experimento mediante RealtimeGateway (hoy emitProjectVersionUpdate no tiene llamadores); CORS del socket y HTTP con CONSOLE_CORS_ORIGINS (resuelve el aviso duplicado F5); decisión explícita del usuario sobre la autenticación del socket.",
-        "Pruebas unitarias y un e2e real con socket.io-client si es viable; Contract Sync publicado (una sola versión de INTEROP junto con WI-C) hacia github-integration, console y sandbox; revisión independiente con reviewer y contract-reviewer."
+        "INTEROP-2.18 §6.6 define los eventos analysis-run:update (AnalysisRunDetailResponse) y experiment:update (ExperimentStatusResponse) con el mismo DTO que sus GET, suscripción explícita por id (subscribe/unsubscribe de analysis-run y experiment con el SubscribeAck existente), sin broadcast global, polling HTTP intacto; ancla HU12, sin citar HU21/HU22; el handshake sin sesión se rechaza con AUTH_REQUIRED/INVALID_ACCESS_TOKEN (cambio incompatible declarado) y cada suscripción exige Reader sobre el Project.",
+        "Core emite post-commit y best-effort desde el ciclo de vida del AnalysisRun y del experimento (transiciones de estado y progreso de repeticiones con throttle; la creación del Run no emite) mediante un puerto de publicación; el aviso de CORS abierto sale una sola vez; pruebas unitarias y un e2e real con socket.io-client (devDependency).",
+        "Contract Sync único publicado a github-integration, console y sandbox con INTEROP-2.18 (WI-C + §6.6), digests finales, el cambio incompatible declarado a Console y DEC-RT-001 (PROPOSED, Blocks NONE); revisión independiente con reviewer y contract-reviewer; lint, build y test en verde."
       ],
       "specPaths": [
         "harness/reports/wi-core-074-scope.md",
         "spec/features/013-pr-driven-analysis/tasks.md",
-        "harness/reports/wi-core-074-sdd-verification.md"
+        "harness/reports/wi-core-074-sdd-verification.md",
+        "harness/reports/wi-core-074-scope-approval.md"
       ]
     }
   ]
