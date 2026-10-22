@@ -4634,7 +4634,7 @@
       "component": "CORE",
       "workItemType": "HARNESS",
       "lane": "FAST",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Corregir el filtro de vitest del job de Specs con PostgreSQL en la CI (No test files found)",
@@ -4660,7 +4660,9 @@
         ".github/workflows/ci.yml",
         "spec/features/017-cross-repository-dependency-gates/tasks.md",
         "harness/reports/wi-core-081-technical-checks.md",
-        "harness/reports/wi-core-081-contract-sync-scope-review.md"
+        "harness/reports/wi-core-081-contract-sync-scope-review.md",
+        "harness/reports/wi-core-081-independent-review.md",
+        "harness/reports/wi-core-081-closure.md"
       ],
       "contractSyncReview": [
         {
