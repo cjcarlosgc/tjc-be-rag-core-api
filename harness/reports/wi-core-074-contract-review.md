@@ -110,3 +110,12 @@ Ninguno.
 
 ## Siguiente paso recomendado
 El leader corrige F1 y F2 en `interoperability-contract.md` (solo prosa), recalcula los digests, commitea y luego publica los tres eventos con el SHA final. Implementar `analysisRunId`, `symbol` e `history` queda para otro WI, decisión del usuario.
+
+## Ciclo 2 de 2 (commit `5c82853`)
+Veredicto final: **APPROVED** (un hallazgo bajo preexistente, no bloqueante).
+
+1. F1 y F2 corregidos. §6.5 documenta `targetId` y una nota deja `analysisRunId` y `symbol` como «definidos por HU17, pendientes y opcionales»; §6.10 pasa a `history?` con comentario de pendiente; el bullet de §1 pasa a «aditiva salvo un cambio incompatible» con WI-CORE-073 y WI-CORE-074. Sin contradicción nueva respecto del presentador, del esquema ni de §6.6.
+2. Nuevo hallazgo bajo (F6, preexistente): `ExperimentResultsResponse` (§6.5, `interoperability-contract.md:359-362`) sigue listando `analysisRunId` y `symbol`, y el código (`experiments/dto/experiment.response.ts:120-128`) emite `targetId`. No es del tiempo real ni del esquema nuevo. Corregirlo en un WI posterior o con una línea en la nota de §6.5.
+3. Digests reales igual a los declarados en los tres eventos: INTEROP `22b880d1d677d7a54fb0f909f05d505e1557b6bbcdcfbb35347e9e3b5947e311`; GH `6c553ee8…565a`; SYSTEM `b70f9358…0444`; árbol de schemas `a1ba9a19…9091`. `sourceRevision` `5c82853c36a419e9839d5474ad9657f714aba4cb` en los tres.
+4. Eventos: `targets`, `breaking` (true solo Console) y `changed`/`requiredAction` coinciden con lo recomendado. Console declara el cambio incompatible con claridad. GH y Sandbox no piden espejar archivos que no espejan. Nota baja (F7): `scopePaths` de Sandbox (-003) todavía lista `github-integration-contract.md`, aunque su `requiredAction` dice que no lo espeja; inocuo.
+5. `node harness/contract-sync.mjs check --checkpoint before-done --work-item WI-CORE-074` (sin `--record`): `relevantPendingSyncIds: []`, sin bloqueos.

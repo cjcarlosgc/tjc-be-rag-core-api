@@ -4264,7 +4264,7 @@
       "id": "WI-CORE-074",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
@@ -4296,7 +4296,11 @@
         "harness/reports/wi-core-074-contract-sync-scope-review.md",
         "spec/contracts/schemas/realtime-events.schema.json",
         "app/src/realtime/realtime.gateway.ts",
-        "spec/features/013-pr-driven-analysis/spec.md"
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "harness/reports/wi-core-074-contract-review.md",
+        "harness/reports/wi-core-074-independent-review.md",
+        "harness/reports/wi-core-074-contract-sync-publication.md",
+        "harness/reports/wi-core-074-closure.md"
       ],
       "contractSyncReview": [
         {
