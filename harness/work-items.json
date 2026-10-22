@@ -4323,7 +4323,7 @@
       "id": "WI-CORE-075",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Documentar esfuerzo de prueba (low) vs esfuerzo de evidencia (medium) sobre la configuración unificada del LLM",
@@ -4350,7 +4350,9 @@
         "spec/transversal/providers/spec.md",
         "spec/features/008-experimental-comparison/spec.md",
         "harness/reports/wi-core-075-technical-checks.md",
-        "harness/reports/wi-core-075-contract-sync-scope-review.md"
+        "harness/reports/wi-core-075-contract-sync-scope-review.md",
+        "harness/reports/wi-core-075-independent-review.md",
+        "harness/reports/wi-core-075-closure.md"
       ],
       "lane": "FAST",
       "contractSyncReview": [
