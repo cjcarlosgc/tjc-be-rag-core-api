@@ -4496,7 +4496,7 @@
       "id": "WI-CORE-078",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-IN_REVIEW",
       "priority": "P2",
       "sprint": "P2",
       "title": "Endurecer la validacion de entorno: escapar valores en mensajes de error, topes de SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS y evaluar O3",
@@ -4523,7 +4523,26 @@
         "spec/features/008-experimental-comparison/tasks.md",
         "app/src/config/env.validation.ts",
         "harness/reports/wi-core-078-sdd-verification.md",
-        "harness/reports/wi-core-078-scope-approval.md"
+        "harness/reports/wi-core-078-scope-approval.md",
+        "harness/reports/wi-core-078-implementation.md",
+        "harness/reports/wi-core-078-technical-checks.md",
+        "harness/reports/wi-core-078-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-078 solo endurece la validacion de variables de entorno.",
+          "report": "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-078 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        }
       ]
     },
     {
