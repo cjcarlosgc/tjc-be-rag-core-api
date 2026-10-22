@@ -4496,7 +4496,7 @@
       "id": "WI-CORE-078",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Endurecer la validacion de entorno: escapar valores en mensajes de error, topes de SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS y evaluar O3",
@@ -4526,7 +4526,9 @@
         "harness/reports/wi-core-078-scope-approval.md",
         "harness/reports/wi-core-078-implementation.md",
         "harness/reports/wi-core-078-technical-checks.md",
-        "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        "harness/reports/wi-core-078-contract-sync-scope-review.md",
+        "harness/reports/wi-core-078-independent-review.md",
+        "harness/reports/wi-core-078-closure.md"
       ],
       "contractSyncReview": [
         {
