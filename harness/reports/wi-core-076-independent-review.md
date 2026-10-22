@@ -37,3 +37,12 @@ Desde `app/`: `pnpm lint`, `lint:types`, `build` y `contracts:check` pasan. `pnp
 
 ## recommendedNextStep
 Aprobar el gate del reviewer. Decidir con el usuario si F1 (validar `LLM_MODEL` no vacío) se incorpora ahora o se acepta como riesgo residual. Tras el informe del contract-reviewer, cerrar el WI.
+
+## Ciclo 2 de 2
+
+Revisado el commit `3d2383e` (corrección de F1). Veredicto final: **APPROVED**.
+
+- **Corrección:** `validateLlmSettings` aplica el default `gpt-6-luna` si `LLM_MODEL` es `undefined` (cubre clave ausente y `undefined` explícito), falla con `LLM_MODEL no puede estar vacío; ...` si es `''` o solo espacios, y guarda el valor recortado, que es el que lee `ConfigService`. Comprobado que `ConfigService` entrega `''` para una variable vacía, que es el caso que antes llegaba a la API; el default de `ConfigService.get` ya no es alcanzable con cadena vacía. Sin regresión: el default sigue funcionando y los 9 e2e no definen `LLM_MODEL`.
+- **Mutaciones (restauradas con `git checkout -- src`):** quitar la comprobación de vacío falla el test de vacío/espacios; no recortar espacios falla el test de valor válido recortado.
+- **Verificaciones:** `pnpm lint`, `pnpm build` y `pnpm contracts:check` pasan. `pnpm test`: 157 archivos pasan, 7 omitidos; 2618 tests pasan, 104 omitidos. Los 4 validadores pasan (sdd-check OK, 76 WI, harness V3, 72 completados).
+- **Alcance del commit:** `git show 3d2383e --stat` toca `env.validation.ts`, su spec, `interoperability-contract.md` y además dos informes de `harness/reports` (contract-review e independent-review); no hay otro código. No hay hallazgos nuevos. `git status` limpio salvo este añadido.

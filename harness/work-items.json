@@ -4352,7 +4352,7 @@
       "id": "WI-CORE-076",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Unificar la configuración del LLM: solo LLM_MODEL y LLM_REASONING_EFFORT explícito; eliminar EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS",
@@ -4385,7 +4385,11 @@
         "harness/reports/wi-core-076-technical-checks.md",
         "harness/reports/wi-core-076-contract-sync-scope-review.md",
         "app/src/providers/llm-settings.ts",
-        "app/src/config/env.validation.ts"
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-076-contract-review.md",
+        "harness/reports/wi-core-076-independent-review.md",
+        "harness/reports/wi-core-076-contract-sync-publication.md",
+        "harness/reports/wi-core-076-closure.md"
       ],
       "syncScopePaths": [
         "spec/contracts/system-contract.md",
