@@ -4582,7 +4582,7 @@
       "component": "CORE",
       "workItemType": "HARNESS",
       "lane": "FAST",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Inventario de cobertura de contratos C-01..C-10 (tesis Anexo E) para el tag arch-v1.0: solo lectura",
@@ -4608,7 +4608,9 @@
         "spec/features/017-cross-repository-dependency-gates/tasks.md",
         "harness/reports/arch-v1.0-inventario-contratos-core.md",
         "harness/reports/wi-core-080-technical-checks.md",
-        "harness/reports/wi-core-080-contract-sync-scope-review.md"
+        "harness/reports/wi-core-080-contract-sync-scope-review.md",
+        "harness/reports/wi-core-080-independent-review.md",
+        "harness/reports/wi-core-080-closure.md"
       ],
       "contractSyncReview": [
         {
