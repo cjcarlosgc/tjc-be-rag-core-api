@@ -4291,6 +4291,36 @@
         "harness/reports/wi-core-074-sdd-verification.md",
         "harness/reports/wi-core-074-scope-approval.md"
       ]
+    },
+    {
+      "id": "WI-CORE-075",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Documentar modelo de prueba barato vs modelo de evidencia (gpt-5.4-nano/none) y evaluar salvaguarda contra confundirlo con evidencia",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-082"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-074"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "La spec de proveedores y la de experimentos documentan la distinción «modelo de prueba barato» vs «modelo de evidencia», la combinación gpt-5.4-nano/none, el valor requerido en LLM_SUPPORTED_COMBINATIONS, la regla de configuración congelada y modelo único por protocolo (tesis 3.3, Anexo K) y los antecedentes 07b20829 y 924e38ab.",
+        "La salvaguarda contra confundir un experimento barato con evidencia se decide con el usuario entre las opciones del informe de alcance (A solo documentación, B aviso en logs/reporte, C marca persistida, D bloqueo); si implica contrato o migración, se redefine contractImpact y se pide aprobación antes de implementar.",
+        "Sin cambio de comportamiento hasta la aprobación del usuario; lint, build y test en verde; revisión independiente."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-075-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
     }
   ]
 }
