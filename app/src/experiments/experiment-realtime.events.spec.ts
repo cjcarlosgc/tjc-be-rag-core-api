@@ -45,6 +45,12 @@ function setup(options: { hasSubscribers?: boolean; findError?: Error } = {}) {
 
 const progressPublications = (publisher: { publish: ReturnType<typeof vi.fn> }) => publisher.publish.mock.calls.length;
 
+describe('intervalo de progreso (D4 / INTEROP-2.18 §6.6)', () => {
+  it('es 1500 ms', () => {
+    expect(EXPERIMENT_PROGRESS_EMIT_INTERVAL_MS).toBe(1500);
+  });
+});
+
 describe('ExperimentRealtimeEvents (WI-CORE-074, experiment:update)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
