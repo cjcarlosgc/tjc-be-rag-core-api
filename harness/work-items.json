@@ -4435,6 +4435,39 @@
           "report": "harness/reports/wi-core-076-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-077",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Validar SANDBOX_POLL_* al arrancar: valor no numerico, no entero o negativo => fallo de arranque con mensaje claro",
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-084"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-071"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "env.validation.ts valida cada clave SANDBOX_POLL_* que Core lee (SANDBOX_POLL_RETRIES, SANDBOX_POLL_RETRY_DELAY_MS y las demas que encuentre el analisis SDD): no numerico, no entero donde corresponda o negativo => fallo de arranque con mensaje claro (nombre de la variable y valor recortado, sin secretos); con valores validos o ausentes (defaults actuales) no hay cambio de comportamiento.",
+        "Pruebas: falla con no numerico, vacio (regla definida en el analisis), negativo, decimal y valor absurdo; pasa con validos y ausentes; .env.example documenta las reglas; sin cambio de contrato ni de DTO.",
+        "lint, build y test en verde; revision independiente con reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-077-scope.md",
+        "harness/reports/wi-core-077-scope-approval.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "app/src/config/env.validation.ts"
+      ]
     }
   ]
 }
