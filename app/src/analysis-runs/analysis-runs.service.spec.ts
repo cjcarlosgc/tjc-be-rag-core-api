@@ -7,6 +7,7 @@ import { ProjectAccessService } from '../project-access/project-access.service.j
 import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisRun, Project } from '../generated/prisma/client.js';
+import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
 
 describe('AnalysisRunsService', () => {
   let service: AnalysisRunsService;
@@ -22,6 +23,7 @@ describe('AnalysisRunsService', () => {
   };
   let projectAccess: { require: ReturnType<typeof vi.fn> };
   let projectsRepository: { findById: ReturnType<typeof vi.fn> };
+  let realtime: { runChanged: ReturnType<typeof vi.fn> };
 
   const OWNER_USER_ID = 'user-1';
   const PROJECT_ID = 'project-1';
@@ -84,6 +86,7 @@ describe('AnalysisRunsService', () => {
     };
     projectsRepository = { findById: vi.fn() };
     projectAccess = { require: vi.fn().mockResolvedValue({ project, role: 'READER' }) };
+    realtime = { runChanged: vi.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -91,6 +94,7 @@ describe('AnalysisRunsService', () => {
         { provide: AnalysisRunsRepository, useValue: repository },
         { provide: ProjectsRepository, useValue: projectsRepository },
         { provide: ProjectAccessService, useValue: projectAccess },
+        { provide: AnalysisRunRealtimeEvents, useValue: realtime },
       ],
     }).compile();
 
@@ -488,6 +492,67 @@ describe('AnalysisRunsService', () => {
 
       expect(repository.findVisibleForUser).toHaveBeenCalledWith(OWNER_USER_ID, 20, undefined, undefined);
       expect(page.nextCursor).toBeNull();
+    });
+  });
+
+  describe('tiempo real (WI-CORE-074): analysis-run:update tras confirmar el cambio', () => {
+    it('emite después de una transición confirmada, con el id del Run', async () => {
+      const current = buildRun({ status: 'QUEUED' });
+      const moved = buildRun({ status: 'PROCESSING' });
+      repository.transitionCurrent.mockResolvedValue(moved);
+
+      await service.startProcessing(current);
+
+      expect(realtime.runChanged).toHaveBeenCalledWith(moved.id);
+    });
+
+    it('no emite cuando la transición no se aplicó (el Run dejó de ser vigente)', async () => {
+      repository.transitionCurrent.mockResolvedValue(null);
+      repository.findById.mockResolvedValue(buildRun({ status: 'OBSOLETE' }));
+
+      await expect(service.startProcessing(buildRun({ status: 'QUEUED' }))).rejects.toMatchObject({
+        code: ErrorCode.ANALYSIS_RUN_INVALID_TRANSITION,
+      });
+      expect(realtime.runChanged).not.toHaveBeenCalled();
+    });
+
+    it('no emite al crear el Run', async () => {
+      projectsRepository.findById.mockResolvedValue(project);
+      repository.findCurrentByPullRequest.mockResolvedValue(null);
+      repository.create.mockResolvedValue(buildRun({ headSha: 'head-sha-2' }));
+
+      await service.startRun(createInput, OWNER_USER_ID);
+
+      expect(realtime.runChanged).not.toHaveBeenCalled();
+    });
+
+    it('emite cuando el snapshot cambia el DTO sin transición de estado', async () => {
+      const run = buildRun({ status: 'PROCESSING' });
+      repository.update.mockResolvedValue({ ...run, indexMode: 'DELTA' });
+
+      await service.recordSnapshot(run, { indexMode: 'DELTA', indexDeltaBaseSha: 'base', projectVersionId: 'v1' });
+
+      expect(realtime.runChanged).toHaveBeenCalledWith(run.id);
+    });
+
+    it('emite en el cierre sin transición (Run terminal que deja de ser vigente)', async () => {
+      const run = buildRun({ status: 'SUCCESS' });
+      repository.update.mockResolvedValue({ ...run, current: false });
+
+      await service.closeRun(run);
+
+      expect(realtime.runChanged).toHaveBeenCalledWith(run.id);
+    });
+
+    it('emite en completeRunFromSystem solo si la transición se aplicó', async () => {
+      const run = buildRun({ status: 'PROCESSING' });
+      repository.transitionCurrent.mockResolvedValueOnce(buildRun({ status: 'SUCCESS' }));
+      await service.completeRunFromSystem(run, 'SUCCESS', {});
+      expect(realtime.runChanged).toHaveBeenCalledTimes(1);
+
+      repository.transitionCurrent.mockResolvedValueOnce(null);
+      await service.completeRunFromSystem(run, 'SUCCESS', {});
+      expect(realtime.runChanged).toHaveBeenCalledTimes(1);
     });
   });
 });

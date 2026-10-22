@@ -12,6 +12,7 @@ import { ExperimentJobHandler } from './experiment-job.handler.js';
 import { GeneralistAgentService } from '../generation/agent/generalist-agent.service.js';
 import { ContextTracesModule } from '../context-traces/context-traces.module.js';
 import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
+import { ExperimentRealtimeEvents } from './experiment-realtime.events.js';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AnalysisRunsModule } from '../analysis-runs/analysis-runs.module.js';
     ExperimentRunsRepository,
     ExperimentJobHandler,
     GeneralistAgentService,
+    ExperimentRealtimeEvents,
   ],
 })
 export class ExperimentsModule {}

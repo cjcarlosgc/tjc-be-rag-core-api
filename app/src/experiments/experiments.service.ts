@@ -22,7 +22,6 @@ import {
 import type { CreateExperimentDto } from './dto/create-experiment.dto.js';
 import type {
   ExperimentAcceptedResponse,
-  ExperimentBudgetResponse,
   ExperimentModelConfigResponse,
   ExperimentResultsResponse,
   ExperimentStatusResponse,
@@ -35,6 +34,7 @@ import { LLM_PROVIDER } from '../providers/providers.constants.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { AnalysisSymbolsRepository } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { findMatchingTestTarget } from '../validation/symbol-target.util.js';
+import { toExperimentStatusResponse, toModelConfigResponse } from './experiment-status.presenter.js';
 
 const DEFAULT_POLL_AFTER_MS = 1500;
 const TOTAL_REPETITIONS = 6;
@@ -43,44 +43,6 @@ const STRATEGIES = ['RAG', 'GENERALIST_AGENT'] as const;
 function mean(values: Array<number | null>): number | null {
   const nonNull = values.filter((value): value is number => value !== null);
   return nonNull.length > 0 ? nonNull.reduce((sum, value) => sum + value, 0) / nonNull.length : null;
-}
-
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
-
-function asFiniteNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-/** Filas previas a WI-CORE-023 no tienen modelConfig: se devuelve null, nunca valores inventados. */
-function toModelConfigResponse(raw: unknown): ExperimentModelConfigResponse | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const record = raw as Record<string, unknown>;
-  const provider = asString(record.provider);
-  const model = asString(record.model);
-  if (provider === null || model === null) return null;
-
-  return {
-    provider,
-    model,
-    modelVersion: asString(record.modelVersion),
-    reasoningEffort: asString(record.reasoningEffort),
-    temperature: asFiniteNumber(record.temperature),
-    maxOutputTokens: asFiniteNumber(record.maxOutputTokens),
-  };
-}
-
-/** Presupuesto persistido al crear; null en corridas previas. */
-function toBudgetResponse(raw: unknown): ExperimentBudgetResponse | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const record = raw as Record<string, unknown>;
-  const toolCallCap = asFiniteNumber(record.toolCallCap);
-  const contextTokenBudget = asFiniteNumber(record.contextTokenBudget);
-  const maxDurationMs = asFiniteNumber(record.maxDurationMs);
-  if (toolCallCap === null || contextTokenBudget === null || maxDurationMs === null) return null;
-
-  return { toolCallCap, contextTokenBudget, maxDurationMs };
 }
 
 function toPairPosition(value: number | null): 1 | 2 | null {
@@ -259,25 +221,7 @@ export class ExperimentsService {
 
   async getStatus(experimentId: string, ownerUserId: string): Promise<ExperimentStatusResponse> {
     const run = await this.requireRun(experimentId, ownerUserId);
-
-    return {
-      id: run.id,
-      projectId: run.projectId,
-      projectVersionId: run.projectVersionId,
-      targetId: run.targetId,
-      status: run.status,
-      completedRepetitions: run.completedRepetitions,
-      totalRepetitions: run.totalRepetitions,
-      failureCode: run.failureCode,
-      failureMessage: run.failureMessage,
-      startedAt: run.startedAt?.toISOString() ?? null,
-      completedAt: run.completedAt?.toISOString() ?? null,
-      model: toModelConfigResponse(run.modelConfig),
-      budget: toBudgetResponse(run.budget),
-      executionProfile: run.executionProfile,
-      runnerHint: run.runnerHint,
-      randomizationSeed: run.randomizationSeed,
-    };
+    return toExperimentStatusResponse(run);
   }
 
   async getResults(experimentId: string, ownerUserId: string): Promise<ExperimentResultsResponse> {

@@ -157,4 +157,34 @@ describe('ProjectSubscriptionsService (HU59, HU60, WebSocket §6.6)', () => {
 
     await expect(broken.revalidateProject('org-project')).rejects.toThrow('db down');
   });
+
+  it('tracks analysis-run and experiment rooms next to project-version rooms and evicts all of a Project\'s rooms on access loss (WI-CORE-074)', async () => {
+    const reader = socketOf('reader-socket');
+    const writer = socketOf('writer-socket');
+    service.track(reader, 'reader', 'v1', 'org-project');
+    service.trackRoom(reader, 'reader', 'analysis-run:r1', 'org-project');
+    service.trackRoom(reader, 'reader', 'experiment:e1', 'personal');
+    service.trackRoom(writer, 'writer', 'experiment:e1', 'org-project');
+    db.tables.projectAccess = db.tables.projectAccess.filter((row) => row.userId !== 'reader');
+
+    const evicted = await service.revalidateProject('org-project');
+
+    expect(evicted).toBe(1);
+    expect(reader.leave).toHaveBeenCalledWith('project-version:v1');
+    expect(reader.leave).toHaveBeenCalledWith('analysis-run:r1');
+    expect(reader.leave).not.toHaveBeenCalledWith('experiment:e1');
+    expect(service.projectsOf('reader-socket')).toEqual(['personal']);
+    expect(writer.leave).not.toHaveBeenCalled();
+  });
+
+  it('untrackRoom removes one room and keeps the socket while other rooms remain', () => {
+    service.trackRoom(socketOf('s2'), 'reader', 'analysis-run:r1', 'org-project');
+    service.trackRoom(socketOf('s2'), 'reader', 'experiment:e1', 'org-project');
+
+    service.untrackRoom('s2', 'analysis-run:r1');
+    expect(service.projectsOf('s2')).toEqual(['org-project']);
+
+    service.untrackRoom('s2', 'experiment:e1');
+    expect(service.projectsOf('s2')).toEqual([]);
+  });
 });

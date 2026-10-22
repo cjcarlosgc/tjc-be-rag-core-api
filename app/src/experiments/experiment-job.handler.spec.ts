@@ -356,6 +356,10 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       }),
       resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
     },
+    experimentRealtime: {
+      statusChanged: vi.fn().mockResolvedValue(undefined),
+      progressChanged: vi.fn().mockResolvedValue(undefined),
+    },
     ...overrides,
   };
 
@@ -384,6 +388,7 @@ function makeHandler(
     deps.zipExtractionService as never,
     deps.configService as never,
     deps.llmProvider as never,
+    deps.experimentRealtime as never,
   );
 }
 
@@ -1441,6 +1446,30 @@ describe('ExperimentJobHandler', () => {
       expect.stringContaining('No existe el target'),
     );
     expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+  });
+
+  it('notifies the realtime status after markStarted and after complete (WI-CORE-074), never before the write', async () => {
+    const { deps } = makeDeps();
+    const order: string[] = [];
+    deps.experimentRunsRepository.markStarted.mockImplementation(async () => order.push('markStarted'));
+    deps.experimentRunsRepository.complete.mockImplementation(async () => order.push('complete'));
+    deps.experimentRealtime.statusChanged.mockImplementation(async () => order.push('status'));
+    const handler = makeHandler(deps);
+
+    await handler.handle(payload, 'job-1');
+
+    expect(order).toEqual(['markStarted', 'status', 'complete', 'status']);
+  });
+
+  it('notifies the realtime status when the run is marked FAILED, and never breaks the failure path (WI-CORE-074)', async () => {
+    const { deps } = makeDeps({
+      testTargetsRepository: { findById: vi.fn().mockResolvedValue(null) },
+    });
+    const handler = makeHandler(deps);
+
+    await expect(handler.handle(payload, 'job-1')).rejects.toThrow('No existe el target');
+
+    expect(deps.experimentRealtime.statusChanged).toHaveBeenCalledWith('exp-1');
   });
 
   it('gives functional rules only to the RAG arm and passes them to the context builder (WI-CORE-021)', async () => {

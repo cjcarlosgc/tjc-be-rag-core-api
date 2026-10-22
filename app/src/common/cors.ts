@@ -16,16 +16,21 @@ export function parseConsoleCorsOrigins(raw: string | undefined): string[] | nul
 
 type OriginDelegate = NonNullable<CorsOptions['origin']> & ((origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => void);
 
+/**
+ * El aviso de CORS abierto es único en el proceso: HTTP (`main.ts`) y el gateway de socket.io llaman a esta
+ * fábrica por separado, así que el flag vive a nivel de módulo y no por instancia (WI-CORE-074, F5).
+ */
+const corsLogger = new Logger('Cors');
+let openCorsWarned = false;
+
 /** Delegado de `origin` que lee la variable en cada petición y sirve tanto a HTTP como a socket.io. */
 export function createConsoleCorsOrigin(read: () => string | undefined = () => process.env.CONSOLE_CORS_ORIGINS): OriginDelegate {
-  const logger = new Logger('Cors');
-  let warned = false;
   return ((origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
     const allowed = parseConsoleCorsOrigins(read());
     if (allowed === null) {
-      if (!warned) {
-        warned = true;
-        logger.warn('CONSOLE_CORS_ORIGINS no está configurada: CORS queda abierto a cualquier origen. Defínela en producción.');
+      if (!openCorsWarned) {
+        openCorsWarned = true;
+        corsLogger.warn('CONSOLE_CORS_ORIGINS no está configurada: CORS queda abierto a cualquier origen. Defínela en producción.');
       }
       callback(null, true);
       return;

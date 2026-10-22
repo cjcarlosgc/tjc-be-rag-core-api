@@ -11,6 +11,7 @@ import { JobsModule } from '../jobs/jobs.module.js';
 import { RepositoryBindingsModule } from '../repository-bindings/repository-bindings.module.js';
 import { GithubAppModule } from '../github-app/github-app.module.js';
 import { PullRequestMetadataBackfillJobHandler } from './pull-request-metadata-backfill.job.handler.js';
+import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PullRequestMetadataBackfillJobHandler } from './pull-request-metadata-b
     AnalysisTraceRepository,
     AnalysisRunTraceService,
     PullRequestMetadataBackfillJobHandler,
+    AnalysisRunRealtimeEvents,
   ],
   exports: [
     AnalysisRunsService,

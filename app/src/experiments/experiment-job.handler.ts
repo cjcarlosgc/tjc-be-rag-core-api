@@ -46,6 +46,7 @@ import { ContextTracesRepository, type BegunContextTraceAttempt } from '../conte
 import { DEFAULT_AGENT_MAX_TOOL_CALLS, DEFAULT_EXPERIMENT_HEARTBEAT_INTERVAL_MS, DEFAULT_GENERATION_TIMEOUT_MS, DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS } from '../config/generation-budget.defaults.js';
 import { LLMProviderUnavailableError } from '../providers/llm-provider-unavailable.error.js';
 import { buildAgentInstructions, makeRagDetail, safeAgentStep } from './experiment-attempt-presenters.js';
+import { ExperimentRealtimeEvents } from './experiment-realtime.events.js';
 import { Strategy, SlotIdentity, RunContext, AttemptContext, LLM_EXTERNAL_FAILURE_SUMMARY, withTimeout, parseEffectiveConfig, runWithConcurrencyLimit, slotKey, buildPairSchedule, buildLegacySchedule, INTERRUPTED_ATTEMPT_SUMMARY, parseRunnerHint, parseExecutionProfile, RepetitionArtifactRecord, promptDigest, GenerationOutcome, RepetitionEvidence, toRetrievalTarget } from './experiment-job.helpers.js';
 
 export interface ExperimentJobPayload {
@@ -154,6 +155,7 @@ export class ExperimentJobHandler
     private readonly zipExtractionService: ZipExtractionService,
     private readonly configService: ConfigService,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
+    private readonly experimentRealtime: ExperimentRealtimeEvents,
   ) {}
 
   onModuleInit(): void {
@@ -195,6 +197,7 @@ export class ExperimentJobHandler
       }
 
       await this.experimentRunsRepository.markStarted(payload.experimentId);
+      await this.experimentRealtime.statusChanged(payload.experimentId);
       // Misma configuración para ambos brazos: la persistida al crear el experimento.
       // Corridas previas sin modelConfig (NULL) usan la resolución por defecto.
       const config =
@@ -269,6 +272,7 @@ export class ExperimentJobHandler
       }
 
       await this.experimentRunsRepository.complete(payload.experimentId);
+      await this.experimentRealtime.statusChanged(payload.experimentId);
     } catch (error) {
       // Reprogramación por latido vigente: el experimento sigue en curso, no es un fallo (no FAILED).
       if (error instanceof RescheduleJobError) {
@@ -283,6 +287,7 @@ export class ExperimentJobHandler
         'EXPERIMENT_FAILED',
         message,
       );
+      await this.experimentRealtime.statusChanged(payload.experimentId);
       throw error;
     }
   }
@@ -311,6 +316,7 @@ export class ExperimentJobHandler
       await this.experimentRunsRepository.refreshCompletedRepetitions(
         payload.experimentId,
       );
+      await this.experimentRealtime.progressChanged(payload.experimentId);
     }
 
     // Un run ya FAILED conserva su código real (p. ej. EXPERIMENT_FAILED de un error de handle()).
@@ -330,6 +336,7 @@ export class ExperimentJobHandler
       EXPERIMENT_WORKER_LOST_FAILURE_CODE,
       reason,
     );
+    await this.experimentRealtime.statusChanged(payload.experimentId);
   }
 
   /**
@@ -438,6 +445,7 @@ export class ExperimentJobHandler
     await this.experimentRunsRepository.refreshCompletedRepetitions(
       experimentId,
     );
+    await this.experimentRealtime.progressChanged(experimentId);
     this.logger.warn(
       `Intento ${attempt} interrumpido (latido vencido) de un slot pareado.`,
     );
@@ -1420,5 +1428,6 @@ export class ExperimentJobHandler
     await this.experimentRunsRepository.refreshCompletedRepetitions(
       context.experimentId,
     );
+    await this.experimentRealtime.progressChanged(context.experimentId);
   }
 }
