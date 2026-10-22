@@ -4440,7 +4440,7 @@
       "id": "WI-CORE-077",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-SELECTED",
+      "status": "W-IN_PROGRESS",
       "priority": "P2",
       "sprint": "P2",
       "title": "Validar SANDBOX_POLL_* al arrancar: valor no numerico, no entero o negativo => fallo de arranque con mensaje claro",
@@ -4466,7 +4466,8 @@
         "harness/reports/wi-core-077-scope.md",
         "harness/reports/wi-core-077-scope-approval.md",
         "spec/features/008-experimental-comparison/tasks.md",
-        "app/src/config/env.validation.ts"
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-077-sdd-verification.md"
       ]
     }
   ]

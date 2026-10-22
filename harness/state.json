@@ -20380,7 +20380,7 @@
     "id": "WI-CORE-077",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "title": "Validar SANDBOX_POLL_* al arrancar: valor no numerico, no entero o negativo => fallo de arranque con mensaje claro",
     "approved": true,
     "storyIds": [
@@ -20396,30 +20396,54 @@
       "harness/reports/wi-core-077-scope.md",
       "harness/reports/wi-core-077-scope-approval.md",
       "spec/features/008-experimental-comparison/tasks.md",
-      "app/src/config/env.validation.ts"
+      "app/src/config/env.validation.ts",
+      "harness/reports/wi-core-077-sdd-verification.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
     "deferredSyncDigests": {},
     "contractSyncReview": [],
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
       "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "checkedAt": "2026-10-21T23:30:00.000Z",
+      "note": "Sin decisiones bloqueantes ni decision nueva del usuario."
     },
     "execution": {
       "leaderAgent": "leader",
-      "analysisAgent": null,
-      "implementationAgent": null,
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "Solo SANDBOX_POLL_RETRIES y SANDBOX_POLL_RETRY_DELAY_MS; reglas RETRIES 0..10, DELAY 1..30000, vacio = error, ausente = default; sin decision nueva."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-077-sdd-verification.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-077-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar con pruebas.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
@@ -20427,7 +20451,7 @@
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
@@ -20453,8 +20477,17 @@
     },
     "evidence": [
       "harness/reports/wi-core-077-scope.md",
-      "harness/reports/wi-core-077-scope-approval.md"
+      "harness/reports/wi-core-077-scope-approval.md",
+      "harness/reports/wi-core-077-sdd-verification.md"
     ],
-    "blockedReason": null
+    "blockedReason": null,
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-077-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-077-sdd-verification.md"
+      ]
+    }
   }
 }
