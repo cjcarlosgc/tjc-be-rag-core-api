@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { Test } from '@nestjs/testing';
 import { retiredLlmVariablesIn, validateEnv } from './env.validation.js';
 
 function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -348,5 +350,101 @@ describe('validateEnv', () => {
         expect((error as Error).message).not.toContain('ruta-secreta');
       }
     });
+  });
+});
+
+describe('SANDBOX_POLL_* al arrancar (WI-CORE-077)', () => {
+  const POLL_RETRIES_ERROR = /SANDBOX_POLL_RETRIES/;
+  const POLL_DELAY_ERROR = /SANDBOX_POLL_RETRY_DELAY_MS/;
+
+  it('uses the defaults 3 and 500 when the variables are absent', () => {
+    const result = validateEnv(baseConfig());
+    expect(result.SANDBOX_POLL_RETRIES).toBe(3);
+    expect(result.SANDBOX_POLL_RETRY_DELAY_MS).toBe(500);
+  });
+
+  it('accepts the valid bounds and stores them as numbers', () => {
+    const low = validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: '0', SANDBOX_POLL_RETRY_DELAY_MS: '1' }));
+    expect(low.SANDBOX_POLL_RETRIES).toBe(0);
+    expect(low.SANDBOX_POLL_RETRY_DELAY_MS).toBe(1);
+    const high = validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: '10', SANDBOX_POLL_RETRY_DELAY_MS: '30000' }));
+    expect(high.SANDBOX_POLL_RETRIES).toBe(10);
+    expect(high.SANDBOX_POLL_RETRY_DELAY_MS).toBe(30_000);
+  });
+
+  it('trims surrounding spaces of valid values', () => {
+    const result = validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: ' 5 ', SANDBOX_POLL_RETRY_DELAY_MS: ' 1000 ' }));
+    expect(result.SANDBOX_POLL_RETRIES).toBe(5);
+    expect(result.SANDBOX_POLL_RETRY_DELAY_MS).toBe(1000);
+  });
+
+  it('fails when a value is not numeric', () => {
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: 'abc' }))).toThrow(
+      'Configuración de entorno inválida: SANDBOX_POLL_RETRIES="abc" no es válido; debe ser un entero entre 0 y 10.',
+    );
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRY_DELAY_MS: 'abc' }))).toThrow(
+      'Configuración de entorno inválida: SANDBOX_POLL_RETRY_DELAY_MS="abc" no es válido; debe ser un entero entre 1 y 30000 (ms).',
+    );
+  });
+
+  it('fails when a value is empty or only spaces, and does not treat it as absent', () => {
+    for (const value of ['', '   ']) {
+      expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: value }))).toThrow(
+        'Configuración de entorno inválida: SANDBOX_POLL_RETRIES no puede estar vacío; si no la define se usa el valor por defecto 3.',
+      );
+      expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRY_DELAY_MS: value }))).toThrow(
+        'Configuración de entorno inválida: SANDBOX_POLL_RETRY_DELAY_MS no puede estar vacío; si no la define se usa el valor por defecto 500.',
+      );
+    }
+  });
+
+  it('fails for negative, decimal, signed and scientific or hexadecimal notation', () => {
+    for (const value of ['-1', '2.5', '+3', '1e3', '0x10']) {
+      expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: value }))).toThrow(POLL_RETRIES_ERROR);
+      expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRY_DELAY_MS: value }))).toThrow(POLL_DELAY_ERROR);
+    }
+  });
+
+  it('fails for absurd values out of range (retries 11, delay 0 and 30001, and huge numbers)', () => {
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: '11' }))).toThrow(
+      'SANDBOX_POLL_RETRIES="11" no es válido; debe ser un entero entre 0 y 10.',
+    );
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: '999999' }))).toThrow(POLL_RETRIES_ERROR);
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: '99999999999999999999999' }))).toThrow(POLL_RETRIES_ERROR);
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRY_DELAY_MS: '0' }))).toThrow(
+      'SANDBOX_POLL_RETRY_DELAY_MS="0" no es válido; debe ser un entero entre 1 y 30000 (ms).',
+    );
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRY_DELAY_MS: '30001' }))).toThrow(POLL_DELAY_ERROR);
+  });
+
+  it('truncates the echoed value to 40 characters', () => {
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: 'x'.repeat(60) }))).toThrow(
+      `SANDBOX_POLL_RETRIES="${'x'.repeat(40)}" no es`,
+    );
+  });
+
+  it('does not expose secrets in the error message', () => {
+    try {
+      validateEnv(baseConfig({ SUPABASE_SECRET_KEY: 'sb-secreto-123', SANDBOX_POLL_RETRIES: 'abc' }));
+      throw new Error('se esperaba un error');
+    } catch (error) {
+      expect((error as Error).message).toContain('SANDBOX_POLL_RETRIES="abc"');
+      expect((error as Error).message).not.toContain('sb-secreto-123');
+    }
+  });
+
+  it('exposes the normalized numeric value through ConfigService.get', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          ignoreEnvFile: true,
+          validate: () => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: ' 5 ', SANDBOX_POLL_RETRY_DELAY_MS: '1000' })),
+        }),
+      ],
+    }).compile();
+    const config = moduleRef.get(ConfigService);
+    expect(config.get<number>('SANDBOX_POLL_RETRIES')).toBe(5);
+    expect(config.get<number>('SANDBOX_POLL_RETRY_DELAY_MS')).toBe(1000);
+    await moduleRef.close();
   });
 });

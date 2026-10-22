@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { validateContract } from '../contracts/contract-validator.js';
+import { DEFAULT_POLL_RETRIES, DEFAULT_POLL_RETRY_DELAY_MS, MAX_POLL_AFTER_MS } from '../config/sandbox-poll.defaults.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
   ExecutionProfile,
@@ -108,10 +109,8 @@ export class SandboxUnavailableError extends Error {
   }
 }
 
-export const DEFAULT_POLL_RETRIES = 3;
-export const DEFAULT_POLL_RETRY_DELAY_MS = 500;
-/** Tope de la espera entre consultas: `pollAfterMs` viene del Sandbox y no es de fiar para un `setTimeout`. */
-export const MAX_POLL_AFTER_MS = 30_000;
+// Re-exportados para los consumidores existentes; la fuente única es config/sandbox-poll.defaults.ts.
+export { DEFAULT_POLL_RETRIES, DEFAULT_POLL_RETRY_DELAY_MS, MAX_POLL_AFTER_MS };
 const FALLBACK_POLL_AFTER_MS = 1_000;
 
 /** Acota el `pollAfterMs` que informa el Sandbox: un valor ausente, no numérico o negativo usa el de respaldo. */

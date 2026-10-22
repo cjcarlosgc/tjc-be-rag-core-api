@@ -30,7 +30,8 @@ import type { LLMEffectiveConfig, LLMProvider } from '../providers/llm-provider.
 import { WorkspaceAgentTools } from '../generation/agent/workspace-agent-tools.js';
 import { GeneralistAgentService, type AgentToolStepEvent } from '../generation/agent/generalist-agent.service.js';
 import type { SandboxExecutionRequest, SandboxExecutionResult } from '../sandbox/sandbox.types.js';
-import { SandboxAcceptedExecutionError, SandboxExecutionService, SandboxUnavailableError, DEFAULT_MAX_POLL_ATTEMPTS, DEFAULT_POLL_RETRIES, DEFAULT_POLL_RETRY_DELAY_MS, DEFAULT_REQUEST_TIMEOUT_MS, MAX_POLL_AFTER_MS } from '../sandbox/sandbox-execution.service.js';
+import { SandboxAcceptedExecutionError, SandboxExecutionService, SandboxUnavailableError, DEFAULT_MAX_POLL_ATTEMPTS, DEFAULT_REQUEST_TIMEOUT_MS } from '../sandbox/sandbox-execution.service.js';
+import { DEFAULT_POLL_RETRIES, DEFAULT_POLL_RETRY_DELAY_MS, MAX_POLL_AFTER_MS } from '../config/sandbox-poll.defaults.js';
 import { toAcceptedSandboxEvidence, toSandboxExecutionEvidence, type SandboxExecutionEvidence } from '../sandbox/sandbox-evidence-facts.js';
 import { mapSandboxResult, type FailureTypeValue } from '../sandbox/map-sandbox-result.js';
 import { sandboxExperimentRequestId } from '../sandbox/sandbox-request-id.util.js';

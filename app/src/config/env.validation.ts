@@ -20,6 +20,11 @@ import {
 } from './generation-budget.defaults.js';
 import { DEFAULT_LLM_MODEL } from '../providers/llm-settings.js';
 import { REASONING_EFFORT_SCALE } from '../providers/reasoning-effort.scale.js';
+import {
+  DEFAULT_POLL_RETRIES,
+  DEFAULT_POLL_RETRY_DELAY_MS,
+  MAX_POLL_AFTER_MS,
+} from './sandbox-poll.defaults.js';
 
 class EnvironmentVariables {
   @IsIn(['development', 'production', 'test'])
@@ -179,6 +184,17 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   SANDBOX_MAX_POLL_ATTEMPTS: number = 120;
+
+  /**
+   * Reintentos por consulta GET al Sandbox (WI-CORE-077). Se valida el texto crudo en
+   * `validateSandboxPollSettings`: sin `@IsInt`, que convertiría "" en 0 y "abc" en NaN.
+   */
+  @IsOptional()
+  SANDBOX_POLL_RETRIES?: number;
+
+  /** Espera inicial (ms) entre reintentos de consulta al Sandbox (WI-CORE-077). */
+  @IsOptional()
+  SANDBOX_POLL_RETRY_DELAY_MS?: number;
 
   @IsInt()
   @Min(1)
@@ -342,6 +358,7 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
 
   validateExperimentLlmSettings(validated);
   validateLlmSettings(validated);
+  validateSandboxPollSettings(config, validated);
   warnRetiredLlmVariables(config);
 
   return validated;
@@ -360,6 +377,56 @@ export function retiredLlmVariablesIn(config: Record<string, unknown>): string[]
 }
 
 const REASONING_EFFORT_MAX_LOG_LENGTH = 40;
+const SANDBOX_POLL_MAX_ECHO_LENGTH = 40;
+const SANDBOX_POLL_RETRIES_MAX = 10;
+const SANDBOX_POLL_RETRY_DELAY_MS_MIN = 1;
+const SANDBOX_POLL_RETRY_DELAY_MS_MAX = MAX_POLL_AFTER_MS;
+
+/**
+ * SANDBOX_POLL_RETRIES y SANDBOX_POLL_RETRY_DELAY_MS (WI-CORE-077). Se validan sobre el texto crudo:
+ * ausente = default; vacía o solo espacios = error; solo enteros decimales (sin signo, decimal ni
+ * notación) dentro de rango. Escribe el número normalizado en `validated`.
+ */
+function validateSandboxPollSettings(config: Record<string, unknown>, validated: EnvironmentVariables): void {
+  validated.SANDBOX_POLL_RETRIES = parseSandboxPollInteger(config, 'SANDBOX_POLL_RETRIES', {
+    defaultValue: DEFAULT_POLL_RETRIES,
+    min: 0,
+    max: SANDBOX_POLL_RETRIES_MAX,
+    rangeLabel: `entre 0 y ${SANDBOX_POLL_RETRIES_MAX}`,
+    defaultLabel: String(DEFAULT_POLL_RETRIES),
+  });
+  validated.SANDBOX_POLL_RETRY_DELAY_MS = parseSandboxPollInteger(config, 'SANDBOX_POLL_RETRY_DELAY_MS', {
+    defaultValue: DEFAULT_POLL_RETRY_DELAY_MS,
+    min: SANDBOX_POLL_RETRY_DELAY_MS_MIN,
+    max: SANDBOX_POLL_RETRY_DELAY_MS_MAX,
+    rangeLabel: `entre ${SANDBOX_POLL_RETRY_DELAY_MS_MIN} y ${SANDBOX_POLL_RETRY_DELAY_MS_MAX} (ms)`,
+    defaultLabel: String(DEFAULT_POLL_RETRY_DELAY_MS),
+  });
+}
+
+function parseSandboxPollInteger(
+  config: Record<string, unknown>,
+  name: string,
+  options: { defaultValue: number; min: number; max: number; rangeLabel: string; defaultLabel: string },
+): number {
+  const raw = config[name];
+  if (raw === undefined) {
+    return options.defaultValue;
+  }
+  const text = String(raw).trim();
+  if (text === '') {
+    throw new Error(
+      `Configuración de entorno inválida: ${name} no puede estar vacío; si no la define se usa el valor por defecto ${options.defaultLabel}.`,
+    );
+  }
+  const value = Number(text);
+  if (!/^\d+$/.test(text) || !Number.isSafeInteger(value) || value < options.min || value > options.max) {
+    throw new Error(
+      `Configuración de entorno inválida: ${name}="${text.slice(0, SANDBOX_POLL_MAX_ECHO_LENGTH)}" no es válido; debe ser un entero ${options.rangeLabel}.`,
+    );
+  }
+  return value;
+}
 
 /** LLM_REASONING_EFFORT: obligatorio y dentro de la escala (WI-CORE-076). Normaliza el valor recortado. */
 function validateLlmSettings(validated: EnvironmentVariables): void {
