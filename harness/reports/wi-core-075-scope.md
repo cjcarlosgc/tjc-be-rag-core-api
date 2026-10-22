@@ -46,3 +46,9 @@ El texto de arriba (hechos y opciones) se conserva como historial de la propuest
 - **D. Bloqueo:** rechazar crear un experimento piloto/confirmatorio con esfuerzo distinto de `medium` (cambio de comportamiento; requiere definir «confirmatorio»).
 
 Recomendación inicial del leader (a confirmar con el análisis SDD): Parte 1 + opción B; C solo si la marca debe viajar en los datos. Un solo WI activo: arranca cuando termine la cola (después de WI-CORE-074).
+
+---
+
+## AJUSTE (decisión del usuario relayada por cross, 2026-10-21): WI-CORE-075 se reduce a documentación
+
+Con `WI-CORE-076` (configuración única del LLM) ya no hay dos configuraciones que distinguir: la distinción «low = prueba, medium = evidencia» sobre `gpt-6-luna` la fija el entorno. `WI-CORE-075` depende de `WI-CORE-076`, queda **solo en documentación** (spec de proveedores y de experimentos, y la nota de congelación por protocolo, tesis 3.3 y Anexo K) y las opciones de salvaguarda B, C y D de arriba se descartan salvo que el usuario las pida después.

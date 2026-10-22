@@ -4326,7 +4326,7 @@
       "status": "W-PLANNED",
       "priority": "P2",
       "sprint": "P2",
-      "title": "Documentar esfuerzo de prueba (low) vs esfuerzo de evidencia (medium) sobre gpt-6-luna y evaluar salvaguarda contra confundirlos",
+      "title": "Documentar esfuerzo de prueba (low) vs esfuerzo de evidencia (medium) sobre la configuración unificada del LLM",
       "storyIds": [
         "HU17"
       ],
@@ -4335,17 +4335,47 @@
       ],
       "caseIds": [],
       "dependsOn": [
+        "WI-CORE-076"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Tras WI-CORE-076 (configuración única LLM_MODEL/LLM_REASONING_EFFORT), la spec de proveedores y la de experimentos documentan que gpt-6-luna con esfuerzo low se usa en pruebas económicas y con esfuerzo medium en evidencia oficial, congelado por protocolo (tesis 3.3, Anexo K), que el esfuerzo lo fija el entorno y que cada ExperimentRun persiste modelo y esfuerzo en modelConfig; gpt-5.4-nano queda descartado (antecedentes 07b20829 y 924e38ab solo históricos).",
+        "WI-CORE-075 es solo documentación: se descartan las opciones de salvaguarda B, C y D salvo que el usuario las pida tras WI-CORE-076; sin cambio de comportamiento; revisión independiente."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-075-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-076",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Unificar la configuración del LLM: solo LLM_MODEL y LLM_REASONING_EFFORT explícito; eliminar EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS",
+      "storyIds": [
+        "HU10",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-083"
+      ],
+      "caseIds": [],
+      "dependsOn": [
         "WI-CORE-074"
       ],
       "contractImpact": false,
       "publishesContract": false,
       "acceptanceCriteria": [
-        "La spec de proveedores y la de experimentos documentan la regla «gpt-6-luna low = prueba económica; gpt-6-luna medium = evidencia oficial congelada por protocolo (tesis 3.3, Anexo K); no se mezclan», los valores de EXPERIMENT_LLM_REASONING_EFFORT y su relación con LLM_SUPPORTED_COMBINATIONS (gpt-6-luna con low y medium), y gpt-5.4-nano como descartado (antecedentes 07b20829 y 924e38ab solo históricos).",
-        "La salvaguarda contra confundir una corrida de prueba (low) con evidencia (medium) se decide con el usuario entre las opciones del informe de alcance (A solo documentación, B aviso en logs/reporte, C marca persistida, D bloqueo), evaluada sobre el esfuerzo; si implica contrato o migración se redefine contractImpact y se pide aprobación antes de implementar; se decide también el default de EXPERIMENT_LLM_REASONING_EFFORT en .env.example.",
-        "Sin cambio de comportamiento hasta la aprobación del usuario; lint, build y test en verde; revisión independiente."
+        "Experimentos y flujo normal usan solo LLM_MODEL y LLM_REASONING_EFFORT; EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS dejan de existir en env.validation.ts, openai-llm.provider.ts, .env.example, spec y pruebas; EXPERIMENT_LLM_TEMPERATURE, EXPERIMENT_LLM_MAX_OUTPUT_TOKENS y el heartbeat se conservan salvo decisión contraria del usuario.",
+        "LLM_REASONING_EFFORT es obligatorio y debe estar en la escala none…max: si falta o es inválido el arranque falla con un mensaje claro; un esfuerzo que la API rechace falla en la llamada con error explícito; cada ExperimentRun sigue guardando en modelConfig el modelo y el esfuerzo con que corrió (tesis 3.3/Anexo K), sin cambio de contrato ni de DTO.",
+        "Se declara el cambio de modelo del flujo normal (hoy gpt-4o-mini por defecto) y se decide con el usuario el default de LLM_MODEL (gpt-6-luna), el esfuerzo por entorno (low pruebas, medium evidencia) y el tratamiento de toolEfforts y de las variables retiradas; lint, build y test en verde; revisión independiente."
       ],
       "specPaths": [
-        "harness/reports/wi-core-075-scope.md",
+        "harness/reports/wi-core-076-scope.md",
         "spec/features/008-experimental-comparison/tasks.md"
       ]
     }
