@@ -4680,6 +4680,38 @@
           "report": "harness/reports/wi-core-081-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-082",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-SELECTED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Propuesta de aserciones CT-01..CT-10 por contrato C-01..C-10 (tesis Anexo E) para arch-v1.0: solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-089"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-081"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-aserciones-ct-propuesta.md con 3 a 6 aserciones verificables por cada C-01..C-10 (derivadas de la fila del Anexo E, de spec/contracts y de las brechas del inventario WI-CORE-080), con dueño (Core u otro repo), prueba existente que ya la cubre y esfuerzo; es una propuesta para que el usuario apruebe, modifique o descarte.",
+        "Solo lectura: sin escribir pruebas, sin cambios en app/, contratos ni referencias/, sin corridas oficiales, sin numeros de IOE, sin tag; revision independiente del reviewer sobre la exactitud de las citas y de las pruebas existentes."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-082-scope.md",
+        "harness/reports/arch-v1.0-inventario-contratos-core.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }

@@ -21266,5 +21266,92 @@
       "closedAt": "2026-10-22T06:32:22.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-082",
+    "component": "CORE",
+    "workItemType": "HARNESS",
+    "status": "W-SELECTED",
+    "title": "Propuesta de aserciones CT-01..CT-10 por contrato C-01..C-10 (tesis Anexo E) para arch-v1.0: solo lectura",
+    "approved": true,
+    "storyIds": [
+      "HU15",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-089"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-082-scope.md",
+      "harness/reports/arch-v1.0-inventario-contratos-core.md",
+      "spec/features/017-cross-repository-dependency-gates/tasks.md"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-10-22T08:00:00.000Z",
+      "note": "Propuesta documental de solo lectura pedida por el usuario; sin decisiones bloqueantes."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": null,
+      "implementationAgent": null,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-082",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-22T07:14:22.089Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-082-scope.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-082-scope.md"
+      ]
+    },
+    "evidence": [
+      "harness/reports/wi-core-082-scope.md"
+    ],
+    "blockedReason": null
+  }
 }
