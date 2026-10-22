@@ -4576,6 +4576,37 @@
         "harness/reports/errata-pendientes-interop.md",
         "spec/features/008-experimental-comparison/tasks.md"
       ]
+    },
+    {
+      "id": "WI-CORE-080",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-SELECTED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Inventario de cobertura de contratos C-01..C-10 (tesis Anexo E) para el tag arch-v1.0: solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-087"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-078"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-inventario-contratos-core.md con una tabla por cada C-01..C-10 del Anexo E de la tesis (fila citada, pruebas existentes de Core con archivo y nombre, brechas, prueba nueva necesaria sin escribirla, y si es de Core o depende de Sandbox, Integration o Console).",
+        "Solo lectura: sin cambios en app/, contratos, esquemas ni en referencias/ (la tesis no se modifica); sin corridas oficiales ni numeros de IOE; sin tag; revision independiente del reviewer sobre la exactitud del mapa (cada prueba citada existe y cubre lo que se dice)."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-080-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }
