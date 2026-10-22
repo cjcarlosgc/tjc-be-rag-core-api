@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, 'feature/**']
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdd:
+    name: Validadores SDD y Harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.nvmrc
+      - run: node scripts/sdd-check.mjs
+      - run: node harness/validate-work-items.mjs
+      - run: node harness/validate-harness.mjs
+      - run: node harness/validate-completions.mjs
+
+  app:
+    name: Lint, build y tests de app/
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # `prisma generate` (postinstall) solo necesita que la variable exista; no se conecta.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm contracts:check
+      - run: pnpm lint
+      - run: pnpm lint:types
+      - run: pnpm build
+      - run: pnpm test
+
+  postgres:
+    name: Specs con PostgreSQL (pgvector)
+    # Las specs *.pg.spec.ts se omiten sin base. Este trabajo las ejecuta contra una base descartable con las
+    # migraciones aplicadas. Es informativo (no bloquea) hasta que se confirme que corre verde en GitHub Actions.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: app
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rag_core_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rag_core_ci?schema=public
+      ANALYSIS_TRACE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rag_core_ci?schema=public
+      CONTEXT_TRACES_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rag_core_ci?schema=public
+      EVIDENCE_PERSISTENCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rag_core_ci?schema=public
+      EVIDENCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rag_core_ci?schema=public
+      JOBS_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rag_core_ci?schema=public
+      RETRIEVAL_COMPARISONS_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rag_core_ci?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma migrate deploy
+      - run: pnpm exec vitest run --reporter=default .pg.spec.ts

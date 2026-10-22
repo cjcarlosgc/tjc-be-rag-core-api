@@ -77,6 +77,9 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   entry('READER', 'GET', '/analysis-runs/{id}/evidence', 'GET /analysis-runs/{id}/evidence', 'READER'),
   entry('READER', 'GET', '/experiments/{id}/evidence', 'GET /experiments/{id}/evidence', 'READER'),
   entry('READER', 'WS', 'subscribe:project-version', 'subscribe:project-version', 'READER'),
+  // WI-CORE-074 (INTEROP-2.18 §6.6, DEC-RT-001): suscripciones por id con Reader sobre el Project del recurso.
+  entry('READER', 'WS', 'subscribe:analysis-run', 'subscribe:analysis-run', 'READER'),
+  entry('READER', 'WS', 'subscribe:experiment', 'subscribe:experiment', 'READER'),
   // Writer (INTEROP-2.7 §6.13, WI-CORE-019): vincular, pausar y reactivar; publicar; crear experimentos.
   entry('WRITER', 'POST', '/projects/{projectId}/integrations/github', 'POST /projects/{projectId}/integrations/github', 'WRITER'),
   entry('WRITER', 'POST', '/projects/{projectId}/integrations/github/enable', 'POST .../enable', 'WRITER'),

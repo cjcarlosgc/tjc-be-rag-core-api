@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tjc.local/contracts/common.schema.json",
+  "title": "Tipos comunes (INTEROP §2)",
+  "description": "Convenciones universales de INTEROP §2 compartidas por todos los esquemas del contrato.",
+  "$defs": {
+    "Id": { "type": "string", "format": "uuid", "description": "UUID." },
+    "IsoDateTime": { "type": "string", "format": "date-time", "description": "ISO 8601 UTC." },
+    "RelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))(?!.*\\\\)[^\\u0000]+$",
+      "description": "POSIX, relativo, normalizado y sin traversal (sin barra inicial, sin '..', sin '\\')."
+    },
+    "Sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$", "description": "64 caracteres hexadecimales minúsculos." },
+    "NonNegativeInteger": { "type": "integer", "minimum": 0 },
+    "ExecutionProfile": { "type": "string", "enum": ["NODE_TYPESCRIPT", "PHP_LARAVEL_PHPUNIT"] },
+    "TestRunner": { "type": "string", "enum": ["JEST", "VITEST", "PHPUNIT"] }
+  }
+}

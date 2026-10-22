@@ -180,6 +180,13 @@ export class InMemoryPrisma {
         const found = matching(uniqueWhere(args.where))[0];
         return found ? this.hydrate(model, found, args) : null;
       },
+      findUniqueOrThrow: async (args: { where: Where; include?: Where }) => {
+        const found = matching(uniqueWhere(args.where))[0];
+        if (!found) {
+          throw new Error(`${model}: registro no encontrado`);
+        }
+        return this.hydrate(model, found, args);
+      },
       findMany: async (
         args: {
           where?: Where;

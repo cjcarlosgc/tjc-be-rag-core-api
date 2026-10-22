@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProjectAccessRepository } from '../project-access/project-access.repository.js';
+import { projectVersionRoom } from './realtime-publisher.port.js';
 
-/** Sala de Socket.IO de una `ProjectVersion` (una sala por id; nunca broadcast global). */
-export function projectVersionRoom(projectVersionId: string): string {
-  return `project-version:${projectVersionId}`;
-}
+export { projectVersionRoom };
 
 /** Lo mínimo que se necesita de un socket para sacarlo de sus salas. */
 export interface TrackedSocket {
@@ -15,8 +13,8 @@ export interface TrackedSocket {
 interface SocketSubscriptions {
   socket: TrackedSocket;
   userId: string;
-  /** `projectVersionId` -> `projectId` de cada suscripción del socket. */
-  versions: Map<string, string>;
+  /** Sala (`project-version:<id>`, `analysis-run:<id>`, `experiment:<id>`) -> `projectId` de cada suscripción. */
+  rooms: Map<string, string>;
 }
 
 /**
@@ -33,17 +31,27 @@ export class ProjectSubscriptionsService {
 
   constructor(private readonly accessRepository: ProjectAccessRepository) {}
 
+  /** Registra la suscripción de un socket a una `ProjectVersion` (sala `project-version:<id>`). */
   track(socket: TrackedSocket, userId: string, projectVersionId: string, projectId: string): void {
-    const entry = this.sockets.get(socket.id) ?? { socket, userId, versions: new Map<string, string>() };
-    entry.versions.set(projectVersionId, projectId);
-    this.sockets.set(socket.id, entry);
+    this.trackRoom(socket, userId, projectVersionRoom(projectVersionId), projectId);
   }
 
   untrack(socketId: string, projectVersionId: string): void {
-    const entry = this.sockets.get(socketId);
-    entry?.versions.delete(projectVersionId);
+    this.untrackRoom(socketId, projectVersionRoom(projectVersionId));
+  }
 
-    if (entry && entry.versions.size === 0) {
+  /** Registra cualquier sala de recurso del socket (`analysis-run:<id>`, `experiment:<id>`, ...) con su Project. */
+  trackRoom(socket: TrackedSocket, userId: string, room: string, projectId: string): void {
+    const entry = this.sockets.get(socket.id) ?? { socket, userId, rooms: new Map<string, string>() };
+    entry.rooms.set(room, projectId);
+    this.sockets.set(socket.id, entry);
+  }
+
+  untrackRoom(socketId: string, room: string): void {
+    const entry = this.sockets.get(socketId);
+    entry?.rooms.delete(room);
+
+    if (entry && entry.rooms.size === 0) {
       this.sockets.delete(socketId);
     }
   }
@@ -55,7 +63,7 @@ export class ProjectSubscriptionsService {
 
   /** Projects a los que está suscrito un socket (el mapa socket -> Project). */
   projectsOf(socketId: string): string[] {
-    return [...new Set(this.sockets.get(socketId)?.versions.values() ?? [])];
+    return [...new Set(this.sockets.get(socketId)?.rooms.values() ?? [])];
   }
 
   /**
@@ -69,7 +77,7 @@ export class ProjectSubscriptionsService {
     const usersOfProject = new Map<string, TrackedSocket[]>();
 
     for (const entry of this.sockets.values()) {
-      if ([...entry.versions.values()].includes(projectId)) {
+      if ([...entry.rooms.values()].includes(projectId)) {
         usersOfProject.set(entry.userId, [...(usersOfProject.get(entry.userId) ?? []), entry.socket]);
       }
     }
@@ -116,7 +124,7 @@ export class ProjectSubscriptionsService {
     let evicted = 0;
 
     for (const entry of this.sockets.values()) {
-      if (entry.userId === userId && [...entry.versions.values()].includes(projectId)) {
+      if (entry.userId === userId && [...entry.rooms.values()].includes(projectId)) {
         await this.evict(entry.socket.id, projectId);
         evicted += 1;
       }
@@ -132,18 +140,18 @@ export class ProjectSubscriptionsService {
       return;
     }
 
-    for (const [projectVersionId, owner] of entry.versions) {
+    for (const [room, owner] of entry.rooms) {
       if (owner === projectId) {
-        entry.versions.delete(projectVersionId);
+        entry.rooms.delete(room);
         try {
-          await entry.socket.leave(projectVersionRoom(projectVersionId));
+          await entry.socket.leave(room);
         } catch (error) {
-          this.logger.warn(`No se pudo sacar al socket "${socketId}" de la sala de "${projectVersionId}": ${String(error)}`);
+          this.logger.warn(`No se pudo sacar al socket "${socketId}" de la sala "${room}": ${String(error)}`);
         }
       }
     }
 
-    if (entry.versions.size === 0) {
+    if (entry.rooms.size === 0) {
       this.sockets.delete(socketId);
     }
   }

@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AnalysisRunsRepository, type PullRequestRunGroup } from './analysis-runs.repository.js';
 import { AnalysisRunsService } from './analysis-runs.service.js';
+import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
 import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
 import { JobsService } from '../jobs/jobs.service.js';
@@ -55,6 +56,7 @@ export class PullRequestMetadataBackfillJobHandler
     private readonly analysisRunsService: AnalysisRunsService,
     private readonly repositoryBindingsRepository: RepositoryBindingsRepository,
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
+    private readonly realtime: AnalysisRunRealtimeEvents,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -116,6 +118,10 @@ export class PullRequestMetadataBackfillJobHandler
       createdAt,
       currentBinding.createdAt,
     );
+
+    for (const runId of result.obsoletedRunIds) {
+      await this.realtime.runChanged(runId);
+    }
 
     if (payload.pendingEvent && result.eligible) {
       await this.resumePendingEvent(payload, prNumber, currentBinding, liveHead, createdAt);

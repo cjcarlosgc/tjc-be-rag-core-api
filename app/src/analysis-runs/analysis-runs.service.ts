@@ -14,6 +14,7 @@ import type {
   PullRequestState,
 } from '../generated/prisma/client.js';
 import type { Page } from '../common/dto/page.response.js';
+import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
 
 export interface StartRunResult {
   run: AnalysisRun;
@@ -81,6 +82,7 @@ export class AnalysisRunsService {
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly projectsRepository: ProjectsRepository,
     private readonly projectAccess: ProjectAccessService,
+    private readonly realtime: AnalysisRunRealtimeEvents,
   ) {}
 
   /**
@@ -120,7 +122,9 @@ export class AnalysisRunsService {
       return this.transitionTo(run, 'OBSOLETE', patch);
     }
 
-    return this.analysisRunsRepository.update(run.id, patch);
+    const updated = await this.analysisRunsRepository.update(run.id, patch);
+    await this.realtime.runChanged(updated.id);
+    return updated;
   }
 
   /** HU33/34: arranca el procesamiento de snapshot intelligence. */
@@ -135,7 +139,9 @@ export class AnalysisRunsService {
    * futuros) no se hayan ejecutado-.
    */
   async recordSnapshot(run: AnalysisRun, patch: SnapshotPatch): Promise<AnalysisRun> {
-    return this.analysisRunsRepository.update(run.id, patch);
+    const updated = await this.analysisRunsRepository.update(run.id, patch);
+    await this.realtime.runChanged(updated.id);
+    return updated;
   }
 
   /**
@@ -153,10 +159,16 @@ export class AnalysisRunsService {
       return null;
     }
 
-    return this.analysisRunsRepository.transitionCurrent(run.id, run.status, status, {
+    const updated = await this.analysisRunsRepository.transitionCurrent(run.id, run.status, status, {
       ...patch,
       completedAt: new Date(),
     });
+
+    if (updated) {
+      await this.realtime.runChanged(updated.id);
+    }
+
+    return updated;
   }
 
   private async startRunInternal(input: CreateAnalysisRunInput): Promise<StartRunResult> {
@@ -292,6 +304,7 @@ export class AnalysisRunsService {
     const updated = await this.analysisRunsRepository.transitionCurrent(run.id, run.status, status, patch);
 
     if (updated) {
+      await this.realtime.runChanged(updated.id);
       return updated;
     }
 

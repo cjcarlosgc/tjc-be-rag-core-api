@@ -106,6 +106,24 @@ describe('JobsService', () => {
     expect(repository.fail).toHaveBeenCalledWith(baseJob, 'boom');
   });
 
+  describe('tick: el poller no tumba el proceso ante un fallo de infraestructura', () => {
+    it('un corte de la base en claimNext se registra y no rechaza', async () => {
+      repository.claimNext.mockRejectedValue(new Error('conexión con Postgres perdida'));
+
+      await expect(service.tick()).resolves.toBeUndefined();
+    });
+
+    it('un fallo al completar el job tampoco rechaza y el siguiente ciclo sigue funcionando', async () => {
+      service.registerHandler({ type: 'demo', handle: vi.fn().mockResolvedValue(undefined) });
+      repository.claimNext.mockResolvedValueOnce(baseJob).mockResolvedValue(null);
+      repository.complete.mockRejectedValueOnce(new Error('timeout al completar'));
+
+      await expect(service.tick()).resolves.toBeUndefined();
+      await expect(service.tick()).resolves.toBeUndefined();
+      expect(repository.claimNext).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('access jobs (HU61)', () => {
     it('enqueueDeduped delegates the dedupeKey, the delay and skipIfRunning, and reports whether it created a job', async () => {
       repository.insertDeduped.mockResolvedValueOnce('job-9').mockResolvedValueOnce(null);

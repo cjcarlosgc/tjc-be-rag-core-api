@@ -66,7 +66,7 @@ export interface LLMToolsResult {
 }
 
 export interface LLMProvider {
-  /** Sin `config` conserva LLM_MODEL/LLM_REASONING_EFFORT del flujo de producto. */
+  /** Sin `config` usa LLM_MODEL/LLM_REASONING_EFFORT (flujo de producto, WI-CORE-076). */
   generate(prompt: string, config?: LLMEffectiveConfig): Promise<LLMGenerationResult>;
   /** Nunca fuerza `none` ni cambia modelo o esfuerzo: usa exactamente `config`. */
   generateWithTools(

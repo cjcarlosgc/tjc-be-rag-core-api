@@ -77,6 +77,8 @@ for (const item of registry.workItems ?? []) {
   itemById.set(item.id, item);
   if (item.component !== component) fail(`wrong component: ${item.id}`);
   if (!['PRODUCT', 'HARNESS'].includes(item.workItemType)) fail(`invalid workItemType: ${item.id}`);
+  if (item.lane !== undefined && !['STANDARD', 'FAST'].includes(item.lane)) fail(`invalid lane: ${item.id}`);
+  if (item.lane === 'FAST' && (item.contractImpact || item.publishesContract)) fail(`FAST lane cannot have contract impact: ${item.id}`);
   if (!statuses.has(item.status)) fail(`invalid WI status: ${item.id}`);
   if (typeof item.contractImpact !== 'boolean' || typeof item.publishesContract !== 'boolean') fail(`contract flags required: ${item.id}`);
   if (item.publishesContract && !item.contractImpact) fail(`publisher must have contract impact: ${item.id}`);

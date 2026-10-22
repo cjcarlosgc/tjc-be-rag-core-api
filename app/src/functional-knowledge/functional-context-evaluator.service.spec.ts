@@ -5,6 +5,7 @@ import { FunctionalQuestionsRepository } from './functional-questions.repository
 import { FunctionalKnowledgeRepository } from './functional-knowledge.repository.js';
 import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import type { AnalysisRun, AnalysisSymbol, FunctionalQuestion } from '../generated/prisma/client.js';
+import type { AnalysisRunRealtimeEvents } from '../analysis-runs/analysis-run-realtime.events.js';
 
 const RUN = { id: 'run-1', projectId: 'project-1', status: 'PROCESSING', current: true } as AnalysisRun;
 
@@ -52,6 +53,7 @@ describe('FunctionalContextEvaluatorService', () => {
   };
   let functionalKnowledgeRepository: { findActive: ReturnType<typeof vi.fn> };
   let projectVersionsRepository: { findById: ReturnType<typeof vi.fn> };
+  let realtime: { runChanged: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     analysisSymbolsRepository = { findByAnalysisRun: vi.fn().mockResolvedValue([]) };
@@ -64,11 +66,13 @@ describe('FunctionalContextEvaluatorService', () => {
     };
     functionalKnowledgeRepository = { findActive: vi.fn().mockResolvedValue(null) };
     projectVersionsRepository = { findById: vi.fn().mockResolvedValue(null) };
+    realtime = { runChanged: vi.fn().mockResolvedValue(undefined) };
     service = new FunctionalContextEvaluatorService(
       analysisSymbolsRepository as unknown as AnalysisSymbolsRepository,
       functionalQuestionsRepository as unknown as FunctionalQuestionsRepository,
       functionalKnowledgeRepository as unknown as FunctionalKnowledgeRepository,
       projectVersionsRepository as unknown as ProjectVersionsRepository,
+      realtime as unknown as AnalysisRunRealtimeEvents,
     );
   });
 
@@ -495,6 +499,46 @@ describe('FunctionalContextEvaluatorService', () => {
 
       expect(result).toEqual({ actionRequired: false });
       expect(functionalQuestionsRepository.createForCurrentRun).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('analysis-run:update (INTEROP-2.18 §6.6)', () => {
+    beforeEach(() => {
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({ behaviorConstructs: [buildConstruct()] }),
+      ]);
+    });
+
+    it('emits after the PROCESSING -> ACTION_REQUIRED write is confirmed', async () => {
+      const order: string[] = [];
+      functionalQuestionsRepository.createForCurrentRun.mockImplementation(async () => {
+        order.push('write');
+        return { question: {} as FunctionalQuestion, analysisRun: { ...RUN, status: 'ACTION_REQUIRED' } };
+      });
+      realtime.runChanged.mockImplementation(async () => {
+        order.push('emit');
+      });
+
+      await service.evaluate({ ...RUN, status: 'PROCESSING' } as AnalysisRun);
+
+      expect(realtime.runChanged).toHaveBeenCalledExactlyOnceWith('run-1');
+      expect(order).toEqual(['write', 'emit']);
+    });
+
+    it('does not emit for a continuation that stays in ACTION_REQUIRED (no status change)', async () => {
+      await service.evaluate({ ...RUN, status: 'ACTION_REQUIRED' } as AnalysisRun);
+
+      expect(functionalQuestionsRepository.createForCurrentRun).toHaveBeenCalledOnce();
+      expect(realtime.runChanged).not.toHaveBeenCalled();
+    });
+
+    it('does not emit when the atomic write loses (run no longer current or no longer PROCESSING)', async () => {
+      functionalQuestionsRepository.createForCurrentRun.mockResolvedValue(null);
+
+      const result = await service.evaluate({ ...RUN, status: 'PROCESSING' } as AnalysisRun);
+
+      expect(result).toEqual({ actionRequired: false });
+      expect(realtime.runChanged).not.toHaveBeenCalled();
     });
   });
 });

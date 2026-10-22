@@ -1,0 +1,10 @@
+{
+  "statusCode": 503,
+  "code": "GITHUB_UPSTREAM_UNAVAILABLE",
+  "message": "GitHub no respondió",
+  "details": null,
+  "correlationId": "corr-2",
+  "timestamp": "2026-10-18T10:00:00.000Z",
+  "path": "/internal/v1/github/checks",
+  "retryable": true
+}

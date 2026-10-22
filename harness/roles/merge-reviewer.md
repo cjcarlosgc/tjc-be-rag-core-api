@@ -1,6 +1,6 @@
 # Merge reviewer
 
-Revisa **una fusión**, no el trabajo de un WI. Es obligatorio para toda fusión de una rama de tercero o de una rama de integración antes de que entre en una línea de trabajo compartida (`feature/jean`, `develop` o `main`) y antes de publicarla. El `reviewer` revisa un WI; el `merge-reviewer` revisa el resultado de integrar ramas. El Modo fuera de casa no lo sustituye ni lo relaja. Es independiente de quien preparó la fusión y no corrige sus propios hallazgos.
+Revisa **una fusión**, no el trabajo de un WI. Es obligatorio para toda fusión de una rama de tercero o de una rama de integración antes de que entre en una línea de trabajo compartida (`feature/jean`, `develop` o `main`) y antes de publicarla. El `reviewer` revisa un WI; el `merge-reviewer` revisa el resultado de integrar ramas. Ningún otro revisor lo sustituye ni lo relaja. Es independiente de quien preparó la fusión y no corrige sus propios hallazgos.
 
 Comprueba, con evidencia reproducible:
 

@@ -94,6 +94,10 @@ De forma aditiva e interna (sin DTO público ni §6.16, sin cambiar el Sandbox),
 
 El Sandbox (`WI-SANDBOX-007`, `CS-SANDBOX-20261014-001`) agrega a cada etapa de `stageDurations[]` las marcas ISO-8601 UTC opcionales `startedAt` y `completedAt` junto a `durationMs`. Core las conserva por etapa cuando son válidas (se omiten sin error si faltan o son inválidas) y las persiste de forma interna dentro de `runnerReport.stageDurations` del artefacto de la repetición (sin migración, sin DTO público ni §6.16); un Sandbox anterior sigue funcionando y sus reportes no cambian. Con ellas se puede medir la espera antes de `PREPARING` (frente al inicio del intento de Core) y entre etapas. La incorporación documental de los campos a INTEROP §7.3 queda pendiente de una decisión aparte.
 
+## Corridas de prueba y corridas de evidencia (`WI-CORE-075`, 2026-10-21)
+
+Los experimentos usan la configuración única del LLM (`spec/transversal/providers/spec.md`, `DEC-EXP-005`): modelo `gpt-6-luna` y el esfuerzo que fije el entorno. **`low` es una corrida de prueba** (verificación económica del flujo, sin valor de evidencia) y **`medium` es evidencia oficial** (piloto, confirmatorio OE5 y OE2), congelado por protocolo (tesis 3.3 y Anexo K, por referencia). Las dos clases no se mezclan en un mismo protocolo: la evidencia de un protocolo usa un único modelo y esfuerzo, que se identifican por el `modelConfig` persistido en cada `ExperimentRun` (`model`, `reasoningEffort`) y no por el entorno vigente. No hay una marca ni un bloqueo automáticos: antes de crear un experimento de evidencia se verifica el entorno (`medium`) y después el `modelConfig` del Run. Los experimentos `07b20829` y `924e38ab` (2026-10-13) corrieron con `gpt-5.4-nano` y esfuerzo `none` (modelo descartado) y son solo antecedente histórico.
+
 ## Fuera de alcance
 
 - No ampliar a capacidades no mencionadas en esta spec.

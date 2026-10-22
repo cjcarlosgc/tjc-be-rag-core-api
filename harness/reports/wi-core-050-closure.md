@@ -12,4 +12,4 @@ Cerrado bajo el Modo fuera de casa (`awayMode` activo): lo valida la revisión i
 ## Notas
 - F1 (`https://host/?` aceptado, igual que `isAllowedGithubIntegrationUrl`), F3 (función duplicada, candidato a helper común): menores, sin acción.
 - F4 deuda editorial: la línea de `DEC-INF-002` en SYSTEM-2.12 aún dice «preparado y sin implementar»; corregir en el siguiente bump con contract-reviewer.
-- Operación: una producción con `SANDBOX_URL` http no arranca; Cross verificó `https://136-115-2-208.sslip.io` en Render.
+- Operación: una producción con `SANDBOX_URL` http no arranca; Cross verificó `https://<SANDBOX_HOST>.sslip.io` en Render.

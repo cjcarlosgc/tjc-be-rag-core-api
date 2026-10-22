@@ -9,4 +9,4 @@ Implementación por `implementer` (claude-haiku-5-5, esfuerzo low); verificació
 - `node harness/validate-harness.mjs` y `node --test harness/*.test.mjs` pasan.
 - Sin build en `app/`; `app/.env` no tocado. `sandbox-execution.service.spec.ts` usa un ConfigService falso y no pasa por `validateEnv`.
 - Contrato: la regla de arranque ya está descrita como «seguimiento aprobado aparte» en `DEC-INF-002` (SYSTEM-2.12); no cambia DTO, rutas ni transporte. Deuda editorial: esa línea aún dice «preparado y sin implementar» (siguiente bump de SYSTEM, con contract-reviewer).
-- Riesgo operativo: una producción con `SANDBOX_URL` http no arranca; Cross verificó `https://136-115-2-208.sslip.io` en Render.
+- Riesgo operativo: una producción con `SANDBOX_URL` http no arranca; Cross verificó `https://<SANDBOX_HOST>.sslip.io` en Render.

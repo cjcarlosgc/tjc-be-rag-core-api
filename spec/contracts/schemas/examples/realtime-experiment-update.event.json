@@ -1,0 +1,29 @@
+{
+  "id": "7e6d5c4b-3a29-4180-9f8e-7d6c5b4a3921",
+  "projectId": "9c8b7a6d-5e4f-4321-8fed-cba987654321",
+  "projectVersionId": "1a2b3c4d-5e6f-4789-9abc-def012345678",
+  "targetId": "2f3e4d5c-6b7a-4980-a1b2-c3d4e5f60718",
+  "status": "RUNNING",
+  "completedRepetitions": 2,
+  "totalRepetitions": 6,
+  "failureCode": null,
+  "failureMessage": null,
+  "startedAt": "2026-10-21T14:10:00.000Z",
+  "completedAt": null,
+  "model": {
+    "provider": "example-provider",
+    "model": "example-model",
+    "modelVersion": null,
+    "reasoningEffort": "medium",
+    "temperature": null,
+    "maxOutputTokens": 4096
+  },
+  "budget": {
+    "toolCallCap": 12,
+    "contextTokenBudget": 24000,
+    "maxDurationMs": 600000
+  },
+  "executionProfile": "NODE_TYPESCRIPT",
+  "runnerHint": "VITEST",
+  "randomizationSeed": "8f4c2e1d"
+}

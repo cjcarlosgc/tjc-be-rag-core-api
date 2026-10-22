@@ -1,0 +1,13 @@
+{
+  "statusCode": 400,
+  "code": "VALIDATION_ERROR",
+  "message": "requestId must be a UUID",
+  "details": [
+    {
+      "field": "requestId"
+    }
+  ],
+  "correlationId": "corr-1",
+  "timestamp": "2026-10-18T10:00:00.000Z",
+  "path": "/executions"
+}

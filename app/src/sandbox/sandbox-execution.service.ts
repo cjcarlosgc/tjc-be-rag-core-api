@@ -2,6 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
+import { validateContract } from '../contracts/contract-validator.js';
+import {
+  DEFAULT_MAX_POLL_ATTEMPTS,
+  DEFAULT_POLL_RETRIES,
+  DEFAULT_POLL_RETRY_DELAY_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  MAX_POLL_AFTER_MS,
+} from '../config/sandbox-poll.defaults.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
   ExecutionProfile,
@@ -73,8 +81,6 @@ function normalizeStageDurations(raw: unknown): SandboxExecutionResult['stageDur
 }
 
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
-export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
-export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 
 // Keep the mapping exhaustive: adding a runner requires selecting its profile.
 export const EXECUTION_PROFILE_BY_RUNNER: Record<
@@ -94,7 +100,38 @@ interface EphemeralDownloadRef {
   sizeBytes: number;
 }
 
-export class SandboxUnavailableError extends Error {}
+export class SandboxUnavailableError extends Error {
+  /**
+   * `transient` = el fallo es de red/tiempo de espera o una respuesta 408/425/429/5xx del Sandbox: repetir una
+   * consulta idempotente (GET) puede tener éxito. Un 4xx de contrato no es transitorio.
+   */
+  constructor(
+    message: string,
+    readonly transient: boolean = false,
+  ) {
+    super(message);
+  }
+}
+
+// Re-exportados para los consumidores existentes; la fuente única es config/sandbox-poll.defaults.ts.
+export {
+  DEFAULT_MAX_POLL_ATTEMPTS,
+  DEFAULT_POLL_RETRIES,
+  DEFAULT_POLL_RETRY_DELAY_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  MAX_POLL_AFTER_MS,
+};
+const FALLBACK_POLL_AFTER_MS = 1_000;
+
+/** Acota el `pollAfterMs` que informa el Sandbox: un valor ausente, no numérico o negativo usa el de respaldo. */
+export function clampPollAfterMs(value: unknown, fallback = FALLBACK_POLL_AFTER_MS): number {
+  const candidate = typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+  return Math.min(candidate, MAX_POLL_AFTER_MS);
+}
+
+function isTransientStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
 
 /**
  * Fallo posterior a la aceptación del Sandbox (`POST /executions` ya respondió): conserva el
@@ -127,14 +164,33 @@ type SandboxExecutionOutcome = Omit<
   | 'durationMs'
 >;
 
+/** Consultas idempotentes que se reintentan ante un fallo transitorio (WI-CORE-070 corte C). */
+export type SandboxPollOperation = 'status' | 'result';
+
 @Injectable()
 export class SandboxExecutionService {
   private readonly logger = new Logger(SandboxExecutionService.name);
+  /** WI-CORE-070 corte C: reintentos transitorios realizados por esta instancia (solo los que se repiten). */
+  private transientRetriesTotal = 0;
+  private readonly transientRetryCountByOperation: Record<SandboxPollOperation, number> = {
+    status: 0,
+    result: 0,
+  };
 
   constructor(
     private readonly configService: ConfigService,
     private readonly objectStorageService: ObjectStorageService,
   ) {}
+
+  /** Número de reintentos transitorios realizados por esta instancia (no cuenta el intento inicial). */
+  get transientRetryCount(): number {
+    return this.transientRetriesTotal;
+  }
+
+  /** Reintentos transitorios realizados, desglosados por operación de consulta. Copia de solo lectura. */
+  get transientRetriesByOperation(): Readonly<Record<SandboxPollOperation, number>> {
+    return { ...this.transientRetryCountByOperation };
+  }
 
   async execute(
     request: SandboxExecutionRequest,
@@ -204,6 +260,7 @@ export class SandboxExecutionService {
       executionId: string;
       pollAfterMs: number;
     }>(`${baseUrl}/executions`, body, requestId, correlationId, serviceToken);
+    this.warnOnContractDrift('SandboxExecutionAcceptedResponse', accepted.executionId, accepted);
 
     try {
       await this.pollUntilTerminal(
@@ -298,26 +355,60 @@ export class SandboxExecutionService {
       'SANDBOX_MAX_POLL_ATTEMPTS',
       DEFAULT_MAX_POLL_ATTEMPTS,
     );
-    let pollAfterMs = firstPollAfterMs;
+    let pollAfterMs = clampPollAfterMs(firstPollAfterMs);
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, pollAfterMs));
 
-      const status = await this.getJson<{
-        status: string;
-        pollAfterMs?: number;
-      }>(`${baseUrl}/executions/${executionId}`, correlationId, serviceToken);
+      const status = await this.withTransientRetries('status', executionId, () =>
+        this.getJson<{
+          status: string;
+          pollAfterMs?: number;
+        }>(`${baseUrl}/executions/${executionId}`, correlationId, serviceToken),
+      );
 
       if (['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(status.status)) {
         return;
       }
 
-      pollAfterMs = status.pollAfterMs ?? firstPollAfterMs;
+      pollAfterMs = clampPollAfterMs(status.pollAfterMs, clampPollAfterMs(firstPollAfterMs));
     }
 
     throw new SandboxUnavailableError(
       `La ejecución ${executionId} no terminó tras ${maxAttempts} consultas de estado.`,
     );
+  }
+
+  /**
+   * Repite una consulta idempotente ante fallos transitorios del Sandbox (red, tiempo de espera, 408/425/429/5xx) con
+   * espera creciente. Un fallo no transitorio, o agotar los reintentos, relanza el último error.
+   * WI-CORE-070 corte C: cada reintento que se realiza queda registrado (operación, executionId, número y total,
+   * clase del error, espera; el mensaje va saneado) y cuenta en los contadores de la instancia. No cambia
+   * cuántos reintentos hay ni las esperas.
+   */
+  private async withTransientRetries<T>(
+    operation: SandboxPollOperation,
+    executionId: string,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const retries = this.configService.get<number>('SANDBOX_POLL_RETRIES', DEFAULT_POLL_RETRIES);
+    const baseDelayMs = this.configService.get<number>('SANDBOX_POLL_RETRY_DELAY_MS', DEFAULT_POLL_RETRY_DELAY_MS);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await run();
+      } catch (error) {
+        const retryable = error instanceof SandboxUnavailableError && error.transient;
+        if (!retryable || attempt >= retries) throw error;
+        const delayMs = Math.min(baseDelayMs * 2 ** attempt, MAX_POLL_AFTER_MS);
+        this.transientRetriesTotal += 1;
+        this.transientRetryCountByOperation[operation] += 1;
+        this.logger.warn(
+          `Reintento transitorio (${operation}) de la ejecución ${executionId}: reintento ${attempt + 1} de ${retries}, ` +
+            `error ${error.constructor.name}, espera ${delayMs}ms: ${sanitizeFailureMessage(String(error.message))}`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
   }
 
   private async fetchResult(
@@ -326,19 +417,19 @@ export class SandboxExecutionService {
     correlationId: string,
     serviceToken: string,
   ): Promise<SandboxExecutionOutcome> {
-    const result = await this.getJson<{
-      status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
-      facts: SandboxExecutionResult['facts'];
-      failure: SandboxFailureFact | null;
-      stageDurations?: unknown;
-      evidence?: unknown;
-      startedAt?: unknown;
-      completedAt?: unknown;
-    }>(
-      `${baseUrl}/executions/${executionId}/result`,
-      correlationId,
-      serviceToken,
+    const result = await this.withTransientRetries('result', executionId, () =>
+      this.getJson<{
+        status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT';
+        facts: SandboxExecutionResult['facts'];
+        failure: SandboxFailureFact | null;
+        stageDurations?: unknown;
+        evidence?: unknown;
+        startedAt?: unknown;
+        completedAt?: unknown;
+      }>(`${baseUrl}/executions/${executionId}/result`, correlationId, serviceToken),
     );
+
+    this.warnOnContractDrift('SandboxExecutionResultResponse', executionId, result);
 
     const stageDurations = normalizeStageDurations(result.stageDurations);
 
@@ -370,6 +461,22 @@ export class SandboxExecutionService {
       startedAt: typeof result.startedAt === 'string' ? result.startedAt : null,
       completedAt: typeof result.completedAt === 'string' ? result.completedAt : null,
     };
+  }
+
+  /**
+   * INTEROP-2.17 §10: compara la respuesta del Sandbox con el esquema canónico y avisa de cualquier desvío. No lanza
+   * ni altera el flujo (Core tolera Sandboxes anteriores); el aviso solo lista rutas y motivos, nunca valores.
+   */
+  private warnOnContractDrift(
+    definition: 'SandboxExecutionAcceptedResponse' | 'SandboxExecutionResultResponse',
+    executionId: string,
+    payload: unknown,
+  ): void {
+    const check = validateContract('sandbox-execution.schema.json', definition, payload);
+    if (check.valid) return;
+    this.logger.warn(
+      `Contrato Core↔Sandbox (INTEROP §7): la respuesta ${definition} de la ejecución ${executionId} no cumple el esquema canónico: ${check.errors.slice(0, 5).join('; ')}`,
+    );
   }
 
   private async postJson<T>(
@@ -419,6 +526,7 @@ export class SandboxExecutionService {
       if (!response.ok) {
         throw new SandboxUnavailableError(
           `Sandbox respondió ${response.status} para ${url}.`,
+          isTransientStatus(response.status),
         );
       }
 
@@ -431,7 +539,7 @@ export class SandboxExecutionService {
       this.logger.warn(
         `Fallo al comunicarse con el Sandbox (${url}): ${(error as Error).message}`,
       );
-      throw new SandboxUnavailableError((error as Error).message);
+      throw new SandboxUnavailableError((error as Error).message, true);
     } finally {
       clearTimeout(timeout);
     }

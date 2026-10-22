@@ -9,6 +9,7 @@ import {
   type BehaviorConstructRecord,
 } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import type { AnalysisRun, AnalysisSymbol, FunctionalScope } from '../generated/prisma/client.js';
+import { AnalysisRunRealtimeEvents } from '../analysis-runs/analysis-run-realtime.events.js';
 
 export type EvaluateFunctionalContextResult =
   | { actionRequired: false }
@@ -97,6 +98,7 @@ export class FunctionalContextEvaluatorService {
     private readonly functionalQuestionsRepository: FunctionalQuestionsRepository,
     private readonly functionalKnowledgeRepository: FunctionalKnowledgeRepository,
     private readonly projectVersionsRepository: ProjectVersionsRepository,
+    private readonly realtime: AnalysisRunRealtimeEvents,
   ) {}
 
   async evaluate(run: AnalysisRun): Promise<EvaluateFunctionalContextResult> {
@@ -163,6 +165,12 @@ export class FunctionalContextEvaluatorService {
 
         if (!result) {
           return { actionRequired: false };
+        }
+
+        // La pregunta y la transición PROCESSING -> ACTION_REQUIRED ya están confirmadas (post-commit).
+        // Una continuación (ya en ACTION_REQUIRED) no cambia de estado y no emite.
+        if (run.status === 'PROCESSING') {
+          await this.realtime.runChanged(run.id);
         }
 
         return { actionRequired: true, analysisRun: result.analysisRun };

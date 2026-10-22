@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
@@ -11,6 +11,7 @@ import {
 } from '../sandbox/sandbox-execution.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
+import { sandboxGenerationRequestId } from '../sandbox/sandbox-request-id.util.js';
 import { countFunctionalRuleTokens } from '../retrieval/functional-rule-format.js';
 import type {
   AnalysisRun,
@@ -316,6 +317,7 @@ describe('AnalysisRunValidationJobHandler', () => {
       analysisRunChecksService,
       analysisTraceRepository,
       workspaceCleanup,
+      workspaceDir,
     };
   }
 
@@ -2342,6 +2344,239 @@ describe('AnalysisRunValidationJobHandler', () => {
           resultSummary:
             'TECHNICAL_GENERATION_FAILURE: 1 propuesta(s) disponible(s), 0 símbolo(s) ya cubiertos por tests existentes, 0 behavioral mismatch, 1 fallo(s) técnico(s) de generación, 1 fallo(s) de plataforma sin veredicto (Thing.first).',
         }),
+      );
+    });
+  });
+
+  describe('caracterización del pipeline de generación (WI-CORE-070, corte B)', () => {
+    const CHAR_PHP_PATH =
+      'tests/Unit/Pricing/PremiumDiscountPolicyDiscountForTest.php';
+    const CHAR_PHP_FILE =
+      '<?php\n\nnamespace Tests\\Unit\\Pricing;\n\nfinal class PremiumDiscountPolicyDiscountForTest {}';
+
+    /** Cada paso debe haberse llamado, y cada uno después del anterior. */
+    function expectInOrder(steps: Array<[string, number | undefined]>): void {
+      for (const [label, order] of steps) {
+        expect(order, `${label} no fue llamado`).toBeDefined();
+      }
+      for (let index = 1; index < steps.length; index += 1) {
+        const [previous, previousOrder] = steps[index - 1];
+        const [current, currentOrder] = steps[index];
+        expect(
+          currentOrder as number,
+          `${previous} debe ocurrir antes que ${current}`,
+        ).toBeGreaterThan(previousOrder as number);
+      }
+    }
+
+    async function setupPhpCharacterization() {
+      const context = await setup();
+      context.analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        buildSymbol({
+          language: 'PHP',
+          kind: 'METHOD',
+          qualifiedName: 'PremiumDiscountPolicy.discountFor',
+          filePath: 'app/Pricing/PremiumDiscountPolicy.php',
+        }),
+      ]);
+      context.projectVersionsRepository.findById.mockResolvedValue(
+        buildVersion({
+          language: 'PHP',
+          detectedFramework: 'PHPUNIT',
+        } as Partial<ProjectVersion>),
+      );
+      context.llmProvider.generate.mockResolvedValue({
+        content: CHAR_PHP_FILE,
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+      return context;
+    }
+
+    it('TypeScript: el orden es recuperación, reglas, dependencias, contexto, trazas, prompt, LLM, fusión, Sandbox y después propuesta y ejecución', async () => {
+      const context = await setup();
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const trace = context.analysisTraceRepository;
+      expectInOrder([
+        ['retrieve', context.retrievalService.retrieve.mock.invocationCallOrder[0]],
+        ['reglas funcionales', context.functionalRulesRetriever.retrieve.mock.invocationCallOrder[0]],
+        ['dependencias PHP', context.phpDependencyContextService.resolve.mock.invocationCallOrder[0]],
+        ['contexto', context.contextBuilder.build.mock.invocationCallOrder[0]],
+        ['traza de recuperación', trace.upsertRetrieval.mock.invocationCallOrder[0]],
+        ['traza de contexto', trace.upsertContext.mock.invocationCallOrder[0]],
+        ['prompt', context.promptBuilder.build.mock.invocationCallOrder[0]],
+        ['generate', context.llmProvider.generate.mock.invocationCallOrder[0]],
+        ['fusión', context.testFileMergeService.applyCreate.mock.invocationCallOrder[0]],
+        ['execute', context.sandboxExecutionService.execute.mock.invocationCallOrder[0]],
+        ['propuesta', context.generatedTestProposalsRepository.upsertForSymbol.mock.invocationCallOrder[0]],
+        ['ejecución', trace.upsertExecution.mock.invocationCallOrder[0]],
+      ]);
+    });
+
+    it('TypeScript: el contexto recibe opciones vacías, el prompt un único argumento y el LLM solo el prompt', async () => {
+      const { handler, contextBuilder, promptBuilder, llmProvider } = await setup();
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(contextBuilder.build.mock.calls[0][3]).toEqual({});
+      expect(promptBuilder.build.mock.calls[0]).toHaveLength(1);
+      expect(llmProvider.generate.mock.calls[0]).toEqual(['prompt']);
+    });
+
+    it('TypeScript: la solicitud al Sandbox es exacta, con requestId de generación y sin projectRoot ni executionProfile', async () => {
+      const { handler, sandboxExecutionService } = await setup();
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(sandboxExecutionService.execute).toHaveBeenCalledTimes(1);
+      const [request] = sandboxExecutionService.execute.mock.calls[0] as [
+        Record<string, unknown>,
+      ];
+      expect(request).toEqual({
+        requestId: sandboxGenerationRequestId('job-1', 'symbol-1'),
+        testRunId: 'run-1',
+        projectVersionId: 'version-1',
+        snapshotKey: 'analysis-runs/run-1/snapshot.zip',
+        snapshotBuffer: expect.any(Buffer),
+        artifacts: [
+          {
+            artifactId: expect.any(String),
+            relativePath: 'src/thing.spec.ts',
+            artifactType: 'CREATED',
+            content: Buffer.from('created:test content', 'utf8'),
+          },
+        ],
+        scope: 'TARGET',
+        targetIds: ['symbol-1'],
+        runnerHint: 'JEST',
+      });
+      expect(Object.keys(request)).not.toContain('projectRoot');
+      expect(Object.keys(request)).not.toContain('executionProfile');
+    });
+
+    it('TypeScript: el test co-ubicado se lee después de generar; si existe al enviar, el Sandbox recibe una fusión MODIFIED', async () => {
+      const context = await setup();
+      context.llmProvider.generate.mockImplementation(async () => {
+        await mkdir(join(context.workspaceDir, 'src'), { recursive: true });
+        await writeFile(
+          join(context.workspaceDir, 'src/thing.spec.ts'),
+          'describe existing',
+          'utf8',
+        );
+        return { content: 'test content', inputTokens: 10, outputTokens: 20 };
+      });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.testFileMergeService.applyMerge).toHaveBeenCalledWith(
+        'describe existing',
+        'test content',
+      );
+      expect(context.testFileMergeService.applyCreate).not.toHaveBeenCalled();
+      expect(context.sandboxExecutionService.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          artifacts: [
+            expect.objectContaining({
+              relativePath: 'src/thing.spec.ts',
+              artifactType: 'MODIFIED',
+              content: Buffer.from(
+                'merged:describe existing:test content',
+                'utf8',
+              ),
+            }),
+          ],
+        }),
+      );
+    });
+
+    it('PHP: el orden es el mismo sin fusión; el prompt recibe namespace y ruta como segundo argumento y el Sandbox va después del LLM', async () => {
+      const context = await setupPhpCharacterization();
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const trace = context.analysisTraceRepository;
+      expectInOrder([
+        ['retrieve', context.retrievalService.retrieve.mock.invocationCallOrder[0]],
+        ['reglas funcionales', context.functionalRulesRetriever.retrieve.mock.invocationCallOrder[0]],
+        ['dependencias PHP', context.phpDependencyContextService.resolve.mock.invocationCallOrder[0]],
+        ['contexto', context.contextBuilder.build.mock.invocationCallOrder[0]],
+        ['traza de recuperación', trace.upsertRetrieval.mock.invocationCallOrder[0]],
+        ['traza de contexto', trace.upsertContext.mock.invocationCallOrder[0]],
+        ['prompt', context.promptBuilder.build.mock.invocationCallOrder[0]],
+        ['generate', context.llmProvider.generate.mock.invocationCallOrder[0]],
+        ['execute', context.sandboxExecutionService.execute.mock.invocationCallOrder[0]],
+        ['propuesta', context.generatedTestProposalsRepository.upsertForSymbol.mock.invocationCallOrder[0]],
+        ['ejecución', trace.upsertExecution.mock.invocationCallOrder[0]],
+      ]);
+      expect(context.testFileMergeService.applyCreate).not.toHaveBeenCalled();
+      expect(context.testFileMergeService.applyMerge).not.toHaveBeenCalled();
+      expect(context.promptBuilder.build.mock.calls[0]).toEqual([
+        expect.anything(),
+        {
+          testNamespace: 'Tests\\Unit\\Pricing',
+          testPath: CHAR_PHP_PATH,
+        },
+      ]);
+    });
+
+    it('PHP: la solicitud al Sandbox es exacta, con projectRoot, runnerHint PHPUNIT y sin executionProfile', async () => {
+      const context = await setupPhpCharacterization();
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(context.sandboxExecutionService.execute).toHaveBeenCalledTimes(1);
+      const [request] = context.sandboxExecutionService.execute.mock.calls[0] as [
+        Record<string, unknown>,
+      ];
+      expect(request).toEqual({
+        requestId: sandboxGenerationRequestId('job-1', 'symbol-1'),
+        testRunId: 'run-1',
+        projectVersionId: 'version-1',
+        snapshotKey: 'analysis-runs/run-1/snapshot.zip',
+        snapshotBuffer: expect.any(Buffer),
+        artifacts: [
+          {
+            artifactId: expect.any(String),
+            relativePath: CHAR_PHP_PATH,
+            artifactType: 'CREATED',
+            content: Buffer.from(`${CHAR_PHP_FILE}\n`, 'utf8'),
+          },
+        ],
+        scope: 'TARGET',
+        targetIds: ['symbol-1'],
+        runnerHint: 'PHPUNIT',
+        projectRoot: '.',
+      });
+      expect(Object.keys(request)).not.toContain('executionProfile');
+    });
+
+    it('PHP sin <?php: la respuesta cruda queda HELD tras el LLM, sin fusión, sin Sandbox y sin ejecución registrada', async () => {
+      const context = await setupPhpCharacterization();
+      context.llmProvider.generate.mockResolvedValue({
+        content: 'Lo siento.',
+        inputTokens: 10,
+        outputTokens: 20,
+      });
+
+      await context.handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      const trace = context.analysisTraceRepository;
+      expectInOrder([
+        ['traza de contexto', trace.upsertContext.mock.invocationCallOrder[0]],
+        ['prompt', context.promptBuilder.build.mock.invocationCallOrder[0]],
+        ['generate', context.llmProvider.generate.mock.invocationCallOrder[0]],
+        ['propuesta HELD', context.generatedTestProposalsRepository.upsertForSymbol.mock.invocationCallOrder[0]],
+      ]);
+      expect(context.sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(context.testFileMergeService.applyCreate).not.toHaveBeenCalled();
+      expect(context.testFileMergeService.applyMerge).not.toHaveBeenCalled();
+      expect(trace.upsertExecution).not.toHaveBeenCalled();
+      expect(context.objectStorageService.put).toHaveBeenCalledWith(
+        expect.stringContaining('analysis-runs/run-1/proposals/'),
+        Buffer.from('Lo siento.', 'utf8'),
+        'text/plain',
       );
     });
   });

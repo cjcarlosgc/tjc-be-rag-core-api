@@ -352,6 +352,9 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
     return routeCase.body ? call.send(routeCase.body(ids)) : call;
   };
 
+  const UNSUBSCRIBE_MESSAGES = ['unsubscribe:project-version', 'unsubscribe:analysis-run', 'unsubscribe:experiment'];
+  const NEW_SUBSCRIBE_MESSAGES = ['subscribe:analysis-run', 'subscribe:experiment'];
+
   const policyOf = (entry: RouteAccessEntry): ContractRole =>
     entry.policy === 'PUBLIC' ? 'PUBLIC' : entry.policy === null ? ('UNDECLARED' as ContractRole) : entry.policy.kind === 'NONE' ? 'NONE' : entry.policy.minRole;
 
@@ -366,7 +369,11 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       expect(all.filter((entry) => entry.transport === 'http').length).toBeGreaterThanOrEqual(30);
       expect(all.filter((entry) => entry.transport === 'ws-handshake')).toHaveLength(1);
       expect(all.filter((entry) => entry.transport === 'ws-message').map((entry) => entry.path).sort()).toEqual([
+        'subscribe:analysis-run',
+        'subscribe:experiment',
         'subscribe:project-version',
+        'unsubscribe:analysis-run',
+        'unsubscribe:experiment',
         'unsubscribe:project-version',
       ]);
     });
@@ -388,7 +395,9 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
         INTEROP_ROLE_MATRIX.filter((entry) => entry.implemented).map((entry) => [matrixKey(entry.method, entry.path), entry.role]),
       );
       // `unsubscribe` no es una operación del contrato: solo abandona una sala propia.
-      implemented.delete(matrixKey('WS', 'unsubscribe:project-version'));
+      for (const unsubscribe of UNSUBSCRIBE_MESSAGES) {
+        implemented.delete(matrixKey('WS', unsubscribe));
+      }
 
       expect(Object.fromEntries([...implemented].sort())).toEqual(Object.fromEntries([...contract].sort()));
     });
@@ -443,13 +452,15 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
       expect(listed?.role).toBe('NONE');
     });
 
-    it('the WebSocket handshake declares its exception and the subscribe declares Reader', () => {
+    it('the WebSocket handshake declares its exception and every subscribe declares Reader on its resource', () => {
       const all = routes();
       const handshake = all.find((entry) => entry.transport === 'ws-handshake');
-      const subscribe = all.find((entry) => entry.path === 'subscribe:project-version');
 
       expect(handshake?.policy).toMatchObject({ kind: 'NONE' });
-      expect(subscribe?.policy).toMatchObject({ kind: 'ROLE', minRole: 'READER' });
+      for (const name of ['subscribe:project-version', ...NEW_SUBSCRIBE_MESSAGES]) {
+        const subscribe = all.find((entry) => entry.path === name);
+        expect(subscribe?.policy, name).toMatchObject({ kind: 'ROLE', minRole: 'READER' });
+      }
     });
   });
 
@@ -753,6 +764,39 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
 
       // Una versión inexistente es indistinguible de una no visible.
       await expect(subscribe(fakeSocket(STRANGER), 'missing')).resolves.toEqual({ subscribed: false, code: null, retryable: false });
+    });
+
+    it('WI-CORE-074: analysis-run and experiment subscriptions need Reader on the Project of that id; strangers, external users and missing ids get the same denial', async () => {
+      const ids = seedProject('ORG');
+      const gateway = app.get(RealtimeGateway);
+      const subscriptions = app.get(ProjectSubscriptionsService);
+      const denied = { subscribed: false, code: null, retryable: false };
+      const granted = { subscribed: true, code: null, retryable: false };
+
+      for (const user of [OWNER, WRITER, READER]) {
+        const runSocket = fakeSocket(user);
+        await expect(gateway.subscribeAnalysisRun(runSocket as never, { analysisRunId: ids.runId })).resolves.toEqual(granted);
+        expect(runSocket.join).toHaveBeenCalledWith(`analysis-run:${ids.runId}`);
+        expect(subscriptions.projectsOf(runSocket.id)).toEqual([ids.projectId]);
+
+        const experimentSocket = fakeSocket(user);
+        await expect(gateway.subscribeExperiment(experimentSocket as never, { experimentId: ids.experimentId })).resolves.toEqual(granted);
+        expect(experimentSocket.join).toHaveBeenCalledWith(`experiment:${ids.experimentId}`);
+      }
+
+      for (const user of [STRANGER, EXTERNAL]) {
+        const runSocket = fakeSocket(user);
+        await expect(gateway.subscribeAnalysisRun(runSocket as never, { analysisRunId: ids.runId })).resolves.toEqual(denied);
+        expect(runSocket.join).not.toHaveBeenCalled();
+
+        const experimentSocket = fakeSocket(user);
+        await expect(gateway.subscribeExperiment(experimentSocket as never, { experimentId: ids.experimentId })).resolves.toEqual(denied);
+        expect(experimentSocket.join).not.toHaveBeenCalled();
+      }
+
+      // Un id inexistente es indistinguible de uno no visible.
+      await expect(gateway.subscribeAnalysisRun(fakeSocket(OWNER) as never, { analysisRunId: 'missing' })).resolves.toEqual(denied);
+      await expect(gateway.subscribeExperiment(fakeSocket(OWNER) as never, { experimentId: 'missing' })).resolves.toEqual(denied);
     });
 
     it('answers { false, GITHUB_VERIFICATION_UNAVAILABLE, retryable: true } when GitHub cannot verify a new access; registered access still subscribes', async () => {

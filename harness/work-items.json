@@ -3957,6 +3957,729 @@
         }
       ],
       "scopeApprovalReport": "harness/reports/wi-core-068-scope-approval.md"
+    },
+    {
+      "id": "WI-CORE-069",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Regularizar el corte «desde cross»: esquemas JSON canónicos (SYSTEM-2.13, INTEROP-2.17, GH-INTEROP-1.8) y estabilización de Core",
+      "storyIds": [
+        "HU11",
+        "HU14",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-076"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-068"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "Los commits 3955398..6714019 de feature/jean quedan cubiertos por este WI de forma retroactiva y declarada como tal (corte ejecutado desde cross por orden expresa del usuario, sin WI previo); el reporte de regularización lo dice sin ocultar el orden real de los hechos.",
+        "Contrato: SYSTEM-2.13, INTEROP-2.17 y GH-INTEROP-1.8 consolidados; spec/contracts/schemas/ (esquemas y examples/) es fuente canónica de formas; `phase` queda opcional (tolerancia transitoria aprobada) y CONSOLE_CORS_ORIGINS opt-in aprobado.",
+        "Core: poller de jobs resiliente, enableShutdownHooks y red de seguridad de proceso, reintentos acotados en GET al Sandbox con pollAfterMs ≤ 30 s, CORS restringible, tipos generados y validador Ajv, refactor mecánico de experiment-job.handler.ts sin cambio de lógica.",
+        "Contract Sync publicado a github-integration, console y sandbox con los IDs registrados en publishedSyncIds; revisión independiente por `reviewer` y `contract-reviewer`, veredicto APPROVED en un máximo de 2 ciclos; pnpm lint, build, test, contracts:check y los 4 validadores en verde.",
+        "CI en .github/workflows/ci.yml, engines/.nvmrc/packageManager y CORS compartido con Socket.IO (realtime.gateway.ts) quedan cubiertos; el trabajo Postgres de la CI es informativo y la CI no se ha ejecutado en GitHub; el reviewer compara los hunks del refactor de experiment-job.handler.ts contra el original."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-069-regularizacion-scope.md",
+        "harness/reports/cross-fase2-esquemas-contratos-2026-10-18.md",
+        "harness/reports/cross-fase3-estabilidad-2026-10-18.md",
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/contracts/schemas/common.schema.json",
+        "spec/contracts/schemas/error-envelope.schema.json",
+        "spec/contracts/schemas/sandbox-execution.schema.json",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-069-sdd-verification.md",
+        "harness/reports/wi-core-069-scope-approval.md",
+        "harness/reports/wi-core-069-contract-sync-scope-review.md",
+        "harness/reports/wi-core-069-technical-checks.md",
+        "harness/reports/wi-core-069-contract-sync-publication.md",
+        "harness/reports/wi-core-069-independent-review.md",
+        "harness/reports/wi-core-069-contract-review.md",
+        "harness/reports/wi-core-069-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-069 no los toca.",
+          "report": "harness/reports/wi-core-069-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-069 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-069-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-070",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Refactor de runAttempt y extracción del pipeline compartido entre los handlers de experimentos y de validación",
+      "storyIds": [
+        "HU10",
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-077"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-069"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe un pipeline compartido (retrieval → contexto → prompt → merge → sandbox) usado por experiment-job.handler.ts y analysis-run-validation-job.handler.ts, y runAttempt queda descompuesto en pasos de responsabilidad única sin cambiar el orden de efectos, errores ni escrituras. Ningún método del handler de experimentos supera ~120 líneas salvo justificación registrada (handle, ~171 líneas y preexistente: justificado en wi-core-070-corte-a-review.md; no se amplía el alcance sin pedirlo al usuario).",
+        "Sin cambio de comportamiento: sin cambios en DTO, contratos, migraciones, prompts, versiones de prompt, ranking, pesos ni R-PHP; contractImpact=false.",
+        "pnpm lint, build, contracts:check y test en verde con el mismo conteo de tests o superior; pruebas de caracterización donde la red sea débil; los 4 validadores en verde.",
+        "Revisión independiente por reviewer comparando los hunks movidos entre cortes; F3 (sandboxHttpBoundMs) queda fuera de alcance.",
+        "Corte C (aprobado): los reintentos de GET por transporte al Sandbox se registran en log y se cuentan con un contador (único cambio observable, sin payload ni secretos); sin cambio en reintentos, tiempos, DTO ni contratos."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-070-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "app/src/experiments/experiment-job.handler.ts",
+        "app/src/validation/analysis-run-validation-job.handler.ts",
+        "harness/reports/wi-core-070-sdd-verification.md",
+        "harness/reports/wi-core-070-scope-approval.md",
+        "harness/reports/wi-core-070-corte-a.md",
+        "harness/reports/wi-core-070-corte-a-review.md",
+        "app/src/generation/test-generation-pipeline.ts",
+        "app/src/sandbox/sandbox-execution.service.ts",
+        "harness/reports/wi-core-070-corte-b.md",
+        "harness/reports/wi-core-070-corte-c.md",
+        "harness/reports/wi-core-070-technical-checks.md",
+        "harness/reports/wi-core-070-independent-review.md",
+        "harness/reports/wi-core-070-closure.md",
+        "harness/reports/wi-core-070-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-070 es un refactor interno sin contrato.",
+          "report": "harness/reports/wi-core-070-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-070 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-070-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-071",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-078"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-070"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "heartbeatStaleMs (y sandboxHttpBoundMs) incluye el tiempo máximo de los reintentos de GET derivado de SANDBOX_POLL_RETRIES y SANDBOX_POLL_RETRY_DELAY_MS, sin constantes nuevas; con los defaults pasa de 1_340_000 a 5_393_500 ms y con SANDBOX_POLL_RETRIES=0 no cambia; EXPERIMENT_HEARTBEAT_STALE_MS configurado sigue mandando.",
+        "La política de relanzamiento (resolveSlotAction) no cambia salvo el momento en que un intento se considera vencido; los reintentos de GET no incrementan attempt ni cuentan como reintento del trial (tesis 3.3.8); el POST de creación sigue sin reintentarse.",
+        "attempt-recovery.spec.ts actualizado (1_220_000 y 1_340_000 cambian) con pruebas de firma y valores nuevos, R=0 igual a la fórmula actual, esperas acotadas por MAX, configuredMs vigente y el handler leyendo las variables; comentario de .env.example actualizado; lint, build, contracts:check y test en verde; revisión independiente."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-071-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-071-sdd-verification.md",
+        "harness/reports/wi-core-071-scope-approval.md",
+        "harness/reports/wi-core-071-implementation.md",
+        "harness/reports/wi-core-071-technical-checks.md",
+        "harness/reports/wi-core-071-contract-sync-scope-review.md",
+        "harness/reports/wi-core-071-independent-review.md",
+        "harness/reports/wi-core-071-closure.md",
+        "app/src/experiments/attempt-recovery.ts",
+        "app/src/experiments/experiment-job.handler.ts"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-071 solo cambia la cota de latido de intentos de experimentos.",
+          "report": "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-071 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-072",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Regularizar retroactivamente SDD 3.1: reviewer IA estándar, vía rápida, coordinación por cross y checklist de homologación (commits 5fa5666 y 9945342)",
+      "storyIds": [
+        "HU01"
+      ],
+      "taskIds": [
+        "ST-CORE-079"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-070"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Los commits 5fa5666 y 9945342 (SDD 3.1, ejecutados desde cross por orden del usuario sin WI) quedan cubiertos por un WI HARNESS retroactivo declarado como tal; cross figura como implementationAgent y revisa un reviewer independiente.",
+        "Se verifican: sin Modo fuera de casa ni awayMode, reviewer IA por defecto, vía rápida lane FAST, coordinación por cross, harness/README.md con el checklist de homologación; validadores en verde.",
+        "Sin cambio de producto en app/; sin cambio de contrato; sin push, PR ni merge."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-072-scope.md",
+        "harness/README.md",
+        "harness/WORKFLOW.md",
+        "spec/constitution/delivery-workflow.md",
+        "harness/reports/wi-core-072-scope-approval.md",
+        "harness/reports/wi-core-072-technical-checks.md",
+        "harness/reports/wi-core-072-sdd-verification.md",
+        "harness/reports/wi-core-072-contract-sync-scope-review.md",
+        "harness/reports/wi-core-072-independent-review.md",
+        "harness/reports/wi-core-072-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-072 solo cambia reglas del Harness.",
+          "report": "harness/reports/wi-core-072-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-072 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-072-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-073",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
+      "storyIds": [
+        "HU12",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-080"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-071"
+      ],
+      "contractImpact": true,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "INTEROP-2.18 (versión única, junto con WI-D) enumera los códigos genéricos aprobados (UNAUTHORIZED, FORBIDDEN, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE, CONFLICT, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, UNPROCESSABLE_ENTITY, TOO_MANY_REQUESTS, SERVICE_UNAVAILABLE, HTTP_ERROR; 5xx sin código = INTERNAL_ERROR) con estado, retryable y mensaje fijo en español sin eco de la excepción; retryable solo en los genéricos (true en 429 y 503) y phase siguen opcionales; el parser de body no cambia; cambio aditivo y documental, sin romper consumidores; Anexo E se cita por referencia.",
+        "spec/contracts/schemas/error-envelope.schema.json (solo descripciones), examples/ (ejemplo genérico y manifest) y los tipos generados se actualizan; DEC-ERR-001 (PROPOSED) registrada; Core implementa los códigos genéricos en all-exceptions.filter.ts sin cambiar los 59 códigos existentes ni el 400 INVALID_REQUEST; contract tests y contracts:check en verde.",
+        "WI-C no publica Contract Sync (publishesContract=false): la publicación única de INTEROP-2.18 la hace WI-D; revisión independiente con reviewer y contract-reviewer; lint, build y test en verde."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-073-scope.md",
+        "spec/transversal/errors/tasks.md",
+        "harness/reports/wi-core-073-sdd-verification.md",
+        "harness/reports/wi-core-073-scope-approval.md",
+        "harness/reports/wi-core-073-implementation.md",
+        "harness/reports/wi-core-073-technical-checks.md",
+        "app/src/common/filters/all-exceptions.filter.ts",
+        "spec/transversal/errors/spec.md",
+        "harness/reports/wi-core-073-contract-sync-scope-review.md",
+        "harness/reports/wi-core-073-contract-review.md",
+        "harness/reports/wi-core-073-independent-review.md",
+        "harness/reports/wi-core-073-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-073 solo amplía el catálogo de códigos del error envelope.",
+          "report": "harness/reports/wi-core-073-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-073 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-073-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-074",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
+      "storyIds": [
+        "HU12"
+      ],
+      "taskIds": [
+        "ST-CORE-081"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-073"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "INTEROP-2.18 §6.6 define los eventos analysis-run:update (AnalysisRunDetailResponse) y experiment:update (ExperimentStatusResponse) con el mismo DTO que sus GET, suscripción explícita por id (subscribe/unsubscribe de analysis-run y experiment con el SubscribeAck existente), sin broadcast global, polling HTTP intacto; ancla HU12, sin citar HU21/HU22; el handshake sin sesión se rechaza con AUTH_REQUIRED/INVALID_ACCESS_TOKEN (cambio incompatible declarado) y cada suscripción exige Reader sobre el Project.",
+        "Core emite post-commit y best-effort desde el ciclo de vida del AnalysisRun y del experimento (transiciones de estado y progreso de repeticiones con throttle; la creación del Run no emite) mediante un puerto de publicación; el aviso de CORS abierto sale una sola vez; pruebas unitarias y un e2e real con socket.io-client (devDependency).",
+        "Contract Sync único publicado a github-integration, console y sandbox con INTEROP-2.18 (WI-C + §6.6), digests finales, el cambio incompatible declarado a Console y DEC-RT-001 (PROPOSED, Blocks NONE); revisión independiente con reviewer y contract-reviewer; lint, build y test en verde."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-074-scope.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-074-sdd-verification.md",
+        "harness/reports/wi-core-074-scope-approval.md",
+        "harness/reports/wi-core-074-corte-1.md",
+        "harness/reports/wi-core-074-corte-2.md",
+        "harness/reports/wi-core-074-technical-checks.md",
+        "harness/reports/wi-core-074-contract-sync-scope-review.md",
+        "spec/contracts/schemas/realtime-events.schema.json",
+        "app/src/realtime/realtime.gateway.ts",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "harness/reports/wi-core-074-contract-review.md",
+        "harness/reports/wi-core-074-independent-review.md",
+        "harness/reports/wi-core-074-contract-sync-publication.md",
+        "harness/reports/wi-core-074-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-074 solo añade eventos de tiempo real y su contrato.",
+          "report": "harness/reports/wi-core-074-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-074 no cambia auth de GitHub ni despliegue.",
+          "report": "harness/reports/wi-core-074-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-075",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Documentar esfuerzo de prueba (low) vs esfuerzo de evidencia (medium) sobre la configuración unificada del LLM",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-082"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-076"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Tras WI-CORE-076 (configuración única LLM_MODEL/LLM_REASONING_EFFORT), la spec de proveedores y la de experimentos documentan que gpt-6-luna con esfuerzo low se usa en pruebas económicas y con esfuerzo medium en evidencia oficial, congelado por protocolo (tesis 3.3, Anexo K), que el esfuerzo lo fija el entorno y que cada ExperimentRun persiste modelo y esfuerzo en modelConfig; gpt-5.4-nano queda descartado (antecedentes 07b20829 y 924e38ab solo históricos).",
+        "WI-CORE-075 es solo documentación: se descartan las opciones de salvaguarda B, C y D salvo que el usuario las pida tras WI-CORE-076; sin cambio de comportamiento; revisión independiente."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-075-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-075-scope-approval.md",
+        "spec/transversal/providers/spec.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "harness/reports/wi-core-075-technical-checks.md",
+        "harness/reports/wi-core-075-contract-sync-scope-review.md",
+        "harness/reports/wi-core-075-independent-review.md",
+        "harness/reports/wi-core-075-closure.md"
+      ],
+      "lane": "FAST",
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-075 solo documenta esfuerzo de prueba y de evidencia.",
+          "report": "harness/reports/wi-core-075-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-075 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-075-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-076",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Unificar la configuración del LLM: solo LLM_MODEL y LLM_REASONING_EFFORT explícito; eliminar EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS",
+      "storyIds": [
+        "HU10",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-083"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-074"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "Experimentos y flujo normal usan solo LLM_MODEL y LLM_REASONING_EFFORT; EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS dejan de existir en env.validation.ts, openai-llm.provider.ts, .env.example, spec y pruebas; EXPERIMENT_LLM_TEMPERATURE, EXPERIMENT_LLM_MAX_OUTPUT_TOKENS y el heartbeat se conservan salvo decisión contraria del usuario.",
+        "LLM_REASONING_EFFORT es obligatorio y debe estar en la escala none…max: si falta o es inválido el arranque falla con un mensaje claro; un esfuerzo que la API rechace falla en la llamada con error explícito; cada ExperimentRun sigue guardando en modelConfig el modelo y el esfuerzo con que corrió (tesis 3.3/Anexo K), sin cambio de contrato ni de DTO.",
+        "Se declara el cambio de modelo del flujo normal (hoy gpt-4o-mini por defecto) y se decide con el usuario el default de LLM_MODEL (gpt-6-luna), el esfuerzo por entorno (low pruebas, medium evidencia) y el tratamiento de toolEfforts y de las variables retiradas; lint, build y test en verde; revisión independiente.",
+        "Enmienda del contrato aprobada por el usuario: DEC-EXP-005 (APPROVED, Blocks NONE) enmienda DEC-EXP-004; se actualiza la prosa de SYSTEM (§461) e INTEROP (§379/§386) y se suben sus versiones documentales; sin cambio de rutas, DTO, enums ni códigos de error; Contract Sync informativo no incompatible publicado; revisión independiente con reviewer y contract-reviewer.",
+        "Ajustes de la verificación SDD: LLM_REASONING_EFFORT=low en app/vitest.config.e2e.ts; .env.example con LLM_MODEL=gpt-6-luna y LLM_REASONING_EFFORT=low; log de error del proveedor con modelo y esfuerzo; aviso único al arrancar por variables retiradas (nombres sin valores); resolución única resolveLlmSettings."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-076-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-076-scope-approval.md",
+        "harness/reports/wi-core-076-sdd-verification.md",
+        "harness/reports/wi-core-076-implementation.md",
+        "harness/reports/wi-core-076-technical-checks.md",
+        "harness/reports/wi-core-076-contract-sync-scope-review.md",
+        "app/src/providers/llm-settings.ts",
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-076-contract-review.md",
+        "harness/reports/wi-core-076-independent-review.md",
+        "harness/reports/wi-core-076-contract-sync-publication.md",
+        "harness/reports/wi-core-076-closure.md"
+      ],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-076 solo unifica la configuracion del LLM.",
+          "report": "harness/reports/wi-core-076-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-076 no cambia auth de GitHub ni despliegue.",
+          "report": "harness/reports/wi-core-076-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-077",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Validar SANDBOX_POLL_* al arrancar: valor no numerico, no entero o negativo => fallo de arranque con mensaje claro",
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-084"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-071"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "env.validation.ts valida cada clave SANDBOX_POLL_* que Core lee (SANDBOX_POLL_RETRIES, SANDBOX_POLL_RETRY_DELAY_MS y las demas que encuentre el analisis SDD): no numerico, no entero donde corresponda o negativo => fallo de arranque con mensaje claro (nombre de la variable y valor recortado, sin secretos); con valores validos o ausentes (defaults actuales) no hay cambio de comportamiento.",
+        "Pruebas: falla con no numerico, vacio (regla definida en el analisis), negativo, decimal y valor absurdo; pasa con validos y ausentes; .env.example documenta las reglas; sin cambio de contrato ni de DTO.",
+        "lint, build y test en verde; revision independiente con reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-077-scope.md",
+        "harness/reports/wi-core-077-scope-approval.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-077-sdd-verification.md",
+        "harness/reports/wi-core-077-implementation.md",
+        "harness/reports/wi-core-077-technical-checks.md",
+        "harness/reports/wi-core-077-contract-sync-scope-review.md",
+        "app/src/config/sandbox-poll.defaults.ts",
+        "harness/reports/wi-core-077-independent-review.md",
+        "harness/reports/wi-core-077-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-077 solo valida variables de entorno del Sandbox.",
+          "report": "harness/reports/wi-core-077-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-077 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-077-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-078",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Endurecer la validacion de entorno: escapar valores en mensajes de error, topes de SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS y evaluar O3",
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-085"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-077"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Los mensajes de error de entorno de SANDBOX_POLL_* y LLM_REASONING_EFFORT escapan el valor con el helper echoEnvValue (recorta a 40 puntos de codigo y escapa despues con JSON.stringify mas U+007F-U+009F, U+2028 y U+2029); el texto no cambia para valores normales ni cambia que se acepta o rechaza.",
+        "SANDBOX_MAX_POLL_ATTEMPTS (entero 1..600) y SANDBOX_REQUEST_TIMEOUT_MS (entero 100..60000 ms) se validan con el patron de validateSandboxPollSettings (regex ^\\d+$, ausente = default, vacio o unidad/decimal/notacion cientifica = error con mensaje claro); los valores y defaults actuales siguen validos; el valor normalizado llega a los consumidores como numero.",
+        "O3 no se toca (decision del usuario) y queda como observacion; sin cambio de contrato; pruebas nuevas, .env.example y CHANGELOG; lint, build y test en verde; revision independiente."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-078-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-078-sdd-verification.md",
+        "harness/reports/wi-core-078-scope-approval.md",
+        "harness/reports/wi-core-078-implementation.md",
+        "harness/reports/wi-core-078-technical-checks.md",
+        "harness/reports/wi-core-078-contract-sync-scope-review.md",
+        "harness/reports/wi-core-078-independent-review.md",
+        "harness/reports/wi-core-078-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-078 solo endurece la validacion de variables de entorno.",
+          "report": "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-078 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-079",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-PLANNED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Errata E-01: ExperimentResultsResponse documenta targetId (nueva version documental de INTEROP con Contract Sync informativo)",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-086"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-078"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "INTEROP §6.5 documenta la forma real de ExperimentResultsResponse (targetId; analysisRunId y symbol quedan como definidos por HU17, pendientes y opcionales) y, si aplica, esquemas y ejemplos; el DTO no cambia; nueva version documental de INTEROP (2.20) y cabecera de SYSTEM/espejos coherentes.",
+        "Contract Sync informativo (breaking false) a console, github-integration y sandbox con digests finales y la correccion de E-02 (scopePaths); el usuario confirma antes de publicar la ronda extra de espejos; revision independiente con reviewer y contract-reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-079-scope.md",
+        "harness/reports/errata-pendientes-interop.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
+    },
+    {
+      "id": "WI-CORE-080",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Inventario de cobertura de contratos C-01..C-10 (tesis Anexo E) para el tag arch-v1.0: solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-087"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-078"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-inventario-contratos-core.md con una tabla por cada C-01..C-10 del Anexo E de la tesis (fila citada, pruebas existentes de Core con archivo y nombre, brechas, prueba nueva necesaria sin escribirla, y si es de Core o depende de Sandbox, Integration o Console).",
+        "Solo lectura: sin cambios en app/, contratos, esquemas ni en referencias/ (la tesis no se modifica); sin corridas oficiales ni numeros de IOE; sin tag; revision independiente del reviewer sobre la exactitud del mapa (cada prueba citada existe y cubre lo que se dice)."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-080-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/arch-v1.0-inventario-contratos-core.md",
+        "harness/reports/wi-core-080-technical-checks.md",
+        "harness/reports/wi-core-080-contract-sync-scope-review.md",
+        "harness/reports/wi-core-080-independent-review.md",
+        "harness/reports/wi-core-080-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-080 es un inventario de solo lectura sin cambio de contrato.",
+          "report": "harness/reports/wi-core-080-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-080 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-080-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-081",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Corregir el filtro de vitest del job de Specs con PostgreSQL en la CI (No test files found)",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-088"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-080"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        ".github/workflows/ci.yml usa el filtro de subcadena .pg.spec.ts (vitest) y no el glob src/**/*.pg.spec.ts, de modo que el job selecciona los 6 archivos *.pg.spec.ts (verificado en local con vitest list --filesOnly).",
+        "Sin cambios en app/, contratos ni pruebas; el job sigue siendo informativo; revision independiente del reviewer; push solo con autorizacion expresa del usuario."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-081-scope.md",
+        ".github/workflows/ci.yml",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-081-technical-checks.md",
+        "harness/reports/wi-core-081-contract-sync-scope-review.md",
+        "harness/reports/wi-core-081-independent-review.md",
+        "harness/reports/wi-core-081-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-081 solo corrige un filtro de la CI.",
+          "report": "harness/reports/wi-core-081-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-081 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-081-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

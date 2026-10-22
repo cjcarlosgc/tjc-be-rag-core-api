@@ -18,7 +18,14 @@ function makeGateway() {
   const projectAccess = {
     requireForResource: vi.fn().mockResolvedValue({ project: { id: 'project-1' }, role: 'READER' }),
   };
-  const subscriptions = { track: vi.fn(), untrack: vi.fn(), forget: vi.fn(), revalidateSocket: vi.fn().mockResolvedValue(true) };
+  const subscriptions = {
+    track: vi.fn(),
+    untrack: vi.fn(),
+    trackRoom: vi.fn(),
+    untrackRoom: vi.fn(),
+    forget: vi.fn(),
+    revalidateSocket: vi.fn().mockResolvedValue(true),
+  };
   const gateway = new RealtimeGateway(sessionAuth as never, projectAccess as never, subscriptions as never);
   return { gateway, projectAccess, sessionAuth, subscriptions };
 }
@@ -129,6 +136,158 @@ describe('RealtimeGateway', () => {
     });
   });
 
+  describe('subscribe:analysis-run y subscribe:experiment (WI-CORE-074, D1)', () => {
+    const cases = [
+      {
+        label: 'analysis-run',
+        subscribe: (gateway: RealtimeGateway, socket: unknown, id: string) =>
+          gateway.subscribeAnalysisRun(socket as never, { analysisRunId: id }),
+        unsubscribe: (gateway: RealtimeGateway, socket: unknown, id: string) =>
+          gateway.unsubscribeAnalysisRun(socket as never, { analysisRunId: id }),
+        resource: 'analysisRun',
+        room: (id: string) => `analysis-run:${id}`,
+        notFound: ErrorCode.ANALYSIS_RUN_NOT_FOUND,
+      },
+      {
+        label: 'experiment',
+        subscribe: (gateway: RealtimeGateway, socket: unknown, id: string) =>
+          gateway.subscribeExperiment(socket as never, { experimentId: id }),
+        unsubscribe: (gateway: RealtimeGateway, socket: unknown, id: string) =>
+          gateway.unsubscribeExperiment(socket as never, { experimentId: id }),
+        resource: 'experiment',
+        room: (id: string) => `experiment:${id}`,
+        notFound: ErrorCode.EXPERIMENT_NOT_FOUND,
+      },
+    ] as const;
+
+    it.each(cases)('$label: a Reader joins the room of that id, registers the Project and acks { subscribed: true }', async (c) => {
+      const { gateway, projectAccess, subscriptions } = makeGateway();
+      const client = makeSocket();
+
+      const ack = await c.subscribe(gateway, client, 'res-1');
+
+      expect(projectAccess.requireForResource).toHaveBeenCalledWith('user-1', c.resource, 'res-1', 'READER');
+      expect(client.join).toHaveBeenCalledWith(c.room('res-1'));
+      expect(subscriptions.trackRoom).toHaveBeenCalledWith(client, 'user-1', c.room('res-1'), 'project-1');
+      expect(ack).toEqual({ subscribed: true, code: null, retryable: false });
+    });
+
+    it.each(cases)('$label: registers before joining and re-checks visibility after (race with a revocation)', async (c) => {
+      const { gateway, subscriptions } = makeGateway();
+      const client = makeSocket();
+      const order: string[] = [];
+      subscriptions.trackRoom.mockImplementation(() => order.push('track'));
+      client.join.mockImplementation(() => Promise.resolve(order.push('join')));
+      subscriptions.revalidateSocket.mockImplementation(() => Promise.resolve(order.push('revalidate') > 0));
+
+      await c.subscribe(gateway, client, 'res-1');
+
+      expect(order).toEqual(['track', 'join', 'revalidate']);
+    });
+
+    it.each(cases)('$label: a revocation between verification and registration leaves the room and acks not visible', async (c) => {
+      const { gateway, subscriptions } = makeGateway();
+      const client = makeSocket();
+      subscriptions.revalidateSocket.mockResolvedValue(false);
+
+      const ack = await c.subscribe(gateway, client, 'res-1');
+
+      expect(ack).toEqual({ subscribed: false, code: null, retryable: false });
+      expect(client.leave).toHaveBeenCalledWith(c.room('res-1'));
+    });
+
+    it.each(cases)('$label: an id that does not exist acks the same denial as a non-visible one, without joining', async (c) => {
+      const { gateway, projectAccess } = makeGateway();
+      projectAccess.requireForResource.mockRejectedValue(new AppException(c.notFound, 'no existe', 404));
+      const client = makeSocket();
+
+      const ack = await c.subscribe(gateway, client, 'missing');
+
+      expect(ack).toEqual({ subscribed: false, code: null, retryable: false });
+      expect(client.join).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)('$label: acks GITHUB_VERIFICATION_UNAVAILABLE as retryable without joining', async (c) => {
+      const { gateway, projectAccess } = makeGateway();
+      projectAccess.requireForResource.mockRejectedValue(new AppException(ErrorCode.GITHUB_VERIFICATION_UNAVAILABLE, 'sin GitHub', 503));
+      const client = makeSocket();
+
+      const ack = await c.subscribe(gateway, client, 'res-1');
+
+      expect(ack).toEqual({ subscribed: false, code: 'GITHUB_VERIFICATION_UNAVAILABLE', retryable: true });
+      expect(client.join).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)('$label: a malformed body acks not visible without touching the access service', async (c) => {
+      const { gateway, projectAccess } = makeGateway();
+
+      await expect(c.subscribe(gateway, makeSocket(), '')).resolves.toEqual({ subscribed: false, code: null, retryable: false });
+      expect(projectAccess.requireForResource).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)('$label: an unexpected error propagates and does not register the socket', async (c) => {
+      const { gateway, projectAccess, subscriptions } = makeGateway();
+      projectAccess.requireForResource.mockRejectedValue(new Error('boom'));
+
+      await expect(c.subscribe(gateway, makeSocket(), 'res-1')).rejects.toThrow('boom');
+      expect(subscriptions.trackRoom).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)('$label: a failure joining unregisters the room and propagates', async (c) => {
+      const { gateway, subscriptions } = makeGateway();
+      const client = makeSocket();
+      client.join.mockRejectedValue(new Error('adapter down'));
+
+      await expect(c.subscribe(gateway, client, 'res-1')).rejects.toThrow('adapter down');
+      expect(subscriptions.untrackRoom).toHaveBeenCalledWith('socket-1', c.room('res-1'));
+    });
+
+    it.each(cases)('$label: unsubscribe leaves only that room and drops its registration', (c) => {
+      const { gateway, subscriptions } = makeGateway();
+      const client = makeSocket();
+
+      c.unsubscribe(gateway, client, 'res-1');
+
+      expect(client.leave).toHaveBeenCalledWith(c.room('res-1'));
+      expect(subscriptions.untrackRoom).toHaveBeenCalledWith('socket-1', c.room('res-1'));
+    });
+  });
+
+  describe('puerto de publicación RealtimePublisher (WI-CORE-074)', () => {
+    it('hasSubscribers is true only when the room has at least one socket', () => {
+      const { gateway } = makeGateway();
+      const rooms = new Map([['analysis-run:r1', new Set(['socket-1'])], ['analysis-run:r2', new Set<string>()]]);
+      (gateway as unknown as { server: unknown }).server = { sockets: { adapter: { rooms } } };
+
+      expect(gateway.hasSubscribers('analysis-run:r1')).toBe(true);
+      expect(gateway.hasSubscribers('analysis-run:r2')).toBe(false);
+      expect(gateway.hasSubscribers('experiment:none')).toBe(false);
+    });
+
+    it('hasSubscribers is false before the socket.io server is attached', () => {
+      const { gateway } = makeGateway();
+
+      expect(gateway.hasSubscribers('experiment:e1')).toBe(false);
+    });
+
+    it('publish emits the event only to the given room and never broadcasts', () => {
+      const { gateway } = makeGateway();
+      const { to, emit } = attachServer(gateway);
+
+      gateway.publish('experiment:e1', 'experiment:update', { id: 'e1' });
+
+      expect(to).toHaveBeenCalledWith('experiment:e1');
+      expect(to).toHaveBeenCalledTimes(1);
+      expect(emit).toHaveBeenCalledWith('experiment:update', { id: 'e1' });
+    });
+
+    it('publish is a no-op before the server is attached', () => {
+      const { gateway } = makeGateway();
+
+      expect(() => gateway.publish('experiment:e1', 'experiment:update', {})).not.toThrow();
+    });
+  });
+
   it('leaves the project-version room named after the given id and drops the subscription', () => {
     const { gateway, subscriptions } = makeGateway();
     const client = makeSocket();
@@ -200,14 +359,37 @@ describe('RealtimeGateway', () => {
       expect(sessionAuth.authenticate).toHaveBeenCalledWith('from-header');
     });
 
-    it('accepts a socket without a token (the per-message guard still requires it)', async () => {
+    it('rejects a socket without a token with AUTH_REQUIRED, before any authentication (WI-CORE-074, D1/D2)', async () => {
       const { gateway, sessionAuth } = makeGateway();
       const connect = attachMiddleware(gateway);
 
-      const { error } = await connect({ headers: {} });
+      const { error, socket } = await connect({ headers: {} });
+
+      expect(error?.data).toMatchObject({ code: 'AUTH_REQUIRED', retryable: false });
+      expect(sessionAuth.authenticate).not.toHaveBeenCalled();
+      expect(socket.data).toEqual({});
+    });
+
+    it('rejects an empty auth.token the same way as a missing one', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      const connect = attachMiddleware(gateway);
+
+      const { error } = await connect({ auth: { token: '' }, headers: { authorization: 'Bearer ' } });
+
+      expect(error?.data).toMatchObject({ code: 'AUTH_REQUIRED' });
+      expect(sessionAuth.authenticate).not.toHaveBeenCalled();
+    });
+
+    it('passes any non-empty token to the same resolver as HTTP, so AUTH_BYPASS keeps HTTP semantics (token required, not verified)', async () => {
+      const { gateway, sessionAuth } = makeGateway();
+      sessionAuth.authenticate.mockResolvedValue({ userId: 'local-dev-user', githubUserId: '900000001' });
+      const connect = attachMiddleware(gateway);
+
+      const { error, socket } = await connect({ auth: { token: 'cualquier-cosa' }, headers: {} });
 
       expect(error).toBeUndefined();
-      expect(sessionAuth.authenticate).not.toHaveBeenCalled();
+      expect(sessionAuth.authenticate).toHaveBeenCalledWith('cualquier-cosa');
+      expect(socket.data).toMatchObject({ userId: 'local-dev-user' });
     });
 
     it('rejects an invalid token with err.data.code INVALID_ACCESS_TOKEN, not retryable', async () => {

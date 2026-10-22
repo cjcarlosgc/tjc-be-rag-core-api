@@ -1,6 +1,6 @@
 {
   "schemaVersion": 4,
-  "sddVersion": "3.0",
+  "sddVersion": "3.1",
   "planningBaseline": "2026-09-24-core-console-transition",
   "allowedStatuses": [
     "W-PLANNED",
@@ -18120,13 +18120,3151 @@
         ]
       },
       "closedAt": "2026-10-14T16:41:26.000Z"
+    },
+    {
+      "id": "WI-CORE-069",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "Regularizar el corte «desde cross»: esquemas JSON canónicos (SYSTEM-2.13, INTEROP-2.17, GH-INTEROP-1.8) y estabilización de Core",
+      "approved": true,
+      "storyIds": [
+        "HU11",
+        "HU14",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-076"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-069-regularizacion-scope.md",
+        "harness/reports/cross-fase2-esquemas-contratos-2026-10-18.md",
+        "harness/reports/cross-fase3-estabilidad-2026-10-18.md",
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/contracts/schemas/common.schema.json",
+        "spec/contracts/schemas/error-envelope.schema.json",
+        "spec/contracts/schemas/sandbox-execution.schema.json",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-069-sdd-verification.md",
+        "harness/reports/wi-core-069-scope-approval.md",
+        "harness/reports/wi-core-069-contract-sync-scope-review.md",
+        "harness/reports/wi-core-069-technical-checks.md",
+        "harness/reports/wi-core-069-contract-sync-publication.md",
+        "harness/reports/wi-core-069-independent-review.md",
+        "harness/reports/wi-core-069-contract-review.md",
+        "harness/reports/wi-core-069-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-069 no los toca.",
+          "report": "harness/reports/wi-core-069-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-069 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-069-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-VAL-001",
+          "DEC-RAG-001",
+          "DEC-PHP-ROOT-001",
+          "DEC-INF-002"
+        ],
+        "checkedAt": "2026-10-18T23:30:00.000Z",
+        "note": "Sin decisiones bloqueantes para este corte (sdd-analyst)."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "cross",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo SDD: F1/F2/F5 resueltos por el leader tras CHANGES_REQUESTED menores; sin decisiones bloqueantes."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-069-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-069-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Aprobacion de alcance y contratos por el usuario (via cross).",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "cross",
+            "status": "APPROVED",
+            "findings": [
+              "Corte implementado antes del WI por la sesión cross (excepción 'desde cross'); regularizado retroactivamente. No es un implementer del Harness."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/contracts/",
+              "app/src/",
+              "harness/reports/cross-fase2-esquemas-contratos-2026-10-18.md",
+              "harness/reports/cross-fase3-estabilidad-2026-10-18.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-069-technical-checks.md"
+            ],
+            "recommendedNextStep": "Contract Sync y revisión independiente."
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Aprobado con observaciones menores (digest del árbol de schemas y alcance del espejo de Sandbox), documentadas."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-069-contract-review.md"
+            ],
+            "recommendedNextStep": "Cerrar con el reviewer.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED; F1 (media) y F3-F6 diferidos como no bloqueantes; F2 corregido."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-069-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-069",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-18T23:10:32.659Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-069",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-18T23:26:15.334Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-069",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-18T23:26:48.873Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-069",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-18T23:29:24.523Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261018-001",
+          "CS-CORE-20261018-002",
+          "CS-CORE-20261018-003"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-069-regularizacion-scope.md",
+        "harness/reports/wi-core-069-sdd-verification.md",
+        "harness/reports/wi-core-069-scope-approval.md",
+        "harness/reports/wi-core-069-technical-checks.md",
+        "harness/reports/wi-core-069-contract-sync-publication.md",
+        "harness/reports/wi-core-069-independent-review.md",
+        "harness/reports/wi-core-069-contract-review.md",
+        "harness/reports/wi-core-069-closure.md"
+      ],
+      "blockedReason": null,
+      "analysisAgent": "sdd-analyst",
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-069-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-069-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-069-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-069-technical-checks.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/wi-core-069-contract-sync-publication.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-069-contract-sync-publication.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-069-contract-sync-scope-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-069-closure.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-069-independent-review.md",
+          "harness/reports/wi-core-069-closure.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-069-contract-review.md"
+        ]
+      },
+      "closedAt": "2026-10-18T23:59:00.000Z"
+    },
+    {
+      "id": "WI-CORE-070",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "Refactor de runAttempt y extracción del pipeline compartido entre los handlers de experimentos y de validación",
+      "approved": true,
+      "storyIds": [
+        "HU10",
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-077"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-070-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "app/src/experiments/experiment-job.handler.ts",
+        "app/src/validation/analysis-run-validation-job.handler.ts",
+        "harness/reports/wi-core-070-sdd-verification.md",
+        "harness/reports/wi-core-070-scope-approval.md",
+        "harness/reports/wi-core-070-corte-a.md",
+        "harness/reports/wi-core-070-corte-a-review.md",
+        "app/src/generation/test-generation-pipeline.ts",
+        "app/src/sandbox/sandbox-execution.service.ts",
+        "harness/reports/wi-core-070-corte-b.md",
+        "harness/reports/wi-core-070-corte-c.md",
+        "harness/reports/wi-core-070-technical-checks.md",
+        "harness/reports/wi-core-070-independent-review.md",
+        "harness/reports/wi-core-070-closure.md",
+        "harness/reports/wi-core-070-contract-sync-scope-review.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-070 es un refactor interno sin contrato.",
+          "report": "harness/reports/wi-core-070-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-070 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-070-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-19T00:10:00.000Z",
+        "note": "Sin decisiones bloqueantes; F3 sacado del alcance."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "Refactor viable sin cambio de comportamiento en dos cortes; F3 requiere DECISION_REQUIRED y se saca del alcance."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-070-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-070-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Aprobacion de alcance por el usuario.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Cortes A y B: pruebas de caracterización (15 + 11), descomposición de runAttempt (347 → 108 líneas) y pipeline compartido sin cambio de comportamiento."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/experiments/experiment-job.handler.ts",
+              "app/src/validation/analysis-run-validation-job.handler.ts",
+              "app/src/generation/test-generation-pipeline.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-070-corte-a.md",
+              "harness/reports/wi-core-070-corte-b.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "claude-haiku-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Corte C: log y contador de reintentos transitorios de GET al Sandbox; sin cambio de reintentos ni esperas."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/sandbox/sandbox-execution.service.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-070-corte-c.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Revision intermedia del corte A: APPROVED_WITH_FINDINGS (F1 corregido por el leader).",
+              "Revision final de cortes B y C: APPROVED sin blockers; la suite completa pasa con timeout ampliado (timeouts de 5 s ambientales por carga)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-070-corte-a-review.md",
+              "harness/reports/wi-core-070-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-070",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-18T23:30:28.685Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-070",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T00:34:06.710Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-070",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T00:34:07.022Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-070",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T00:34:07.335Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-070-scope.md",
+        "harness/reports/wi-core-070-sdd-verification.md",
+        "harness/reports/wi-core-070-scope-approval.md",
+        "harness/reports/wi-core-070-technical-checks.md",
+        "harness/reports/wi-core-070-independent-review.md",
+        "harness/reports/wi-core-070-closure.md"
+      ],
+      "blockedReason": null,
+      "analysisAgent": "sdd-analyst",
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-070-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-070-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-070-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-070-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-070-independent-review.md",
+          "harness/reports/wi-core-070-closure.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-070-contract-sync-scope-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-070-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-19T00:40:00.000Z"
+    },
+    {
+      "id": "WI-CORE-072",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "title": "Regularizar retroactivamente SDD 3.1: reviewer IA estándar, vía rápida, coordinación por cross y checklist de homologación (commits 5fa5666 y 9945342)",
+      "approved": true,
+      "storyIds": [
+        "HU01"
+      ],
+      "taskIds": [
+        "ST-CORE-079"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-072-scope.md",
+        "harness/README.md",
+        "harness/WORKFLOW.md",
+        "spec/constitution/delivery-workflow.md",
+        "harness/reports/wi-core-072-scope-approval.md",
+        "harness/reports/wi-core-072-technical-checks.md",
+        "harness/reports/wi-core-072-sdd-verification.md",
+        "harness/reports/wi-core-072-contract-sync-scope-review.md",
+        "harness/reports/wi-core-072-independent-review.md",
+        "harness/reports/wi-core-072-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-072 solo cambia reglas del Harness.",
+          "report": "harness/reports/wi-core-072-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-072 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-072-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-19T01:00:00.000Z",
+        "note": "WI HARNESS retroactivo sin decisiones bloqueantes; alcance aprobado por el usuario."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "cross",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "cross",
+            "status": "APPROVED",
+            "findings": [
+              "Cambios de SDD 3.1 (5fa5666, 9945342) ejecutados antes del WI por la sesión cross (excepción 'desde cross'); regularizados retroactivamente."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "AGENTS.md",
+              "harness/WORKFLOW.md",
+              "harness/README.md",
+              "harness/validate-harness.mjs",
+              "harness/validate-work-items.mjs",
+              "scripts/sdd-check.mjs"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-072-technical-checks.md"
+            ],
+            "recommendedNextStep": "Verificacion SDD y revision independiente."
+          },
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "CHANGES_REQUESTED documentales menores (H1, C1-C3, G1-G3) resueltos por el leader; sin blockers."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-072-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-072-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1: CHANGES_REQUESTED (F1 contradiccion en delivery-workflow.md:38, F2 y F3 triviales), corregidos en d343aaf.",
+              "Ciclo 2 de 2: APPROVED sin hallazgos pendientes."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-072-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 2,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-072",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-19T00:35:26.711Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-072",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T00:38:54.698Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-072",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T00:38:55.377Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-072",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T00:43:48.338Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "implementationCompleted": [
+          "harness/reports/wi-core-072-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-072-technical-checks.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-072-scope-approval.md"
+        ],
+        "sddVerified": [
+          "harness/reports/wi-core-072-sdd-verification.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-072-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-072-independent-review.md",
+          "harness/reports/wi-core-072-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-072-closure.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-072-scope.md",
+        "harness/reports/wi-core-072-scope-approval.md",
+        "harness/reports/wi-core-072-technical-checks.md",
+        "harness/reports/wi-core-072-sdd-verification.md",
+        "harness/reports/wi-core-072-contract-sync-scope-review.md",
+        "harness/reports/wi-core-072-independent-review.md",
+        "harness/reports/wi-core-072-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-19T01:30:00.000Z"
+    },
+    {
+      "id": "WI-CORE-071",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "F3: sumar los reintentos de GET al Sandbox a sandboxHttpBoundMs y heartbeatStaleMs (cambio de comportamiento observable, requiere decisión)",
+      "approved": true,
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-078"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-071-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-071-sdd-verification.md",
+        "harness/reports/wi-core-071-scope-approval.md",
+        "harness/reports/wi-core-071-implementation.md",
+        "harness/reports/wi-core-071-technical-checks.md",
+        "harness/reports/wi-core-071-contract-sync-scope-review.md",
+        "harness/reports/wi-core-071-independent-review.md",
+        "harness/reports/wi-core-071-closure.md",
+        "app/src/experiments/attempt-recovery.ts",
+        "app/src/experiments/experiment-job.handler.ts"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-071 solo cambia la cota de latido de intentos de experimentos.",
+          "report": "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-071 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-19T02:00:00.000Z",
+        "note": "Sin decisiones DEC bloqueantes; falta la decision del usuario sobre la opcion (A/B/C) y el valor, que es la aprobacion de alcance."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "DECISION_REQUIRED",
+            "findings": [
+              "Spec verificada con cifras; el cambio es de tiempos y relanzamientos y requiere decision del usuario sobre la opcion (A/B/C) y el valor antes de implementar."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-071-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-071-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Presentar opciones al usuario y pedir aprobacion de alcance.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Cota de latido con el tiempo maximo de los reintentos de GET; valores por defecto 5_273_500 y 5_393_500; normalizacion de entradas en texto; 13 pruebas nuevas."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/experiments/attempt-recovery.ts",
+              "app/src/experiments/experiment-job.handler.ts",
+              "app/.env.example"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-071-implementation.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED sin bloqueantes; formula verificada contra withTransientRetries, 6 mutaciones detectadas; O1-O3 bajas y no bloqueantes."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-071-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-19T15:44:32.188Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:04:26.093Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:04:26.192Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-071",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:04:26.296Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-071-scope.md",
+        "harness/reports/wi-core-071-sdd-verification.md",
+        "harness/reports/wi-core-071-scope-approval.md",
+        "harness/reports/wi-core-071-implementation.md",
+        "harness/reports/wi-core-071-technical-checks.md",
+        "harness/reports/wi-core-071-independent-review.md",
+        "harness/reports/wi-core-071-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-071-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-071-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-071-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-071-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-071-independent-review.md",
+          "harness/reports/wi-core-071-closure.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-071-contract-sync-scope-review.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-071-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-19T19:04:48.000Z"
+    },
+    {
+      "id": "WI-CORE-073",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "WI-C: ampliar el contrato de errores (4xx no previstos y códigos genéricos) en INTEROP y esquemas",
+      "approved": true,
+      "storyIds": [
+        "HU12",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-080"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-073-scope.md",
+        "spec/transversal/errors/tasks.md",
+        "harness/reports/wi-core-073-sdd-verification.md",
+        "harness/reports/wi-core-073-scope-approval.md",
+        "harness/reports/wi-core-073-implementation.md",
+        "harness/reports/wi-core-073-technical-checks.md",
+        "app/src/common/filters/all-exceptions.filter.ts",
+        "spec/transversal/errors/spec.md",
+        "harness/reports/wi-core-073-contract-sync-scope-review.md",
+        "harness/reports/wi-core-073-contract-review.md",
+        "harness/reports/wi-core-073-independent-review.md",
+        "harness/reports/wi-core-073-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-073 solo amplía el catálogo de códigos del error envelope.",
+          "report": "harness/reports/wi-core-073-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-073 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-073-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-ERR-001"
+        ],
+        "checkedAt": "2026-10-19T19:30:00.000Z",
+        "note": "Sin decisiones DEC bloqueantes; seis puntos de alcance requieren decision del usuario (nombres, retryable, parser 413, version, Anexo E, DEC-ERR-001)."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "DECISION_REQUIRED",
+            "findings": [
+              "Premisa inexacta: el filtro conserva el estado HTTP y fuerza code=INVALID_REQUEST; Core no emite retryable; code es string abierto; el Anexo E no existe en spec/. Seis decisiones del usuario."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-073-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-073-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Aprobacion de alcance del usuario con las decisiones.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "12 codigos genericos en el filtro, esquema/ejemplo/tipos, INTEROP-2.18 y DEC-ERR-001 (PROPOSED, Blocks NONE); 30 pruebas nuevas y 5 e2e."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/common/filters/all-exceptions.filter.ts",
+              "app/src/common/errors/error-code.enum.ts",
+              "spec/contracts/interoperability-contract.md",
+              "spec/contracts/schemas/error-envelope.schema.json"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-073-implementation.md"
+            ],
+            "recommendedNextStep": "Revision independiente y contractual.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "INTEROP-2.18 coherente con el filtro y el esquema; cambio aditivo; ningun consumidor depende de INVALID_REQUEST; L1-L3 menores corregidos o confirmados."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-073-contract-review.md"
+            ],
+            "recommendedNextStep": "Cerrar con el reviewer.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED sin blockers; mapeo exacto, 5 mutaciones detectadas, sin dependencia interna de INVALID_REQUEST."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-073-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-073",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-19T19:05:27.798Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-073",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:20:23.725Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-073",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:20:23.809Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-073",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-19T19:23:47.253Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-073-scope.md",
+        "harness/reports/wi-core-073-sdd-verification.md",
+        "harness/reports/wi-core-073-scope-approval.md",
+        "harness/reports/wi-core-073-implementation.md",
+        "harness/reports/wi-core-073-technical-checks.md",
+        "harness/reports/wi-core-073-contract-review.md",
+        "harness/reports/wi-core-073-independent-review.md",
+        "harness/reports/wi-core-073-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-073-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-073-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-073-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-073-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-073-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-073-independent-review.md",
+          "harness/reports/wi-core-073-closure.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-073-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-073-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-073-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-19T19:23:57.000Z"
+    },
+    {
+      "id": "WI-CORE-074",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "WI-D: tiempo real adaptado al modelo vigente (eventos de AnalysisRun por suscripción explícita)",
+      "approved": true,
+      "storyIds": [
+        "HU12"
+      ],
+      "taskIds": [
+        "ST-CORE-081"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-074-scope.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-074-sdd-verification.md",
+        "harness/reports/wi-core-074-scope-approval.md",
+        "harness/reports/wi-core-074-corte-1.md",
+        "harness/reports/wi-core-074-corte-2.md",
+        "harness/reports/wi-core-074-technical-checks.md",
+        "harness/reports/wi-core-074-contract-sync-scope-review.md",
+        "spec/contracts/schemas/realtime-events.schema.json",
+        "app/src/realtime/realtime.gateway.ts",
+        "spec/features/013-pr-driven-analysis/spec.md",
+        "harness/reports/wi-core-074-contract-review.md",
+        "harness/reports/wi-core-074-independent-review.md",
+        "harness/reports/wi-core-074-contract-sync-publication.md",
+        "harness/reports/wi-core-074-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-074 solo añade eventos de tiempo real y su contrato.",
+          "report": "harness/reports/wi-core-074-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticación GitHub y orden de despliegue; WI-CORE-074 no cambia auth de GitHub ni despliegue.",
+          "report": "harness/reports/wi-core-074-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-ERR-001",
+          "DEC-RT-001"
+        ],
+        "checkedAt": "2026-10-19T20:30:00.000Z",
+        "note": "Sin decisiones DEC bloqueantes; cuatro decisiones de alcance (D1-D4) requieren respuesta del usuario."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "DECISION_REQUIRED",
+            "findings": [
+              "El realtime de ProjectVersion ya autentica el handshake y exige Reader por suscripcion; solo faltan los eventos de AnalysisRun/experimento; D1-D4 requieren decision del usuario."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-074-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-074-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Aprobacion de alcance del usuario con D1-D4.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Cortes 1 y 2: eventos analysis-run:update y experiment:update por suscripcion con Reader, handshake con sesion obligatoria, aviso CORS unico, INTEROP-2.18 §6.6, esquema y ejemplos de realtime, DEC-RT-001 APPROVED, e2e real con socket.io-client y emisiones restantes; 2620 tests y 259 e2e."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/realtime/",
+              "app/src/analysis-runs/",
+              "app/src/experiments/",
+              "spec/contracts/interoperability-contract.md",
+              "spec/contracts/schemas/realtime-events.schema.json"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-074-corte-1.md",
+              "harness/reports/wi-core-074-corte-2.md"
+            ],
+            "recommendedNextStep": "Revision independiente y contractual.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1: CHANGES_REQUESTED (F1 drift de prosa en §6.5/§6.10, F2 bullet de §1), corregidos en 5c82853; ciclo 2 de 2: APPROVED; digests y eventos verificados; F6 y F7 bajos."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-074-contract-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1: APPROVED_WITH_FINDINGS sin bloqueantes; seguridad del socket verificada; F1 (throttle sobrevivia a mutacion) corregido con prueba; F2-F4 bajos sin accion."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-074-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 2,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-074",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-19T19:24:19.662Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-074",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T00:22:30.091Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-074",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T00:22:30.193Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-074",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T00:34:34.274Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261021-001",
+          "CS-CORE-20261021-002",
+          "CS-CORE-20261021-003"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-074-scope.md",
+        "harness/reports/wi-core-074-sdd-verification.md",
+        "harness/reports/wi-core-074-scope-approval.md",
+        "harness/reports/wi-core-074-corte-1.md",
+        "harness/reports/wi-core-074-corte-2.md",
+        "harness/reports/wi-core-074-technical-checks.md",
+        "harness/reports/wi-core-074-contract-review.md",
+        "harness/reports/wi-core-074-independent-review.md",
+        "harness/reports/wi-core-074-contract-sync-publication.md",
+        "harness/reports/wi-core-074-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-074-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-074-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-074-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-074-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-074-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-074-independent-review.md",
+          "harness/reports/wi-core-074-closure.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-074-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-074-contract-sync-publication.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/wi-core-074-contract-sync-publication.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-074-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-22T00:34:44.000Z"
+    },
+    {
+      "id": "WI-CORE-076",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "Unificar la configuración del LLM: solo LLM_MODEL y LLM_REASONING_EFFORT explícito; eliminar EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS",
+      "approved": true,
+      "storyIds": [
+        "HU10",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-083"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-076-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-076-scope-approval.md",
+        "harness/reports/wi-core-076-sdd-verification.md",
+        "harness/reports/wi-core-076-implementation.md",
+        "harness/reports/wi-core-076-technical-checks.md",
+        "harness/reports/wi-core-076-contract-sync-scope-review.md",
+        "app/src/providers/llm-settings.ts",
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-076-contract-review.md",
+        "harness/reports/wi-core-076-independent-review.md",
+        "harness/reports/wi-core-076-contract-sync-publication.md",
+        "harness/reports/wi-core-076-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-076 solo unifica la configuracion del LLM.",
+          "report": "harness/reports/wi-core-076-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-076 no cambia auth de GitHub ni despliegue.",
+          "report": "harness/reports/wi-core-076-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [
+          "DEC-EXP-004"
+        ],
+        "checkedAt": "2026-10-21T22:00:00.000Z",
+        "note": "DEC-EXP-004 se enmienda con DEC-EXP-005 (aprobada por el usuario el 2026-10-21); sin decisiones bloqueantes."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "CHANGES_REQUESTED menor: la prosa de DEC-EXP-004 (SYSTEM §461, INTEROP §379/§386) contradice las decisiones; se enmienda con DEC-EXP-005; F2 y F3 entran al alcance; sin decision nueva."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-076-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-076-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Implementar con enmienda del contrato.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Configuracion unica del LLM, arranque con LLM_REASONING_EFFORT obligatorio, aviso de variables retiradas, DEC-EXP-005, SYSTEM-2.14 e INTEROP-2.19; 2615 tests y 259 e2e."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/providers/llm-settings.ts",
+              "app/src/config/env.validation.ts",
+              "app/src/providers/openai-llm.provider.ts",
+              "spec/contracts/system-contract.md",
+              "spec/contracts/interoperability-contract.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-076-implementation.md"
+            ],
+            "recommendedNextStep": "Revision independiente y contractual.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "DEC-EXP-005 y la prosa de SYSTEM-2.14/INTEROP-2.19 coinciden con el codigo; sin cambio de wire; F1 (parentesis en INTEROP §1) corregido; N1 informativo sobre Console."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-076-contract-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1: APPROVED con F1 opcional (LLM_MODEL vacio), corregido en 3d2383e; ciclo 2 de 2: APPROVED sin hallazgos nuevos; 8 de 8 mutaciones detectadas."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-076-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 2,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-076",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-22T00:38:00.605Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-076",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T00:53:47.632Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-076",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T00:53:47.737Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-076",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T01:03:13.214Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261021-004"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-076-scope.md",
+        "harness/reports/wi-core-076-scope-approval.md",
+        "harness/reports/wi-core-076-sdd-verification.md",
+        "harness/reports/wi-core-076-implementation.md",
+        "harness/reports/wi-core-076-technical-checks.md",
+        "harness/reports/wi-core-076-contract-review.md",
+        "harness/reports/wi-core-076-independent-review.md",
+        "harness/reports/wi-core-076-contract-sync-publication.md",
+        "harness/reports/wi-core-076-closure.md"
+      ],
+      "blockedReason": null,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-076-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-076-scope-approval.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-076-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-076-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-076-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-076-independent-review.md",
+          "harness/reports/wi-core-076-closure.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-076-contract-review.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-076-contract-sync-publication.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/wi-core-076-contract-sync-publication.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-076-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-22T01:03:40.000Z"
+    },
+    {
+      "id": "WI-CORE-075",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "Documentar esfuerzo de prueba (low) vs esfuerzo de evidencia (medium) sobre la configuración unificada del LLM",
+      "approved": true,
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-082"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-075-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-075-scope-approval.md",
+        "spec/transversal/providers/spec.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "harness/reports/wi-core-075-technical-checks.md",
+        "harness/reports/wi-core-075-contract-sync-scope-review.md",
+        "harness/reports/wi-core-075-independent-review.md",
+        "harness/reports/wi-core-075-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-075 solo documenta esfuerzo de prueba y de evidencia.",
+          "report": "harness/reports/wi-core-075-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-075 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-075-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-21T23:00:00.000Z",
+        "note": "WI de documentacion en carril FAST; el leader verifico la spec (sin sdd-analyst); sin decisiones bloqueantes."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "leader",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "Documentacion de low=prueba, medium=evidencia en spec/transversal/providers/spec.md y spec/features/008-experimental-comparison/spec.md; cambio de texto sin codigo ni contrato (carril FAST)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/transversal/providers/spec.md",
+              "spec/features/008-experimental-comparison/spec.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-075-scope-approval.md"
+            ],
+            "recommendedNextStep": "Revision independiente del reviewer.",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium",
+              "reason": "cambio de texto en specs (no app/), carril FAST"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED sin bloqueantes; exactitud verificada contra el codigo (sin marca ni salvaguarda de evidencia); precisiones opcionales incorporadas."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-075-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-075",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-22T01:06:10.971Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-075",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T01:06:40.064Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-075",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T01:06:40.176Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-075",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T01:07:49.744Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-075-scope-approval.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-075-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-075-technical-checks.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-075-scope-approval.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-075-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-075-independent-review.md",
+          "harness/reports/wi-core-075-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-075-closure.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-075-scope.md",
+        "harness/reports/wi-core-075-scope-approval.md",
+        "harness/reports/wi-core-075-technical-checks.md",
+        "harness/reports/wi-core-075-independent-review.md",
+        "harness/reports/wi-core-075-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-22T01:08:11.000Z"
+    },
+    {
+      "id": "WI-CORE-077",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "Validar SANDBOX_POLL_* al arrancar: valor no numerico, no entero o negativo => fallo de arranque con mensaje claro",
+      "approved": true,
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-084"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-077-scope.md",
+        "harness/reports/wi-core-077-scope-approval.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-077-sdd-verification.md",
+        "harness/reports/wi-core-077-implementation.md",
+        "harness/reports/wi-core-077-technical-checks.md",
+        "harness/reports/wi-core-077-contract-sync-scope-review.md",
+        "app/src/config/sandbox-poll.defaults.ts",
+        "harness/reports/wi-core-077-independent-review.md",
+        "harness/reports/wi-core-077-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-077 solo valida variables de entorno del Sandbox.",
+          "report": "harness/reports/wi-core-077-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-077 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-077-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-21T23:30:00.000Z",
+        "note": "Sin decisiones bloqueantes ni decision nueva del usuario."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "Solo SANDBOX_POLL_RETRIES y SANDBOX_POLL_RETRY_DELAY_MS; reglas RETRIES 0..10, DELAY 1..30000, vacio = error, ausente = default; sin decision nueva."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-077-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-077-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Implementar con pruebas.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "Validacion de arranque de SANDBOX_POLL_RETRIES (0..10) y SANDBOX_POLL_RETRY_DELAY_MS (1..30000), vacio = error, ausente = default; defaults en modulo compartido; 10 pruebas nuevas."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/config/env.validation.ts",
+              "app/src/config/sandbox-poll.defaults.ts",
+              "app/src/sandbox/sandbox-execution.service.ts",
+              "app/src/experiments/experiment-job.handler.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-077-implementation.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED sin bloqueantes; 7 de 7 mutaciones detectadas; sin cambio de comportamiento con valores validos; L1 baja (valor sin escapar en el mensaje)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-077-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-077",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-22T01:15:53.499Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-077",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T01:20:29.620Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-077",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T01:20:29.737Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-077",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T01:25:03.161Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-077-scope.md",
+        "harness/reports/wi-core-077-scope-approval.md",
+        "harness/reports/wi-core-077-sdd-verification.md",
+        "harness/reports/wi-core-077-implementation.md",
+        "harness/reports/wi-core-077-technical-checks.md",
+        "harness/reports/wi-core-077-independent-review.md",
+        "harness/reports/wi-core-077-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-077-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-077-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-077-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-077-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-077-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-077-independent-review.md",
+          "harness/reports/wi-core-077-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-077-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-22T01:25:07.000Z"
+    },
+    {
+      "id": "WI-CORE-078",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "Endurecer la validacion de entorno: escapar valores en mensajes de error, topes de SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS y evaluar O3",
+      "approved": true,
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-085"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-078-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "app/src/config/env.validation.ts",
+        "harness/reports/wi-core-078-sdd-verification.md",
+        "harness/reports/wi-core-078-scope-approval.md",
+        "harness/reports/wi-core-078-implementation.md",
+        "harness/reports/wi-core-078-technical-checks.md",
+        "harness/reports/wi-core-078-contract-sync-scope-review.md",
+        "harness/reports/wi-core-078-independent-review.md",
+        "harness/reports/wi-core-078-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-078 solo endurece la validacion de variables de entorno.",
+          "report": "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-078 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-21T23:50:00.000Z",
+        "note": "Sin decisiones DEC bloqueantes; falta la aprobacion de alcance del usuario con los rangos y la decision sobre O3."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "implementer",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "DECISION_REQUIRED",
+            "findings": [
+              "L1 escape con helper echoEnvValue; topes 1..600 y 100..60000 con el patron de validateSandboxPollSettings; O3 es cambio de comportamiento observable (heartbeatStaleMs 5_393_500 -> 8_993_500) y se recomienda no tocarlo; requiere aprobacion de alcance."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/wi-core-078-sdd-verification.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-078-sdd-verification.md"
+            ],
+            "recommendedNextStep": "Aprobacion de alcance del usuario.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer",
+            "status": "APPROVED",
+            "findings": [
+              "echoEnvValue y topes SANDBOX_MAX_POLL_ATTEMPTS 1..600 y SANDBOX_REQUEST_TIMEOUT_MS 100..60000 con la regla estricta; defaults a modulo compartido; O3 sin tocar; 18 pruebas nuevas."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/config/env.validation.ts",
+              "app/src/config/sandbox-poll.defaults.ts",
+              "app/src/sandbox/sandbox-execution.service.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-078-implementation.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer",
+              "configuredModel": "claude-haiku-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED sin bloqueantes; escape y topes verificados; 7 de 8 mutaciones detectadas (F-1 redundante); O3 sin tocar."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-078-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-078",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-22T01:51:31.304Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-078",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T02:01:02.891Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-078",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T02:01:02.987Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-078",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T02:04:43.952Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "evidence": [
+        "harness/reports/wi-core-078-scope.md",
+        "harness/reports/wi-core-078-sdd-verification.md",
+        "harness/reports/wi-core-078-scope-approval.md",
+        "harness/reports/wi-core-078-implementation.md",
+        "harness/reports/wi-core-078-technical-checks.md",
+        "harness/reports/wi-core-078-independent-review.md",
+        "harness/reports/wi-core-078-closure.md"
+      ],
+      "blockedReason": null,
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-078-sdd-verification.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-078-sdd-verification.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-078-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-078-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-078-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-078-independent-review.md",
+          "harness/reports/wi-core-078-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-078-closure.md"
+        ]
+      },
+      "closedAt": "2026-10-22T02:04:48.000Z"
+    },
+    {
+      "id": "WI-CORE-080",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "title": "Inventario de cobertura de contratos C-01..C-10 (tesis Anexo E) para el tag arch-v1.0: solo lectura",
+      "approved": true,
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-087"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-080-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/arch-v1.0-inventario-contratos-core.md",
+        "harness/reports/wi-core-080-technical-checks.md",
+        "harness/reports/wi-core-080-contract-sync-scope-review.md",
+        "harness/reports/wi-core-080-independent-review.md",
+        "harness/reports/wi-core-080-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-080 es un inventario de solo lectura sin cambio de contrato.",
+          "report": "harness/reports/wi-core-080-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-080 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-080-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-22T00:00:00.000Z",
+        "note": "Inventario de solo lectura sin cambio de comportamiento; sin decisiones bloqueantes."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "sdd-analyst",
+        "implementationAgent": "sdd-analyst",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "sdd-analyst",
+            "status": "APPROVED",
+            "findings": [
+              "Inventario C-01..C-10: cubiertos con contrato real C-06 y C-07; parciales C-01..C-05, C-08..C-10; la tesis no define que comprueba cada CT; brechas principales C-08, C-09, C-01, C-10, C-03/C-05."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "harness/reports/arch-v1.0-inventario-contratos-core.md"
+            ],
+            "evidence": [
+              "harness/reports/arch-v1.0-inventario-contratos-core.md"
+            ],
+            "recommendedNextStep": "Revision independiente de exactitud.",
+            "executedBy": {
+              "agent": "sdd-analyst",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1: CHANGES_REQUESTED (F-1..F-9, correcciones de exactitud), aplicadas por el analista; ciclo 2 de 2: APPROVED; rutas, describes y cifras verificadas."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-080-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 2,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-080",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-22T04:36:00.559Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-080",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T04:38:06.595Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-080",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T04:38:06.702Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-080",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T04:43:17.864Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-080-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-080-scope.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-080-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-080-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-080-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-080-independent-review.md",
+          "harness/reports/wi-core-080-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-080-closure.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-080-scope.md",
+        "harness/reports/arch-v1.0-inventario-contratos-core.md",
+        "harness/reports/wi-core-080-technical-checks.md",
+        "harness/reports/wi-core-080-independent-review.md",
+        "harness/reports/wi-core-080-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-22T04:43:21.000Z"
+    },
+    {
+      "id": "WI-CORE-081",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "status": "W-DONE",
+      "title": "Corregir el filtro de vitest del job de Specs con PostgreSQL en la CI (No test files found)",
+      "approved": true,
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-088"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-081-scope.md",
+        ".github/workflows/ci.yml",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-081-technical-checks.md",
+        "harness/reports/wi-core-081-contract-sync-scope-review.md",
+        "harness/reports/wi-core-081-independent-review.md",
+        "harness/reports/wi-core-081-closure.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-081 solo corrige un filtro de la CI.",
+          "report": "harness/reports/wi-core-081-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-081 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-081-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-22T06:40:00.000Z",
+        "note": "Correccion de configuracion de CI sin cambio de comportamiento; sin decisiones bloqueantes."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "leader",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "Una linea de ci.yml: filtro de subcadena .pg.spec.ts en vez del glob src/**/*.pg.spec.ts; verificado en local que selecciona los 6 archivos."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              ".github/workflows/ci.yml"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-081-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium",
+              "reason": "cambio minimo: una linea de configuracion de CI, sin logica de producto"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED; causa raiz confirmada; el filtro selecciona exactamente los 6 archivos; sin discrepancias de configuracion del job; resultado real al siguiente run."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-081-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI; push con autorizacion expresa del usuario.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-081",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-22T06:30:40.055Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-081",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T06:31:09.385Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-081",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T06:31:09.493Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-081",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-22T06:32:17.248Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-081-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-081-scope.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-081-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-081-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-081-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-081-independent-review.md",
+          "harness/reports/wi-core-081-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-081-closure.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-081-scope.md",
+        "harness/reports/wi-core-081-technical-checks.md",
+        "harness/reports/wi-core-081-independent-review.md",
+        "harness/reports/wi-core-081-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-22T06:32:22.000Z"
     }
   ],
-  "activeWorkItem": null,
-  "awayMode": {
-    "enabled": true,
-    "activatedBy": "user",
-    "activatedAt": "2026-10-10T02:53:08.000Z",
-    "quote": "la revisión de 027 se haga con justamente este agente. Yo no lo voy a hacer porque estoy fuera de casa en este momento"
-  }
+  "activeWorkItem": null
 }

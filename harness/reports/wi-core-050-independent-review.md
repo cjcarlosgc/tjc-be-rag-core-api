@@ -6,7 +6,7 @@ Modelo: reviewer · configurado claude-sonnet-5-5 · atendido unknown · esfuerz
 
 ## Evidencia ejecutada
 1. **Regla y casos límite** (sondas en worktree desechable, matriz production/development/test con `SANDBOX_SERVICE_TOKEN` presente):
-   - production: OK `https://host:443/`, `https://host`, `HTTPS://HOST.EXAMPLE`, `https://host:8443`, `https://136-115-2-208.sslip.io`; REJECT todo `http:` (incl. `localhost:3001`, `127.0.0.1:3101`, `[::1]`, `LOCALHOST`).
+   - production: OK `https://host:443/`, `https://host`, `HTTPS://HOST.EXAMPLE`, `https://host:8443`, `https://<SANDBOX_HOST>.sslip.io`; REJECT todo `http:` (incl. `localhost:3001`, `127.0.0.1:3101`, `[::1]`, `LOCALHOST`).
    - fuera de producción: OK `http://localhost:3001`, `http://127.0.0.1:3101`, `http://[::1]:3001`, `http://LOCALHOST:3001`; REJECT `localhost.evil.com`, `127.0.0.1.evil.com`, `0.0.0.0`, `127.0.0.2`, IPv4 mapeada (`[::ffff:127.0.0.1]`, `[::ffff:7f00:1]`), `ftp://`.
    - REJECT credenciales (`u:p@`, `u@`, `:p@`), ruta (`/x`, `//`), query y hash con valor. 
    - Vacío o no definido permitido; `SANDBOX_URL` sin token o token sin URL siguen dando el mensaje DEC-AUTH-001 (evaluada antes, también con `http://evil.com`).
@@ -23,4 +23,4 @@ Modelo: reviewer · configurado claude-sonnet-5-5 · atendido unknown · esfuerz
 - **F4 (editorial, ya registrado)**: línea de `DEC-INF-002` en SYSTEM-2.12 dice «preparado y sin implementar»; corresponde al siguiente bump con contract-reviewer.
 
 ## Resultado
-`status: APPROVED` · `blockers: []` · `filesAffected`: `app/src/config/env.validation.ts`, `app/src/config/env.validation.spec.ts`, `app/.env.example` · `recommendedNextStep`: el leader puede marcar W-DONE; recordar el riesgo operativo (producción con `SANDBOX_URL` http no arranca; Render ya usa `https://136-115-2-208.sslip.io`).
+`status: APPROVED` · `blockers: []` · `filesAffected`: `app/src/config/env.validation.ts`, `app/src/config/env.validation.spec.ts`, `app/.env.example` · `recommendedNextStep`: el leader puede marcar W-DONE; recordar el riesgo operativo (producción con `SANDBOX_URL` http no arranca; Render ya usa `https://<SANDBOX_HOST>.sslip.io`).

@@ -14,6 +14,7 @@ import { toGithubId } from '../access-sync/access-reverify.scope.js';
 import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
 import { AnalysisRunsRepository } from '../analysis-runs/analysis-runs.repository.js';
+import { AnalysisRunRealtimeEvents } from '../analysis-runs/analysis-run-realtime.events.js';
 import type { CreateAnalysisRunInput } from '../analysis-runs/analysis-runs.repository.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
@@ -47,6 +48,7 @@ export class GithubWebhooksService {
     private readonly bindingLifecycle: BindingLifecycleService,
     private readonly organizationLifecycle: OrganizationLifecycleService,
     private readonly accessEvents: AccessEventsService,
+    private readonly analysisRunRealtime: AnalysisRunRealtimeEvents,
   ) {}
 
   async handle(event: NormalizedWebhookEvent): Promise<GitHubWebhookAcceptedResponse> {
@@ -118,6 +120,13 @@ export class GithubWebhooksService {
     };
   }
 
+  /** Avisa `analysis-run:update` solo de los Runs que pasaron a OBSOLETE (post-commit, best-effort). */
+  private async emitObsoleted(runIds: string[]): Promise<void> {
+    for (const runId of runIds) {
+      await this.analysisRunRealtime.runChanged(runId);
+    }
+  }
+
   private async handlePullRequestEvent(
     payload: GithubPullRequestWebhookPayload,
     binding: RepositoryBinding,
@@ -145,22 +154,24 @@ export class GithubWebhooksService {
     }
 
     if (!createdAtVerified) {
-      await this.analysisRunsRepository.classifyPullRequest(
+      const unverified = await this.analysisRunsRepository.classifyPullRequest(
         String(payload.repository.id),
         payload.number,
         null,
         binding.createdAt,
       );
+      await this.emitObsoleted(unverified.obsoletedRunIds);
       await this.enqueuePullRequestMetadataRecovery(payload, binding, deliveryId, receivedAt);
       return lifecycleRunId;
     }
 
-    await this.analysisRunsRepository.classifyPullRequest(
+    const classification = await this.analysisRunsRepository.classifyPullRequest(
       String(payload.repository.id),
       payload.number,
       createdAt!,
       binding.createdAt,
     );
+    await this.emitObsoleted(classification.obsoletedRunIds);
 
     if (createdAt!.getTime() < binding.createdAt.getTime()) {
       return null;

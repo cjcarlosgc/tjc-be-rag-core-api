@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261018-001
+source: core
+sourceWorkItem: WI-CORE-069
+targets: [github-integration]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md, spec/contracts/github-integration-contract.md, spec/contracts/schemas]
+breaking: false
+changed:
+  - SYSTEM-2.13 (sha256 b70f9358fabdaa6d8ac61d07e25258ec5256f9dacd31049edb4f08e6879a0444), INTEROP-2.17 (sha256 b9ed40dc8d15a414b7cca4ccee4f320ba9da8f7444ef426b8321d17bdc0dea05), GH-INTEROP-1.8 (sha256 6c553ee856d0c53420a75d2bde5a9eb04cce2e029ffae1bf4194dcbc7a25565a) y spec/contracts/schemas/ con examples/ (sha256 del arbol c45e4513f4f8b3e8f2649f5b1c8f63fc4a187ddfb5fa0fb1232f85fb29fa1b31: shasum -a 256 de cada archivo ordenado, luego shasum del listado); error envelope con retryable? opcional, phase opcional (tolerancia transitoria), notas editoriales INTEROP §5 (pollAfterMs opcional en el GET de estado, tope 30 s, reintentos de GET) y §10 (validacion en frontera solo aviso en log en Core); aditivo, no breaking. Los espejos sincronizados antes de esta revision quedan desfasados: re-espejar byte a byte desde Core
+requiredAction:
+  - Re-espejar los 3 contratos y spec/contracts/schemas/ byte a byte desde Core; emitir el ErrorEnvelope completo (statusCode, code, message, details, timestamp, path sin query, correlationId) con retryable siempre presente; ejecutar contracts:check, lint, build y test; sin cambio de comportamiento hacia Core
+sourceRevision: 67519a20a5e061bd81a880fe539693c9a364bba3
+status: C-PENDING

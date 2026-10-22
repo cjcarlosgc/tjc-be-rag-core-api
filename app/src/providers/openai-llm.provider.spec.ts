@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 import type { HttpException } from '@nestjs/common';
 import {
   APIConnectionError,
@@ -31,34 +32,11 @@ vi.mock('openai', async (importOriginal) => {
 
 const { OpenAiLLMProvider } = await import('./openai-llm.provider.js');
 
-const COMBINATIONS = JSON.stringify([
-  {
-    model: 'model-a',
-    efforts: ['low', 'medium', 'high'],
-    toolEfforts: ['low', 'medium'],
-  },
-  { model: 'model-b', efforts: ['low'], toolEfforts: ['low'] },
-  // Con `max` y `none` en ambos modos (WI-CORE-031).
-  {
-    model: 'model-c',
-    efforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-    toolEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-  },
-  // `max` solo en generate: el esfuerzo común máximo es xhigh.
-  {
-    model: 'model-d',
-    efforts: ['none', 'low', 'xhigh', 'max'],
-    toolEfforts: ['none', 'low', 'xhigh'],
-  },
-  // `minimal` listado pero por debajo de `low` en la escala.
-  { model: 'model-e', efforts: ['minimal', 'low'], toolEfforts: ['minimal', 'low'] },
-]);
-
 function makeConfigService(overrides: Record<string, unknown> = {}) {
   const values: Record<string, unknown> = {
     OPENAI_API_KEY: 'sk-test',
-    LLM_MODEL: 'gpt-4o-mini',
-    LLM_SUPPORTED_COMBINATIONS: COMBINATIONS,
+    LLM_MODEL: 'gpt-6-luna',
+    LLM_REASONING_EFFORT: 'low',
     ...overrides,
   };
   return {
@@ -177,15 +155,17 @@ describe('OpenAiLLMProvider', () => {
       const result = await provider.generate('write a test');
 
       expect(createMock).toHaveBeenCalledWith({
-        model: 'gpt-4o-mini',
+        model: 'gpt-6-luna',
         store: false,
         input: [{ role: 'user', content: 'write a test' }],
+        reasoning: { effort: 'low' },
+        include: ['reasoning.encrypted_content'],
       });
       expect(result).toEqual({
         content: 'export function test() {}',
         inputTokens: 100,
         outputTokens: 20,
-        effective: { provider: 'openai', model: 'gpt-4o-mini', reasoningEffort: null },
+        effective: { provider: 'openai', model: 'gpt-6-luna', reasoningEffort: 'low' },
       });
     });
 
@@ -198,34 +178,6 @@ describe('OpenAiLLMProvider', () => {
       expect(result.effective).toEqual({ provider: 'openai', model: 'gpt-5-test', reasoningEffort: 'high' });
     });
 
-    it('does not send reasoning, include or max_output_tokens when no effort or limit is configured', async () => {
-      createMock.mockResolvedValue(completed([messageItem('x')]));
-
-      const provider = new OpenAiLLMProvider(makeConfigService());
-      await provider.generate('prompt');
-
-      const sent = createMock.mock.calls[0][0];
-      expect(sent).not.toHaveProperty('reasoning');
-      expect(sent).not.toHaveProperty('include');
-      expect(sent).not.toHaveProperty('max_output_tokens');
-      expect(sent).not.toHaveProperty('temperature');
-      expect(sent).not.toHaveProperty('max_completion_tokens');
-    });
-
-    it('includes reasoning effort and encrypted reasoning only when LLM_REASONING_EFFORT is configured', async () => {
-      createMock.mockResolvedValue(completed([messageItem('x')]));
-
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ LLM_REASONING_EFFORT: 'high' }),
-      );
-      await provider.generate('prompt');
-
-      expect(createMock.mock.calls[0][0]).toMatchObject({
-        reasoning: { effort: 'high' },
-        include: ['reasoning.encrypted_content'],
-      });
-    });
-
     it('returns null token counts when usage is not reported', async () => {
       createMock.mockResolvedValue(completed([messageItem('x')], null));
 
@@ -236,7 +188,7 @@ describe('OpenAiLLMProvider', () => {
         content: 'x',
         inputTokens: null,
         outputTokens: null,
-        effective: { provider: 'openai', model: 'gpt-4o-mini', reasoningEffort: null },
+        effective: { provider: 'openai', model: 'gpt-6-luna', reasoningEffort: 'low' },
       });
     });
 
@@ -273,6 +225,36 @@ describe('OpenAiLLMProvider', () => {
       await expect(provider.generate('prompt')).rejects.toMatchObject({
         code: ErrorCode.LLM_PROVIDER_UNAVAILABLE,
       });
+    });
+
+    it('takes model and effort from LLM_MODEL and LLM_REASONING_EFFORT and ignores retired variables', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({
+          LLM_MODEL: 'gpt-6-luna',
+          LLM_REASONING_EFFORT: 'medium',
+          EXPERIMENT_LLM_MODEL: 'model-b',
+          EXPERIMENT_LLM_REASONING_EFFORT: 'low',
+          LLM_SUPPORTED_COMBINATIONS: '[]',
+        }),
+      );
+      await provider.generate('prompt');
+
+      expect(createMock.mock.calls[0][0]).toMatchObject({
+        model: 'gpt-6-luna',
+        reasoning: { effort: 'medium' },
+      });
+    });
+
+    it('fails explicitly without calling the API when LLM_REASONING_EFFORT is missing or empty', async () => {
+      for (const value of [undefined, '', '   ']) {
+        const provider = new OpenAiLLMProvider(
+          makeConfigService({ LLM_REASONING_EFFORT: value }),
+        );
+        await expect(provider.generate('prompt')).rejects.toThrow(/LLM_REASONING_EFFORT/);
+      }
+      expect(createMock).not.toHaveBeenCalled();
     });
   });
 
@@ -347,7 +329,7 @@ describe('OpenAiLLMProvider', () => {
         code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
         model: 'model-a',
         requestedEffort: 'medium',
-        supportedEfforts: [],
+        supportedEfforts: ['none'],
         temperature: 0.2,
       });
       await expect(call).rejects.toThrow(/no es compatible con razonamiento activo/);
@@ -368,7 +350,7 @@ describe('OpenAiLLMProvider', () => {
       expect(sent).toMatchObject({ reasoning: { effort: 'medium' } });
     });
 
-    it('sends max as reasoning effort in generate when the combination lists it', async () => {
+    it('sends max as reasoning effort in generate, as configured', async () => {
       createMock.mockResolvedValue(completed([messageItem('x')]));
 
       const provider = new OpenAiLLMProvider(makeConfigService());
@@ -381,18 +363,6 @@ describe('OpenAiLLMProvider', () => {
         reasoning: { effort: 'max' },
         include: ['reasoning.encrypted_content'],
       });
-    });
-
-    it('rejects minimal when the combination does not list it, although minimal is in the scale', async () => {
-      const provider = new OpenAiLLMProvider(makeConfigService());
-
-      await expect(
-        provider.generate('prompt', makeConfig({ model: 'model-c', reasoningEffort: 'minimal' })),
-      ).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        requestedEffort: 'minimal',
-      });
-      expect(createMock).not.toHaveBeenCalled();
     });
 
     it('omits reasoning, include and temperature when the config has null effort and temperature', async () => {
@@ -411,34 +381,6 @@ describe('OpenAiLLMProvider', () => {
       expect(sent).not.toHaveProperty('max_output_tokens');
     });
 
-    it('rejects an effort that is not supported for generate without calling the API', async () => {
-      const provider = new OpenAiLLMProvider(makeConfigService());
-
-      const call = provider.generate(
-        'prompt',
-        makeConfig({ reasoningEffort: 'xhigh' }),
-      );
-
-      await expect(call).rejects.toBeInstanceOf(LLMConfigurationError);
-      await expect(call).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        requestedEffort: 'xhigh',
-        supportedEfforts: ['low', 'medium', 'high'],
-      });
-      expect(createMock).not.toHaveBeenCalled();
-    });
-
-    it('rejects a model without supported combinations', async () => {
-      const provider = new OpenAiLLMProvider(makeConfigService());
-
-      await expect(
-        provider.generate(
-          'prompt',
-          makeConfig({ model: 'unknown-model', reasoningEffort: 'low' }),
-        ),
-      ).rejects.toMatchObject({ code: 'REASONING_EFFORT_UNSUPPORTED' });
-      expect(createMock).not.toHaveBeenCalled();
-    });
   });
 
   describe('generateWithTools', () => {
@@ -707,23 +649,6 @@ describe('OpenAiLLMProvider', () => {
       expect(result).toMatchObject({ inputTokens: null, outputTokens: null });
     });
 
-    it('rejects an effort supported only for generate when tools are used', async () => {
-      const provider = new OpenAiLLMProvider(makeConfigService());
-
-      await expect(
-        provider.generateWithTools(
-          [{ role: 'user', content: 'x' }],
-          TOOLS,
-          makeConfig({ reasoningEffort: 'high' }),
-        ),
-      ).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        requestedEffort: 'high',
-        supportedEfforts: ['low', 'medium'],
-      });
-      expect(createMock).not.toHaveBeenCalled();
-    });
-
     it('rejects temperature with active reasoning in generateWithTools without calling the API', async () => {
       const provider = new OpenAiLLMProvider(makeConfigService());
 
@@ -756,7 +681,7 @@ describe('OpenAiLLMProvider', () => {
       });
     });
 
-    it('sends max in generateWithTools when the combination lists it for tools', async () => {
+    it('sends max in generateWithTools, as configured', async () => {
       createMock.mockResolvedValue(completed([messageItem('x')]));
 
       const provider = new OpenAiLLMProvider(makeConfigService());
@@ -772,23 +697,6 @@ describe('OpenAiLLMProvider', () => {
         reasoning: { effort: 'max' },
         include: ['reasoning.encrypted_content'],
       });
-    });
-
-    it('rejects max in generateWithTools when only generate lists it', async () => {
-      const provider = new OpenAiLLMProvider(makeConfigService());
-
-      await expect(
-        provider.generateWithTools(
-          [{ role: 'user', content: 'x' }],
-          TOOLS,
-          makeConfig({ model: 'model-d', reasoningEffort: 'max' }),
-        ),
-      ).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        requestedEffort: 'max',
-        supportedEfforts: ['none', 'low', 'xhigh'],
-      });
-      expect(createMock).not.toHaveBeenCalled();
     });
 
     it('refuses to send a tool whose schema does not meet the strict rules, as a programming error', async () => {
@@ -924,253 +832,122 @@ describe('OpenAiLLMProvider', () => {
     });
   });
 
-  describe('resolveEffectiveConfig', () => {
-    it('uses the default experiment model and the highest common effort, confirming the model id', async () => {
-      retrieveMock.mockResolvedValue({ id: 'model-a' });
+  describe('resolveEffectiveConfig (WI-CORE-076: configuración única)', () => {
+    it('uses LLM_MODEL and LLM_REASONING_EFFORT and confirms the model id', async () => {
+      retrieveMock.mockResolvedValue({ id: 'gpt-6-luna-2026' });
 
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-a' }),
-      );
+      const provider = new OpenAiLLMProvider(makeConfigService());
       const config = await provider.resolveEffectiveConfig();
 
-      expect(retrieveMock).toHaveBeenCalledWith('model-a');
+      expect(retrieveMock).toHaveBeenCalledWith('gpt-6-luna');
       expect(config).toEqual({
         provider: 'openai',
-        model: 'model-a',
-        modelVersion: 'model-a',
-        reasoningEffort: 'medium',
+        model: 'gpt-6-luna',
+        modelVersion: 'gpt-6-luna-2026',
+        reasoningEffort: 'low',
         temperature: null,
         maxOutputTokens: null,
         endpoint: 'responses',
       });
     });
 
-    it('uses gpt-6-luna when EXPERIMENT_LLM_MODEL is not configured', async () => {
-      retrieveMock.mockResolvedValue({ id: 'gpt-6-luna-2026' });
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          LLM_SUPPORTED_COMBINATIONS: JSON.stringify([
-            {
-              model: 'gpt-6-luna',
-              efforts: ['low', 'xhigh'],
-              toolEfforts: ['low', 'xhigh'],
-            },
-          ]),
-        }),
-      );
+    it('takes the configured effort as written, without any list of supported efforts', async () => {
+      retrieveMock.mockResolvedValue({ id: 'gpt-6-luna' });
 
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({ LLM_REASONING_EFFORT: 'max' }),
+      );
       const config = await provider.resolveEffectiveConfig();
 
-      expect(retrieveMock).toHaveBeenCalledWith('gpt-6-luna');
-      expect(config.model).toBe('gpt-6-luna');
-      expect(config.modelVersion).toBe('gpt-6-luna-2026');
-      expect(config.reasoningEffort).toBe('xhigh');
-    });
-
-    it('uses the requested effort when it is supported by generate and tools', async () => {
-      retrieveMock.mockResolvedValue({ id: 'model-a' });
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-a',
-          EXPERIMENT_LLM_REASONING_EFFORT: 'low',
-        }),
-      );
-
-      const config = await provider.resolveEffectiveConfig();
-
-      expect(config.reasoningEffort).toBe('low');
-    });
-
-    it('fails without confirming the model when the requested effort is not common to both modes', async () => {
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-a',
-          EXPERIMENT_LLM_REASONING_EFFORT: 'high',
-        }),
-      );
-
-      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        requestedEffort: 'high',
-        supportedEfforts: ['low', 'medium'],
-      });
-      expect(retrieveMock).not.toHaveBeenCalled();
-    });
-
-    it('fails when the model has no supported combinations', async () => {
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ EXPERIMENT_LLM_MODEL: 'missing' }),
-      );
-
-      await expect(provider.resolveEffectiveConfig()).rejects.toBeInstanceOf(
-        LLMConfigurationError,
-      );
-      expect(retrieveMock).not.toHaveBeenCalled();
-    });
-
-    it('fails with MODEL_UNAVAILABLE when the API cannot retrieve the model', async () => {
-      retrieveMock.mockRejectedValue(new Error('404 model not found'));
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-a' }),
-      );
-
-      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
-        code: 'MODEL_UNAVAILABLE',
-        model: 'model-a',
-      });
+      expect(config.reasoningEffort).toBe('max');
     });
 
     it('carries temperature and max output tokens when configured with effort none', async () => {
-      retrieveMock.mockResolvedValue({ id: 'model-c' });
+      retrieveMock.mockResolvedValue({ id: 'model-c-2026' });
+
       const provider = new OpenAiLLMProvider(
         makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-c',
-          EXPERIMENT_LLM_REASONING_EFFORT: 'none',
+          LLM_MODEL: 'model-c',
+          LLM_REASONING_EFFORT: 'none',
           EXPERIMENT_LLM_TEMPERATURE: '0.2',
           EXPERIMENT_LLM_MAX_OUTPUT_TOKENS: '4000',
         }),
       );
-
       const config = await provider.resolveEffectiveConfig();
 
-      expect(config.reasoningEffort).toBe('none');
-      expect(config.temperature).toBe(0.2);
-      expect(config.maxOutputTokens).toBe(4000);
+      expect(config).toMatchObject({
+        model: 'model-c',
+        modelVersion: 'model-c-2026',
+        reasoningEffort: 'none',
+        temperature: 0.2,
+        maxOutputTokens: 4000,
+        endpoint: 'responses',
+      });
     });
 
-    it('rejects a configured temperature when the resolved effort is active reasoning, without confirming the model', async () => {
+    it('rejects a configured temperature with active reasoning, without confirming the model', async () => {
       const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-a',
-          EXPERIMENT_LLM_TEMPERATURE: '0.2',
-        }),
+        makeConfigService({ EXPERIMENT_LLM_TEMPERATURE: '0.2' }),
       );
 
       await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
         code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
-        model: 'model-a',
-        requestedEffort: 'medium',
-        supportedEfforts: [],
+        model: 'gpt-6-luna',
+        requestedEffort: 'low',
+        supportedEfforts: ['none'],
         temperature: 0.2,
       });
       expect(retrieveMock).not.toHaveBeenCalled();
     });
 
-    it('rejects a configured temperature when the requested effort is active reasoning', async () => {
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-a',
-          EXPERIMENT_LLM_REASONING_EFFORT: 'low',
-          EXPERIMENT_LLM_TEMPERATURE: '1',
-        }),
-      );
-
-      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
-        code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
-        requestedEffort: 'low',
-        temperature: 1,
-      });
+    it('fails without confirming the model when LLM_REASONING_EFFORT is missing or empty', async () => {
+      for (const value of [undefined, '', '   ']) {
+        const provider = new OpenAiLLMProvider(
+          makeConfigService({ LLM_REASONING_EFFORT: value }),
+        );
+        await expect(provider.resolveEffectiveConfig()).rejects.toThrow(/LLM_REASONING_EFFORT/);
+      }
       expect(retrieveMock).not.toHaveBeenCalled();
     });
 
-    it('resolves max as the highest common effort when both modes list it', async () => {
-      retrieveMock.mockResolvedValue({ id: 'model-c' });
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-c' }),
-      );
+    it('fails with MODEL_UNAVAILABLE when the API cannot retrieve the model', async () => {
+      retrieveMock.mockRejectedValue(new Error('model not found'));
 
-      const config = await provider.resolveEffectiveConfig();
-
-      expect(config).toEqual({
-        provider: 'openai',
-        model: 'model-c',
-        modelVersion: 'model-c',
-        reasoningEffort: 'max',
-        temperature: null,
-        maxOutputTokens: null,
-        endpoint: 'responses',
-      });
-    });
-
-    it('falls back to xhigh when max is listed only for generate', async () => {
-      retrieveMock.mockResolvedValue({ id: 'model-d' });
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-d' }),
-      );
-
-      const config = await provider.resolveEffectiveConfig();
-
-      expect(config.reasoningEffort).toBe('xhigh');
-    });
-
-    it('ranks minimal below low, so the highest common effort is low', async () => {
-      retrieveMock.mockResolvedValue({ id: 'model-e' });
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ EXPERIMENT_LLM_MODEL: 'model-e' }),
-      );
-
-      const config = await provider.resolveEffectiveConfig();
-
-      expect(config.reasoningEffort).toBe('low');
-    });
-
-    it('fails when the requested max is not common to both modes, without confirming the model', async () => {
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-d',
-          EXPERIMENT_LLM_REASONING_EFFORT: 'max',
-        }),
-      );
+      const provider = new OpenAiLLMProvider(makeConfigService());
 
       await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        requestedEffort: 'max',
-        supportedEfforts: ['none', 'low', 'xhigh'],
-      });
-      expect(retrieveMock).not.toHaveBeenCalled();
-    });
-
-    it('registers no efforts by default for gpt-6-luna: without LLM_SUPPORTED_COMBINATIONS it fails before confirming the model', async () => {
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({ LLM_SUPPORTED_COMBINATIONS: undefined }),
-      );
-
-      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
+        code: 'MODEL_UNAVAILABLE',
         model: 'gpt-6-luna',
-        requestedEffort: null,
-        supportedEfforts: [],
       });
-      expect(retrieveMock).not.toHaveBeenCalled();
     });
 
-    it('does not fall back to a guessed effort when gpt-6-luna is absent from LLM_SUPPORTED_COMBINATIONS', async () => {
-      const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          LLM_SUPPORTED_COMBINATIONS: JSON.stringify([
-            { model: 'model-a', efforts: ['low'], toolEfforts: ['low'] },
-          ]),
-        }),
-      );
-
-      await expect(provider.resolveEffectiveConfig()).rejects.toMatchObject({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        model: 'gpt-6-luna',
-        supportedEfforts: [],
-      });
-      expect(retrieveMock).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('config persistida frente a entorno posterior (WI-CORE-023)', () => {
-    it('generate with a persisted config ignores EXPERIMENT_LLM_* changed after creation', async () => {
+    it('sends the same model and effort on the product path and on the experiment path', async () => {
+      retrieveMock.mockResolvedValue({ id: 'gpt-6-luna-2026' });
       createMock.mockResolvedValue(completed([messageItem('x')]));
 
       const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-b',
-          EXPERIMENT_LLM_REASONING_EFFORT: 'low',
-        }),
+        makeConfigService({ LLM_REASONING_EFFORT: 'medium' }),
+      );
+      const experiment = await provider.resolveEffectiveConfig();
+      await provider.generate('prompt');
+      await provider.generate('prompt', experiment);
+
+      const [product, experimental] = createMock.mock.calls.map((call) => call[0]);
+      expect(product).toMatchObject({
+        model: 'gpt-6-luna',
+        reasoning: { effort: 'medium' },
+        include: ['reasoning.encrypted_content'],
+      });
+      expect(experimental).toEqual(product);
+    });
+  });
+
+  describe('config persistida frente a entorno posterior (WI-CORE-023, WI-CORE-076)', () => {
+    it('generate with a persisted config ignores LLM_MODEL and LLM_REASONING_EFFORT changed after creation', async () => {
+      createMock.mockResolvedValue(completed([messageItem('x')]));
+
+      const provider = new OpenAiLLMProvider(
+        makeConfigService({ LLM_MODEL: 'model-b', LLM_REASONING_EFFORT: 'low' }),
       );
       await provider.generate(
         'prompt',
@@ -1184,14 +961,11 @@ describe('OpenAiLLMProvider', () => {
       expect(retrieveMock).not.toHaveBeenCalled();
     });
 
-    it('generateWithTools with a persisted config ignores EXPERIMENT_LLM_* changed after creation', async () => {
+    it('generateWithTools with a persisted config ignores LLM_MODEL and LLM_REASONING_EFFORT changed after creation', async () => {
       createMock.mockResolvedValue(completed([messageItem('x')]));
 
       const provider = new OpenAiLLMProvider(
-        makeConfigService({
-          EXPERIMENT_LLM_MODEL: 'model-b',
-          EXPERIMENT_LLM_REASONING_EFFORT: 'low',
-        }),
+        makeConfigService({ LLM_MODEL: 'model-b', LLM_REASONING_EFFORT: 'low' }),
       );
       await provider.generateWithTools(
         [{ role: 'user', content: 'hola' }],
@@ -1308,6 +1082,39 @@ describe('OpenAiLLMProvider', () => {
       expect(transport).toMatchObject({
         code: ErrorCode.LLM_PROVIDER_UNAVAILABLE,
       });
+    });
+  });
+  describe('rechazo de la API por esfuerzo no admitido (WI-CORE-076)', () => {
+    it('fails the call as LLM_PROVIDER_UNAVAILABLE, not external, and logs model and effort', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      createMock.mockRejectedValue(
+        APIError.generate(
+          400,
+          undefined,
+          "Unsupported value: 'minimal' is not supported with this model.",
+          new Headers(),
+        ),
+      );
+
+      const provider = new OpenAiLLMProvider(makeConfigService());
+      const caught = await provider
+        .generate('prompt', makeConfig({ model: 'gpt-6-luna', reasoningEffort: 'minimal' }))
+        .then(
+          () => {
+            throw new Error('expected a failure');
+          },
+          (error: unknown) => error,
+        );
+
+      expect(caught).toBeInstanceOf(LLMProviderUnavailableError);
+      expect(caught).toMatchObject({
+        code: ErrorCode.LLM_PROVIDER_UNAVAILABLE,
+        externalFailure: false,
+      });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('modelo "gpt-6-luna" y esfuerzo "minimal"'),
+      );
+      warn.mockRestore();
     });
   });
 });

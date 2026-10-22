@@ -12,6 +12,7 @@ import type { RunnerFacts, SandboxExecutionResult } from './sandbox.types.js';
 const SECRET_LINE = 'token=abc123secret';
 
 const RUNNER_FACTS: RunnerFacts = {
+  executionProfile: 'NODE_TYPESCRIPT',
   runner: 'JEST',
   compiled: true,
   executed: true,

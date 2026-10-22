@@ -1,0 +1,8 @@
+# WI-CORE-076 — publicación de Contract Sync (SYSTEM-2.14 e INTEROP-2.19, informativo)
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Publicado el 2026-10-21 en `harness/contract-sync/outbox/`: **`CS-CORE-20261021-004`**, `source: core`, `sourceWorkItem: WI-CORE-076`, `targets: [console, github-integration, sandbox]`, `breaking: false`, `sourceRevision` `3d2383e4b6efc20162b77945261fe08d384094a8` (commit con el texto final de los contratos), estado inicial `C-PENDING`, `scopePaths`: `system-contract.md` e `interoperability-contract.md`.
+
+Digests finales (sha256), a cruzar al re-espejar byte a byte desde Core: `system-contract.md` (SYSTEM-2.14) `f60d6c4b19e2bfbce232894614667e5898197a8677eb80db284d96b9f2b96ce3`; `interoperability-contract.md` (INTEROP-2.19) `f9866d16e8c738001d7a9dd664599cd542d857b676d17723fa9c3a25bd2cc6f9`. Sin cambio: `github-integration-contract.md` (GH-INTEROP-1.8) `6c553ee856d0c53420a75d2bde5a9eb04cce2e029ffae1bf4194dcbc7a25565a` (no se recopia; solo GH y Console lo tienen) y el árbol `spec/contracts/schemas/` con `examples/` `a1ba9a199d0035de85b807fa9ae26b9afb09f8af340a22f1cb34096547dc9091` (no se recopia). Espejos actuales a reemplazar: SYSTEM-2.13 `b70f9358…0444` e INTEROP-2.18 `22b880d1…e311`.
+
+Acción por consumidor (informativa, sin cambio de código): re-espejar los dos contratos y cruzar los digests. Console: opcional, el 422 `REASONING_EFFORT_UNSUPPORTED` al crear un experimento ahora solo sale por temperatura con razonamiento activo y trae `supportedEfforts=['none']` (su manejo en `errors.ts` ya lo tolera; sus mocks usan `['low','medium']`). GitHub Integration y Sandbox: sin cambio de código, esquemas ni Harness local.

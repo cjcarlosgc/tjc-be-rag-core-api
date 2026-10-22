@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   IsBoolean,
@@ -17,7 +18,15 @@ import {
   DEFAULT_GENERATION_TIMEOUT_MS,
   DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
 } from './generation-budget.defaults.js';
+import { DEFAULT_LLM_MODEL } from '../providers/llm-settings.js';
 import { REASONING_EFFORT_SCALE } from '../providers/reasoning-effort.scale.js';
+import {
+  DEFAULT_MAX_POLL_ATTEMPTS,
+  DEFAULT_POLL_RETRIES,
+  DEFAULT_POLL_RETRY_DELAY_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  MAX_POLL_AFTER_MS,
+} from './sandbox-poll.defaults.js';
 
 class EnvironmentVariables {
   @IsIn(['development', 'production', 'test'])
@@ -103,22 +112,19 @@ class EnvironmentVariables {
   @IsString()
   EMBEDDING_MODEL: string = 'text-embedding-3-small';
 
+  /** Modelo único del flujo normal y de los experimentos (WI-CORE-076, DEC-EXP-005). */
   @IsString()
-  LLM_MODEL: string = 'gpt-4o-mini';
+  LLM_MODEL: string = DEFAULT_LLM_MODEL;
 
+  /**
+   * Esfuerzo único del flujo normal y de los experimentos (WI-CORE-076, DEC-EXP-005). Obligatorio y
+   * sin valor por defecto: lo valida `validateLlmSettings` con mensajes propios (no `@IsNotEmpty`).
+   */
   @IsOptional()
   @IsString()
   LLM_REASONING_EFFORT?: string;
 
-  /** Experimentos (DEC-EXP-004): modelo confirmado contra la API al crear el experimento. */
-  @IsString()
-  EXPERIMENT_LLM_MODEL: string = 'gpt-6-luna';
-
-  /** Vacío = esfuerzo máximo común soportado por el modelo (efforts ∩ toolEfforts). */
-  @IsOptional()
-  @IsString()
-  EXPERIMENT_LLM_REASONING_EFFORT?: string;
-
+  /** Experimentos (DEC-EXP-004): temperatura solo con esfuerzo `none`. */
   @IsOptional()
   @IsString()
   EXPERIMENT_LLM_TEMPERATURE?: string;
@@ -126,11 +132,6 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   EXPERIMENT_LLM_MAX_OUTPUT_TOKENS?: string;
-
-  /** JSON: [{"model","efforts","toolEfforts"}]; sin entrada para el modelo no se crea el experimento. */
-  @IsOptional()
-  @IsString()
-  LLM_SUPPORTED_COMBINATIONS?: string;
 
   @IsInt()
   @Min(1000)
@@ -178,13 +179,27 @@ class EnvironmentVariables {
   @Min(1)
   SANDBOX_DOWNLOAD_TTL_SECONDS: number = 300;
 
-  @IsInt()
-  @Min(100)
-  SANDBOX_REQUEST_TIMEOUT_MS: number = 10_000;
+  /**
+   * Timeout (ms) por request al Sandbox (WI-CORE-078). Se valida el texto crudo en
+   * `validateSandboxLimitSettings` (entero 100..60000); sin `@IsInt`, que convertiría "1e3" o "0x10".
+   */
+  @IsOptional()
+  SANDBOX_REQUEST_TIMEOUT_MS: number = DEFAULT_REQUEST_TIMEOUT_MS;
 
-  @IsInt()
-  @Min(1)
-  SANDBOX_MAX_POLL_ATTEMPTS: number = 120;
+  /** Máximo de consultas de estado al Sandbox por ejecución (WI-CORE-078): entero 1..600. */
+  @IsOptional()
+  SANDBOX_MAX_POLL_ATTEMPTS: number = DEFAULT_MAX_POLL_ATTEMPTS;
+
+  /**
+   * Reintentos por consulta GET al Sandbox (WI-CORE-077). Se valida el texto crudo en
+   * `validateSandboxPollSettings`: sin `@IsInt`, que convertiría "" en 0 y "abc" en NaN.
+   */
+  @IsOptional()
+  SANDBOX_POLL_RETRIES?: number;
+
+  /** Espera inicial (ms) entre reintentos de consulta al Sandbox (WI-CORE-077). */
+  @IsOptional()
+  SANDBOX_POLL_RETRY_DELAY_MS?: number;
 
   @IsInt()
   @Min(1)
@@ -347,8 +362,160 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   }
 
   validateExperimentLlmSettings(validated);
+  validateLlmSettings(validated);
+  validateSandboxPollSettings(config, validated);
+  validateSandboxLimitSettings(config, validated);
+  warnRetiredLlmVariables(config);
 
   return validated;
+}
+
+/** Variables de LLM retiradas por WI-CORE-076: si siguen definidas se ignoran y se avisa al arrancar. */
+export const RETIRED_LLM_VARIABLES = [
+  'EXPERIMENT_LLM_MODEL',
+  'EXPERIMENT_LLM_REASONING_EFFORT',
+  'LLM_SUPPORTED_COMBINATIONS',
+] as const;
+
+/** Nombres de las variables retiradas presentes en `config` (aunque su valor esté vacío); nunca valores. */
+export function retiredLlmVariablesIn(config: Record<string, unknown>): string[] {
+  return RETIRED_LLM_VARIABLES.filter((name) => config[name] !== undefined);
+}
+
+const ECHO_MAX_CODE_POINTS = 40;
+const SANDBOX_POLL_RETRIES_MAX = 10;
+const SANDBOX_POLL_RETRY_DELAY_MS_MIN = 1;
+const SANDBOX_POLL_RETRY_DELAY_MS_MAX = MAX_POLL_AFTER_MS;
+const SANDBOX_MAX_POLL_ATTEMPTS_MIN = 1;
+const SANDBOX_MAX_POLL_ATTEMPTS_MAX = 600;
+const SANDBOX_REQUEST_TIMEOUT_MS_MIN = 100;
+const SANDBOX_REQUEST_TIMEOUT_MS_MAX = 60_000;
+
+/**
+ * Eco seguro de un valor de entorno en un mensaje de error (WI-CORE-078). Recorta primero a 40 puntos
+ * de código (nunca corta un escape a la mitad) y escapa después: JSON.stringify (comillas, barras,
+ * controles C0 y sustitutos sueltos) más U+007F–U+009F, U+2028 y U+2029, que no deben partir una línea
+ * de log. Devuelve el literal ya con comillas. Para valores normales el resultado es `"valor"`.
+ */
+export function echoEnvValue(text: string): string {
+  const head = Array.from(text).slice(0, ECHO_MAX_CODE_POINTS).join('');
+  return JSON.stringify(head).replace(
+    /[\u007f-\u009f\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+}
+
+/**
+ * SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS (WI-CORE-078): mismo patrón que las POLL.
+ * Ausente = default; vacía o solo espacios = error; solo enteros decimales dentro de rango.
+ * Escribe el número normalizado en `validated`. Los topes evitan valores absurdos o desbordes;
+ * no acotan por sí solos el tiempo máximo de un intento (cota B de WI-CORE-071).
+ */
+function validateSandboxLimitSettings(config: Record<string, unknown>, validated: EnvironmentVariables): void {
+  validated.SANDBOX_MAX_POLL_ATTEMPTS = parseBoundedInteger(config, 'SANDBOX_MAX_POLL_ATTEMPTS', {
+    defaultValue: DEFAULT_MAX_POLL_ATTEMPTS,
+    min: SANDBOX_MAX_POLL_ATTEMPTS_MIN,
+    max: SANDBOX_MAX_POLL_ATTEMPTS_MAX,
+    rangeLabel: `entre ${SANDBOX_MAX_POLL_ATTEMPTS_MIN} y ${SANDBOX_MAX_POLL_ATTEMPTS_MAX}`,
+    defaultLabel: String(DEFAULT_MAX_POLL_ATTEMPTS),
+  });
+  validated.SANDBOX_REQUEST_TIMEOUT_MS = parseBoundedInteger(config, 'SANDBOX_REQUEST_TIMEOUT_MS', {
+    defaultValue: DEFAULT_REQUEST_TIMEOUT_MS,
+    min: SANDBOX_REQUEST_TIMEOUT_MS_MIN,
+    max: SANDBOX_REQUEST_TIMEOUT_MS_MAX,
+    rangeLabel: `entre ${SANDBOX_REQUEST_TIMEOUT_MS_MIN} y ${SANDBOX_REQUEST_TIMEOUT_MS_MAX} (ms)`,
+    defaultLabel: String(DEFAULT_REQUEST_TIMEOUT_MS),
+  });
+}
+
+/**
+ * SANDBOX_POLL_RETRIES y SANDBOX_POLL_RETRY_DELAY_MS (WI-CORE-077). Se validan sobre el texto crudo:
+ * ausente = default; vacía o solo espacios = error; solo enteros decimales (sin signo, decimal ni
+ * notación) dentro de rango. Escribe el número normalizado en `validated`.
+ */
+function validateSandboxPollSettings(config: Record<string, unknown>, validated: EnvironmentVariables): void {
+  validated.SANDBOX_POLL_RETRIES = parseBoundedInteger(config, 'SANDBOX_POLL_RETRIES', {
+    defaultValue: DEFAULT_POLL_RETRIES,
+    min: 0,
+    max: SANDBOX_POLL_RETRIES_MAX,
+    rangeLabel: `entre 0 y ${SANDBOX_POLL_RETRIES_MAX}`,
+    defaultLabel: String(DEFAULT_POLL_RETRIES),
+  });
+  validated.SANDBOX_POLL_RETRY_DELAY_MS = parseBoundedInteger(config, 'SANDBOX_POLL_RETRY_DELAY_MS', {
+    defaultValue: DEFAULT_POLL_RETRY_DELAY_MS,
+    min: SANDBOX_POLL_RETRY_DELAY_MS_MIN,
+    max: SANDBOX_POLL_RETRY_DELAY_MS_MAX,
+    rangeLabel: `entre ${SANDBOX_POLL_RETRY_DELAY_MS_MIN} y ${SANDBOX_POLL_RETRY_DELAY_MS_MAX} (ms)`,
+    defaultLabel: String(DEFAULT_POLL_RETRY_DELAY_MS),
+  });
+}
+
+function parseBoundedInteger(
+  config: Record<string, unknown>,
+  name: string,
+  options: { defaultValue: number; min: number; max: number; rangeLabel: string; defaultLabel: string },
+): number {
+  const raw = config[name];
+  if (raw === undefined) {
+    return options.defaultValue;
+  }
+  const text = String(raw).trim();
+  if (text === '') {
+    throw new Error(
+      `Configuración de entorno inválida: ${name} no puede estar vacío; si no la define se usa el valor por defecto ${options.defaultLabel}.`,
+    );
+  }
+  const value = Number(text);
+  if (!/^\d+$/.test(text) || !Number.isSafeInteger(value) || value < options.min || value > options.max) {
+    throw new Error(
+      `Configuración de entorno inválida: ${name}=${echoEnvValue(text)} no es válido; debe ser un entero ${options.rangeLabel}.`,
+    );
+  }
+  return value;
+}
+
+/** LLM_REASONING_EFFORT: obligatorio y dentro de la escala (WI-CORE-076). Normaliza el valor recortado. */
+function validateLlmSettings(validated: EnvironmentVariables): void {
+  // LLM_MODEL: si no está definida vale el valor por defecto; si está definida pero vacía o solo con espacios, falla
+  // (ConfigService.get no aplica el default a cadenas vacías, y se enviaría `model: ""` a la API).
+  if (validated.LLM_MODEL === undefined) {
+    validated.LLM_MODEL = DEFAULT_LLM_MODEL;
+  } else {
+    const model = validated.LLM_MODEL.trim();
+    if (model === '') {
+      throw new Error(
+        `Configuración de entorno inválida: LLM_MODEL no puede estar vacío; si no lo define se usa el valor por defecto ${DEFAULT_LLM_MODEL}.`,
+      );
+    }
+    // El valor validado (sin espacios) es el que lee el adaptador.
+    validated.LLM_MODEL = model;
+  }
+
+  const effort = (validated.LLM_REASONING_EFFORT ?? '').trim();
+  const validValues = REASONING_EFFORT_SCALE.join(', ');
+  if (effort === '') {
+    throw new Error(
+      `Configuración de entorno inválida: LLM_REASONING_EFFORT es obligatorio y no tiene valor por defecto. Defínalo con uno de: ${validValues} (low en pruebas, medium en evidencia oficial).`,
+    );
+  }
+  if (!REASONING_EFFORT_SCALE.includes(effort)) {
+    throw new Error(
+      `Configuración de entorno inválida: LLM_REASONING_EFFORT=${echoEnvValue(effort)} no es un esfuerzo válido; valores válidos: ${validValues}.`,
+    );
+  }
+  // El valor validado (sin espacios) es el que lee el adaptador.
+  validated.LLM_REASONING_EFFORT = effort;
+}
+
+/** Aviso único al arrancar si quedan variables retiradas. No bloquea el arranque y no imprime valores. */
+function warnRetiredLlmVariables(config: Record<string, unknown>): void {
+  const retired = retiredLlmVariablesIn(config);
+  if (retired.length === 0) {
+    return;
+  }
+  new Logger('EnvValidation').warn(
+    `Variables de LLM retiradas (WI-CORE-076): ${retired.join(', ')} siguen definidas y se IGNORAN. Los experimentos y el flujo normal usan LLM_MODEL y LLM_REASONING_EFFORT. Elimínelas del entorno.`,
+  );
 }
 
 function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
@@ -360,34 +527,6 @@ function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
   const maxOutputTokens = validated.EXPERIMENT_LLM_MAX_OUTPUT_TOKENS;
   if (maxOutputTokens && !/^[1-9]\d*$/.test(maxOutputTokens)) {
     throw new Error('Configuración de entorno inválida: EXPERIMENT_LLM_MAX_OUTPUT_TOKENS debe ser un entero positivo.');
-  }
-
-  const combinations = validated.LLM_SUPPORTED_COMBINATIONS;
-  if (combinations) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(combinations);
-    } catch {
-      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser JSON válido.');
-    }
-    const valid = Array.isArray(parsed) && parsed.every((item) =>
-      typeof item === 'object' && item !== null &&
-      typeof (item as { model?: unknown }).model === 'string' &&
-      Array.isArray((item as { efforts?: unknown }).efforts) &&
-      Array.isArray((item as { toolEfforts?: unknown }).toolEfforts),
-    );
-    if (!valid) {
-      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser [{"model","efforts","toolEfforts"}].');
-    }
-    // Un nivel fuera de la escala (p. ej. un error tipográfico) falla en el arranque, no al crear el experimento.
-    const unknownEfforts = (parsed as Array<{ efforts: unknown[]; toolEfforts: unknown[] }>)
-      .flatMap((item) => [...item.efforts, ...item.toolEfforts])
-      .filter((effort) => typeof effort !== 'string' || !REASONING_EFFORT_SCALE.includes(effort));
-    if (unknownEfforts.length > 0) {
-      throw new Error(
-        `Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS contiene esfuerzos desconocidos (${unknownEfforts.map(String).join(', ')}); valores válidos: ${REASONING_EFFORT_SCALE.join(', ')}.`,
-      );
-    }
   }
 }
 

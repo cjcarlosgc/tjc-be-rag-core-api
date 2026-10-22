@@ -20,27 +20,21 @@ import type {
   LLMToolDefinition,
   LLMToolsResult,
 } from './llm-provider.interface.js';
+import { resolveLlmSettings } from './llm-settings.js';
 import { createOpenAiClient } from './openai-client.factory.js';
-import { REASONING_EFFORT_SCALE } from './reasoning-effort.scale.js';
 import { strictToolSchemaViolations } from './strict-tool-schema.js';
 
-const DEFAULT_EXPERIMENT_MODEL = 'gpt-6-luna';
 /** Códigos de un Response con status `failed` que son fallo externo (WI-CORE-031). */
 const EXTERNAL_RESPONSE_ERROR_CODES = new Set([
   'server_error',
   'rate_limit_exceeded',
 ]);
 
-/** Combinación soportada: `efforts` aplica a generate, `toolEfforts` a generateWithTools. */
-export interface LLMSupportedCombination {
-  model: string;
-  efforts: string[];
-  toolEfforts: string[];
-}
-
 /**
  * Adaptador OpenAI del LLMProvider. Todas las llamadas usan `/v1/responses` sin estado
  * (`store: false`) y devuelven los ítems de salida del turno para reenviarlos (WI-CORE-031).
+ * Modelo y esfuerzo son únicos para el flujo normal y los experimentos (WI-CORE-076): salen de
+ * `LLM_MODEL` y `LLM_REASONING_EFFORT`, sin lista de combinaciones.
  */
 @Injectable()
 export class OpenAiLLMProvider implements LLMProvider {
@@ -58,20 +52,16 @@ export class OpenAiLLMProvider implements LLMProvider {
 
     let temperature: number | null = null;
     if (config) {
-      this.assertSupported(config.model, config.reasoningEffort, 'efforts');
       this.assertTemperatureCompatible(
         config.model,
         config.temperature,
         config.reasoningEffort,
-        this.supportedEfforts(config.model, 'efforts'),
       );
       model = config.model;
       reasoningEffort = config.reasoningEffort;
       temperature = config.temperature;
     } else {
-      model = this.configService.get<string>('LLM_MODEL', 'gpt-4o-mini');
-      reasoningEffort =
-        this.configService.get<string>('LLM_REASONING_EFFORT') || null;
+      ({ model, reasoningEffort } = resolveLlmSettings(this.configService));
     }
 
     const params: ResponseCreateParamsNonStreaming = {
@@ -85,7 +75,7 @@ export class OpenAiLLMProvider implements LLMProvider {
         : {}),
     };
 
-    const response = await this.createResponse(params, model);
+    const response = await this.createResponse(params, { model, reasoningEffort });
 
     return {
       content: outputText(response.output),
@@ -100,12 +90,10 @@ export class OpenAiLLMProvider implements LLMProvider {
     tools: LLMToolDefinition[],
     config: LLMEffectiveConfig,
   ): Promise<LLMToolsResult> {
-    this.assertSupported(config.model, config.reasoningEffort, 'toolEfforts');
     this.assertTemperatureCompatible(
       config.model,
       config.temperature,
       config.reasoningEffort,
-      this.supportedEfforts(config.model, 'toolEfforts'),
     );
 
     const params: ResponseCreateParamsNonStreaming = {
@@ -122,7 +110,10 @@ export class OpenAiLLMProvider implements LLMProvider {
         : {}),
     };
 
-    const response = await this.createResponse(params, config.model);
+    const response = await this.createResponse(params, {
+      model: config.model,
+      reasoningEffort: config.reasoningEffort,
+    });
     const output = response.output ?? [];
     const content = outputText(output);
     const toolCalls: LLMToolCall[] = output.flatMap((item) =>
@@ -145,47 +136,17 @@ export class OpenAiLLMProvider implements LLMProvider {
     };
   }
 
+  /**
+   * Configuración de un experimento nuevo (WI-CORE-076): modelo y esfuerzo de `resolveLlmSettings`.
+   * La API decide si acepta el esfuerzo: si lo rechaza, la repetición falla en la llamada.
+   */
   async resolveEffectiveConfig(): Promise<LLMEffectiveConfig> {
-    const model = this.configService.get<string>(
-      'EXPERIMENT_LLM_MODEL',
-      DEFAULT_EXPERIMENT_MODEL,
-    );
-    const combination = this.findCombination(model);
-    const common = combination
-      ? combination.efforts.filter((effort) =>
-          combination.toolEfforts.includes(effort),
-        )
-      : [];
-    const requested =
-      this.configService.get<string>('EXPERIMENT_LLM_REASONING_EFFORT') || null;
-
-    let reasoningEffort: string | null;
-    if (requested) {
-      if (!common.includes(requested)) {
-        throw new LLMConfigurationError({
-          code: 'REASONING_EFFORT_UNSUPPORTED',
-          model,
-          requestedEffort: requested,
-          supportedEfforts: common,
-        });
-      }
-      reasoningEffort = requested;
-    } else {
-      reasoningEffort = highestEffort(common);
-      if (reasoningEffort === null) {
-        throw new LLMConfigurationError({
-          code: 'REASONING_EFFORT_UNSUPPORTED',
-          model,
-          requestedEffort: null,
-          supportedEfforts: common,
-        });
-      }
-    }
+    const { model, reasoningEffort } = resolveLlmSettings(this.configService);
 
     const temperature = optionalNumber(
       this.configService.get<string>('EXPERIMENT_LLM_TEMPERATURE'),
     );
-    this.assertTemperatureCompatible(model, temperature, reasoningEffort, common);
+    this.assertTemperatureCompatible(model, temperature, reasoningEffort);
 
     const modelVersion = await this.confirmModel(model);
 
@@ -202,45 +163,15 @@ export class OpenAiLLMProvider implements LLMProvider {
     };
   }
 
-  private assertSupported(
-    model: string,
-    requested: string | null,
-    kind: 'efforts' | 'toolEfforts',
-  ): void {
-    const combination = this.findCombination(model);
-    const supported = this.supportedEfforts(model, kind);
-
-    if (
-      !combination ||
-      (requested !== null && !supported.includes(requested))
-    ) {
-      throw new LLMConfigurationError({
-        code: 'REASONING_EFFORT_UNSUPPORTED',
-        model,
-        requestedEffort: requested,
-        supportedEfforts: supported,
-      });
-    }
-  }
-
-  /** Esfuerzos soportados por un modo; vacío si el modelo no tiene combinación. */
-  private supportedEfforts(
-    model: string,
-    kind: 'efforts' | 'toolEfforts',
-  ): string[] {
-    return this.findCombination(model)?.[kind] ?? [];
-  }
-
   /**
    * Con razonamiento activo el modelo rechaza `temperature` (400, R2 de WI-CORE-031). Si la
-   * configuración la pidió, falla de forma explícita: nunca la omite en silencio. `supported` son
-   * los esfuerzos del modo; en el error se informan solo los compatibles con temperatura.
+   * configuración la pidió, falla de forma explícita: nunca la omite en silencio. Con razonamiento
+   * activo el único esfuerzo compatible con temperatura es `none`.
    */
   private assertTemperatureCompatible(
     model: string,
     temperature: number | null,
     effort: string | null,
-    supported: string[],
   ): void {
     if (temperature === null || !hasActiveReasoning(effort)) {
       return;
@@ -250,25 +181,11 @@ export class OpenAiLLMProvider implements LLMProvider {
         code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
         model,
         requestedEffort: effort,
-        supportedEfforts: supported.filter((level) => !hasActiveReasoning(level)),
+        supportedEfforts: ['none'],
         temperature,
       },
       `La temperatura ${temperature} no es compatible con razonamiento activo (esfuerzo "${effort}") del modelo "${model}"; use esfuerzo "none" o quite la temperatura.`,
     );
-  }
-
-  private findCombination(model: string): LLMSupportedCombination | undefined {
-    return this.supportedCombinations().find(
-      (combination) => combination.model === model,
-    );
-  }
-
-  private supportedCombinations(): LLMSupportedCombination[] {
-    const raw = this.configService.get<string>('LLM_SUPPORTED_COMBINATIONS');
-    if (!raw) {
-      return [];
-    }
-    return JSON.parse(raw) as LLMSupportedCombination[];
   }
 
   private async confirmModel(model: string): Promise<string> {
@@ -290,21 +207,26 @@ export class OpenAiLLMProvider implements LLMProvider {
 
   /**
    * Llama a `responses.create` y clasifica el resultado. Un fallo de transporte o HTTP
-   * se clasifica por `isExternalProviderFailure`. Una respuesta HTTP 200 con
-   * `status: 'failed'` es externa solo si su código es de servidor o límite de tasa;
-   * `incomplete` (p. ej. `max_output_tokens` agotado) nunca es externa ni devuelve contenido.
+   * se clasifica por `isExternalProviderFailure`: un 400 por esfuerzo no admitido no es externo
+   * y no se reintenta. Una respuesta HTTP 200 con `status: 'failed'` es externa solo si su código
+   * es de servidor o límite de tasa; `incomplete` (p. ej. `max_output_tokens` agotado) nunca es
+   * externa ni devuelve contenido. Los logs de error incluyen modelo y esfuerzo (WI-CORE-076).
    */
   private async createResponse(
     params: ResponseCreateParamsNonStreaming,
-    model: string,
+    target: { model: string; reasoningEffort: string | null },
   ): Promise<OpenAiResponse> {
+    const { model } = target;
+    const effort = target.reasoningEffort ?? 'ninguno';
     let response: OpenAiResponse;
     try {
       response = await this.getClient().responses.create(params);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Error desconocido.';
-      this.logger.warn(`Fallo al generar con el modelo "${model}": ${message}`);
+      this.logger.warn(
+        `Fallo al generar con el modelo "${model}" y esfuerzo "${effort}": ${message}`,
+      );
 
       throw new LLMProviderUnavailableError(
         message,
@@ -318,7 +240,7 @@ export class OpenAiLLMProvider implements LLMProvider {
         response.error?.message ??
         'El proveedor devolvió una respuesta fallida.';
       this.logger.warn(
-        `Respuesta fallida del modelo "${model}": ${code ?? 'sin código'}`,
+        `Respuesta fallida del modelo "${model}" y esfuerzo "${effort}": ${code ?? 'sin código'}`,
       );
 
       throw new LLMProviderUnavailableError(
@@ -391,19 +313,6 @@ function temperatureParam(
   return temperature !== null && !hasActiveReasoning(effort)
     ? { temperature }
     : {};
-}
-
-function highestEffort(efforts: string[]): string | null {
-  let best: string | null = null;
-  let bestRank = -1;
-  for (const effort of efforts) {
-    const rank = REASONING_EFFORT_SCALE.indexOf(effort);
-    if (rank > bestRank) {
-      best = effort;
-      bestRank = rank;
-    }
-  }
-  return best;
 }
 
 function optionalNumber(raw: string | undefined): number | null {

@@ -29,7 +29,25 @@ ESC-MOD-01 evalúa solo `LLMProvider`; no incluye embeddings. RAG y `GENERALIST_
 
 ## WI-CORE-031 — llamadas del proveedor LLM por `/v1/responses` (aprobado 2026-10-09)
 
-Todas las llamadas del adaptador OpenAI (experimentos y producto) usan `/v1/responses`, sin estado (`store=false`, sin `previous_response_id`) y devolviendo los ítems de razonamiento cifrados en cada turno. El parámetro `reasoning` se omite en modelos sin razonamiento y el esfuerzo no soportado sigue fallando con `REASONING_EFFORT_UNSUPPORTED`, sin degradar en silencio. El endpoint efectivo es interno (`modelConfig`); no cambia el contrato. Detalle en `plan.md`.
+Todas las llamadas del adaptador OpenAI (experimentos y producto) usan `/v1/responses`, sin estado (`store=false`, sin `previous_response_id`) y devolviendo los ítems de razonamiento cifrados en cada turno. El parámetro `reasoning` se omite en modelos sin razonamiento y un esfuerzo que la API no admite falla en la llamada con error explícito (WI-CORE-076, véase abajo). El endpoint efectivo es interno (`modelConfig`); no cambia el contrato. Detalle en `plan.md`.
+
+## WI-CORE-076 — configuración única del LLM (DEC-EXP-005, aprobado 2026-10-21)
+
+- El flujo de producto y los experimentos usan una única configuración: `LLM_MODEL` (por defecto `gpt-6-luna`) y `LLM_REASONING_EFFORT`. Los dos brazos de un experimento usan el mismo modelo y el mismo esfuerzo, que se persisten en `modelConfig` de cada corrida.
+- `LLM_REASONING_EFFORT` es obligatorio y no tiene valor por defecto en el código. El arranque falla si falta, está vacío o no pertenece a `none`, `minimal`, `low`, `medium`, `high`, `xhigh` o `max`. Cada entorno lo fija: `low` en pruebas y `medium` en evidencia oficial.
+- No hay lista de combinaciones modelo/esfuerzo. Un esfuerzo que la API rechace falla en la llamada con error explícito; no se degrada ni se sustituye por otro valor.
+- `422 REASONING_EFFORT_UNSUPPORTED` al crear un experimento solo ocurre por temperatura incompatible con razonamiento activo.
+- Las variables `EXPERIMENT_LLM_MODEL`, `EXPERIMENT_LLM_REASONING_EFFORT` y `LLM_SUPPORTED_COMBINATIONS` quedan retiradas: si siguen definidas se ignoran y el arranque registra un aviso con sus nombres (nunca sus valores), sin bloquear.
+- Se conservan `EXPERIMENT_LLM_TEMPERATURE`, `EXPERIMENT_LLM_MAX_OUTPUT_TOKENS` y `EXPERIMENT_HEARTBEAT_STALE_MS`.
+- Sin cambio de rutas, DTO, enums ni códigos de error. Detalle en `plan.md`.
+
+## WI-CORE-075 — esfuerzo de prueba y esfuerzo de evidencia (solo documentación, aprobado 2026-10-21)
+
+- **Un solo modelo, dos usos por esfuerzo.** El modelo es `gpt-6-luna` (`LLM_MODEL`). El esfuerzo lo fija el entorno con `LLM_REASONING_EFFORT`: **`low` para pruebas económicas** (verificar el flujo, depurar, corridas funcionales de bajo costo) y **`medium` para evidencia oficial** (piloto, confirmatorio OE5 y OE2), congelado por protocolo (tesis 3.3 y Anexo K, citados solo por referencia).
+- **No se mezclan.** Una corrida de evidencia usa una única configuración (modelo y esfuerzo) congelada durante todo el protocolo. Cambiar `LLM_REASONING_EFFORT` en el entorno entre corridas produce otra configuración: la que identifica una corrida es la que su `ExperimentRun` guardó en `modelConfig` (`model` y `reasoningEffort`), no el valor actual del entorno.
+- **Sin salvaguarda automática.** No hay marca de «evidencia» en el `ExperimentRun`, ni aviso, ni bloqueo por esfuerzo: la disciplina es del protocolo y del operador. Antes de crear un experimento de evidencia se verifica que el entorno tenga `LLM_REASONING_EFFORT=medium`, y después se comprueba que el esfuerzo del Run resultante sea `medium`: el campo `model.reasoningEffort` de la respuesta de estado del experimento (`GET /experiments/{id}`), que expone el `modelConfig` persistido. Tras cambiar el esfuerzo conviene una corrida corta, porque un esfuerzo que la API rechace no impide crear el experimento y sus repeticiones fallan como `UNKNOWN`.
+- **Descartado.** `gpt-5.4-nano` queda descartado. Los experimentos `07b20829` y `924e38ab` (2026-10-13) se ejecutaron con esa combinación (`gpt-5.4-nano`, esfuerzo `none`) y quedan solo como antecedente histórico: no son comparables con corridas `gpt-6-luna` y no sustituyen la evidencia oficial.
+- Sin cambio de código, rutas, DTO, enums ni códigos de error.
 
 ## Fuera de alcance
 

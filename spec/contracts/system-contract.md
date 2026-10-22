@@ -1,11 +1,11 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.12
-**Fecha de corte:** 2026-10-12
+**Versión del contrato:** SYSTEM-2.14
+**Fecha de corte:** 2026-10-21
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
-Core y Console establecen la frontera de un cuarto componente durante `planningBaseline: 2026-09-24-core-console-transition`. Sandbox conserva por ahora la copia operativa SYSTEM-2.2, correspondiente a su línea SDD 2.1, sin editarla ni homologarla en este corte. `GH-INTEROP-1.7` extiende el contrato de extracción: Core y GitHub Integration sirven al pipeline; Console accede directamente a GitHub Integration para capacidades de GitHub propias de su interfaz, con autorización síncrona de Core; la publicación de Checks queda limitada a una única instancia activa de GitHub Integration y un mutex efímero en proceso, sin una base adicional de coordinación. Tras reiniciar el proceso, la coordinación volátil se pierde y el contrato acepta el riesgo residual de duplicado cuando el resultado remoto de una creación anterior no sea visible en la búsqueda. El rechazo terminal confirmado de creación conserva la reconciliación completa sin candidatos. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consumió en `WI-CORE-011`; Console sincronizó y validó el corte previo en `WI-CONSOLE-008`. Los cierres son locales: la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
+Core y Console establecen la frontera de un cuarto componente durante `planningBaseline: 2026-09-24-core-console-transition`. Desde SDD 3.1 los cuatro repositorios (Core, GitHub Integration, Console y Sandbox) mantienen copias espejo byte por byte de este contrato; Sandbox migró de SYSTEM-2.2 a esta versión en la homologación del 2026-10-18. `GH-INTEROP-1.7` extiende el contrato de extracción: Core y GitHub Integration sirven al pipeline; Console accede directamente a GitHub Integration para capacidades de GitHub propias de su interfaz, con autorización síncrona de Core; la publicación de Checks queda limitada a una única instancia activa de GitHub Integration y un mutex efímero en proceso, sin una base adicional de coordinación. Tras reiniciar el proceso, la coordinación volátil se pierde y el contrato acepta el riesgo residual de duplicado cuando el resultado remoto de una creación anterior no sea visible en la búsqueda. El rechazo terminal confirmado de creación conserva la reconciliación completa sin candidatos. La extensión de fecha original del PR se publicó en `WI-CORE-014`, se implementó en `WI-GH-007` y Core la consumió en `WI-CORE-011`; Console sincronizó y validó el corte previo en `WI-CONSOLE-008`. Los cierres son locales: la configuración externa, el despliegue coordinado y el cutover siguen pendientes de autorización.
 
 ## Arquitectura operativa vigente y transición aprobada
 
@@ -281,10 +281,10 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 **Resolución:** `DEC-INF-002` sustituye de forma explícita solo dos puntos del párrafo «Red» de `DEC-INF-001`: (i) el ingreso al servicio del Sandbox únicamente por IAP al puerto efectivo del servicio (`DEC-INF-001` dice 3000; el puerto efectivo as-built es 3001), que pasa a ser respaldo y vía de reversión; y (ii) la obligación de limitar las exposiciones HTTP/HTTPS `0.0.0.0/0`, solo para TCP 80 y 443 hacia el proxy TLS. Core llega al servicio por HTTPS con TLS y `Authorization: Bearer` (`DEC-AUTH-001`, sin cambios). Siguen vigentes: SSH/administración solo por IAP con OS Login y 2FA, no publicar el puerto del servicio (3001/3000) en `0.0.0.0/0`, limitar las demás reglas públicas existentes (SSH, RDP, ICMP; su estado actual no fue verificado por Cross) y el resto de `DEC-INF-001`. Los 80/443 públicos no habilitan código empresarial: `DEC-VAL-001` permanece `PENDING`.
 
 **As-built (verificado por Cross):**
-- Proxy TLS Caddy v2.11.7 en la VM `rag-test-execution-sandbox`, con el hostname gratuito `136-115-2-208.sslip.io` sobre la IP estática reservada `rag-sandbox-ip` (136.115.2.208), certificado público Let's Encrypt, `reverse_proxy` a `127.0.0.1:3001` y `request_body` máximo de 5 MB.
+- Proxy TLS Caddy v2.11.7 en la VM `rag-test-execution-sandbox`, con el hostname gratuito `<SANDBOX_HOST>.sslip.io` sobre la IP estática reservada `rag-sandbox-ip` (<SANDBOX_IP>), certificado público Let's Encrypt, `reverse_proxy` a `127.0.0.1:3001` y `request_body` máximo de 5 MB.
 - Firewall `rag-sandbox-https-allow` (prioridad 899): tcp:80 y tcp:443 desde `0.0.0.0/0`, sin filtro por IP de Render; 3001 y 22 siguen solo por IAP (`rag-sandbox-iap-allow` y `rag-sandbox-iap-deny`, prioridades 900 y 901).
 - Control de acceso: TLS más bearer `SANDBOX_SERVICE_TOKEN` de 64 hex (401 sin bearer, verificado por Cross).
-- Core en Render usa `SANDBOX_URL=https://136-115-2-208.sslip.io`. E2E de producción verificado por Cross: PR #3 de `tjc-piloto-ventas` → Check `success` con 1 propuesta (Render → VM por HTTPS).
+- Core en Render usa `SANDBOX_URL=https://<SANDBOX_HOST>.sslip.io`. E2E de producción verificado por Cross: PR #3 de `tjc-piloto-ventas` → Check `success` con 1 propuesta (Render → VM por HTTPS).
 
 **Superficie de riesgo (sin suavizar):** el firewall abre TCP 80 y 443 a todo Internet y no hay filtro por IP de Render (según Cross, las IP de salida de Render son rangos compartidos de poco valor como control; Core no lo verificó). Cualquier host de Internet alcanza el proxy; solo el bearer y, cuando se implemente, el rate limit frenan el abuso. El Sandbox ejecuta código de terceros. El token viaja por Internet bajo TLS. `/health/live` y `/health/ready` no llevan bearer y no deben quedar expuestos por el proxy; el proxy no debe registrar `Authorization`. El hostname sslip.io y la renovación de Let's Encrypt dependen de terceros. La latencia adicional puede acercar ejecuciones al timeout y producir fallo de plataforma (`DEC-VAL-002`).
 
@@ -460,6 +460,24 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 
 **Resolución:** la configuración actual del proyecto para el flujo de producto no cambia por esta decisión. Los experimentos RAG vs `GENERALIST_AGENT` usan el modelo `gpt-6-luna` mediante la API de OpenAI en ambos brazos, con `reasoning_effort` en el valor máximo que soporten el modelo y el runtime. Ambos brazos usan exactamente el mismo modelo y el mismo esfuerzo y los dos valores efectivos se registran en la evidencia experimental. El experimento no degrada en silencio el modelo ni el esfuerzo: si la configuración pedida no es compatible con alguno de los brazos (por ejemplo, el modelo no admite herramientas con ese esfuerzo), la creación falla con `422 REASONING_EFFORT_UNSUPPORTED` y la corrección es una decisión de configuración que toma una persona antes de reintentar. El identificador del modelo y el esfuerzo máximo soportado se confirman en tiempo de ejecución contra la API; un modelo no disponible impide crear el experimento.
 
+**Enmienda:** `DEC-EXP-005` (2026-10-21) sustituye en esta decisión la configuración del flujo de producto, el criterio de esfuerzo máximo y el `422 REASONING_EFFORT_UNSUPPORTED` por esfuerzo no admitido. El resto (mismo modelo y esfuerzo en ambos brazos, confirmación del modelo contra la API al crear) se conserva.
+
+### DEC-EXP-005 — Enmienda de DEC-EXP-004: configuración única del LLM
+
+**Estado:** APROBADO (2026-10-21, por el usuario, en el chat de Core, junto con la aprobación de alcance de `WI-CORE-076`). Enmienda `DEC-EXP-004`.
+
+**Blocks:** NONE
+
+**Resolución:**
+1. El flujo de producto y los experimentos usan una única configuración del LLM: `LLM_MODEL` (por defecto `gpt-6-luna`) y `LLM_REASONING_EFFORT`. El flujo de producto pasa de `gpt-4o-mini` a `gpt-6-luna`; es un cambio de modelo y de costo declarado.
+2. `LLM_REASONING_EFFORT` es obligatorio y no tiene valor por defecto en el código. Lo fija cada entorno (`low` en pruebas, `medium` en evidencia oficial). El arranque falla si falta, está vacío o no pertenece a `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+3. No hay lista de combinaciones modelo/esfuerzo. Si la API rechaza el esfuerzo, la llamada falla con error explícito: la repetición del experimento queda como fallo (`failureType` `UNKNOWN`, sin reintento) y el detalle de la API queda en el log del servidor con modelo y esfuerzo.
+4. `422 REASONING_EFFORT_UNSUPPORTED` al crear un experimento sale solo cuando la temperatura configurada es incompatible con razonamiento activo; en ese caso `details.supportedEfforts` es `['none']`.
+5. Ambos brazos usan exactamente el mismo modelo y el mismo esfuerzo, registrados en `modelConfig` de cada corrida. El modelo se confirma contra la API al crear el experimento; un modelo no disponible impide crearlo (`503 LLM_PROVIDER_UNAVAILABLE`).
+6. Las variables `EXPERIMENT_LLM_MODEL`, `EXPERIMENT_LLM_REASONING_EFFORT` y `LLM_SUPPORTED_COMBINATIONS` quedan retiradas. Si siguen definidas, se ignoran y el arranque emite un aviso con sus nombres, sin valores y sin bloquear.
+
+Sin cambio de rutas, DTO, enums ni códigos de error.
+
 ### DEC-ORG-003 — Rol Writer
 
 **Estado:** APROBADO (2026-10-08, por el usuario)
@@ -467,6 +485,10 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 **Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable. Las menciones de roles de `DEC-ORG-001` y `DEC-ORG-002` y de los planes de cortes ya implementados describen la historia; donde difieran, prevalece esta decisión.
 
 ## Regla de compatibilidad
+
+`SYSTEM-2.14` (2026-10-21, `WI-CORE-076`) incorpora `DEC-EXP-005`, que enmienda `DEC-EXP-004`: configuración única del LLM (`LLM_MODEL` y `LLM_REASONING_EFFORT` obligatorio para el flujo normal y los experimentos), sin lista de combinaciones y con el error de un esfuerzo no admitido en la llamada. Es documental: sin cambio de rutas, DTO, enums ni códigos de error. Los espejos de este contrato en GitHub Integration, Console y Sandbox siguen en SYSTEM-2.13 hasta su homologación por Contract Sync. `INTEROP-2.19` es la versión compatible.
+
+`SYSTEM-2.13` (2026-10-18, editorial, homologación SDD 3.1): no cambia ninguna decisión ni comportamiento. Redacta el hostname `sslip.io` y la IP pública de la VM del Sandbox, que dejan de figurar en el contrato (el operador los conserva fuera del repositorio), y declara que Sandbox espeja este contrato desde esta versión. `INTEROP-2.17` es la versión compatible.
 
 `SYSTEM-2.12` (2026-10-12, `WI-CORE-049`) aprueba `DEC-INF-002` as-built (servicio del Sandbox por HTTPS con TLS y bearer detrás de un proxy en la VM; el túnel IAP queda como respaldo) y sustituye solo los puntos (i) y (ii) del párrafo «Red» de `DEC-INF-001`; reemplaza el estado PROPOSED de `SYSTEM-2.11`. Sandbox conserva SYSTEM-2.2 y debe ratificar el rate limit y la rotación; `INTEROP-2.12` es la versión compatible. `SYSTEM-2.11` (2026-10-12, `WI-CORE-049`) registró `DEC-INF-002` como PROPOSED y corrigió el estado editorial de `DEC-VAL-002` (implementada en `WI-CORE-048`).
 

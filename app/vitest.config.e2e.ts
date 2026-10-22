@@ -13,5 +13,10 @@ export default defineConfig({
     // reclame jobs encolados por otro, cuyo storage en memoria (fake) es
     // distinto -> "Objeto no encontrado". Se fuerza ejecución secuencial.
     fileParallelism: false,
+    // Los e2e arrancan AppModule y validateEnv exige LLM_REASONING_EFFORT (WI-CORE-076). Valor de pruebas
+    // fijo (low), sin depender de app/.env; no se fija LLM_MODEL: el default del código es gpt-6-luna.
+    env: {
+      LLM_REASONING_EFFORT: 'low',
+    },
   },
 });
