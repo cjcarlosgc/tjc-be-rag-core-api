@@ -20854,9 +20854,9 @@
     "id": "WI-CORE-080",
     "component": "CORE",
     "workItemType": "HARNESS",
-    "status": "W-SELECTED",
+    "status": "W-IN_REVIEW",
     "title": "Inventario de cobertura de contratos C-01..C-10 (tesis Anexo E) para el tag arch-v1.0: solo lectura",
-    "approved": false,
+    "approved": true,
     "storyIds": [
       "HU15",
       "HU17"
@@ -20868,12 +20868,30 @@
     "sprint": "P2",
     "specPaths": [
       "harness/reports/wi-core-080-scope.md",
-      "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      "spec/features/017-cross-repository-dependency-gates/tasks.md",
+      "harness/reports/arch-v1.0-inventario-contratos-core.md",
+      "harness/reports/wi-core-080-technical-checks.md",
+      "harness/reports/wi-core-080-contract-sync-scope-review.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
     "deferredSyncDigests": {},
-    "contractSyncReview": [],
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-080 es un inventario de solo lectura sin cambio de contrato.",
+        "report": "harness/reports/wi-core-080-contract-sync-scope-review.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-080 no cambia auth ni despliegue.",
+        "report": "harness/reports/wi-core-080-contract-sync-scope-review.md"
+      }
+    ],
     "decisionGate": {
       "checked": true,
       "blockingDecisionIds": [],
@@ -20883,23 +20901,45 @@
     },
     "execution": {
       "leaderAgent": "leader",
-      "analysisAgent": null,
-      "implementationAgent": null,
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "sdd-analyst",
       "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [],
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "Inventario C-01..C-10: cubiertos con contrato real C-06 y C-07; parciales C-01..C-05, C-08..C-10; la tesis no define que comprueba cada CT; brechas principales C-08, C-09, C-01, C-10, C-03/C-05."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/arch-v1.0-inventario-contratos-core.md"
+          ],
+          "evidence": [
+            "harness/reports/arch-v1.0-inventario-contratos-core.md"
+          ],
+          "recommendedNextStep": "Revision independiente de exactitud.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
       "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-NOT_RUN",
+      "implementationCompleted": "G-PASSED",
       "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
       "contractReviewed": "G-NOT_APPLICABLE",
       "canonicalContractSynced": "G-NOT_APPLICABLE",
       "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
+      "interopSyncChecked": "G-PASSED",
       "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
@@ -20919,6 +20959,32 @@
           "deferredSyncIds": [],
           "notRelevantSyncIds": [],
           "checkedAt": "2026-10-22T04:36:00.559Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-080",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-22T04:38:06.595Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-080",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-22T04:38:06.702Z"
         }
       ],
       "publishedSyncIds": [],
@@ -20930,10 +20996,21 @@
       ],
       "noBlockingDecisions": [
         "harness/reports/wi-core-080-scope.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-080-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-080-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-080-contract-sync-scope-review.md"
       ]
     },
     "evidence": [
-      "harness/reports/wi-core-080-scope.md"
+      "harness/reports/wi-core-080-scope.md",
+      "harness/reports/arch-v1.0-inventario-contratos-core.md",
+      "harness/reports/wi-core-080-technical-checks.md"
     ],
     "blockedReason": null
   }
