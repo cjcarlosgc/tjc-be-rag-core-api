@@ -92,4 +92,4 @@ jobs:
           cache-dependency-path: app/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma migrate deploy
-      - run: pnpm exec vitest run --reporter=default 'src/**/*.pg.spec.ts'
+      - run: pnpm exec vitest run --reporter=default .pg.spec.ts

@@ -1,0 +1,4 @@
+# WI-CORE-081 — verificaciones técnicas
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Cambio: una línea de `.github/workflows/ci.yml` (filtro de vitest `.pg.spec.ts`). Verificación local (desde `app/`, Node 22.23.3): `pnpm exec vitest list --filesOnly '.pg.spec.ts'` lista los **6** archivos `*.pg.spec.ts` (`context-traces.repository`, `jobs.repository`, `prisma/evidence-persistence-migration`, `analysis-trace.repository`, `evidence.repository`, `retrieval-comparisons.repository`); con el filtro anterior `'src/**/*.pg.spec.ts'` no lista ninguno (causa del `No test files found` del log de CI). No toca `app/`, por lo que lint, build y tests de producto no aplican (último estado verificado: 2646 tests unitarios y 259 e2e). El resultado real del job contra pgvector se verá en el siguiente run de CI, que requiere publicar el commit (pendiente de autorización del usuario). Validadores SDD/harness en verde al cierre.
