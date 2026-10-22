@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261021-004
+source: core
+sourceWorkItem: WI-CORE-076
+targets: [console, github-integration, sandbox]
+scopePaths: [spec/contracts/system-contract.md, spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - SYSTEM-2.14 (system-contract.md sha256 f60d6c4b19e2bfbce232894614667e5898197a8677eb80db284d96b9f2b96ce3) e INTEROP-2.19 (interoperability-contract.md sha256 f9866d16e8c738001d7a9dd664599cd542d857b676d17723fa9c3a25bd2cc6f9), documentales y no incompatibles (WI-CORE-076; DEC-EXP-005 enmienda DEC-EXP-004): configuracion unica del LLM (LLM_MODEL y LLM_REASONING_EFFORT obligatorio) para flujo normal y experimentos con el mismo modelo; el flujo normal pasa a gpt-6-luna; sin lista de combinaciones: un esfuerzo que la API rechace falla en la llamada y la repeticion queda UNKNOWN sin reintento; el 422 REASONING_EFFORT_UNSUPPORTED al crear un experimento solo sale ya por temperatura con razonamiento activo (details.supportedEfforts=['none']). Sin cambio de rutas, DTO, enums, ErrorCode ni esquemas: github-integration-contract.md (GH-INTEROP-1.8, sin cambio) sha256 6c553ee856d0c53420a75d2bde5a9eb04cce2e029ffae1bf4194dcbc7a25565a y el arbol spec/contracts/schemas/ con examples/ sha256 a1ba9a199d0035de85b807fa9ae26b9afb09f8af340a22f1cb34096547dc9091 no cambian (receta: cd spec/contracts/schemas && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256). Los espejos anteriores (SYSTEM-2.13 b70f9358..., INTEROP-2.18 22b880d1...) quedan desfasados: re-espejar byte a byte desde Core.
+requiredAction:
+  - console: re-espejar system-contract.md e interoperability-contract.md (sin cambio de codigo; opcional: el 422 REASONING_EFFORT_UNSUPPORTED ahora solo sale por temperatura y trae supportedEfforts ['none'], que el manejo actual de errors.ts ya tolera); github-integration: re-espejar system-contract.md e interoperability-contract.md byte a byte (sin cambio de codigo ni de GH-INTEROP-1.8; github-integration-contract.md no se recopia); sandbox: re-espejar system-contract.md e interoperability-contract.md (homologacion documental; sin cambio de codigo, esquemas ni Harness local); todos: cruzar los digests y ejecutar sus validadores
+sourceRevision: 3d2383e4b6efc20162b77945261fe08d384094a8
+status: C-PENDING
