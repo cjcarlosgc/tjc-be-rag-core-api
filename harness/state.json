@@ -20433,7 +20433,21 @@
     "coordination": {
       "contractImpact": false,
       "publishesContract": false,
-      "pullCheckpoints": [],
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-077",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-22T01:15:53.499Z"
+        }
+      ],
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },

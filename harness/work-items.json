@@ -4440,7 +4440,7 @@
       "id": "WI-CORE-077",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-SELECTED",
       "priority": "P2",
       "sprint": "P2",
       "title": "Validar SANDBOX_POLL_* al arrancar: valor no numerico, no entero o negativo => fallo de arranque con mensaje claro",
