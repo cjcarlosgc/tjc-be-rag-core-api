@@ -4352,7 +4352,7 @@
       "id": "WI-CORE-076",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-SELECTED",
+      "status": "W-IN_PROGRESS",
       "priority": "P1",
       "sprint": "P2",
       "title": "Unificar la configuración del LLM: solo LLM_MODEL y LLM_REASONING_EFFORT explícito; eliminar EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS",
@@ -4367,16 +4367,24 @@
       "dependsOn": [
         "WI-CORE-074"
       ],
-      "contractImpact": false,
-      "publishesContract": false,
+      "contractImpact": true,
+      "publishesContract": true,
       "acceptanceCriteria": [
         "Experimentos y flujo normal usan solo LLM_MODEL y LLM_REASONING_EFFORT; EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS dejan de existir en env.validation.ts, openai-llm.provider.ts, .env.example, spec y pruebas; EXPERIMENT_LLM_TEMPERATURE, EXPERIMENT_LLM_MAX_OUTPUT_TOKENS y el heartbeat se conservan salvo decisión contraria del usuario.",
         "LLM_REASONING_EFFORT es obligatorio y debe estar en la escala none…max: si falta o es inválido el arranque falla con un mensaje claro; un esfuerzo que la API rechace falla en la llamada con error explícito; cada ExperimentRun sigue guardando en modelConfig el modelo y el esfuerzo con que corrió (tesis 3.3/Anexo K), sin cambio de contrato ni de DTO.",
-        "Se declara el cambio de modelo del flujo normal (hoy gpt-4o-mini por defecto) y se decide con el usuario el default de LLM_MODEL (gpt-6-luna), el esfuerzo por entorno (low pruebas, medium evidencia) y el tratamiento de toolEfforts y de las variables retiradas; lint, build y test en verde; revisión independiente."
+        "Se declara el cambio de modelo del flujo normal (hoy gpt-4o-mini por defecto) y se decide con el usuario el default de LLM_MODEL (gpt-6-luna), el esfuerzo por entorno (low pruebas, medium evidencia) y el tratamiento de toolEfforts y de las variables retiradas; lint, build y test en verde; revisión independiente.",
+        "Enmienda del contrato aprobada por el usuario: DEC-EXP-005 (APPROVED, Blocks NONE) enmienda DEC-EXP-004; se actualiza la prosa de SYSTEM (§461) e INTEROP (§379/§386) y se suben sus versiones documentales; sin cambio de rutas, DTO, enums ni códigos de error; Contract Sync informativo no incompatible publicado; revisión independiente con reviewer y contract-reviewer.",
+        "Ajustes de la verificación SDD: LLM_REASONING_EFFORT=low en app/vitest.config.e2e.ts; .env.example con LLM_MODEL=gpt-6-luna y LLM_REASONING_EFFORT=low; log de error del proveedor con modelo y esfuerzo; aviso único al arrancar por variables retiradas (nombres sin valores); resolución única resolveLlmSettings."
       ],
       "specPaths": [
         "harness/reports/wi-core-076-scope.md",
-        "spec/features/008-experimental-comparison/tasks.md"
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-076-scope-approval.md",
+        "harness/reports/wi-core-076-sdd-verification.md"
+      ],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
       ]
     }
   ]

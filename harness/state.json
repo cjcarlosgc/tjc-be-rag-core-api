@@ -19851,9 +19851,9 @@
     "id": "WI-CORE-076",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-SELECTED",
+    "status": "W-IN_PROGRESS",
     "title": "Unificar la configuración del LLM: solo LLM_MODEL y LLM_REASONING_EFFORT explícito; eliminar EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS",
-    "approved": false,
+    "approved": true,
     "storyIds": [
       "HU10",
       "HU17"
@@ -19865,43 +19865,70 @@
     "sprint": "P2",
     "specPaths": [
       "harness/reports/wi-core-076-scope.md",
-      "spec/features/008-experimental-comparison/tasks.md"
+      "spec/features/008-experimental-comparison/tasks.md",
+      "harness/reports/wi-core-076-scope-approval.md",
+      "harness/reports/wi-core-076-sdd-verification.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
     "deferredSyncDigests": {},
     "contractSyncReview": [],
     "decisionGate": {
-      "checked": false,
+      "checked": true,
       "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": null
+      "nonBlockingDecisionIds": [
+        "DEC-EXP-004"
+      ],
+      "checkedAt": "2026-10-21T22:00:00.000Z",
+      "note": "DEC-EXP-004 se enmienda con DEC-EXP-005 (aprobada por el usuario el 2026-10-21); sin decisiones bloqueantes."
     },
     "execution": {
       "leaderAgent": "leader",
-      "analysisAgent": null,
-      "implementationAgent": null,
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "implementer-high",
       "contractReviewAgent": null,
       "reviewAgent": null,
-      "handoffs": [],
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "CHANGES_REQUESTED menor: la prosa de DEC-EXP-004 (SYSTEM §461, INTEROP §379/§386) contradice las decisiones; se enmienda con DEC-EXP-005; F2 y F3 entran al alcance; sin decision nueva."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-076-sdd-verification.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-076-sdd-verification.md"
+          ],
+          "recommendedNextStep": "Implementar con enmienda del contrato.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "low"
+          }
+        }
+      ],
       "reviewCycles": 0,
       "maxReviewCycles": 2
     },
     "gates": {
-      "sddVerified": "G-NOT_RUN",
+      "sddVerified": "G-PASSED",
       "implementationCompleted": "G-NOT_RUN",
       "independentReviewPassed": "G-NOT_RUN",
       "technicalChecksPassed": "G-NOT_RUN",
-      "contractReviewed": "G-NOT_APPLICABLE",
-      "canonicalContractSynced": "G-NOT_APPLICABLE",
-      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
+      "contractSyncPublished": "G-NOT_RUN",
       "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
       "retryLimitRespected": "G-NOT_RUN"
     },
     "coordination": {
-      "contractImpact": false,
-      "publishesContract": false,
+      "contractImpact": true,
+      "publishesContract": true,
       "pullCheckpoints": [
         {
           "checkpoint": "start",
@@ -19920,7 +19947,23 @@
       "publishedSyncIds": [],
       "pendingRelevantSyncIds": []
     },
-    "evidence": [],
-    "blockedReason": null
+    "evidence": [
+      "harness/reports/wi-core-076-scope.md",
+      "harness/reports/wi-core-076-scope-approval.md",
+      "harness/reports/wi-core-076-sdd-verification.md"
+    ],
+    "blockedReason": null,
+    "syncScopePaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md"
+    ],
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-076-sdd-verification.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-076-scope-approval.md"
+      ]
+    }
   }
 }
