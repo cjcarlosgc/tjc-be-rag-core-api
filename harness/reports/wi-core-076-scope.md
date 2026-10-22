@@ -27,3 +27,13 @@ Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo 
 ## Cambio de comportamiento a declarar
 
 Arranque más estricto (falla sin `LLM_REASONING_EFFORT` válido) y flujo normal con el modelo unificado. Sin cambio de contrato ni de DTO (`modelConfig` ya persiste modelo y esfuerzo por corrida).
+
+---
+
+## Decisiones del usuario (2026-10-21, respuestas directas en el chat de Core)
+
+El usuario pidió decidir ahora y respondió las cuatro preguntas con la opción recomendada; esas respuestas se registran como la aprobación del alcance de WI-CORE-076 (y de WI-CORE-075 como solo documentación), sujeta a la verificación SDD previa a implementar:
+1. **Modelo:** `gpt-6-luna` para todo; el flujo normal pasa de `gpt-4o-mini` a `gpt-6-luna` (cambio de modelo y de costo declarado); default de `LLM_MODEL` = `gpt-6-luna` en `.env.example`.
+2. **Esfuerzo:** `LLM_REASONING_EFFORT` obligatorio, sin default en el código, fijado por cada entorno (`low` en pruebas, `medium` en evidencia oficial); arranque falla con mensaje claro si falta o no está en `none…max`.
+3. **Sin lista de combinaciones:** si la API rechaza un esfuerzo, el fallo sale en la llamada con error explícito; ambos brazos usan el mismo `LLM_REASONING_EFFORT`.
+4. **Variables:** se conservan `EXPERIMENT_LLM_TEMPERATURE`, `EXPERIMENT_LLM_MAX_OUTPUT_TOKENS` y `EXPERIMENT_HEARTBEAT_STALE_MS`; si `EXPERIMENT_LLM_MODEL`, `EXPERIMENT_LLM_REASONING_EFFORT` o `LLM_SUPPORTED_COMBINATIONS` siguen definidas, Core las ignora y escribe un aviso claro al arrancar.

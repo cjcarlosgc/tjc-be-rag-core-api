@@ -4352,7 +4352,7 @@
       "id": "WI-CORE-076",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-SELECTED",
       "priority": "P1",
       "sprint": "P2",
       "title": "Unificar la configuración del LLM: solo LLM_MODEL y LLM_REASONING_EFFORT explícito; eliminar EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT y LLM_SUPPORTED_COMBINATIONS",
