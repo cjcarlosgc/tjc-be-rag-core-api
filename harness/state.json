@@ -20614,5 +20614,83 @@
       "closedAt": "2026-10-22T01:25:07.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-078",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-SELECTED",
+    "title": "Endurecer la validacion de entorno: escapar valores en mensajes de error, topes de SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS y evaluar O3",
+    "approved": false,
+    "storyIds": [
+      "HU11",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-085"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-078-scope.md",
+      "spec/features/008-experimental-comparison/tasks.md",
+      "app/src/config/env.validation.ts"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": false,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": null
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": null,
+      "implementationAgent": null,
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-NOT_RUN",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-NOT_RUN",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-078",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-22T01:51:31.304Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "evidence": [
+      "harness/reports/wi-core-078-scope.md"
+    ],
+    "blockedReason": null
+  }
 }
