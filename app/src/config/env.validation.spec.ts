@@ -224,6 +224,23 @@ describe('validateEnv', () => {
       expect(validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'low' })).LLM_MODEL).toBe('gpt-6-luna');
     });
 
+    it('fails at startup when LLM_MODEL is empty or only spaces, with a clear message (F1, WI-CORE-076)', () => {
+      for (const value of ['', '   ']) {
+        expect(() => validateEnv(baseConfig({ LLM_MODEL: value }))).toThrow(
+          'Configuración de entorno inválida: LLM_MODEL no puede estar vacío; si no lo define se usa el valor por defecto gpt-6-luna.',
+        );
+      }
+    });
+
+    it('uses the default gpt-6-luna when LLM_MODEL is not defined (F1, WI-CORE-076)', () => {
+      expect(validateEnv(baseConfig()).LLM_MODEL).toBe('gpt-6-luna');
+    });
+
+    it('accepts a valid LLM_MODEL and stores it without surrounding spaces (F1, WI-CORE-076)', () => {
+      expect(validateEnv(baseConfig({ LLM_MODEL: 'gpt-6-luna-mini' })).LLM_MODEL).toBe('gpt-6-luna-mini');
+      expect(validateEnv(baseConfig({ LLM_MODEL: ' gpt-6-luna ' })).LLM_MODEL).toBe('gpt-6-luna');
+    });
+
     it('keeps validating EXPERIMENT_LLM_TEMPERATURE and EXPERIMENT_LLM_MAX_OUTPUT_TOKENS', () => {
       expect(() =>
         validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'low', EXPERIMENT_LLM_TEMPERATURE: '3' })),

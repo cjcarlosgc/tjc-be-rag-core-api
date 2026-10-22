@@ -363,6 +363,21 @@ const REASONING_EFFORT_MAX_LOG_LENGTH = 40;
 
 /** LLM_REASONING_EFFORT: obligatorio y dentro de la escala (WI-CORE-076). Normaliza el valor recortado. */
 function validateLlmSettings(validated: EnvironmentVariables): void {
+  // LLM_MODEL: si no está definida vale el valor por defecto; si está definida pero vacía o solo con espacios, falla
+  // (ConfigService.get no aplica el default a cadenas vacías, y se enviaría `model: ""` a la API).
+  if (validated.LLM_MODEL === undefined) {
+    validated.LLM_MODEL = DEFAULT_LLM_MODEL;
+  } else {
+    const model = validated.LLM_MODEL.trim();
+    if (model === '') {
+      throw new Error(
+        `Configuración de entorno inválida: LLM_MODEL no puede estar vacío; si no lo define se usa el valor por defecto ${DEFAULT_LLM_MODEL}.`,
+      );
+    }
+    // El valor validado (sin espacios) es el que lee el adaptador.
+    validated.LLM_MODEL = model;
+  }
+
   const effort = (validated.LLM_REASONING_EFFORT ?? '').trim();
   const validValues = REASONING_EFFORT_SCALE.join(', ');
   if (effort === '') {
