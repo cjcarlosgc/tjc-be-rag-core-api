@@ -1,7 +1,7 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.13
-**Fecha de corte:** 2026-10-18
+**Versión del contrato:** SYSTEM-2.14
+**Fecha de corte:** 2026-10-21
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
@@ -460,6 +460,24 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 
 **Resolución:** la configuración actual del proyecto para el flujo de producto no cambia por esta decisión. Los experimentos RAG vs `GENERALIST_AGENT` usan el modelo `gpt-6-luna` mediante la API de OpenAI en ambos brazos, con `reasoning_effort` en el valor máximo que soporten el modelo y el runtime. Ambos brazos usan exactamente el mismo modelo y el mismo esfuerzo y los dos valores efectivos se registran en la evidencia experimental. El experimento no degrada en silencio el modelo ni el esfuerzo: si la configuración pedida no es compatible con alguno de los brazos (por ejemplo, el modelo no admite herramientas con ese esfuerzo), la creación falla con `422 REASONING_EFFORT_UNSUPPORTED` y la corrección es una decisión de configuración que toma una persona antes de reintentar. El identificador del modelo y el esfuerzo máximo soportado se confirman en tiempo de ejecución contra la API; un modelo no disponible impide crear el experimento.
 
+**Enmienda:** `DEC-EXP-005` (2026-10-21) sustituye en esta decisión la configuración del flujo de producto, el criterio de esfuerzo máximo y el `422 REASONING_EFFORT_UNSUPPORTED` por esfuerzo no admitido. El resto (mismo modelo y esfuerzo en ambos brazos, confirmación del modelo contra la API al crear) se conserva.
+
+### DEC-EXP-005 — Enmienda de DEC-EXP-004: configuración única del LLM
+
+**Estado:** APROBADO (2026-10-21, por el usuario, en el chat de Core, junto con la aprobación de alcance de `WI-CORE-076`). Enmienda `DEC-EXP-004`.
+
+**Blocks:** NONE
+
+**Resolución:**
+1. El flujo de producto y los experimentos usan una única configuración del LLM: `LLM_MODEL` (por defecto `gpt-6-luna`) y `LLM_REASONING_EFFORT`. El flujo de producto pasa de `gpt-4o-mini` a `gpt-6-luna`; es un cambio de modelo y de costo declarado.
+2. `LLM_REASONING_EFFORT` es obligatorio y no tiene valor por defecto en el código. Lo fija cada entorno (`low` en pruebas, `medium` en evidencia oficial). El arranque falla si falta, está vacío o no pertenece a `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+3. No hay lista de combinaciones modelo/esfuerzo. Si la API rechaza el esfuerzo, la llamada falla con error explícito: la repetición del experimento queda como fallo (`failureType` `UNKNOWN`, sin reintento) y el detalle de la API queda en el log del servidor con modelo y esfuerzo.
+4. `422 REASONING_EFFORT_UNSUPPORTED` al crear un experimento sale solo cuando la temperatura configurada es incompatible con razonamiento activo; en ese caso `details.supportedEfforts` es `['none']`.
+5. Ambos brazos usan exactamente el mismo modelo y el mismo esfuerzo, registrados en `modelConfig` de cada corrida. El modelo se confirma contra la API al crear el experimento; un modelo no disponible impide crearlo (`503 LLM_PROVIDER_UNAVAILABLE`).
+6. Las variables `EXPERIMENT_LLM_MODEL`, `EXPERIMENT_LLM_REASONING_EFFORT` y `LLM_SUPPORTED_COMBINATIONS` quedan retiradas. Si siguen definidas, se ignoran y el arranque emite un aviso con sus nombres, sin valores y sin bloquear.
+
+Sin cambio de rutas, DTO, enums ni códigos de error.
+
 ### DEC-ORG-003 — Rol Writer
 
 **Estado:** APROBADO (2026-10-08, por el usuario)
@@ -467,6 +485,8 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 **Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable. Las menciones de roles de `DEC-ORG-001` y `DEC-ORG-002` y de los planes de cortes ya implementados describen la historia; donde difieran, prevalece esta decisión.
 
 ## Regla de compatibilidad
+
+`SYSTEM-2.14` (2026-10-21, `WI-CORE-076`) incorpora `DEC-EXP-005`, que enmienda `DEC-EXP-004`: configuración única del LLM (`LLM_MODEL` y `LLM_REASONING_EFFORT` obligatorio para el flujo normal y los experimentos), sin lista de combinaciones y con el error de un esfuerzo no admitido en la llamada. Es documental: sin cambio de rutas, DTO, enums ni códigos de error. Los espejos de este contrato en GitHub Integration, Console y Sandbox siguen en SYSTEM-2.13 hasta su homologación por Contract Sync. `INTEROP-2.19` es la versión compatible.
 
 `SYSTEM-2.13` (2026-10-18, editorial, homologación SDD 3.1): no cambia ninguna decisión ni comportamiento. Redacta el hostname `sslip.io` y la IP pública de la VM del Sandbox, que dejan de figurar en el contrato (el operador los conserva fuera del repositorio), y declara que Sandbox espeja este contrato desde esta versión. `INTEROP-2.17` es la versión compatible.
 

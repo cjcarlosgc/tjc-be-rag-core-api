@@ -242,35 +242,6 @@ describe('ExperimentsService', () => {
       });
     });
 
-    it('answers 422 REASONING_EFFORT_UNSUPPORTED with supportedEfforts without creating the run or enqueuing the job', async () => {
-      const deps = makeDeps({
-        llmProvider: {
-          resolveEffectiveConfig: vi.fn().mockRejectedValue(
-            new LLMConfigurationError({
-              code: 'REASONING_EFFORT_UNSUPPORTED',
-              model: 'gpt-6-luna',
-              requestedEffort: 'high',
-              supportedEfforts: ['low'],
-            }),
-          ),
-        },
-      });
-      const service = makeService(deps);
-
-      const error = await service
-        .createRun(DTO, 'key-1', OWNER_USER_ID)
-        .catch((caught: unknown) => caught);
-
-      expect(error).toBeInstanceOf(AppException);
-      expect(error).toMatchObject({
-        code: ErrorCode.REASONING_EFFORT_UNSUPPORTED,
-        details: { model: 'gpt-6-luna', requestedEffort: 'high', supportedEfforts: ['low'] },
-      });
-      expect((error as AppException).getStatus()).toBe(422);
-      expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
-      expect(deps.jobsService.enqueue).not.toHaveBeenCalled();
-    });
-
     it('answers 422 REASONING_EFFORT_UNSUPPORTED when temperature conflicts with active reasoning, without creating the run or enqueuing the job', async () => {
       const deps = makeDeps({
         llmProvider: {

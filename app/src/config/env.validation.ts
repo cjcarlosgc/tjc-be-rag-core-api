@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   IsBoolean,
@@ -17,6 +18,7 @@ import {
   DEFAULT_GENERATION_TIMEOUT_MS,
   DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS,
 } from './generation-budget.defaults.js';
+import { DEFAULT_LLM_MODEL } from '../providers/llm-settings.js';
 import { REASONING_EFFORT_SCALE } from '../providers/reasoning-effort.scale.js';
 
 class EnvironmentVariables {
@@ -103,22 +105,19 @@ class EnvironmentVariables {
   @IsString()
   EMBEDDING_MODEL: string = 'text-embedding-3-small';
 
+  /** Modelo único del flujo normal y de los experimentos (WI-CORE-076, DEC-EXP-005). */
   @IsString()
-  LLM_MODEL: string = 'gpt-4o-mini';
+  LLM_MODEL: string = DEFAULT_LLM_MODEL;
 
+  /**
+   * Esfuerzo único del flujo normal y de los experimentos (WI-CORE-076, DEC-EXP-005). Obligatorio y
+   * sin valor por defecto: lo valida `validateLlmSettings` con mensajes propios (no `@IsNotEmpty`).
+   */
   @IsOptional()
   @IsString()
   LLM_REASONING_EFFORT?: string;
 
-  /** Experimentos (DEC-EXP-004): modelo confirmado contra la API al crear el experimento. */
-  @IsString()
-  EXPERIMENT_LLM_MODEL: string = 'gpt-6-luna';
-
-  /** Vacío = esfuerzo máximo común soportado por el modelo (efforts ∩ toolEfforts). */
-  @IsOptional()
-  @IsString()
-  EXPERIMENT_LLM_REASONING_EFFORT?: string;
-
+  /** Experimentos (DEC-EXP-004): temperatura solo con esfuerzo `none`. */
   @IsOptional()
   @IsString()
   EXPERIMENT_LLM_TEMPERATURE?: string;
@@ -126,11 +125,6 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   EXPERIMENT_LLM_MAX_OUTPUT_TOKENS?: string;
-
-  /** JSON: [{"model","efforts","toolEfforts"}]; sin entrada para el modelo no se crea el experimento. */
-  @IsOptional()
-  @IsString()
-  LLM_SUPPORTED_COMBINATIONS?: string;
 
   @IsInt()
   @Min(1000)
@@ -347,8 +341,53 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   }
 
   validateExperimentLlmSettings(validated);
+  validateLlmSettings(validated);
+  warnRetiredLlmVariables(config);
 
   return validated;
+}
+
+/** Variables de LLM retiradas por WI-CORE-076: si siguen definidas se ignoran y se avisa al arrancar. */
+export const RETIRED_LLM_VARIABLES = [
+  'EXPERIMENT_LLM_MODEL',
+  'EXPERIMENT_LLM_REASONING_EFFORT',
+  'LLM_SUPPORTED_COMBINATIONS',
+] as const;
+
+/** Nombres de las variables retiradas presentes en `config` (aunque su valor esté vacío); nunca valores. */
+export function retiredLlmVariablesIn(config: Record<string, unknown>): string[] {
+  return RETIRED_LLM_VARIABLES.filter((name) => config[name] !== undefined);
+}
+
+const REASONING_EFFORT_MAX_LOG_LENGTH = 40;
+
+/** LLM_REASONING_EFFORT: obligatorio y dentro de la escala (WI-CORE-076). Normaliza el valor recortado. */
+function validateLlmSettings(validated: EnvironmentVariables): void {
+  const effort = (validated.LLM_REASONING_EFFORT ?? '').trim();
+  const validValues = REASONING_EFFORT_SCALE.join(', ');
+  if (effort === '') {
+    throw new Error(
+      `Configuración de entorno inválida: LLM_REASONING_EFFORT es obligatorio y no tiene valor por defecto. Defínalo con uno de: ${validValues} (low en pruebas, medium en evidencia oficial).`,
+    );
+  }
+  if (!REASONING_EFFORT_SCALE.includes(effort)) {
+    throw new Error(
+      `Configuración de entorno inválida: LLM_REASONING_EFFORT="${effort.slice(0, REASONING_EFFORT_MAX_LOG_LENGTH)}" no es un esfuerzo válido; valores válidos: ${validValues}.`,
+    );
+  }
+  // El valor validado (sin espacios) es el que lee el adaptador.
+  validated.LLM_REASONING_EFFORT = effort;
+}
+
+/** Aviso único al arrancar si quedan variables retiradas. No bloquea el arranque y no imprime valores. */
+function warnRetiredLlmVariables(config: Record<string, unknown>): void {
+  const retired = retiredLlmVariablesIn(config);
+  if (retired.length === 0) {
+    return;
+  }
+  new Logger('EnvValidation').warn(
+    `Variables de LLM retiradas (WI-CORE-076): ${retired.join(', ')} siguen definidas y se IGNORAN. Los experimentos y el flujo normal usan LLM_MODEL y LLM_REASONING_EFFORT. Elimínelas del entorno.`,
+  );
 }
 
 function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
@@ -360,34 +399,6 @@ function validateExperimentLlmSettings(validated: EnvironmentVariables): void {
   const maxOutputTokens = validated.EXPERIMENT_LLM_MAX_OUTPUT_TOKENS;
   if (maxOutputTokens && !/^[1-9]\d*$/.test(maxOutputTokens)) {
     throw new Error('Configuración de entorno inválida: EXPERIMENT_LLM_MAX_OUTPUT_TOKENS debe ser un entero positivo.');
-  }
-
-  const combinations = validated.LLM_SUPPORTED_COMBINATIONS;
-  if (combinations) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(combinations);
-    } catch {
-      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser JSON válido.');
-    }
-    const valid = Array.isArray(parsed) && parsed.every((item) =>
-      typeof item === 'object' && item !== null &&
-      typeof (item as { model?: unknown }).model === 'string' &&
-      Array.isArray((item as { efforts?: unknown }).efforts) &&
-      Array.isArray((item as { toolEfforts?: unknown }).toolEfforts),
-    );
-    if (!valid) {
-      throw new Error('Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS debe ser [{"model","efforts","toolEfforts"}].');
-    }
-    // Un nivel fuera de la escala (p. ej. un error tipográfico) falla en el arranque, no al crear el experimento.
-    const unknownEfforts = (parsed as Array<{ efforts: unknown[]; toolEfforts: unknown[] }>)
-      .flatMap((item) => [...item.efforts, ...item.toolEfforts])
-      .filter((effort) => typeof effort !== 'string' || !REASONING_EFFORT_SCALE.includes(effort));
-    if (unknownEfforts.length > 0) {
-      throw new Error(
-        `Configuración de entorno inválida: LLM_SUPPORTED_COMBINATIONS contiene esfuerzos desconocidos (${unknownEfforts.map(String).join(', ')}); valores válidos: ${REASONING_EFFORT_SCALE.join(', ')}.`,
-      );
-    }
   }
 }
 

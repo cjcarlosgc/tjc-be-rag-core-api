@@ -434,10 +434,11 @@ class ExampleTest extends TestCase
   it('propagates LLMConfigurationError unchanged without wrapping it', async () => {
     const provider = makeProvider();
     const configurationError = new LLMConfigurationError({
-      code: 'REASONING_EFFORT_UNSUPPORTED',
+      code: 'TEMPERATURE_UNSUPPORTED_WITH_REASONING',
       model: 'gpt-6-luna',
-      requestedEffort: 'xhigh',
-      supportedEfforts: ['low'],
+      requestedEffort: 'low',
+      supportedEfforts: ['none'],
+      temperature: 0.2,
     });
     provider.generateWithTools.mockRejectedValue(configurationError);
 

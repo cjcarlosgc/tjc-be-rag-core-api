@@ -24,10 +24,6 @@ const DTO = {
   symbolQualifiedName: 'Example.run',
 };
 
-const GPT_6_LUNA_COMBINATIONS = JSON.stringify([
-  { model: 'gpt-6-luna', efforts: ['low', 'xhigh'], toolEfforts: ['low', 'xhigh'] },
-]);
-
 /** ConfigService falso con entorno mutable: simula cambios de variables tras crear un experimento. */
 function makeEnv(initial: Record<string, string | undefined>) {
   const env: Record<string, string | undefined> = { OPENAI_API_KEY: 'sk-test', ...initial };
@@ -92,17 +88,17 @@ function makeService(env: ReturnType<typeof makeEnv>) {
   return { service, llmProvider, experimentRunsRepository, jobsService, prisma };
 }
 
-describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1)', () => {
+describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1; WI-CORE-076)', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
   });
 
-  it('rejects an effort the model does not support before creating the run or enqueuing the job', async () => {
+  it('answers 422 REASONING_EFFORT_UNSUPPORTED when temperature conflicts with active reasoning, before creating the run or enqueuing the job', async () => {
     const env = makeEnv({
-      LLM_SUPPORTED_COMBINATIONS: GPT_6_LUNA_COMBINATIONS,
-      EXPERIMENT_LLM_MODEL: 'gpt-6-luna',
-      EXPERIMENT_LLM_REASONING_EFFORT: 'high',
+      LLM_MODEL: 'gpt-6-luna',
+      LLM_REASONING_EFFORT: 'low',
+      EXPERIMENT_LLM_TEMPERATURE: '0.2',
     });
     const { service, experimentRunsRepository, jobsService, prisma } = makeService(env);
 
@@ -112,7 +108,7 @@ describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1)', 
     expect((error as AppException).getStatus()).toBe(422);
     expect(error).toMatchObject({
       code: 'REASONING_EFFORT_UNSUPPORTED',
-      details: { model: 'gpt-6-luna', requestedEffort: 'high', supportedEfforts: ['low', 'xhigh'] },
+      details: { model: 'gpt-6-luna', requestedEffort: 'low', supportedEfforts: ['none'] },
     });
     expect(experimentRunsRepository.create).not.toHaveBeenCalled();
     expect(jobsService.enqueue).not.toHaveBeenCalled();
@@ -120,28 +116,39 @@ describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1)', 
     expect(retrieveMock).not.toHaveBeenCalled();
   });
 
-  it('fails with REASONING_EFFORT_UNSUPPORTED for the default model when no combinations are configured (no effort is assumed)', async () => {
+  it('fails before creating the run when LLM_REASONING_EFFORT is missing, without assuming an effort', async () => {
     const env = makeEnv({});
     const { service, experimentRunsRepository, jobsService } = makeService(env);
 
-    const error = await service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID).catch((caught: unknown) => caught);
+    await expect(service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID)).rejects.toThrow(/LLM_REASONING_EFFORT/);
 
-    expect((error as AppException).getStatus()).toBe(422);
-    expect(error).toMatchObject({
-      code: 'REASONING_EFFORT_UNSUPPORTED',
-      details: { model: 'gpt-6-luna', supportedEfforts: [] },
-    });
     expect(experimentRunsRepository.create).not.toHaveBeenCalled();
     expect(jobsService.enqueue).not.toHaveBeenCalled();
     expect(retrieveMock).not.toHaveBeenCalled();
   });
 
+  it('persists the LLM_MODEL and LLM_REASONING_EFFORT of the single configuration in modelConfig', async () => {
+    retrieveMock.mockResolvedValue({ id: 'gpt-6-luna-2026' });
+    const env = makeEnv({ LLM_MODEL: 'gpt-6-luna', LLM_REASONING_EFFORT: 'medium' });
+    const { service, experimentRunsRepository } = makeService(env);
+
+    const response = await service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID);
+
+    expect(response.experimentId).toBe('exp-1');
+    expect(experimentRunsRepository.create.mock.calls[0][0].modelConfig).toEqual({
+      provider: 'openai',
+      model: 'gpt-6-luna',
+      modelVersion: 'gpt-6-luna-2026',
+      reasoningEffort: 'medium',
+      temperature: null,
+      maxOutputTokens: null,
+      endpoint: 'responses',
+    });
+  });
+
   it('persists the single resolved config and replays the same Idempotency-Key without resolving, validating or re-persisting again', async () => {
     retrieveMock.mockResolvedValue({ id: 'gpt-6-luna-2026' });
-    const env = makeEnv({
-      LLM_SUPPORTED_COMBINATIONS: GPT_6_LUNA_COMBINATIONS,
-      EXPERIMENT_LLM_MODEL: 'gpt-6-luna',
-    });
+    const env = makeEnv({ LLM_MODEL: 'gpt-6-luna', LLM_REASONING_EFFORT: 'low' });
     const { service, llmProvider, experimentRunsRepository, jobsService } = makeService(env);
     const resolveSpy = vi.spyOn(llmProvider, 'resolveEffectiveConfig');
 
@@ -151,19 +158,10 @@ describe('ExperimentsService model configuration (WI-CORE-023, Desviación 1)', 
     expect(resolveSpy).toHaveBeenCalledTimes(1);
     expect(retrieveMock).toHaveBeenCalledTimes(1);
     expect(experimentRunsRepository.create).toHaveBeenCalledTimes(1);
-    expect(experimentRunsRepository.create.mock.calls[0][0].modelConfig).toEqual({
-      provider: 'openai',
-      model: 'gpt-6-luna',
-      modelVersion: 'gpt-6-luna-2026',
-      reasoningEffort: 'xhigh',
-      temperature: null,
-      maxOutputTokens: null,
-      endpoint: 'responses',
-    });
 
-    // El entorno cambia después de crear el experimento: el combo desaparece y el modelo se reemplaza.
-    env.env.LLM_SUPPORTED_COMBINATIONS = undefined;
-    env.env.EXPERIMENT_LLM_MODEL = 'other-model';
+    // El entorno cambia después de crear el experimento: el modelo y el esfuerzo nuevos no afectan al replay.
+    env.env.LLM_MODEL = 'other-model';
+    env.env.LLM_REASONING_EFFORT = 'high';
 
     const replay = await service.createRun(DTO, IDEMPOTENCY_KEY, OWNER_USER_ID);
 

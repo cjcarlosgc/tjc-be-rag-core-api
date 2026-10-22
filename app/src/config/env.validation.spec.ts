@@ -1,6 +1,7 @@
 import 'reflect-metadata';
-import { describe, expect, it } from 'vitest';
-import { validateEnv } from './env.validation.js';
+import { Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import { retiredLlmVariablesIn, validateEnv } from './env.validation.js';
 
 function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -8,6 +9,7 @@ function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unk
     SUPABASE_URL: 'https://project.supabase.co',
     SUPABASE_SECRET_KEY: 'secret',
     SUPABASE_STORAGE_BUCKET: 'bucket',
+    LLM_REASONING_EFFORT: 'low',
     ...overrides,
   };
 }
@@ -192,26 +194,87 @@ describe('validateEnv', () => {
     ).toThrow(/DEC-WEB-AUTH-001/);
   });
 
-  it('accepts max and none in LLM_SUPPORTED_COMBINATIONS (WI-CORE-031)', () => {
-    const combinations = JSON.stringify([
-      {
-        model: 'gpt-6-luna',
-        efforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-        toolEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-      },
-    ]);
+  describe('LLM_REASONING_EFFORT y configuración única del LLM (WI-CORE-076)', () => {
+    it('fails at startup when LLM_REASONING_EFFORT is missing, empty or only spaces', () => {
+      for (const value of [undefined, '', '   ']) {
+        expect(() => validateEnv(baseConfig({ LLM_REASONING_EFFORT: value }))).toThrow(
+          'Configuración de entorno inválida: LLM_REASONING_EFFORT es obligatorio y no tiene valor por defecto. Defínalo con uno de: none, minimal, low, medium, high, xhigh, max (low en pruebas, medium en evidencia oficial).',
+        );
+      }
+    });
 
-    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).not.toThrow();
+    it('fails at startup with an effort outside the reasoning scale and truncates the echoed value to 40 characters', () => {
+      expect(() => validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'ultra' }))).toThrow(
+        'Configuración de entorno inválida: LLM_REASONING_EFFORT="ultra" no es un esfuerzo válido; valores válidos: none, minimal, low, medium, high, xhigh, max.',
+      );
+      expect(() => validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'HIGH' }))).toThrow(/"HIGH" no es un esfuerzo válido/);
+      expect(() => validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'x'.repeat(60) }))).toThrow(
+        `LLM_REASONING_EFFORT="${'x'.repeat(40)}" no es`,
+      );
+    });
+
+    it('accepts every value of the reasoning scale and stores it without surrounding spaces', () => {
+      for (const value of ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {
+        expect(validateEnv(baseConfig({ LLM_REASONING_EFFORT: value })).LLM_REASONING_EFFORT).toBe(value);
+      }
+      expect(validateEnv(baseConfig({ LLM_REASONING_EFFORT: ' medium ' })).LLM_REASONING_EFFORT).toBe('medium');
+    });
+
+    it('defaults LLM_MODEL to gpt-6-luna', () => {
+      expect(validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'low' })).LLM_MODEL).toBe('gpt-6-luna');
+    });
+
+    it('keeps validating EXPERIMENT_LLM_TEMPERATURE and EXPERIMENT_LLM_MAX_OUTPUT_TOKENS', () => {
+      expect(() =>
+        validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'low', EXPERIMENT_LLM_TEMPERATURE: '3' })),
+      ).toThrow(/EXPERIMENT_LLM_TEMPERATURE debe estar entre 0 y 2/);
+      expect(() =>
+        validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'low', EXPERIMENT_LLM_MAX_OUTPUT_TOKENS: '0' })),
+      ).toThrow(/EXPERIMENT_LLM_MAX_OUTPUT_TOKENS/);
+    });
+
+    it('warns once with the names of retired variables, never their values, and does not block startup', () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      expect(() =>
+        validateEnv(
+          baseConfig({
+            LLM_REASONING_EFFORT: 'low',
+            EXPERIMENT_LLM_MODEL: 'secret-model-name',
+            EXPERIMENT_LLM_REASONING_EFFORT: '',
+            LLM_SUPPORTED_COMBINATIONS: '[{"model":"x","efforts":["low"],"toolEfforts":["low"]}]',
+          }),
+        ),
+      ).not.toThrow();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const message = String(warn.mock.calls[0][0]);
+      expect(message).toContain(
+        'EXPERIMENT_LLM_MODEL, EXPERIMENT_LLM_REASONING_EFFORT, LLM_SUPPORTED_COMBINATIONS siguen definidas y se IGNORAN',
+      );
+      expect(message).not.toContain('secret-model-name');
+      expect(message).not.toContain('"model":"x"');
+      warn.mockRestore();
+    });
+
+    it('does not warn when no retired variable is defined', () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'low' }));
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
   });
 
-  it('rejects an effort outside the reasoning scale in LLM_SUPPORTED_COMBINATIONS at startup', () => {
-    const combinations = JSON.stringify([
-      { model: 'gpt-6-luna', efforts: ['low', 'ultra'], toolEfforts: ['low'] },
-    ]);
-
-    expect(() => validateEnv(baseConfig({ LLM_SUPPORTED_COMBINATIONS: combinations }))).toThrow(
-      /esfuerzos desconocidos \(ultra\)/,
-    );
+  describe('retiredLlmVariablesIn', () => {
+    it('returns only the retired names present in the config, including empty values', () => {
+      expect(retiredLlmVariablesIn({ LLM_MODEL: 'x' })).toEqual([]);
+      expect(retiredLlmVariablesIn({ EXPERIMENT_LLM_REASONING_EFFORT: '' })).toEqual([
+        'EXPERIMENT_LLM_REASONING_EFFORT',
+      ]);
+      expect(retiredLlmVariablesIn({ LLM_SUPPORTED_COMBINATIONS: undefined })).toEqual([]);
+    });
   });
 
   describe('SANDBOX_URL (isAllowedSandboxUrl)', () => {

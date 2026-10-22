@@ -594,8 +594,8 @@ describe('ExperimentJobHandler', () => {
     const { deps } = makeDeps({
       configService: {
         get: (key: string, fallback?: unknown) =>
-          key === 'EXPERIMENT_LLM_MODEL' ||
-          key === 'EXPERIMENT_LLM_REASONING_EFFORT'
+          key === 'LLM_MODEL' ||
+          key === 'LLM_REASONING_EFFORT'
             ? 'other-model'
             : fallback,
       },

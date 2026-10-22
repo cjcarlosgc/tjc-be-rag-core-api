@@ -338,19 +338,6 @@ export class ExperimentsService {
     try {
       return await this.llmProvider.resolveEffectiveConfig();
     } catch (error) {
-      if (error instanceof LLMConfigurationError && error.code === 'REASONING_EFFORT_UNSUPPORTED') {
-        throw new AppException(
-          ErrorCode.REASONING_EFFORT_UNSUPPORTED,
-          `El modelo "${error.model}" no admite el esfuerzo de razonamiento solicitado.`,
-          HttpStatus.UNPROCESSABLE_ENTITY,
-          {
-            model: error.model,
-            requestedEffort: error.requestedEffort,
-            supportedEfforts: error.supportedEfforts,
-          },
-        );
-      }
-
       if (error instanceof LLMConfigurationError && error.code === 'TEMPERATURE_UNSUPPORTED_WITH_REASONING') {
         throw new AppException(
           ErrorCode.REASONING_EFFORT_UNSUPPORTED,
