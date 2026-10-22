@@ -10,3 +10,9 @@ Corregir en INTEROP §6.5 la prosa de `ExperimentResultsResponse` (hoy lista `an
 ## Costo que el usuario debe aceptar antes de publicar
 
 Una **ronda extra de espejos** en los tres repos (los espejos de `interoperability-contract.md` deben ser idénticos byte a byte), solo por una errata. El 2026-10-21 el usuario había decidido «esperar y juntarla con el próximo cambio» (`errata-pendientes-interop.md`); este WI revierte esa decisión por pedido nuevo de cross y requiere su confirmación directa. Console está ocupado con su WI de UX y luego un polling de respaldo: la publicación se coordina con cross.
+
+---
+
+## DECISIÓN DEL USUARIO (2026-10-21, chat de Core): «Mantener esperar»
+
+Con el costo explicado (INTEROP-2.20 y una ronda extra de espejos en los tres repos solo por una errata), el usuario mantiene su decisión anterior: **no se ejecuta ni se publica** WI-CORE-079 ahora. La errata E-01 se corrige junto con el próximo cambio de INTEROP por otro motivo (`errata-pendientes-interop.md`); E-02 se corrige en el siguiente evento de Contract Sync. WI-CORE-079 queda en cola `W-PLANNED`, sin implementar.

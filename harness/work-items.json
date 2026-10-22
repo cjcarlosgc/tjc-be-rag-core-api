@@ -4496,7 +4496,7 @@
       "id": "WI-CORE-078",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-AWAITING_APPROVAL",
+      "status": "W-IN_PROGRESS",
       "priority": "P2",
       "sprint": "P2",
       "title": "Endurecer la validacion de entorno: escapar valores en mensajes de error, topes de SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS y evaluar O3",
@@ -4514,15 +4514,16 @@
       "contractImpact": false,
       "publishesContract": false,
       "acceptanceCriteria": [
-        "Los mensajes de error de entorno de SANDBOX_POLL_* y LLM_REASONING_EFFORT (y LLM_MODEL si aplica) escapan el valor (JSON.stringify del valor recortado a 40 caracteres) sin cambiar que se acepta o rechaza.",
-        "SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS tienen tope superior y rangos propuestos por el analisis SDD que no cambian el comportamiento con los valores actuales validos; un valor sobre el tope falla el arranque con mensaje claro.",
-        "O3 (pollAfterMs fuera de la cota de latido) se evalua; si cambia el comportamiento observable no se toca sin decision explicita del usuario; sin cambio de contrato; lint, build y test en verde; revision independiente."
+        "Los mensajes de error de entorno de SANDBOX_POLL_* y LLM_REASONING_EFFORT escapan el valor con el helper echoEnvValue (recorta a 40 puntos de codigo y escapa despues con JSON.stringify mas U+007F-U+009F, U+2028 y U+2029); el texto no cambia para valores normales ni cambia que se acepta o rechaza.",
+        "SANDBOX_MAX_POLL_ATTEMPTS (entero 1..600) y SANDBOX_REQUEST_TIMEOUT_MS (entero 100..60000 ms) se validan con el patron de validateSandboxPollSettings (regex ^\\d+$, ausente = default, vacio o unidad/decimal/notacion cientifica = error con mensaje claro); los valores y defaults actuales siguen validos; el valor normalizado llega a los consumidores como numero.",
+        "O3 no se toca (decision del usuario) y queda como observacion; sin cambio de contrato; pruebas nuevas, .env.example y CHANGELOG; lint, build y test en verde; revision independiente."
       ],
       "specPaths": [
         "harness/reports/wi-core-078-scope.md",
         "spec/features/008-experimental-comparison/tasks.md",
         "app/src/config/env.validation.ts",
-        "harness/reports/wi-core-078-sdd-verification.md"
+        "harness/reports/wi-core-078-sdd-verification.md",
+        "harness/reports/wi-core-078-scope-approval.md"
       ]
     },
     {

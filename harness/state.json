@@ -20618,9 +20618,9 @@
     "id": "WI-CORE-078",
     "component": "CORE",
     "workItemType": "PRODUCT",
-    "status": "W-AWAITING_APPROVAL",
+    "status": "W-IN_PROGRESS",
     "title": "Endurecer la validacion de entorno: escapar valores en mensajes de error, topes de SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS y evaluar O3",
-    "approved": false,
+    "approved": true,
     "storyIds": [
       "HU11",
       "HU17"
@@ -20634,7 +20634,8 @@
       "harness/reports/wi-core-078-scope.md",
       "spec/features/008-experimental-comparison/tasks.md",
       "app/src/config/env.validation.ts",
-      "harness/reports/wi-core-078-sdd-verification.md"
+      "harness/reports/wi-core-078-sdd-verification.md",
+      "harness/reports/wi-core-078-scope-approval.md"
     ],
     "transversalPaths": [],
     "deferredSyncIds": [],
@@ -20650,7 +20651,7 @@
     "execution": {
       "leaderAgent": "leader",
       "analysisAgent": "sdd-analyst",
-      "implementationAgent": null,
+      "implementationAgent": "implementer",
       "contractReviewAgent": null,
       "reviewAgent": null,
       "handoffs": [
@@ -20714,7 +20715,8 @@
     },
     "evidence": [
       "harness/reports/wi-core-078-scope.md",
-      "harness/reports/wi-core-078-sdd-verification.md"
+      "harness/reports/wi-core-078-sdd-verification.md",
+      "harness/reports/wi-core-078-scope-approval.md"
     ],
     "blockedReason": null,
     "gateEvidence": {
