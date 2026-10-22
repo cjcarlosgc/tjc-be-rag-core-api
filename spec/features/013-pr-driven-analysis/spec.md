@@ -101,6 +101,20 @@ OC01–OC15 se catalogan en `spec/operational-cases.md` con prioridad P2 de form
 
 GitHub Integration verifica firma sobre body crudo, estado de instalación y mínimo privilegio; Core autentica el salto privado y valida el evento normalizado. En las rutas directas Console→Integration, el provider token OAuth se usa transitoriamente para discovery o verificación inicial; el callback a Core no lo incluye. La ruta Core heredada de discovery lo recibe y reenvía temporalmente a Integration; en ningún camino se persiste, registra o devuelve al navegador, ni se envía a Sandbox. En la ruta nueva de vinculación, Core valida evidencia firmada y de vida corta emitida tras autorización síncrona; no vuelve a llamar a Integration durante la escritura. Las rutas Core previas de discovery, verify-access, ramas y persistencia permanecen temporalmente por compatibilidad. El navegador nunca aporta instalación ni rol como autoridad. Persistir delivery, lifecycle, preguntas/respuestas, reglas creadas/superseded, generación, ejecución, clasificación, Check y publicación sin guardar secretos, tokens o URLs firmadas completas.
 
+## Decisiones
+
+### DEC-RT-001 — Autenticación y autorización del tiempo real (WebSocket)
+
+**Estado:** APPROVED (aprobada por el usuario el 2026-10-21 en el chat de Core; registrada en WI-CORE-074, alcance aprobado con D1–D4).
+
+**Blocks:** NONE. No bloquea WI-CORE-074 ni ningún otro WI.
+
+**Decisión:** (1) el handshake WebSocket exige una sesión válida, la misma que HTTP: sin sesión responde `AUTH_REQUIRED` y con sesión inválida o vencida responde `INVALID_ACCESS_TOKEN`; (2) cada suscripción (`project-version`, `analysis-run`, `experiment`) exige rol Reader sobre el Project del recurso, con la misma negativa para un id inexistente o sin acceso, y el socket sale de las salas de un Project cuando el usuario pierde el acceso; (3) un aviso por cada cambio de estado del `AnalysisRun` y del experimento, más el progreso de repeticiones del experimento con límite de ritmo, con el mismo DTO que su GET (`analysis-run:update` = `AnalysisRunDetailResponse`; `experiment:update` = `ExperimentStatusResponse`), salas por id sin broadcast global, emisión post-commit y best-effort, sin reintentos ni historial; (4) el polling HTTP sigue siendo la base. Consecuencia declarada: rechazar el handshake sin sesión es el único cambio incompatible de `INTEROP-2.18` (Developer Console con sesión normal no se rompe; con `AUTH_BYPASS` y sin token sí; GitHub Integration y Test Execution Sandbox sin impacto).
+
+**Alternativas descartadas:** dejar el handshake abierto y verificar solo por suscripción; verificar solo la sesión sin Reader por Project (abriría fuga entre proyectos).
+
+**Trazabilidad:** HU12 (consulta del estado de un Run). Citada desde `INTEROP-2.18` §6.6. El Anexo E no tiene una fila C-0x para tiempo real; no se fuerza ninguna cita.
+
 ## Fuera de alcance inicial
 
 - soporte completo de fork PR;

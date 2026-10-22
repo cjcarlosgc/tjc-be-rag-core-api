@@ -12,7 +12,7 @@ function setup(overrides: {
   groups?: Array<{ repositoryId: string; prNumber: number }>;
   lookup?: () => Promise<unknown>;
   binding?: object | null;
-  classify?: () => Promise<{ classifiedCount: number; eligible: boolean }>;
+  classify?: () => Promise<{ classifiedCount: number; eligible: boolean; obsoletedRunIds: string[] }>;
 } = {}) {
   const jobsService = {
     registerHandler: vi.fn(),
@@ -22,7 +22,9 @@ function setup(overrides: {
   const analysisRunsRepository = {
     hasUnclassifiedPullRequest: vi.fn().mockResolvedValue(overrides.unclassified ?? true),
     findUnclassifiedPullRequestGroups: vi.fn().mockResolvedValue(overrides.groups ?? []),
-    classifyPullRequest: vi.fn(overrides.classify ?? (async () => ({ classifiedCount: 2, eligible: true }))),
+    classifyPullRequest: vi.fn(
+      overrides.classify ?? (async () => ({ classifiedCount: 2, eligible: true, obsoletedRunIds: [] })),
+    ),
   };
   const analysisRunsService = {
     startRunFromWebhook: vi.fn().mockResolvedValue({ run: { id: 'run-1' }, isNew: true }),
@@ -52,12 +54,14 @@ function setup(overrides: {
       })),
     ),
   };
+  const realtime = { runChanged: vi.fn().mockResolvedValue(undefined) };
   const handler = new PullRequestMetadataBackfillJobHandler(
     jobsService as never,
     analysisRunsRepository as never,
     analysisRunsService as never,
     repositoryBindingsRepository as never,
     githubRepositoryContentService as never,
+    realtime as never,
   );
 
   return {
@@ -67,6 +71,7 @@ function setup(overrides: {
     analysisRunsService,
     repositoryBindingsRepository,
     githubRepositoryContentService,
+    realtime,
   };
 }
 
@@ -124,7 +129,7 @@ describe('PullRequestMetadataBackfillJobHandler', () => {
       repositoryName: 'org/repo',
       createdAt: new Date('2026-09-20T12:00:00.000Z'),
     };
-    const classify = vi.fn().mockResolvedValue({ classifiedCount: 2, eligible: false });
+    const classify = vi.fn().mockResolvedValue({ classifiedCount: 2, eligible: false, obsoletedRunIds: [] });
     const { handler, analysisRunsRepository } = setup({
       binding,
       classify,
@@ -143,6 +148,35 @@ describe('PullRequestMetadataBackfillJobHandler', () => {
       new Date('2026-09-19T12:00:00.000Z'),
       binding.createdAt,
     );
+  });
+
+  it('emits analysis-run:update only for runs that the classification obsoleted', async () => {
+    const binding = {
+      installationId: 'installation-1',
+      repositoryName: 'org/repo',
+      createdAt: new Date('2026-09-20T12:00:00.000Z'),
+    };
+    const { handler, realtime } = setup({
+      binding,
+      classify: async () => ({ classifiedCount: 3, eligible: false, obsoletedRunIds: ['run-a', 'run-b'] }),
+      lookup: async () => ({
+        headSha: 'head-live',
+        state: 'open',
+        createdAt: '2026-09-19T12:00:00.000Z',
+      }),
+    });
+
+    await handler.handle({ repositoryId: 'repo-1', pullRequestNumber: 42 });
+
+    expect(realtime.runChanged.mock.calls).toEqual([['run-a'], ['run-b']]);
+  });
+
+  it('does not emit when the classification changes no run status', async () => {
+    const { handler, realtime } = setup();
+
+    await handler.handle({ repositoryId: 'repo-1', prNumber: 42 });
+
+    expect(realtime.runChanged).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -319,7 +353,7 @@ describe('PullRequestMetadataBackfillJobHandler', () => {
   it('does not create a run when a pending event belongs to a pre-binding PR', async () => {
     const { handler, analysisRunsService, jobsService } = setup({
       unclassified: false,
-      classify: async () => ({ classifiedCount: 0, eligible: false }),
+      classify: async () => ({ classifiedCount: 0, eligible: false, obsoletedRunIds: [] }),
       lookup: async () => ({
         headSha: 'event-head',
         state: 'open',

@@ -51,6 +51,177 @@ export interface ErrorEnvelope {
   retryable?: boolean;
 }
 
+// ===== realtime-events.schema.json =====
+/**
+ * Acknowledgment de 'subscribe:*' con exactamente tres resultados: suscrito; verificación no disponible (reintentable); sin visibilidad o id inexistente (sin distinguirlos).
+ */
+export type SubscribeAck = {
+  subscribed: boolean;
+  code: "GITHUB_VERIFICATION_UNAVAILABLE" | null;
+  retryable: boolean;
+} & SubscribeAck1;
+export type SubscribeAck1 =
+  | {
+      subscribed?: true;
+      code?: null;
+      retryable?: false;
+    }
+  | {
+      subscribed?: false;
+      code?: "GITHUB_VERIFICATION_UNAVAILABLE";
+      retryable?: true;
+    }
+  | {
+      subscribed?: false;
+      code?: null;
+      retryable?: false;
+    };
+export type AnalysisRunStatus =
+  | "QUEUED"
+  | "PROCESSING"
+  | "ACTION_REQUIRED"
+  | "SUCCESS"
+  | "BEHAVIORAL_MISMATCH"
+  | "TECHNICAL_GENERATION_FAILURE"
+  | "INFRASTRUCTURE_FAILURE"
+  | "BASELINE_FAILED"
+  | "NO_ADDITIONAL_TESTS_REQUIRED"
+  | "NO_TEST_RELEVANT_CHANGES"
+  | "OBSOLETE";
+
+/**
+ * Body de 'subscribe:project-version' y 'unsubscribe:project-version'.
+ */
+export interface SubscribeProjectVersionPayload {
+  /**
+   * UUID.
+   */
+  projectVersionId: string;
+}
+/**
+ * Body de 'subscribe:analysis-run' y 'unsubscribe:analysis-run'.
+ */
+export interface SubscribeAnalysisRunPayload {
+  /**
+   * UUID.
+   */
+  analysisRunId: string;
+}
+/**
+ * Body de 'subscribe:experiment' y 'unsubscribe:experiment'.
+ */
+export interface SubscribeExperimentPayload {
+  /**
+   * UUID.
+   */
+  experimentId: string;
+}
+export interface PullRequestRefResponse {
+  repositoryId: string;
+  repositoryName: string;
+  number: number;
+  title: string;
+  baseRef: string;
+  headRef: string;
+  baseSha: string;
+  headSha: string;
+  draft: boolean;
+  state: "OPEN" | "CLOSED" | "MERGED";
+  actorLogin: string | null;
+}
+export interface AnalysisSymbolResponse {
+  language: "TYPESCRIPT" | "PHP";
+  kind: "CLASS" | "METHOD" | "FUNCTION" | "INTERFACE" | "TYPE" | "TRAIT" | "ENUM";
+  qualifiedName: string;
+  /**
+   * POSIX, relativo, normalizado y sin traversal (sin barra inicial, sin '..', sin '\').
+   */
+  filePath: string;
+  changeKind: "DIRECTLY_CHANGED" | "POTENTIALLY_IMPACTED";
+}
+/**
+ * Payload de 'analysis-run:update'. Mismo DTO que GET /analysis-runs/{id} (INTEROP §6.10).
+ */
+export interface AnalysisRunDetailResponse {
+  /**
+   * UUID.
+   */
+  id: string;
+  /**
+   * UUID.
+   */
+  projectId: string;
+  pullRequest: PullRequestRefResponse;
+  status: AnalysisRunStatus;
+  current: boolean;
+  actionRequiredCount: number;
+  generatedTestsCount: number;
+  /**
+   * ISO 8601 UTC.
+   */
+  createdAt: string;
+  /**
+   * ISO 8601 UTC.
+   */
+  updatedAt: string;
+  completedAt: string | null;
+  attemptCount: number;
+  indexMode: "BOOTSTRAP" | "INCREMENTAL";
+  changesetBaseSha: string;
+  changesetHeadSha: string;
+  indexDeltaBaseSha: string | null;
+  symbols: AnalysisSymbolResponse[];
+  functionalBehaviorValidated: boolean;
+  resultSummary: string | null;
+  detailsUrl: string;
+}
+export interface ExperimentModelConfigResponse {
+  provider: string;
+  model: string;
+  modelVersion: string | null;
+  reasoningEffort: string | null;
+  temperature: number | null;
+  maxOutputTokens: number | null;
+}
+export interface ExperimentBudgetResponse {
+  toolCallCap: number;
+  contextTokenBudget: number;
+  maxDurationMs: number;
+}
+/**
+ * Payload de 'experiment:update'. Mismo DTO que GET /experiments/{id} (INTEROP §6.5, presentador único experiment-status.presenter).
+ */
+export interface ExperimentStatusResponse {
+  /**
+   * UUID.
+   */
+  id: string;
+  /**
+   * UUID.
+   */
+  projectId: string;
+  /**
+   * UUID.
+   */
+  projectVersionId: string;
+  /**
+   * UUID.
+   */
+  targetId: string;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  completedRepetitions: number;
+  totalRepetitions: number;
+  failureCode: string | null;
+  failureMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  model: ExperimentModelConfigResponse | null;
+  budget: ExperimentBudgetResponse | null;
+  executionProfile: string | null;
+  runnerHint: string | null;
+  randomizationSeed: string | null;
+}
+
 // ===== sandbox-execution.schema.json =====
 export type SandboxStage = "PREPARING" | "INSTALLING_DEPENDENCIES" | "COMPILING" | "RUNNING_TESTS" | "FINALIZING";
 export type SandboxExecutionStatus =

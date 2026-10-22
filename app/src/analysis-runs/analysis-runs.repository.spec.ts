@@ -129,7 +129,7 @@ describe('AnalysisRunsRepository PR date classification', () => {
 
     await expect(
       repository.classifyPullRequest('repo-1', 42, createdAt, bindingCreatedAt),
-    ).resolves.toEqual({ classifiedCount: 2, eligible: true });
+    ).resolves.toEqual({ classifiedCount: 2, eligible: true, obsoletedRunIds: [] });
 
     expect(tx.analysisRun.updateMany).toHaveBeenCalledWith({
       where: {
@@ -149,7 +149,10 @@ describe('AnalysisRunsRepository PR date classification', () => {
     const createdAt = new Date('2026-09-19T12:00:00.000Z');
     const bindingCreatedAt = new Date('2026-09-20T12:00:00.000Z');
     const tx = {
-      analysisRun: { updateMany: vi.fn().mockResolvedValue({ count: 3 }) },
+      analysisRun: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'run-a' }, { id: 'run-b' }]),
+        updateMany: vi.fn().mockResolvedValue({ count: 3 }),
+      },
       functionalQuestion: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     };
     const prisma = {
@@ -159,7 +162,17 @@ describe('AnalysisRunsRepository PR date classification', () => {
 
     await expect(
       repository.classifyPullRequest('repo-1', 42, createdAt, bindingCreatedAt),
-    ).resolves.toEqual({ classifiedCount: 3, eligible: false });
+    ).resolves.toEqual({ classifiedCount: 3, eligible: false, obsoletedRunIds: ['run-a', 'run-b'] });
+
+    expect(tx.analysisRun.findMany).toHaveBeenCalledWith({
+      where: {
+        repositoryId: 'repo-1',
+        prNumber: 42,
+        OR: [{ pullRequestCreatedAt: null }, { repositoryBindingEligible: null }],
+        status: { not: 'OBSOLETE' },
+      },
+      select: { id: true },
+    });
 
     expect(tx.analysisRun.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: {
@@ -181,7 +194,7 @@ describe('AnalysisRunsRepository PR date classification', () => {
 
     await expect(
       repository.classifyPullRequest('repo-1', 42, null, new Date()),
-    ).resolves.toEqual({ classifiedCount: 0, eligible: false });
+    ).resolves.toEqual({ classifiedCount: 0, eligible: false, obsoletedRunIds: [] });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

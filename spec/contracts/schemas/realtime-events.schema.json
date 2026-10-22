@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tjc.local/contracts/realtime-events.schema.json",
+  "title": "Eventos de tiempo real Core (INTEROP §6.6)",
+  "description": "Payloads de suscripción (cliente -> servidor, con acknowledgment SubscribeAck) y de aviso (servidor -> cliente) de INTEROP-2.18 §6.6. Cada aviso lleva exactamente el DTO de su GET (AnalysisRunDetailResponse = GET /analysis-runs/{id}, ExperimentStatusResponse = GET /experiments/{id}). Los requests rechazan campos no declarados; las responses admiten campos aditivos.",
+  "$defs": {
+    "SubscribeProjectVersionPayload": {
+      "type": "object",
+      "description": "Body de 'subscribe:project-version' y 'unsubscribe:project-version'.",
+      "required": ["projectVersionId"],
+      "additionalProperties": false,
+      "properties": { "projectVersionId": { "$ref": "common.schema.json#/$defs/Id" } }
+    },
+    "SubscribeAnalysisRunPayload": {
+      "type": "object",
+      "description": "Body de 'subscribe:analysis-run' y 'unsubscribe:analysis-run'.",
+      "required": ["analysisRunId"],
+      "additionalProperties": false,
+      "properties": { "analysisRunId": { "$ref": "common.schema.json#/$defs/Id" } }
+    },
+    "SubscribeExperimentPayload": {
+      "type": "object",
+      "description": "Body de 'subscribe:experiment' y 'unsubscribe:experiment'.",
+      "required": ["experimentId"],
+      "additionalProperties": false,
+      "properties": { "experimentId": { "$ref": "common.schema.json#/$defs/Id" } }
+    },
+    "SubscribeAck": {
+      "type": "object",
+      "description": "Acknowledgment de 'subscribe:*' con exactamente tres resultados: suscrito; verificación no disponible (reintentable); sin visibilidad o id inexistente (sin distinguirlos).",
+      "required": ["subscribed", "code", "retryable"],
+      "properties": {
+        "subscribed": { "type": "boolean" },
+        "code": { "enum": ["GITHUB_VERIFICATION_UNAVAILABLE", null] },
+        "retryable": { "type": "boolean" }
+      },
+      "oneOf": [
+        {
+          "properties": { "subscribed": { "const": true }, "code": { "const": null }, "retryable": { "const": false } }
+        },
+        {
+          "properties": { "subscribed": { "const": false }, "code": { "const": "GITHUB_VERIFICATION_UNAVAILABLE" }, "retryable": { "const": true } }
+        },
+        {
+          "properties": { "subscribed": { "const": false }, "code": { "const": null }, "retryable": { "const": false } }
+        }
+      ]
+    },
+    "PullRequestRefResponse": {
+      "type": "object",
+      "required": ["repositoryId", "repositoryName", "number", "title", "baseRef", "headRef", "baseSha", "headSha", "draft", "state", "actorLogin"],
+      "properties": {
+        "repositoryId": { "type": "string" },
+        "repositoryName": { "type": "string" },
+        "number": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "baseRef": { "type": "string" },
+        "headRef": { "type": "string" },
+        "baseSha": { "type": "string" },
+        "headSha": { "type": "string" },
+        "draft": { "type": "boolean" },
+        "state": { "enum": ["OPEN", "CLOSED", "MERGED"] },
+        "actorLogin": { "type": ["string", "null"] }
+      }
+    },
+    "AnalysisRunStatus": {
+      "type": "string",
+      "enum": [
+        "QUEUED", "PROCESSING", "ACTION_REQUIRED", "SUCCESS", "BEHAVIORAL_MISMATCH", "TECHNICAL_GENERATION_FAILURE",
+        "INFRASTRUCTURE_FAILURE", "BASELINE_FAILED", "NO_ADDITIONAL_TESTS_REQUIRED", "NO_TEST_RELEVANT_CHANGES", "OBSOLETE"
+      ]
+    },
+    "AnalysisSymbolResponse": {
+      "type": "object",
+      "required": ["language", "kind", "qualifiedName", "filePath", "changeKind"],
+      "properties": {
+        "language": { "enum": ["TYPESCRIPT", "PHP"] },
+        "kind": { "enum": ["CLASS", "METHOD", "FUNCTION", "INTERFACE", "TYPE", "TRAIT", "ENUM"] },
+        "qualifiedName": { "type": "string" },
+        "filePath": { "$ref": "common.schema.json#/$defs/RelativePath" },
+        "changeKind": { "enum": ["DIRECTLY_CHANGED", "POTENTIALLY_IMPACTED"] }
+      }
+    },
+    "AnalysisRunDetailResponse": {
+      "type": "object",
+      "description": "Payload de 'analysis-run:update'. Mismo DTO que GET /analysis-runs/{id} (INTEROP §6.10).",
+      "required": [
+        "id", "projectId", "pullRequest", "status", "current", "actionRequiredCount", "generatedTestsCount",
+        "createdAt", "updatedAt", "completedAt", "attemptCount", "indexMode", "changesetBaseSha", "changesetHeadSha",
+        "indexDeltaBaseSha", "symbols", "functionalBehaviorValidated", "resultSummary", "detailsUrl"
+      ],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/Id" },
+        "projectId": { "$ref": "common.schema.json#/$defs/Id" },
+        "pullRequest": { "$ref": "#/$defs/PullRequestRefResponse" },
+        "status": { "$ref": "#/$defs/AnalysisRunStatus" },
+        "current": { "type": "boolean" },
+        "actionRequiredCount": { "$ref": "common.schema.json#/$defs/NonNegativeInteger" },
+        "generatedTestsCount": { "$ref": "common.schema.json#/$defs/NonNegativeInteger" },
+        "createdAt": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+        "updatedAt": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+        "completedAt": { "oneOf": [{ "$ref": "common.schema.json#/$defs/IsoDateTime" }, { "type": "null" }] },
+        "attemptCount": { "$ref": "common.schema.json#/$defs/NonNegativeInteger" },
+        "indexMode": { "enum": ["BOOTSTRAP", "INCREMENTAL"] },
+        "changesetBaseSha": { "type": "string" },
+        "changesetHeadSha": { "type": "string" },
+        "indexDeltaBaseSha": { "type": ["string", "null"] },
+        "symbols": { "type": "array", "items": { "$ref": "#/$defs/AnalysisSymbolResponse" } },
+        "functionalBehaviorValidated": { "type": "boolean" },
+        "resultSummary": { "type": ["string", "null"] },
+        "detailsUrl": { "type": "string" }
+      }
+    },
+    "ExperimentModelConfigResponse": {
+      "type": "object",
+      "required": ["provider", "model", "modelVersion", "reasoningEffort", "temperature", "maxOutputTokens"],
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "modelVersion": { "type": ["string", "null"] },
+        "reasoningEffort": { "type": ["string", "null"] },
+        "temperature": { "type": ["number", "null"] },
+        "maxOutputTokens": { "type": ["number", "null"] }
+      }
+    },
+    "ExperimentBudgetResponse": {
+      "type": "object",
+      "required": ["toolCallCap", "contextTokenBudget", "maxDurationMs"],
+      "properties": {
+        "toolCallCap": { "type": "number" },
+        "contextTokenBudget": { "type": "number" },
+        "maxDurationMs": { "type": "number" }
+      }
+    },
+    "ExperimentStatusResponse": {
+      "type": "object",
+      "description": "Payload de 'experiment:update'. Mismo DTO que GET /experiments/{id} (INTEROP §6.5, presentador único experiment-status.presenter).",
+      "required": [
+        "id", "projectId", "projectVersionId", "targetId", "status", "completedRepetitions", "totalRepetitions",
+        "failureCode", "failureMessage", "startedAt", "completedAt", "model", "budget", "executionProfile", "runnerHint", "randomizationSeed"
+      ],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/Id" },
+        "projectId": { "$ref": "common.schema.json#/$defs/Id" },
+        "projectVersionId": { "$ref": "common.schema.json#/$defs/Id" },
+        "targetId": { "$ref": "common.schema.json#/$defs/Id" },
+        "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED"] },
+        "completedRepetitions": { "$ref": "common.schema.json#/$defs/NonNegativeInteger" },
+        "totalRepetitions": { "$ref": "common.schema.json#/$defs/NonNegativeInteger" },
+        "failureCode": { "type": ["string", "null"] },
+        "failureMessage": { "type": ["string", "null"] },
+        "startedAt": { "oneOf": [{ "$ref": "common.schema.json#/$defs/IsoDateTime" }, { "type": "null" }] },
+        "completedAt": { "oneOf": [{ "$ref": "common.schema.json#/$defs/IsoDateTime" }, { "type": "null" }] },
+        "model": { "oneOf": [{ "$ref": "#/$defs/ExperimentModelConfigResponse" }, { "type": "null" }] },
+        "budget": { "oneOf": [{ "$ref": "#/$defs/ExperimentBudgetResponse" }, { "type": "null" }] },
+        "executionProfile": { "type": ["string", "null"] },
+        "runnerHint": { "type": ["string", "null"] },
+        "randomizationSeed": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ import { RepositoryEventsService } from './repository-events.service.js';
 import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
 import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AccessEventsService } from './access-events.service.js';
+import { AnalysisRunRealtimeEvents } from '../analysis-runs/analysis-run-realtime.events.js';
 import { SNAPSHOT_ANALYSIS_JOB_TYPE } from '../snapshot-intelligence/snapshot-analysis-job.handler.js';
 import {
   PULL_REQUEST_METADATA_BACKFILL_JOB_TYPE,
@@ -132,6 +133,7 @@ describe('GithubWebhooksService', () => {
   let bindingLifecycle: { revokeBinding: ReturnType<typeof vi.fn> };
   let organizationLifecycle: { hide: ReturnType<typeof vi.fn> };
   let accessEvents: { handle: ReturnType<typeof vi.fn> };
+  let analysisRunRealtime: { runChanged: ReturnType<typeof vi.fn> };
 
   const binding: RepositoryBinding = {
     id: 'binding-1',
@@ -217,7 +219,7 @@ describe('GithubWebhooksService', () => {
     };
     analysisRunsRepository = {
       findCurrentByPullRequest: vi.fn().mockResolvedValue(null),
-      classifyPullRequest: vi.fn().mockResolvedValue(undefined),
+      classifyPullRequest: vi.fn().mockResolvedValue({ classifiedCount: 0, eligible: true, obsoletedRunIds: [] }),
     };
     analysisRunsService = {
       startRunFromWebhook: vi.fn().mockResolvedValue({ run: buildRun(), isNew: true }),
@@ -233,6 +235,7 @@ describe('GithubWebhooksService', () => {
     bindingLifecycle = { revokeBinding: vi.fn().mockResolvedValue(undefined) };
     organizationLifecycle = { hide: vi.fn().mockResolvedValue(1) };
     accessEvents = { handle: vi.fn().mockResolvedValue(undefined) };
+    analysisRunRealtime = { runChanged: vi.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -246,6 +249,7 @@ describe('GithubWebhooksService', () => {
         { provide: BindingLifecycleService, useValue: bindingLifecycle },
         { provide: OrganizationLifecycleService, useValue: organizationLifecycle },
         { provide: AccessEventsService, useValue: accessEvents },
+        { provide: AnalysisRunRealtimeEvents, useValue: analysisRunRealtime },
       ],
     }).compile();
 
@@ -315,6 +319,32 @@ describe('GithubWebhooksService', () => {
       expect.objectContaining({ deliveryId: 'delivery-1', analysisRunId: run.id }),
     );
     expect(result.analysisRunId).toBe(run.id);
+  });
+
+  it('emits analysis-run:update for runs the pre-binding classification obsoleted, after it commits', async () => {
+    analysisRunsRepository.classifyPullRequest.mockResolvedValue({
+      classifiedCount: 2,
+      eligible: false,
+      obsoletedRunIds: ['run-old-1', 'run-old-2'],
+    });
+
+    await service.handle(buildRequest(pullRequestPayload({
+      action: 'opened',
+      pull_request: { ...pullRequestPayload().pull_request, created_at: '2025-12-31T23:59:59.999Z' },
+    }), { deliveryId: 'old-pr-emits' }));
+
+    expect(analysisRunRealtime.runChanged.mock.calls).toEqual([['run-old-1'], ['run-old-2']]);
+    const classifyOrder = analysisRunsRepository.classifyPullRequest.mock.invocationCallOrder[0];
+    const emitOrder = analysisRunRealtime.runChanged.mock.invocationCallOrder[0];
+    expect(classifyOrder).toBeLessThan(emitOrder);
+  });
+
+  it('does not emit analysis-run:update when no run changed status in the classification', async () => {
+    await service.handle(buildRequest(pullRequestPayload({
+      pull_request: { ...pullRequestPayload().pull_request, created_at: binding.createdAt.toISOString() },
+    }), { deliveryId: 'eligible-no-emit' }));
+
+    expect(analysisRunRealtime.runChanged).not.toHaveBeenCalled();
   });
 
   it('does not start a run for a pre-binding PR, even on a later synchronize', async () => {

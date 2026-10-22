@@ -19,6 +19,14 @@ export interface CreateAnalysisRunInput {
   actorLogin: string | null;
 }
 
+/** Resultado de `classifyPullRequest`: Runs clasificados, elegibilidad y los que pasaron a OBSOLETE. */
+export interface PullRequestClassification {
+  classifiedCount: number;
+  eligible: boolean;
+  /** Runs que cambiaron de estado en esta clasificación (antes no estaban OBSOLETE). */
+  obsoletedRunIds: string[];
+}
+
 export interface PullRequestRunGroup {
   repositoryId: string;
   prNumber: number;
@@ -205,15 +213,19 @@ export class AnalysisRunsRepository {
    * Clasifica idempotentemente todos los Runs históricos de un PR respecto del
    * binding actual. Los pre-binding quedan OBSOLETE y sus preguntas pendientes
    * se obsoletan en la misma transacción.
+   *
+   * `obsoletedRunIds` lista solo los Runs que cambiaron de estado realmente (los que no
+   * estaban ya OBSOLETE): quien llama emite `analysis-run:update` para ellos, después de
+   * esta transacción. Un Run ya OBSOLETE que solo recibe `pullRequestCreatedAt` no aparece.
    */
   async classifyPullRequest(
     repositoryId: string,
     prNumber: number,
     pullRequestCreatedAt: Date | null,
     bindingCreatedAt: Date,
-  ): Promise<{ classifiedCount: number; eligible: boolean }> {
+  ): Promise<PullRequestClassification> {
     if (pullRequestCreatedAt === null) {
-      return { classifiedCount: 0, eligible: false };
+      return { classifiedCount: 0, eligible: false, obsoletedRunIds: [] };
     }
 
     if (!Number.isFinite(pullRequestCreatedAt.getTime())) {
@@ -222,13 +234,24 @@ export class AnalysisRunsRepository {
 
     const eligible = pullRequestCreatedAt.getTime() >= bindingCreatedAt.getTime();
 
-    const classifiedCount = await this.prisma.$transaction(async (tx) => {
+    const unclassified = {
+      repositoryId,
+      prNumber,
+      OR: [{ pullRequestCreatedAt: null }, { repositoryBindingEligible: null }],
+    };
+
+    const { classifiedCount, obsoletedRunIds } = await this.prisma.$transaction(async (tx) => {
+      // Solo un pre-binding cambia de estado (pasa a OBSOLETE): se leen antes de escribir para
+      // conocer qué Runs cambian de verdad. Un Run ya OBSOLETE no cuenta como cambio de estado.
+      const obsoleted = eligible
+        ? []
+        : await tx.analysisRun.findMany({
+            where: { ...unclassified, status: { not: 'OBSOLETE' } },
+            select: { id: true },
+          });
+
       const result = await tx.analysisRun.updateMany({
-        where: {
-          repositoryId,
-          prNumber,
-          OR: [{ pullRequestCreatedAt: null }, { repositoryBindingEligible: null }],
-        },
+        where: unclassified,
         data: {
           pullRequestCreatedAt,
           repositoryBindingEligible: eligible,
@@ -243,9 +266,9 @@ export class AnalysisRunsRepository {
         });
       }
 
-      return result.count;
+      return { classifiedCount: result.count, obsoletedRunIds: obsoleted.map((run) => run.id) };
     });
 
-    return { classifiedCount, eligible };
+    return { classifiedCount, eligible, obsoletedRunIds };
   }
 }

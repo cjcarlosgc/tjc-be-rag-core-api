@@ -37,6 +37,7 @@ import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
     AnalysisSymbolsRepository,
     AnalysisTraceRepository,
     AnalysisRunTraceService,
+    AnalysisRunRealtimeEvents,
   ],
 })
 export class AnalysisRunsModule {}
