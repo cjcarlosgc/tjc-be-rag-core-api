@@ -1,4 +1,4 @@
-# WI-CORE-075 — modelo de prueba barato vs modelo de evidencia (propuesta, en cola)
+# WI-CORE-075 — esfuerzo de prueba (low) vs esfuerzo de evidencia (medium) sobre gpt-6-luna (propuesta, en cola)
 Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
 
 **Estado: W-PLANNED.** Pedido por la sesión cross (decisión del usuario sobre el modelo barato). No interrumpe WI-CORE-074: la cola manda. **Nada se implementa ni se asume sin la aprobación del usuario en el chat de Core.**
@@ -22,3 +22,27 @@ El usuario quiere usar `gpt-5.4-nano` con reasoning effort `none` (`EXPERIMENT_L
 - **D. Bloqueo:** rechazar crear un experimento «confirmatorio/piloto» con un modelo fuera de la lista de evidencia (cambio de comportamiento; requiere aprobación y definir qué es «confirmatorio»).
 
 Recomendación inicial del leader (a confirmar con el análisis SDD): Parte 1 + opción B; C solo si el usuario necesita que la marca viaje en los datos. Un solo WI activo: arranca cuando termine la cola (después de WI-CORE-074).
+
+
+---
+
+## ACTUALIZACIÓN (decisión del usuario relayada por cross, 2026-10-21): `gpt-5.4-nano` DESCARTADO
+
+El texto de arriba (hechos y opciones) se conserva como historial de la propuesta anterior. Lo vigente:
+
+- **Modelo único:** `gpt-6-luna` (el default de `EXPERIMENT_LLM_MODEL`, `DEC-EXP-004`). `gpt-5.4-nano` queda descartado.
+- **Pruebas económicas** = `gpt-6-luna` con esfuerzo **low**. **Evidencia oficial** (piloto, confirmatorio OE5, OE2) = `gpt-6-luna` con esfuerzo **medium**, congelado por protocolo (tesis 3.3, Anexo K).
+- Ya configurado en Render/.env por el usuario: `EXPERIMENT_LLM_MODEL=gpt-6-luna`, `EXPERIMENT_LLM_REASONING_EFFORT=low`; `LLM_SUPPORTED_COMBINATIONS` ya incluye `gpt-6-luna` con `low` y `medium`. No hace falta cambiar `LLM_SUPPORTED_COMBINATIONS` ni añadir un modelo.
+- La distinción pasa a **«low = prueba, medium = evidencia» sobre el mismo modelo**: la documentación y la salvaguarda (B aviso, C marca persistida, D bloqueo) se deciden sobre el **esfuerzo** (`reasoning effort`), no sobre el modelo. Los experimentos `07b20829` y `924e38ab` (13/10, con `gpt-5.4-nano`) quedan solo como antecedente histórico.
+
+### Propuesta revisada para decisión del usuario (sin asumir; nada se implementa sin su aprobación en el chat de Core)
+
+**Parte 1 — documentación (solo texto):** en `spec/transversal/providers/` y en la spec de experimentos (feature 008) dejar la regla «`gpt-6-luna` low = prueba económica; `gpt-6-luna` medium = evidencia oficial congelada por protocolo; no se mezclan en una misma corrida de evidencia», con los valores de `EXPERIMENT_LLM_REASONING_EFFORT` y su relación con `LLM_SUPPORTED_COMBINATIONS`, y un ejemplo comentado en `.env.example` (hoy `EXPERIMENT_LLM_REASONING_EFFORT=""`, que significa «esfuerzo máximo común soportado»: hay que decidir si el default sigue vacío o pasa a `medium`).
+
+**Parte 2 — salvaguarda sobre el esfuerzo (a elegir):**
+- **A. Solo documentación** (Parte 1).
+- **B. Aviso:** el log de arranque y el reporte del experimento advierten cuando el esfuerzo efectivo no es el de evidencia (`medium`); sin cambio de esquema ni de contrato. El `modelConfig` del `ExperimentRun` ya persiste la configuración efectiva (`LLMEffectiveConfig`), por lo que el reporte puede leerla.
+- **C. Marca persistida:** indicador derivado en el `ExperimentRun` (p. ej. `evidenceEligible = esfuerzo == medium`); posible cambio aditivo del DTO y de contrato (Contract Sync a Console).
+- **D. Bloqueo:** rechazar crear un experimento piloto/confirmatorio con esfuerzo distinto de `medium` (cambio de comportamiento; requiere definir «confirmatorio»).
+
+Recomendación inicial del leader (a confirmar con el análisis SDD): Parte 1 + opción B; C solo si la marca debe viajar en los datos. Un solo WI activo: arranca cuando termine la cola (después de WI-CORE-074).
