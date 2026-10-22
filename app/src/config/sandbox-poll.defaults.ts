@@ -7,5 +7,8 @@
  */
 export const DEFAULT_POLL_RETRIES = 3;
 export const DEFAULT_POLL_RETRY_DELAY_MS = 500;
+/** Defaults de tope de consulta y de timeout por request al Sandbox (WI-CORE-078). */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 /** Tope de la espera entre consultas: `pollAfterMs` viene del Sandbox y no es de fiar para un `setTimeout`. */
 export const MAX_POLL_AFTER_MS = 30_000;

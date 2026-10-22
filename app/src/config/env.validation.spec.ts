@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { retiredLlmVariablesIn, validateEnv } from './env.validation.js';
+import { echoEnvValue, retiredLlmVariablesIn, validateEnv } from './env.validation.js';
 
 function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -445,6 +445,153 @@ describe('SANDBOX_POLL_* al arrancar (WI-CORE-077)', () => {
     const config = moduleRef.get(ConfigService);
     expect(config.get<number>('SANDBOX_POLL_RETRIES')).toBe(5);
     expect(config.get<number>('SANDBOX_POLL_RETRY_DELAY_MS')).toBe(1000);
+    await moduleRef.close();
+  });
+});
+
+describe('echoEnvValue (WI-CORE-078)', () => {
+  it('returns normal values unchanged between quotes', () => {
+    expect(echoEnvValue('abc')).toBe('"abc"');
+    expect(echoEnvValue('x'.repeat(40))).toBe(`"${'x'.repeat(40)}"`);
+  });
+
+  it('escapes quotes and backslashes', () => {
+    expect(echoEnvValue('a"b\\c')).toBe('"a\\"b\\\\c"');
+  });
+
+  it('escapes line breaks, tabs and C0 control characters', () => {
+    expect(echoEnvValue('a\nb\r\tc')).toBe('"a\\nb\\r\\tc"');
+    expect(echoEnvValue('\u0001')).toBe('"\\u0001"');
+  });
+
+  it('escapes C1 controls, DEL, U+2028 and U+2029 that JSON.stringify leaves raw', () => {
+    expect(echoEnvValue('\u007f')).toBe('"\\u007f"');
+    expect(echoEnvValue('\u0085')).toBe('"\\u0085"');
+    expect(echoEnvValue('\u009f')).toBe('"\\u009f"');
+    expect(echoEnvValue('\u2028')).toBe('"\\u2028"');
+    expect(echoEnvValue('\u2029')).toBe('"\\u2029"');
+  });
+
+  it('keeps printable Unicode such as accents and emoji intact', () => {
+    expect(echoEnvValue('año 🚀')).toBe('"año 🚀"');
+  });
+
+  it('escapes a lone surrogate', () => {
+    expect(echoEnvValue('\ud800')).toBe('"\\ud800"');
+  });
+
+  it('truncates to 40 code points (not code units) before escaping', () => {
+    expect(echoEnvValue('😀'.repeat(41))).toBe(`"${'😀'.repeat(40)}"`);
+  });
+
+  it('never cuts an escape sequence in half at the 40-character boundary', () => {
+    expect(echoEnvValue(`${'x'.repeat(39)}\ny`)).toBe(`"${'x'.repeat(39)}\\n"`);
+    expect(echoEnvValue(`${'x'.repeat(38)}\nzz`)).toBe(`"${'x'.repeat(38)}\\nz"`);
+  });
+});
+
+describe('mensajes de eco en validateEnv (WI-CORE-078)', () => {
+  it('escapes the echoed LLM_REASONING_EFFORT so the message stays on one line', () => {
+    let message = '';
+    try {
+      validateEnv(baseConfig({ LLM_REASONING_EFFORT: 'ul\ntra"' }));
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain('LLM_REASONING_EFFORT="ul\\ntra\\"" no es un esfuerzo válido');
+    expect(message).not.toMatch(/[\n\r\u0085\u2028\u2029]/);
+  });
+
+  it('escapes the echoed SANDBOX_POLL_RETRIES value', () => {
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: 'a"b\\c' }))).toThrow(
+      `SANDBOX_POLL_RETRIES=${echoEnvValue('a"b\\c')} no es válido`,
+    );
+    expect(() => validateEnv(baseConfig({ SANDBOX_POLL_RETRIES: 'a"b' }))).toThrow(
+      'SANDBOX_POLL_RETRIES="a\\"b" no es válido',
+    );
+  });
+});
+
+describe('SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS (WI-CORE-078)', () => {
+  const ATTEMPTS_RANGE = 'debe ser un entero entre 1 y 600.';
+  const TIMEOUT_RANGE = 'debe ser un entero entre 100 y 60000 (ms).';
+
+  it('uses the defaults when the variables are absent', () => {
+    const result = validateEnv(baseConfig());
+    expect(result.SANDBOX_MAX_POLL_ATTEMPTS).toBe(120);
+    expect(result.SANDBOX_REQUEST_TIMEOUT_MS).toBe(10_000);
+  });
+
+  it('accepts the bounds and stores them as numbers', () => {
+    const low = validateEnv(baseConfig({ SANDBOX_MAX_POLL_ATTEMPTS: '1', SANDBOX_REQUEST_TIMEOUT_MS: '100' }));
+    expect(low.SANDBOX_MAX_POLL_ATTEMPTS).toBe(1);
+    expect(low.SANDBOX_REQUEST_TIMEOUT_MS).toBe(100);
+    const high = validateEnv(baseConfig({ SANDBOX_MAX_POLL_ATTEMPTS: '600', SANDBOX_REQUEST_TIMEOUT_MS: '60000' }));
+    expect(high.SANDBOX_MAX_POLL_ATTEMPTS).toBe(600);
+    expect(high.SANDBOX_REQUEST_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it('trims surrounding spaces of valid values', () => {
+    const result = validateEnv(baseConfig({ SANDBOX_MAX_POLL_ATTEMPTS: ' 120 ', SANDBOX_REQUEST_TIMEOUT_MS: ' 10000 ' }));
+    expect(result.SANDBOX_MAX_POLL_ATTEMPTS).toBe(120);
+    expect(result.SANDBOX_REQUEST_TIMEOUT_MS).toBe(10_000);
+  });
+
+  it('fails with the exact message when a value is out of range or not a plain integer', () => {
+    for (const value of ['0', '601', '-1', '2.5', '+3', '1e3', '0x10', '10s', '10_000', 'abc', '99999999999999999999999']) {
+      expect(() => validateEnv(baseConfig({ SANDBOX_MAX_POLL_ATTEMPTS: value }))).toThrow(
+        `Configuración de entorno inválida: SANDBOX_MAX_POLL_ATTEMPTS=${echoEnvValue(value)} no es válido; ${ATTEMPTS_RANGE}`,
+      );
+    }
+    for (const value of ['99', '60001', '0', '100.5', '1e3', '0x10', '+3', 'abc', '99999999999999999999999']) {
+      expect(() => validateEnv(baseConfig({ SANDBOX_REQUEST_TIMEOUT_MS: value }))).toThrow(
+        `Configuración de entorno inválida: SANDBOX_REQUEST_TIMEOUT_MS=${echoEnvValue(value)} no es válido; ${TIMEOUT_RANGE}`,
+      );
+    }
+  });
+
+  it('fails when a value is empty or only spaces, and does not treat it as absent', () => {
+    for (const value of ['', '   ']) {
+      expect(() => validateEnv(baseConfig({ SANDBOX_MAX_POLL_ATTEMPTS: value }))).toThrow(
+        'Configuración de entorno inválida: SANDBOX_MAX_POLL_ATTEMPTS no puede estar vacío; si no la define se usa el valor por defecto 120.',
+      );
+      expect(() => validateEnv(baseConfig({ SANDBOX_REQUEST_TIMEOUT_MS: value }))).toThrow(
+        'Configuración de entorno inválida: SANDBOX_REQUEST_TIMEOUT_MS no puede estar vacío; si no la define se usa el valor por defecto 10000.',
+      );
+    }
+  });
+
+  it('truncates the echoed value to 40 characters', () => {
+    expect(() => validateEnv(baseConfig({ SANDBOX_MAX_POLL_ATTEMPTS: 'x'.repeat(60) }))).toThrow(
+      `SANDBOX_MAX_POLL_ATTEMPTS="${'x'.repeat(40)}" no es`,
+    );
+    expect(() => validateEnv(baseConfig({ SANDBOX_REQUEST_TIMEOUT_MS: 'x'.repeat(60) }))).toThrow(
+      `SANDBOX_REQUEST_TIMEOUT_MS="${'x'.repeat(40)}" no es`,
+    );
+  });
+
+  it('does not expose secrets in the error messages', () => {
+    try {
+      validateEnv(baseConfig({ SUPABASE_SECRET_KEY: 'sb-secreto-456', SANDBOX_REQUEST_TIMEOUT_MS: 'abc' }));
+      throw new Error('se esperaba un error');
+    } catch (error) {
+      expect((error as Error).message).toContain('SANDBOX_REQUEST_TIMEOUT_MS="abc"');
+      expect((error as Error).message).not.toContain('sb-secreto-456');
+    }
+  });
+
+  it('exposes the normalized numeric values through ConfigService.get', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          ignoreEnvFile: true,
+          validate: () => validateEnv(baseConfig({ SANDBOX_MAX_POLL_ATTEMPTS: ' 600 ', SANDBOX_REQUEST_TIMEOUT_MS: '60000' })),
+        }),
+      ],
+    }).compile();
+    const config = moduleRef.get(ConfigService);
+    expect(config.get<number>('SANDBOX_MAX_POLL_ATTEMPTS')).toBe(600);
+    expect(config.get<number>('SANDBOX_REQUEST_TIMEOUT_MS')).toBe(60_000);
     await moduleRef.close();
   });
 });

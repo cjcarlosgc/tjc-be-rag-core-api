@@ -21,8 +21,10 @@ import {
 import { DEFAULT_LLM_MODEL } from '../providers/llm-settings.js';
 import { REASONING_EFFORT_SCALE } from '../providers/reasoning-effort.scale.js';
 import {
+  DEFAULT_MAX_POLL_ATTEMPTS,
   DEFAULT_POLL_RETRIES,
   DEFAULT_POLL_RETRY_DELAY_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   MAX_POLL_AFTER_MS,
 } from './sandbox-poll.defaults.js';
 
@@ -177,13 +179,16 @@ class EnvironmentVariables {
   @Min(1)
   SANDBOX_DOWNLOAD_TTL_SECONDS: number = 300;
 
-  @IsInt()
-  @Min(100)
-  SANDBOX_REQUEST_TIMEOUT_MS: number = 10_000;
+  /**
+   * Timeout (ms) por request al Sandbox (WI-CORE-078). Se valida el texto crudo en
+   * `validateSandboxLimitSettings` (entero 100..60000); sin `@IsInt`, que convertiría "1e3" o "0x10".
+   */
+  @IsOptional()
+  SANDBOX_REQUEST_TIMEOUT_MS: number = DEFAULT_REQUEST_TIMEOUT_MS;
 
-  @IsInt()
-  @Min(1)
-  SANDBOX_MAX_POLL_ATTEMPTS: number = 120;
+  /** Máximo de consultas de estado al Sandbox por ejecución (WI-CORE-078): entero 1..600. */
+  @IsOptional()
+  SANDBOX_MAX_POLL_ATTEMPTS: number = DEFAULT_MAX_POLL_ATTEMPTS;
 
   /**
    * Reintentos por consulta GET al Sandbox (WI-CORE-077). Se valida el texto crudo en
@@ -359,6 +364,7 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   validateExperimentLlmSettings(validated);
   validateLlmSettings(validated);
   validateSandboxPollSettings(config, validated);
+  validateSandboxLimitSettings(config, validated);
   warnRetiredLlmVariables(config);
 
   return validated;
@@ -376,11 +382,51 @@ export function retiredLlmVariablesIn(config: Record<string, unknown>): string[]
   return RETIRED_LLM_VARIABLES.filter((name) => config[name] !== undefined);
 }
 
-const REASONING_EFFORT_MAX_LOG_LENGTH = 40;
-const SANDBOX_POLL_MAX_ECHO_LENGTH = 40;
+const ECHO_MAX_CODE_POINTS = 40;
 const SANDBOX_POLL_RETRIES_MAX = 10;
 const SANDBOX_POLL_RETRY_DELAY_MS_MIN = 1;
 const SANDBOX_POLL_RETRY_DELAY_MS_MAX = MAX_POLL_AFTER_MS;
+const SANDBOX_MAX_POLL_ATTEMPTS_MIN = 1;
+const SANDBOX_MAX_POLL_ATTEMPTS_MAX = 600;
+const SANDBOX_REQUEST_TIMEOUT_MS_MIN = 100;
+const SANDBOX_REQUEST_TIMEOUT_MS_MAX = 60_000;
+
+/**
+ * Eco seguro de un valor de entorno en un mensaje de error (WI-CORE-078). Recorta primero a 40 puntos
+ * de código (nunca corta un escape a la mitad) y escapa después: JSON.stringify (comillas, barras,
+ * controles C0 y sustitutos sueltos) más U+007F–U+009F, U+2028 y U+2029, que no deben partir una línea
+ * de log. Devuelve el literal ya con comillas. Para valores normales el resultado es `"valor"`.
+ */
+export function echoEnvValue(text: string): string {
+  const head = Array.from(text).slice(0, ECHO_MAX_CODE_POINTS).join('');
+  return JSON.stringify(head).replace(
+    /[\u007f-\u009f\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+}
+
+/**
+ * SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS (WI-CORE-078): mismo patrón que las POLL.
+ * Ausente = default; vacía o solo espacios = error; solo enteros decimales dentro de rango.
+ * Escribe el número normalizado en `validated`. Los topes evitan valores absurdos o desbordes;
+ * no acotan por sí solos el tiempo máximo de un intento (cota B de WI-CORE-071).
+ */
+function validateSandboxLimitSettings(config: Record<string, unknown>, validated: EnvironmentVariables): void {
+  validated.SANDBOX_MAX_POLL_ATTEMPTS = parseBoundedInteger(config, 'SANDBOX_MAX_POLL_ATTEMPTS', {
+    defaultValue: DEFAULT_MAX_POLL_ATTEMPTS,
+    min: SANDBOX_MAX_POLL_ATTEMPTS_MIN,
+    max: SANDBOX_MAX_POLL_ATTEMPTS_MAX,
+    rangeLabel: `entre ${SANDBOX_MAX_POLL_ATTEMPTS_MIN} y ${SANDBOX_MAX_POLL_ATTEMPTS_MAX}`,
+    defaultLabel: String(DEFAULT_MAX_POLL_ATTEMPTS),
+  });
+  validated.SANDBOX_REQUEST_TIMEOUT_MS = parseBoundedInteger(config, 'SANDBOX_REQUEST_TIMEOUT_MS', {
+    defaultValue: DEFAULT_REQUEST_TIMEOUT_MS,
+    min: SANDBOX_REQUEST_TIMEOUT_MS_MIN,
+    max: SANDBOX_REQUEST_TIMEOUT_MS_MAX,
+    rangeLabel: `entre ${SANDBOX_REQUEST_TIMEOUT_MS_MIN} y ${SANDBOX_REQUEST_TIMEOUT_MS_MAX} (ms)`,
+    defaultLabel: String(DEFAULT_REQUEST_TIMEOUT_MS),
+  });
+}
 
 /**
  * SANDBOX_POLL_RETRIES y SANDBOX_POLL_RETRY_DELAY_MS (WI-CORE-077). Se validan sobre el texto crudo:
@@ -388,14 +434,14 @@ const SANDBOX_POLL_RETRY_DELAY_MS_MAX = MAX_POLL_AFTER_MS;
  * notación) dentro de rango. Escribe el número normalizado en `validated`.
  */
 function validateSandboxPollSettings(config: Record<string, unknown>, validated: EnvironmentVariables): void {
-  validated.SANDBOX_POLL_RETRIES = parseSandboxPollInteger(config, 'SANDBOX_POLL_RETRIES', {
+  validated.SANDBOX_POLL_RETRIES = parseBoundedInteger(config, 'SANDBOX_POLL_RETRIES', {
     defaultValue: DEFAULT_POLL_RETRIES,
     min: 0,
     max: SANDBOX_POLL_RETRIES_MAX,
     rangeLabel: `entre 0 y ${SANDBOX_POLL_RETRIES_MAX}`,
     defaultLabel: String(DEFAULT_POLL_RETRIES),
   });
-  validated.SANDBOX_POLL_RETRY_DELAY_MS = parseSandboxPollInteger(config, 'SANDBOX_POLL_RETRY_DELAY_MS', {
+  validated.SANDBOX_POLL_RETRY_DELAY_MS = parseBoundedInteger(config, 'SANDBOX_POLL_RETRY_DELAY_MS', {
     defaultValue: DEFAULT_POLL_RETRY_DELAY_MS,
     min: SANDBOX_POLL_RETRY_DELAY_MS_MIN,
     max: SANDBOX_POLL_RETRY_DELAY_MS_MAX,
@@ -404,7 +450,7 @@ function validateSandboxPollSettings(config: Record<string, unknown>, validated:
   });
 }
 
-function parseSandboxPollInteger(
+function parseBoundedInteger(
   config: Record<string, unknown>,
   name: string,
   options: { defaultValue: number; min: number; max: number; rangeLabel: string; defaultLabel: string },
@@ -422,7 +468,7 @@ function parseSandboxPollInteger(
   const value = Number(text);
   if (!/^\d+$/.test(text) || !Number.isSafeInteger(value) || value < options.min || value > options.max) {
     throw new Error(
-      `Configuración de entorno inválida: ${name}="${text.slice(0, SANDBOX_POLL_MAX_ECHO_LENGTH)}" no es válido; debe ser un entero ${options.rangeLabel}.`,
+      `Configuración de entorno inválida: ${name}=${echoEnvValue(text)} no es válido; debe ser un entero ${options.rangeLabel}.`,
     );
   }
   return value;
@@ -454,7 +500,7 @@ function validateLlmSettings(validated: EnvironmentVariables): void {
   }
   if (!REASONING_EFFORT_SCALE.includes(effort)) {
     throw new Error(
-      `Configuración de entorno inválida: LLM_REASONING_EFFORT="${effort.slice(0, REASONING_EFFORT_MAX_LOG_LENGTH)}" no es un esfuerzo válido; valores válidos: ${validValues}.`,
+      `Configuración de entorno inválida: LLM_REASONING_EFFORT=${echoEnvValue(effort)} no es un esfuerzo válido; valores válidos: ${validValues}.`,
     );
   }
   // El valor validado (sin espacios) es el que lee el adaptador.

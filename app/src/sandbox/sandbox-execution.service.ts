@@ -3,7 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { validateContract } from '../contracts/contract-validator.js';
-import { DEFAULT_POLL_RETRIES, DEFAULT_POLL_RETRY_DELAY_MS, MAX_POLL_AFTER_MS } from '../config/sandbox-poll.defaults.js';
+import {
+  DEFAULT_MAX_POLL_ATTEMPTS,
+  DEFAULT_POLL_RETRIES,
+  DEFAULT_POLL_RETRY_DELAY_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  MAX_POLL_AFTER_MS,
+} from '../config/sandbox-poll.defaults.js';
 import { ObjectStorageService } from '../object-storage/object-storage.service.js';
 import type {
   ExecutionProfile,
@@ -75,8 +81,6 @@ function normalizeStageDurations(raw: unknown): SandboxExecutionResult['stageDur
 }
 
 const DEFAULT_DOWNLOAD_TTL_SECONDS = 300;
-export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
-export const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 
 // Keep the mapping exhaustive: adding a runner requires selecting its profile.
 export const EXECUTION_PROFILE_BY_RUNNER: Record<
@@ -110,7 +114,13 @@ export class SandboxUnavailableError extends Error {
 }
 
 // Re-exportados para los consumidores existentes; la fuente única es config/sandbox-poll.defaults.ts.
-export { DEFAULT_POLL_RETRIES, DEFAULT_POLL_RETRY_DELAY_MS, MAX_POLL_AFTER_MS };
+export {
+  DEFAULT_MAX_POLL_ATTEMPTS,
+  DEFAULT_POLL_RETRIES,
+  DEFAULT_POLL_RETRY_DELAY_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  MAX_POLL_AFTER_MS,
+};
 const FALLBACK_POLL_AFTER_MS = 1_000;
 
 /** Acota el `pollAfterMs` que informa el Sandbox: un valor ausente, no numérico o negativo usa el de respaldo. */
