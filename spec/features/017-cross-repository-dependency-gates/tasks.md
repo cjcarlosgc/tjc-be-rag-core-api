@@ -11,3 +11,7 @@
 - [x] **ST-CORE-090 · T-DONE · WI-CORE-083 · HU15, HU17:** registrar en la propuesta CT las decisiones D-2, D-9 y D-11 y los pilotos oficiales (solo texto en `harness/reports`; tesis y Full Paper sin modificar).
 - [x] **ST-CORE-092 · T-DONE · WI-CORE-085 · HU15, HU17:** análisis de impacto (solo lectura) de la decisión de pilotos y evidencia: esquema CT-01 y versión INTEROP, smoke por piloto, oráculo, Console y Sandbox.
 - [x] **ST-CORE-093 · T-DONE · WI-CORE-086 · HU15, HU17:** registrar en la propuesta CT las decisiones D-3, D-4, D-6, D-7, D-12 (ronda única de contratos, sin `oracleRef`) y D-13 (pilotos sobre forks del usuario); solo texto en `harness/reports`.
+- [ ] **ST-CORE-094 · T-IN_PROGRESS · WI-CORE-079 · HU15, HU17:** esquema canónico `github-webhook-event.schema.json` del payload Integration→Core (CT-01), ejemplos válidos, manifest y `generated/` regenerado; GH-INTEROP-1.9.
+- [ ] **ST-CORE-095 · T-IN_PROGRESS · WI-CORE-079 · HU15, HU17:** pruebas de frontera de CT-01 en Core (ejemplos válidos pasan esquema y parser; inválidos fallan en ambos; paridad con brechas declaradas).
+- [ ] **ST-CORE-096 · T-IN_PROGRESS · WI-CORE-079 · HU15, HU17:** SYSTEM-2.15 (texto neutral de `system-contract.md:287`), corrección de `sandbox-result.failed.json` y cabeceras de versión, README y CHANGELOG (INTEROP-2.20, GH-INTEROP-1.9, SYSTEM-2.15).
+- [ ] **ST-CORE-097 · T-IN_PROGRESS · WI-CORE-079 · HU15, HU17:** Contract Sync a Integration, Sandbox y Console (tres eventos `C-PENDING`; Core no edita otros repositorios).

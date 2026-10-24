@@ -4551,30 +4551,45 @@
       "id": "WI-CORE-079",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-IN_PROGRESS",
       "priority": "P2",
       "sprint": "P2",
-      "title": "Errata E-01: ExperimentResultsResponse documenta targetId (nueva version documental de INTEROP con Contract Sync informativo)",
+      "title": "Ronda unica de contratos INTEROP-2.20 / GH-INTEROP-1.9 / SYSTEM-2.15: esquema canonico CT-01 (payload Integration->Core), errata E-01, SYSTEM-2.15 y correccion de sandbox-result.failed.json",
       "storyIds": [
+        "HU15",
         "HU17"
       ],
       "taskIds": [
-        "ST-CORE-086"
+        "ST-CORE-086",
+        "ST-CORE-094",
+        "ST-CORE-095",
+        "ST-CORE-096",
+        "ST-CORE-097"
       ],
       "caseIds": [],
       "dependsOn": [
-        "WI-CORE-078"
+        "WI-CORE-078",
+        "WI-CORE-086"
       ],
       "contractImpact": true,
       "publishesContract": true,
       "acceptanceCriteria": [
-        "INTEROP §6.5 documenta la forma real de ExperimentResultsResponse (targetId; analysisRunId y symbol quedan como definidos por HU17, pendientes y opcionales) y, si aplica, esquemas y ejemplos; el DTO no cambia; nueva version documental de INTEROP (2.20) y cabecera de SYSTEM/espejos coherentes.",
-        "Contract Sync informativo (breaking false) a console, github-integration y sandbox con digests finales y la correccion de E-02 (scopePaths); el usuario confirma antes de publicar la ronda extra de espejos; revision independiente con reviewer y contract-reviewer."
+        "Existe spec/contracts/schemas/github-webhook-event.schema.json con ejemplos validos (al menos uno por variante) en el manifest; valida los ejemplos validos y rechaza los invalidos; los validos pasan tambien parseNormalizedWebhookEvent (round-trip) y los invalidos fallan en ambos; paridad esquema/parser con la lista de brechas declarada; npm run contracts:generate y contracts:check limpios; lint, test y build verdes.",
+        "INTEROP §6.5 documenta targetId en ExperimentResultsResponse (E-01; el DTO no cambia); system-contract.md:287 sin identidades de pilotos; sandbox-result.failed.json con code DEPENDENCY_INSTALL_FAILED; versiones coherentes INTEROP-2.20, GH-INTEROP-1.9 y SYSTEM-2.15 en cabeceras, spec/README.md y CHANGELOG.md; todos breaking false; sin oracleRef ni cambio de DTO, rutas o comportamiento.",
+        "Tres eventos de Contract Sync C-PENDING (Integration, Sandbox sin github-integration-contract.md, Console) con digests finales y sourceRevision del commit final; contract-reviewer y reviewer independientes aprueban el rango; Core no edita otros repositorios y no hace push, PR ni merge."
       ],
       "specPaths": [
         "harness/reports/wi-core-079-scope.md",
+        "harness/reports/wi-core-079-sdd-analysis.md",
         "harness/reports/errata-pendientes-interop.md",
-        "spec/features/008-experimental-comparison/tasks.md"
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/contracts/schemas"
       ]
     },
     {

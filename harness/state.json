@@ -22305,5 +22305,140 @@
       "closedAt": "2026-10-24T06:04:15.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-079",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-IN_PROGRESS",
+    "title": "Ronda unica de contratos INTEROP-2.20 / GH-INTEROP-1.9 / SYSTEM-2.15: esquema canonico CT-01 (payload Integration->Core), errata E-01, SYSTEM-2.15 y correccion de sandbox-result.failed.json",
+    "approved": true,
+    "storyIds": [
+      "HU15",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-086",
+      "ST-CORE-094",
+      "ST-CORE-095",
+      "ST-CORE-096",
+      "ST-CORE-097"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-079-scope.md",
+      "harness/reports/wi-core-079-sdd-analysis.md",
+      "harness/reports/errata-pendientes-interop.md",
+      "spec/features/008-experimental-comparison/tasks.md",
+      "spec/features/017-cross-repository-dependency-gates/tasks.md"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-10-24T12:00:00.000Z",
+      "note": "Alcance aprobado por el usuario en el chat de Core el 2026-10-24 (D-12); sin decisiones bloqueantes."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "implementer",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "Analisis de suficiencia SDD y diseno de la ronda unica: esquema CT-01 (9 variantes, discrepancias Integration/Core D-A..D-H), pruebas de frontera, E-01, SYSTEM-2.15, ejemplo failed.json, versionado y Contract Sync; opciones A-1..A-5 resueltas con la recomendacion dentro de lo aprobado."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-079-sdd-analysis.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-079-sdd-analysis.md"
+          ],
+          "recommendedNextStep": "Implementar por un implementer.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
+      "contractSyncPublished": "G-NOT_RUN",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": true,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-079",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003",
+            "CS-SANDBOX-20261014-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-24T06:09:03.523Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-079-sdd-analysis.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-079-scope.md"
+      ]
+    },
+    "evidence": [
+      "harness/reports/wi-core-079-scope.md",
+      "harness/reports/wi-core-079-sdd-analysis.md"
+    ],
+    "blockedReason": null,
+    "syncScopePaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md",
+      "spec/contracts/github-integration-contract.md",
+      "spec/contracts/schemas"
+    ]
+  }
 }
