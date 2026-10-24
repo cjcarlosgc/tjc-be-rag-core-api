@@ -10,3 +10,4 @@
 - [x] **ST-CORE-089 · T-DONE · WI-CORE-082 · HU15, HU17:** proponer las aserciones de CT-01…CT-10 por contrato C-01…C-10 (solo lectura; el usuario aprueba, modifica o descarta); sin pruebas nuevas.
 - [x] **ST-CORE-090 · T-DONE · WI-CORE-083 · HU15, HU17:** registrar en la propuesta CT las decisiones D-2, D-9 y D-11 y los pilotos oficiales (solo texto en `harness/reports`; tesis y Full Paper sin modificar).
 - [x] **ST-CORE-092 · T-DONE · WI-CORE-085 · HU15, HU17:** análisis de impacto (solo lectura) de la decisión de pilotos y evidencia: esquema CT-01 y versión INTEROP, smoke por piloto, oráculo, Console y Sandbox.
+- [x] **ST-CORE-093 · T-DONE · WI-CORE-086 · HU15, HU17:** registrar en la propuesta CT las decisiones D-3, D-4, D-6, D-7, D-12 (ronda única de contratos, sin `oracleRef`) y D-13 (pilotos sobre forks del usuario); solo texto en `harness/reports`.

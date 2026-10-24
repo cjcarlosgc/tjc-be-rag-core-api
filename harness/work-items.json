@@ -4887,6 +4887,58 @@
           "report": "harness/reports/wi-core-085-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-086",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Registrar en la propuesta CT las decisiones D-3, D-4, D-6, D-7, D-12 y D-13 (aprobadas por el usuario el 2026-10-24)",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-093"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-085"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "harness/reports/arch-v1.0-aserciones-ct-propuesta.md mueve D-3, D-4, D-6 y D-7 a decisiones tomadas con la recomendacion aceptada, anade D-12 (ronda unica de contratos sin oracleRef) y D-13 (pilotos sobre forks del usuario con la App instalada) y ajusta las aserciones y la tabla resumen que dependian de ellas.",
+        "Solo texto en harness/reports: sin cambios en app/, contratos, esquemas, referencias/, tesis, Full Paper ni AGENTS.md; revision independiente del reviewer sobre fidelidad a lo decidido por el usuario."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-086-scope.md",
+        "harness/reports/arch-v1.0-aserciones-ct-propuesta.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-086-technical-checks.md",
+        "harness/reports/wi-core-086-contract-sync-scope-review.md",
+        "harness/reports/wi-core-086-independent-review.md",
+        "harness/reports/wi-core-086-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-086 solo registra decisiones en un documento de harness/reports.",
+          "report": "harness/reports/wi-core-086-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-086 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-086-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

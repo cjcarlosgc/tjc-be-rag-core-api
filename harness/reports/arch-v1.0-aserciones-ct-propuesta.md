@@ -32,7 +32,7 @@ Cita: «alcance de validación separado de actualización del índice».
 | CT-02-A3 | Dado un HEAD obsoleto, el Run pasa a obsoleto y no actualiza índice ni genera targets | Err | Core | `analysis-runs.service.spec.ts` («obsoleteRun»); handler parcial | S | Auto |
 | CT-02-A4 | Un target no resoluble queda como estado explícito, sin abortar el resto | Err | Core | ninguna: `src/project-versions/inventory/test-target-extractor.service.spec.ts` solo prueba exportados/no exportados; `UNRESOLVABLE_TARGET` lo lanza `RetrievalService` (CT-03-A1), no el análisis | M (aclarar antes dónde ocurre el estado explícito) | Auto |
 
-Nota: «CHANGESET», «INDEX DELTA» y «instrucciones de indexación» no tienen schema en `spec/contracts/schemas/`. Decisión D-3.
+Nota: «CHANGESET», «INDEX DELTA» y «instrucciones de indexación» no tienen schema en `spec/contracts/schemas/`. **D-3 decidida:** el formato canónico es el del contrato de interoperabilidad vigente; no se crea schema nuevo antes del tag.
 
 ## C-03 — Retriever → Context Builder (CT-03)
 Cita: «ranking auditable dentro de límites».
@@ -52,7 +52,7 @@ Cita: «solo conocimiento autorizado/vigente se utiliza».
 | ID | Aserción | Parte | Dónde | Existente | Falta | Auto |
 |---|---|---|---|---|---|---|
 | CT-04-A1 | Dado un proyecto+target, el retriever consulta solo reglas ACTIVE por `targetRef` exacto y mapea la procedencia | E, S | Core | `src/retrieval/functional-rules.retriever.spec.ts` («queries ACTIVE rules by exact targetRef…») | ninguno | Auto |
-| CT-04-A2 | Reglas no ACTIVE o sin autoridad nunca llegan a `functionalRules` del contexto | Post | Core | ninguna como aserción única | M | Auto |
+| CT-04-A2 | Reglas no ACTIVE o sin autoridad (D-7: «sin autoridad» = no ACTIVE o sin procedencia confirmada) nunca llegan a `functionalRules` del contexto | Post | Core | ninguna como aserción única | M | Auto |
 | CT-04-A3 | Confirmar sin rol suficiente (incluido UNKNOWN) devuelve 403 `PROJECT_ROLE_INSUFFICIENT` | Err, Pre | Core | `functional-knowledge.service.spec.ts` («submitAnswer») | ninguno | Auto |
 | CT-04-A4 | Dada una regla requerida sin respuesta o con conflicto, el flujo se detiene con ACTION_REQUIRED y no genera con reglas supuestas | S, Err | Core | `listActionRequired`; `functional-context-evaluator.service.spec.ts`; `functional-continuation-job.handler.spec.ts` | S (nombrar frontera) | Auto |
 | CT-04-A5 | Con Postgres/RLS, un usuario sin acceso al proyecto no lee ni confirma reglas | Pre | Core | e2e de acceso generales (`access-matrix`); sin caso FK | M | Auto (e2e/pg) |
@@ -129,7 +129,7 @@ Cita: «Core consume puertos, no proveedores concretos».
 | CT-10-A4 | Indisponibilidad/conflicto de persistencia se propaga como error tipado | Err | Core | parcial en repos/`jobs` | M | Auto |
 | CT-10-A5 | Fuera de adapters/repositorios no se importan SDKs de proveedor ni se accede a la DB directamente | Post | Core | ninguna | M | Auto (test de arquitectura) |
 
-Discrepancia: la tesis habla de «puertos» para relacional y vectorial; en el código son Prisma/SQL directo (sin interfaz). D-6.
+Discrepancia: la tesis habla de «puertos» para relacional y vectorial; en el código son Prisma/SQL directo (sin interfaz). **D-6 decidida:** los repositorios se declaran *adapters* y se cubren con un test de arquitectura (CT-10-A5); sin refactor a interfaces antes del tag.
 
 ---
 
@@ -137,23 +137,23 @@ Discrepancia: la tesis habla de «puertos» para relacional y vectorial; en el c
 
 | CT | Aserciones | Cubiertas | Parciales | Sin cobertura | Esfuerzo faltante | Dueño | Decisiones abiertas |
 |---|---|---|---|---|---|---|---|
-| CT-01 | 5 | 2 | 3 | 0 | M | Core + Integration | (D-2 decidida) |
-| CT-02 | 4 | 1 | 2 | 1 | M | Core | D-3 |
-| CT-03 | 6 | 2 | 1 | 3 | M-L | Core | D-4 |
-| CT-04 | 5 | 2 | 1 | 2 | M | Core | D-7 |
+| CT-01 | 5 | 2 | 3 | 0 | M | Core + Integration | (D-2 decidida; ejecución en la ronda D-12) |
+| CT-02 | 4 | 1 | 2 | 1 | M | Core | (D-3 decidida) |
+| CT-03 | 6 | 2 | 1 | 3 | M-L | Core | (D-4 decidida) |
+| CT-04 | 5 | 2 | 1 | 2 | M | Core | (D-7 decidida) |
 | CT-05 | 6 | 4 | 0 | 2 | M-L (A5 implementación) | Core | (D-5 decidida) |
 | CT-06 | 5 | 2 | 2 | 1 | S | Core + Sandbox | |
 | CT-07 | 5 | 3 | 1 | 1 | S | Core + Sandbox | |
 | CT-08 | 6 | 3 | 0 | 3 | M (A2/A4/A6 checklist manual; sin funcionalidad nueva, D-11) | Core | (D-9, D-11 decididas) |
 | CT-09 | 5 | 2 | 0 | 3 | L (ESC-MOD-01) | Core | (D-10 decidida) |
-| CT-10 | 5 | 0 | 4 | 1 | M | Core | D-6 |
+| CT-10 | 5 | 0 | 4 | 1 | M | Core | (D-6 decidida) |
 | **Total** | **52** | **21** | **14** | **17** | | | |
 
 Conteo por lectura con el criterio de arriba; 21+14+17=52.
 
 ## 2. Decisiones
 
-### Decisiones tomadas por el usuario (chat de Core, 2026-10-23)
+### Decisiones tomadas por el usuario (chat de Core, 2026-10-23 y 2026-10-24)
 - **D-1:** un registro de evidencia por CT (p. ej. EV-OE1-CT-xx con SHA, comando y resultado, en el registro de evidencias de la tesis, Anexo G/HITO-OE1).
 - **D-5:** «contexto insuficiente» = sin código del target, o sin ningún candidato que pase el mínimo de relevancia Y faltan reglas funcionales requeridas ⇒ ACTION_REQUIRED y no se genera; lo demás no bloquea. Core hoy no lo define ni lo prueba: requiere implementación + prueba (CT-05-A5).
 - **D-2 (2026-10-24):** C-01 cruza dos repositorios (Integration es un repo aparte). Se prueba en **dos mitades más un payload canónico compartido**: Integration prueba su mitad (webhook de GitHub a evento: firma, permisos, elegibilidad, duplicado); Core prueba la suya (evento autenticado con bearer de Integration a AnalysisRun, identidad PR/HEAD preservada, duplicado idempotente); el vínculo es un **esquema JSON canónico del payload Integration→Core** en `spec/contracts/schemas/` con un ejemplo que **ambos repos validan** (CT-01-A1, A5). Requiere un WI de implementación y Contract Sync a Integration; sin prueba extremo a extremo entre repos.
@@ -161,11 +161,16 @@ Conteo por lectura con el criterio de arriba; 21+14+17=52.
 - **D-11 (2026-10-24):** CT-08 se cierra con **checklist manual trazable** sobre esos AnalysisRuns reales: 9 enlaces en directo e inverso mediante identificadores persistidos, consultas disponibles y evidencia asociada; cuando una comprobación inversa no exista como consulta automática se verifica manualmente contra los registros persistidos y se documenta el Evidence ID (Tabla 54). Un enlace que no aplica porque el flujo terminó antes de esa etapa se registra como **N/A justificado**, no como fallo; un enlace obligatorio que falta o es inconsistente se registra como **incumplimiento**. **No** se implementa funcionalidad nueva ni se crean endpoints antes de `arch-v1.0`; la automatización de la consulta inversa queda como mejora posterior (CT-08-A2, A4, A6).
 - **D-10:** baseline de ESC-MOD-01 = suite de contrato de `LLMProvider` contra el adaptador OpenAI y un segundo adaptador FALSO de prueba, sin tocar el dominio; el segundo proveedor real queda para OE5 (CT-09-A3, A5).
 
-### Pendientes (con recomendación)
-1. D-3: formato canónico de CHANGESET/INDEX DELTA para CT-02. Recomiendo el contrato de interoperabilidad vigente, sin schema nuevo antes del tag.
-2. D-4: ¿el ranking final es de Retriever o de ContextBuilder? Recomiendo que CT-03 cubra candidatos+score y CT-05 el recorte (así quedó CT-03-A4).
-3. D-6: qué cuenta como «puerto» en C-10. Recomiendo declarar los repositorios como adapters y cubrir con test de arquitectura, sin refactor antes del tag.
-4. D-7: qué es «sin autoridad» en reglas FK. Recomiendo: no ACTIVE o sin procedencia confirmada.
+- **D-3 (2026-10-24):** el formato canónico de CHANGESET/INDEX DELTA para CT-02 es el del contrato de interoperabilidad vigente; no se crea schema nuevo antes del tag (recomendación aceptada).
+- **D-4 (2026-10-24):** el ranking final no se asigna a un solo componente: CT-03 cubre candidatos+score y CT-05 el recorte (así quedó CT-03-A4) (recomendación aceptada).
+- **D-6 (2026-10-24):** en C-10 los repositorios Prisma/SQL se declaran *adapters* y se cubren con un test de arquitectura (CT-10-A5), sin refactor a interfaces antes del tag (recomendación aceptada).
+- **D-7 (2026-10-24):** en las reglas funcionales, «sin autoridad» = no ACTIVE o sin procedencia confirmada (CT-04-A2) (recomendación aceptada).
+- **D-12 (2026-10-24):** **una sola ronda** de contratos: esquema JSON canónico del payload Integration→Core (CT-01, D-2), errata E-01 (`ExperimentResultsResponse` documenta `targetId`), SYSTEM-2.15 (mención de `tjc-piloto-ventas` en `system-contract.md`) y corrección del ejemplo `sandbox-result.failed.json` (`COMPOSER_INSTALL_FAILED` no existe en el código; la categoría real es `DEPENDENCY_INSTALL_FAILED`), publicadas como INTEROP-2.20 y GH-INTEROP-1.9 con Contract Sync. **No** se añade `oracleRef` ni campo equivalente a `ExperimentRun`: el oráculo se identifica por convención del registro de evidencia (`oracleId`, `caseId`, hash). *Plan del leader (no decisión del usuario):* la ejecución sería `WI-CORE-079` (reactivado con este alcance); Integration, Sandbox y Console recibirían su parte por Contract Sync vía cross.
+- **D-13 (2026-10-24):** los pilotos corren sobre **forks del usuario con la GitHub App instalada** (no sobre los repos upstream, donde el equipo no puede instalarla). Consecuencias verificadas en el código (WI-CORE-085, no decisiones nuevas): el workspace del Project debe ser la cuenta u organización dueña de los forks y el binding se crea antes de abrir el PR. Detalle abierto: si la cuenta dueña es personal u organización.
+
+### Pendientes
+
+Ninguna decisión de CT queda abierta. Detalle abierto fuera de las decisiones de CT: la cuenta dueña de los forks (personal u organización, D-13).
 
 D-8 se retiró: la Tabla 56 ya exige registrar los SHA de los repos integrados; queda como requisito de CT-07-A5.
 
@@ -173,7 +178,7 @@ D-8 se retiró: la Tabla 56 ya exige registrar los SHA de los repos integrados; 
 
 1. CT-08: A1/A3/A5 ya cubiertas; A2/A4/A6 como 3 checklists manuales (uno por piloto; D-9, D-11), exigido por IOE1.1 y Tabla 54.
 2. CT-09 + ESC-MOD-01 (A3 suite con adaptador falso; A5 tras el tag, D-10).
-3. CT-05-A5 (regla D-5, requiere implementación) y CT-10-A3/A5 y CT-01-A1/A5.
+3. CT-05-A5 (regla D-5, requiere implementación) y CT-10-A3/A5 y CT-01-A1/A5 (CT-01-A1/A5 se apoyan en la ronda de contratos D-12, WI-CORE-079, y en el WI de Integration).
 4. CT-03-A3/A4, CT-04-A2 (aserciones de frontera, S/M).
 5. CT-06-A3, CT-07-A4, CT-02-A2/A4 (cierres pequeños).
 
