@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-organization",
+  "eventName": "organization",
+  "action": "member_added",
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "ORGANIZATION",
+    "organizationId": "3001",
+    "organizationLogin": "example-org",
+    "membershipUserId": "4001"
+  }
+}

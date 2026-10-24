@@ -1,7 +1,7 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.14
-**Fecha de corte:** 2026-10-21
+**Versión del contrato:** SYSTEM-2.15
+**Fecha de corte:** 2026-10-24
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
 
@@ -284,7 +284,7 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 - Proxy TLS Caddy v2.11.7 en la VM `rag-test-execution-sandbox`, con el hostname gratuito `<SANDBOX_HOST>.sslip.io` sobre la IP estática reservada `rag-sandbox-ip` (<SANDBOX_IP>), certificado público Let's Encrypt, `reverse_proxy` a `127.0.0.1:3001` y `request_body` máximo de 5 MB.
 - Firewall `rag-sandbox-https-allow` (prioridad 899): tcp:80 y tcp:443 desde `0.0.0.0/0`, sin filtro por IP de Render; 3001 y 22 siguen solo por IAP (`rag-sandbox-iap-allow` y `rag-sandbox-iap-deny`, prioridades 900 y 901).
 - Control de acceso: TLS más bearer `SANDBOX_SERVICE_TOKEN` de 64 hex (401 sin bearer, verificado por Cross).
-- Core en Render usa `SANDBOX_URL=https://<SANDBOX_HOST>.sslip.io`. E2E de producción verificado por Cross: PR #3 de `tjc-piloto-ventas` → Check `success` con 1 propuesta (Render → VM por HTTPS).
+- Core en Render usa `SANDBOX_URL=https://<SANDBOX_HOST>.sslip.io`. Cross verificó un E2E de producción con un repositorio de prueba: un PR produjo un Check `success` con 1 propuesta (Render → VM por HTTPS).
 
 **Superficie de riesgo (sin suavizar):** el firewall abre TCP 80 y 443 a todo Internet y no hay filtro por IP de Render (según Cross, las IP de salida de Render son rangos compartidos de poco valor como control; Core no lo verificó). Cualquier host de Internet alcanza el proxy; solo el bearer y, cuando se implemente, el rate limit frenan el abuso. El Sandbox ejecuta código de terceros. El token viaja por Internet bajo TLS. `/health/live` y `/health/ready` no llevan bearer y no deben quedar expuestos por el proxy; el proxy no debe registrar `Authorization`. El hostname sslip.io y la renovación de Let's Encrypt dependen de terceros. La latencia adicional puede acercar ejecuciones al timeout y producir fallo de plataforma (`DEC-VAL-002`).
 
@@ -486,7 +486,9 @@ Sin cambio de rutas, DTO, enums ni códigos de error.
 
 ## Regla de compatibilidad
 
-`SYSTEM-2.14` (2026-10-21, `WI-CORE-076`) incorpora `DEC-EXP-005`, que enmienda `DEC-EXP-004`: configuración única del LLM (`LLM_MODEL` y `LLM_REASONING_EFFORT` obligatorio para el flujo normal y los experimentos), sin lista de combinaciones y con el error de un esfuerzo no admitido en la llamada. Es documental: sin cambio de rutas, DTO, enums ni códigos de error. Los espejos de este contrato en GitHub Integration, Console y Sandbox siguen en SYSTEM-2.13 hasta su homologación por Contract Sync. `INTEROP-2.19` es la versión compatible.
+`SYSTEM-2.15` (2026-10-24, `WI-CORE-079`, ronda única de contratos aprobada por el usuario) es documental y no incompatible: añade a `INTEROP-2.20` la errata E-01 de `ExperimentResultsResponse` (`targetId`), el esquema canónico CT-01 del webhook normalizado (`schemas/github-webhook-event.schema.json`, `GH-INTEROP-1.9`), la corrección de `sandbox-result.failed.json` (`DEPENDENCY_INSTALL_FAILED`) y una frase neutral sobre el E2E de producción de §Sandbox. Sin cambio de rutas, DTO, enums ni códigos de error. Los espejos en GitHub Integration, Console y Sandbox siguen en la versión anterior hasta su re-espejo byte a byte y la regeneración de `generated/` por Contract Sync. `INTEROP-2.20` es la versión compatible.
+
+`SYSTEM-2.14` (2026-10-21, `WI-CORE-076`) incorpora `DEC-EXP-005`, que enmienda `DEC-EXP-004`: configuración única del LLM (`LLM_MODEL` y `LLM_REASONING_EFFORT` obligatorio para el flujo normal y los experimentos), sin lista de combinaciones y con el error de un esfuerzo no admitido en la llamada. Es documental: sin cambio de rutas, DTO, enums ni códigos de error. Los espejos de este contrato en GitHub Integration, Console y Sandbox siguen en SYSTEM-2.13 hasta su homologación por Contract Sync. `INTEROP-2.19` fue la versión compatible hasta `SYSTEM-2.15`.
 
 `SYSTEM-2.13` (2026-10-18, editorial, homologación SDD 3.1): no cambia ninguna decisión ni comportamiento. Redacta el hostname `sslip.io` y la IP pública de la VM del Sandbox, que dejan de figurar en el contrato (el operador los conserva fuera del repositorio), y declara que Sandbox espeja este contrato desde esta versión. `INTEROP-2.17` es la versión compatible.
 

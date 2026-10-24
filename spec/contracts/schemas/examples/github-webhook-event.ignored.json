@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-ignored",
+  "eventName": "ping",
+  "action": null,
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "IGNORED"
+  }
+}

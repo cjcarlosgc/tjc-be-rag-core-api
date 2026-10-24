@@ -1,0 +1,760 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tjc.local/contracts/github-webhook-event.schema.json",
+  "title": "Evento normalizado GitHub Integration → Core (CT-01, GH-INTEROP-1.9 §Webhooks)",
+  "description": "Forma canónica ejecutable del payload `NormalizedWebhookEvent` que GitHub Integration envía a `POST internal/v1/github/webhook-events` y de la respuesta de aceptación. Espeja la validación de `parseNormalizedWebhookEvent` (Core). Un evento se elige por `eventName` y `data.kind`: cada variante fija el `eventName` que le corresponde (`eventName` ↔ `kind`), y `IGNORED` exige un `eventName` fuera de los ocho conocidos. Las reglas de fechas (`format: date-time` frente a `Date.parse`) y de longitud (puntos de código frente a unidades UTF-16) no coinciden exactamente con las del parser de Core y se declaran en GH-INTEROP-1.9.",
+  "$defs": {
+    "GithubId": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$",
+      "description": "Id numérico de GitHub serializado como cadena decimal sin ceros a la izquierda."
+    },
+    "NullableGithubId": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GithubId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "WebhookDeliveryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "WebhookEventName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "WebhookAction": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 100,
+      "description": "Acción de GitHub (informativa). Core rechaza más de 100 unidades UTF-16; el esquema cuenta puntos de código."
+    },
+    "WebhookReceivedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "Instante de recepción en Integration; en la práctica `toISOString()` (UTC con `Z`)."
+    },
+    "WebhookCreatedAtUtc": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Fecha de creación del PR en UTC con `Z`, o null si no está verificada."
+    },
+    "GithubRepositoryRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fullName"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/GithubId"
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "GithubRepositoryOwner": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "login",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/GithubId"
+            },
+            "login": {
+              "$ref": "#/$defs/NullableString"
+            },
+            "type": {
+              "$ref": "#/$defs/NullableString"
+            }
+          }
+        }
+      ]
+    },
+    "GithubRepositoryWithOwner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fullName",
+        "owner"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/GithubId"
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "$ref": "#/$defs/GithubRepositoryOwner"
+        }
+      }
+    },
+    "GithubRefAndSha": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "sha"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        }
+      }
+    },
+    "GithubPullRequestNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "GithubPullRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "draft",
+        "merged",
+        "createdAt",
+        "base",
+        "head",
+        "userLogin"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "merged": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/WebhookCreatedAtUtc"
+        },
+        "base": {
+          "$ref": "#/$defs/GithubRefAndSha"
+        },
+        "head": {
+          "$ref": "#/$defs/GithubRefAndSha"
+        },
+        "userLogin": {
+          "$ref": "#/$defs/NullableString"
+        }
+      }
+    },
+    "GithubAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/NullableGithubId"
+        },
+        "type": {
+          "$ref": "#/$defs/NullableString"
+        }
+      }
+    },
+    "GithubWebhookPullRequestData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "repository",
+        "installationId",
+        "pullRequestNumber",
+        "pullRequest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "PULL_REQUEST"
+        },
+        "repository": {
+          "$ref": "#/$defs/GithubRepositoryRef"
+        },
+        "installationId": {
+          "$ref": "#/$defs/NullableGithubId"
+        },
+        "pullRequestNumber": {
+          "$ref": "#/$defs/GithubPullRequestNumber"
+        },
+        "pullRequest": {
+          "$ref": "#/$defs/GithubPullRequest"
+        }
+      }
+    },
+    "GithubWebhookInstallationData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "installationId",
+        "account"
+      ],
+      "properties": {
+        "kind": {
+          "const": "INSTALLATION"
+        },
+        "installationId": {
+          "$ref": "#/$defs/GithubId"
+        },
+        "account": {
+          "$ref": "#/$defs/GithubAccount"
+        }
+      }
+    },
+    "GithubWebhookInstallationRepositoriesData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "installationId",
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "INSTALLATION_REPOSITORIES"
+        },
+        "installationId": {
+          "$ref": "#/$defs/GithubId"
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GithubRepositoryRef"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GithubRepositoryRef"
+          }
+        }
+      }
+    },
+    "GithubWebhookRepositoryData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "repository",
+        "installationId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "REPOSITORY"
+        },
+        "repository": {
+          "$ref": "#/$defs/GithubRepositoryWithOwner"
+        },
+        "installationId": {
+          "$ref": "#/$defs/NullableGithubId"
+        }
+      }
+    },
+    "GithubWebhookMemberData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "memberId",
+        "repositoryId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "MEMBER"
+        },
+        "memberId": {
+          "$ref": "#/$defs/NullableGithubId"
+        },
+        "repositoryId": {
+          "$ref": "#/$defs/NullableGithubId"
+        }
+      }
+    },
+    "GithubWebhookMembershipData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "memberId",
+        "organizationId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "MEMBERSHIP"
+        },
+        "memberId": {
+          "$ref": "#/$defs/NullableGithubId"
+        },
+        "organizationId": {
+          "$ref": "#/$defs/NullableGithubId"
+        }
+      }
+    },
+    "GithubWebhookOrganizationData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "organizationId",
+        "organizationLogin",
+        "membershipUserId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "ORGANIZATION"
+        },
+        "organizationId": {
+          "$ref": "#/$defs/NullableGithubId"
+        },
+        "organizationLogin": {
+          "$ref": "#/$defs/NullableString"
+        },
+        "membershipUserId": {
+          "$ref": "#/$defs/NullableGithubId"
+        }
+      }
+    },
+    "GithubWebhookTeamData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "repositoryId",
+        "organizationId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "TEAM"
+        },
+        "repositoryId": {
+          "$ref": "#/$defs/NullableGithubId"
+        },
+        "organizationId": {
+          "$ref": "#/$defs/NullableGithubId"
+        }
+      }
+    },
+    "GithubWebhookIgnoredData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "const": "IGNORED"
+        }
+      }
+    },
+    "GithubWebhookPullRequestEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "pull_request"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookPullRequestData"
+        }
+      }
+    },
+    "GithubWebhookInstallationEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "installation"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookInstallationData"
+        }
+      }
+    },
+    "GithubWebhookInstallationRepositoriesEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "installation_repositories"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookInstallationRepositoriesData"
+        }
+      }
+    },
+    "GithubWebhookRepositoryEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "repository"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookRepositoryData"
+        }
+      }
+    },
+    "GithubWebhookMemberEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "member"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookMemberData"
+        }
+      }
+    },
+    "GithubWebhookMembershipEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "membership"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookMembershipData"
+        }
+      }
+    },
+    "GithubWebhookOrganizationEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "organization"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookOrganizationData"
+        }
+      }
+    },
+    "GithubWebhookTeamEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "const": "team"
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookTeamData"
+        }
+      }
+    },
+    "GithubWebhookIgnoredEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "deliveryId",
+        "eventName",
+        "action",
+        "receivedAt",
+        "data"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "eventName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "not": {
+            "enum": [
+              "pull_request",
+              "installation",
+              "installation_repositories",
+              "repository",
+              "member",
+              "membership",
+              "organization",
+              "team"
+            ]
+          },
+          "description": "Cualquier nombre de evento fuera de los ocho que tienen variante propia."
+        },
+        "action": {
+          "$ref": "#/$defs/WebhookAction"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/WebhookReceivedAt"
+        },
+        "data": {
+          "$ref": "#/$defs/GithubWebhookIgnoredData"
+        }
+      }
+    },
+    "GithubWebhookEvent": {
+      "description": "Sobre normalizado. Exactamente una variante debe cumplirse: la del `eventName` y `data.kind` coherentes, o IGNORED.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GithubWebhookPullRequestEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookInstallationEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookInstallationRepositoriesEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookRepositoryEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookMemberEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookMembershipEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookOrganizationEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookTeamEvent"
+        },
+        {
+          "$ref": "#/$defs/GithubWebhookIgnoredEvent"
+        }
+      ]
+    },
+    "GitHubWebhookAcceptedResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deliveryId",
+        "accepted",
+        "duplicate",
+        "analysisRunId"
+      ],
+      "properties": {
+        "deliveryId": {
+          "$ref": "#/$defs/WebhookDeliveryId"
+        },
+        "accepted": {
+          "const": true
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "analysisRunId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

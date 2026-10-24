@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-repository-no-owner",
+  "eventName": "repository",
+  "action": "created",
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "REPOSITORY",
+    "repository": {
+      "id": "1002",
+      "fullName": "example-org/other-repo",
+      "owner": null
+    },
+    "installationId": null
+  }
+}

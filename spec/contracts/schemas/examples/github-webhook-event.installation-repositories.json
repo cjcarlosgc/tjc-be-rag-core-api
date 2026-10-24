@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-installation-repositories",
+  "eventName": "installation_repositories",
+  "action": "added",
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "INSTALLATION_REPOSITORIES",
+    "installationId": "2001",
+    "added": [
+      {
+        "id": "1001",
+        "fullName": "example-org/example-repo"
+      }
+    ],
+    "removed": [
+      {
+        "id": "1002",
+        "fullName": "example-org/other-repo"
+      }
+    ]
+  }
+}

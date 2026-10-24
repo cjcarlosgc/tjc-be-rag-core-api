@@ -70,6 +70,81 @@
       "file": "realtime-experiment-update.event.json",
       "schema": "realtime-events.schema.json",
       "definition": "ExperimentStatusResponse"
+    },
+    {
+      "file": "github-webhook-event.pull-request.opened.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.pull-request.synchronize.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.pull-request.closed-merged.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.pull-request.nulls.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.installation.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.installation-repositories.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.repository.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.repository.no-owner.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.member.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.membership.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.organization.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.team.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.ignored.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GithubWebhookEvent"
+    },
+    {
+      "file": "github-webhook-event.accepted-response.202.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GitHubWebhookAcceptedResponse"
+    },
+    {
+      "file": "github-webhook-event.accepted-response.200-duplicate.json",
+      "schema": "github-webhook-event.schema.json",
+      "definition": "GitHubWebhookAcceptedResponse"
     }
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-team",
+  "eventName": "team",
+  "action": "added_to_repository",
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "TEAM",
+    "repositoryId": "1001",
+    "organizationId": "3001"
+  }
+}

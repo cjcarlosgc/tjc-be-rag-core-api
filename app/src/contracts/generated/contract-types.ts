@@ -51,6 +51,202 @@ export interface ErrorEnvelope {
   retryable?: boolean;
 }
 
+// ===== github-webhook-event.schema.json =====
+/**
+ * Id numérico de GitHub serializado como cadena decimal sin ceros a la izquierda.
+ */
+export type GithubId = string;
+export type NullableGithubId = GithubId | null;
+export type NullableString = string | null;
+export type WebhookDeliveryId = string;
+export type WebhookEventName = string;
+/**
+ * Acción de GitHub (informativa). Core rechaza más de 100 unidades UTF-16; el esquema cuenta puntos de código.
+ */
+export type WebhookAction = string | null;
+/**
+ * Instante de recepción en Integration; en la práctica `toISOString()` (UTC con `Z`).
+ */
+export type WebhookReceivedAt = string;
+/**
+ * Fecha de creación del PR en UTC con `Z`, o null si no está verificada.
+ */
+export type WebhookCreatedAtUtc = string | null;
+export type GithubRepositoryOwner = null | {
+  id: GithubId;
+  login: NullableString;
+  type: NullableString;
+};
+export type GithubPullRequestNumber = number;
+/**
+ * Sobre normalizado. Exactamente una variante debe cumplirse: la del `eventName` y `data.kind` coherentes, o IGNORED.
+ */
+export type GithubWebhookEvent =
+  | GithubWebhookPullRequestEvent
+  | GithubWebhookInstallationEvent
+  | GithubWebhookInstallationRepositoriesEvent
+  | GithubWebhookRepositoryEvent
+  | GithubWebhookMemberEvent
+  | GithubWebhookMembershipEvent
+  | GithubWebhookOrganizationEvent
+  | GithubWebhookTeamEvent
+  | GithubWebhookIgnoredEvent;
+
+export interface GithubRepositoryRef {
+  id: GithubId;
+  fullName: string;
+}
+export interface GithubRepositoryWithOwner {
+  id: GithubId;
+  fullName: string;
+  owner: GithubRepositoryOwner;
+}
+export interface GithubRefAndSha {
+  ref: string;
+  sha: string;
+}
+export interface GithubPullRequest {
+  title: string;
+  draft: boolean;
+  merged: boolean;
+  createdAt: WebhookCreatedAtUtc;
+  base: GithubRefAndSha;
+  head: GithubRefAndSha;
+  userLogin: NullableString;
+}
+export interface GithubAccount {
+  id: NullableGithubId;
+  type: NullableString;
+}
+export interface GithubWebhookPullRequestData {
+  kind: "PULL_REQUEST";
+  repository: GithubRepositoryRef;
+  installationId: NullableGithubId;
+  pullRequestNumber: GithubPullRequestNumber;
+  pullRequest: GithubPullRequest;
+}
+export interface GithubWebhookInstallationData {
+  kind: "INSTALLATION";
+  installationId: GithubId;
+  account: GithubAccount;
+}
+export interface GithubWebhookInstallationRepositoriesData {
+  kind: "INSTALLATION_REPOSITORIES";
+  installationId: GithubId;
+  added: GithubRepositoryRef[];
+  removed: GithubRepositoryRef[];
+}
+export interface GithubWebhookRepositoryData {
+  kind: "REPOSITORY";
+  repository: GithubRepositoryWithOwner;
+  installationId: NullableGithubId;
+}
+export interface GithubWebhookMemberData {
+  kind: "MEMBER";
+  memberId: NullableGithubId;
+  repositoryId: NullableGithubId;
+}
+export interface GithubWebhookMembershipData {
+  kind: "MEMBERSHIP";
+  memberId: NullableGithubId;
+  organizationId: NullableGithubId;
+}
+export interface GithubWebhookOrganizationData {
+  kind: "ORGANIZATION";
+  organizationId: NullableGithubId;
+  organizationLogin: NullableString;
+  membershipUserId: NullableGithubId;
+}
+export interface GithubWebhookTeamData {
+  kind: "TEAM";
+  repositoryId: NullableGithubId;
+  organizationId: NullableGithubId;
+}
+export interface GithubWebhookIgnoredData {
+  kind: "IGNORED";
+}
+export interface GithubWebhookPullRequestEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "pull_request";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookPullRequestData;
+}
+export interface GithubWebhookInstallationEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "installation";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookInstallationData;
+}
+export interface GithubWebhookInstallationRepositoriesEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "installation_repositories";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookInstallationRepositoriesData;
+}
+export interface GithubWebhookRepositoryEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "repository";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookRepositoryData;
+}
+export interface GithubWebhookMemberEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "member";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookMemberData;
+}
+export interface GithubWebhookMembershipEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "membership";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookMembershipData;
+}
+export interface GithubWebhookOrganizationEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "organization";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookOrganizationData;
+}
+export interface GithubWebhookTeamEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  eventName: "team";
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookTeamData;
+}
+export interface GithubWebhookIgnoredEvent {
+  schemaVersion: 1;
+  deliveryId: WebhookDeliveryId;
+  /**
+   * Cualquier nombre de evento fuera de los ocho que tienen variante propia.
+   */
+  eventName: string;
+  action: WebhookAction;
+  receivedAt: WebhookReceivedAt;
+  data: GithubWebhookIgnoredData;
+}
+export interface GitHubWebhookAcceptedResponse {
+  deliveryId: WebhookDeliveryId;
+  accepted: true;
+  duplicate: boolean;
+  analysisRunId: string | null;
+}
+
 // ===== realtime-events.schema.json =====
 /**
  * Acknowledgment de 'subscribe:*' con exactamente tres resultados: suscrito; verificación no disponible (reintentable); sin visibilidad o id inexistente (sin distinguirlos).
