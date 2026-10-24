@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261024-004
+source: core
+sourceWorkItem: WI-CORE-089
+targets: [console, github-integration, sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md, spec/contracts/system-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.21 interoperability-contract.md sha256 7f946d55b24cf13dad180927108cf777b8dde036ce2185d37590e6c072d0d29d; SYSTEM-2.16 system-contract.md sha256 d0a492b4484c8883d65e709f76d8c7ff2462b0eb8c832649cf75723b9543ea77; github-integration-contract.md (GH-INTEROP-1.9, sin cambio) sha256 dedf00fa2f0f5be928cfaf1e5a12ff19f96e7579524a0a689757f1077bfc6e4e; arbol spec/contracts/schemas/ con examples/ (sin cambio) sha256 8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718 (receta del arbol: cd spec/contracts/schemas && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256). WI-CORE-089 (WI-A de ESC-MOD-01), alcance aprobado por el usuario el 2026-10-24, documental y no incompatible: la prosa de INTEROP 6.5/6.5.1 y de SYSTEM (DEC-EXP-004/005) deja de presentar la API de OpenAI, reasoning_effort y gpt-6-luna como parte del contrato y pasa a describirlos como comportamiento del adaptador configurado; LLM_MODEL, LLM_REASONING_EFFORT obligatorio, la regla de no degradar en silencio y el 422 REASONING_EFFORT_UNSUPPORTED no cambian; sin cambio de rutas, DTO, enums, codigos de error ni esquemas; el tipo comun LLMEffectiveConfig pasa provider y endpoint a string (no llegan al wire). Este evento SUPERA a CS-CORE-20261024-001..003 y a CS-CORE-20261021-001..004 en INTEROP y SYSTEM: el re-espejo de esos dos contratos debe ir directo a 2.21/2.16, sin pasar por 2.20/2.15; schemas/, github-integration-contract.md y generated/ se siguen sincronizando desde Core segun CS-CORE-20261024-001..003 (sus digests no cambian).
+requiredAction:
+  - Re-espejar interoperability-contract.md y system-contract.md byte a byte cruzando los digests, en UN solo paso directo a INTEROP-2.21 y SYSTEM-2.16; sin cambio de schemas ni de generated/ (contracts:check debe seguir limpio); sin cambio de codigo; Integration y Console siguen espejando github-integration-contract.md (GH-INTEROP-1.9) sin cambio y Sandbox no lo espeja; ejecutar lint, build y test. Core no resuelve los eventos de otros: cada consumidor registra su evidencia.
+sourceRevision: 2318b9df292b337db4998f04b66b0457f1df8e3f
+status: C-PENDING

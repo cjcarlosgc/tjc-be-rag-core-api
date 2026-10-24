@@ -5087,7 +5087,7 @@
       "id": "WI-CORE-089",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-IN_PROGRESS",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "WI-A: neutralizar el puerto LLMProvider y la prosa contractual (INTEROP-2.21 / SYSTEM-2.16) antes del baseline arch-v1.0, con adaptador falso reutilizable y suites CT-09-A3/A4",
@@ -5124,7 +5124,34 @@
         "spec/transversal/providers/tasks.md",
         "app/src/providers/llm-provider.interface.ts",
         "app/src/experiments/experiment-job.helpers.ts",
-        "app/src/common/sanitize-failure-message.util.ts"
+        "app/src/common/sanitize-failure-message.util.ts",
+        "harness/reports/wi-core-089-technical-checks.md",
+        "harness/reports/wi-core-089-contract-sync-scope-review.md",
+        "app/src/providers/testing/fake-llm.provider.ts",
+        "app/src/providers/llm-provider.contract.spec.ts",
+        "app/src/providers/provider-boundary.architecture.spec.ts",
+        "harness/reports/wi-core-089-contract-review.md",
+        "harness/reports/wi-core-089-independent-review.md",
+        "harness/reports/wi-core-089-contract-sync-publication.md",
+        "harness/reports/wi-core-089-closure.md",
+        "app/src/providers/testing/provider-boundary.scan.ts",
+        "app/src/experiments/experiment-job.helpers.spec.ts"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-089 neutraliza el puerto del LLM y su prosa contractual, sin tocar bindings.",
+          "report": "harness/reports/wi-core-089-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-089 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-089-contract-sync-scope-review.md"
+        }
       ]
     }
   ]
