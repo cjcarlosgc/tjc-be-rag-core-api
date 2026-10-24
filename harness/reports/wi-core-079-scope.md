@@ -1,7 +1,7 @@
 # WI-CORE-079 — ronda única de contratos INTEROP-2.20 / GH-INTEROP-1.9 / SYSTEM-2.15
 Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
 
-**Estado: W-IN_PROGRESS (reactivado).** Procedencia: mensaje escrito directamente por el usuario en el chat de Core el 2026-10-24: «Apruebo una sola ronda INTEROP-2.20 / GH-INTEROP-1.9 con el esquema canónico de CT-01, la errata E-01, SYSTEM-2.15 (tjc-piloto-ventas) y la corrección de sandbox-result.failed.json. No oracleRef. Los pilotos corren sobre forks míos con la App instalada. Acepto tus recomendaciones D-3, D-4, D-6 y D-7. Continúa.» Registrado como D-12 en `harness/reports/arch-v1.0-aserciones-ct-propuesta.md` (WI-CORE-086).
+**Estado: W-DONE (reactivado el 2026-10-24; cierre en `wi-core-079-closure.md`).** Procedencia: mensaje escrito directamente por el usuario en el chat de Core el 2026-10-24: «Apruebo una sola ronda INTEROP-2.20 / GH-INTEROP-1.9 con el esquema canónico de CT-01, la errata E-01, SYSTEM-2.15 (tjc-piloto-ventas) y la corrección de sandbox-result.failed.json. No oracleRef. Los pilotos corren sobre forks míos con la App instalada. Acepto tus recomendaciones D-3, D-4, D-6 y D-7. Continúa.» Registrado como D-12 en `harness/reports/arch-v1.0-aserciones-ct-propuesta.md` (WI-CORE-086).
 
 **Historia:** este WI nació el 2026-10-21 como WI-B (solo la errata E-01) y el usuario decidió entonces «Mantener esperar» (`errata-pendientes-interop.md`: las erratas se corrigen junto con el próximo cambio de INTEROP por otro motivo). La ronda aprobada hoy es ese próximo cambio: E-01 viaja con el esquema de CT-01, SYSTEM-2.15 y el ejemplo del Sandbox. La propuesta antigua (solo E-01, «no se ejecuta ni se publica») queda superada.
 

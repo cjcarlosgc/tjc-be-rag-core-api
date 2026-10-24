@@ -5,5 +5,7 @@ Decisión del usuario (2026-10-21): las erratas que no cambian el comportamiento
 
 | ID | Dónde | Qué dice | Qué emite el servidor | Estado |
 |---|---|---|---|---|
-| E-01 | INTEROP §6.5, `ExperimentResultsResponse` (≈ líneas 359-362) | lista `analysisRunId` y `symbol` | emite `targetId` (`app/src/experiments/dto/experiment.response.ts`) | pendiente; el DTO no cambia, solo se documenta lo real (mismo criterio que `ExperimentStatusResponse` en INTEROP-2.18) |
-| E-02 | `CS-CORE-20261021-003` (Sandbox) | `scopePaths` lista `github-integration-contract.md`, que Sandbox no espeja | — | informativo, inocuo; no se reescribe el evento |
+| E-01 | INTEROP §6.5, `ExperimentResultsResponse` (≈ líneas 359-362) | lista `analysisRunId` y `symbol` | emite `targetId` (`app/src/experiments/dto/experiment.response.ts`) | **corregida en INTEROP-2.20** (WI-CORE-079, 2026-10-24; el DTO no cambió) |
+| E-02 | `CS-CORE-20261021-003` (Sandbox) | `scopePaths` lista `github-integration-contract.md`, que Sandbox no espeja | — | **corregida** en el `scopePaths` del evento de Sandbox `CS-CORE-20261024-002` (el evento histórico no se reescribió) |
+
+**2026-10-24:** el usuario aprobó una sola ronda (INTEROP-2.20, GH-INTEROP-1.9, SYSTEM-2.15) que corrige E-01 y E-02; no quedan erratas pendientes de esta lista.
