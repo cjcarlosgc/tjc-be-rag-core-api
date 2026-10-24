@@ -1,7 +1,7 @@
 # Runbook operativo de los pilotos
 Modelo: sdd-analyst · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
 
-> Versión revisada de forma independiente (2026-10-24, WI-CORE-092). Solo lectura: se leyeron el código de Core, Sandbox, Integration y Console, el SDD y los forks `rag-tesis-org/*` con `gh api` (GET). No se ejecutó nada contra los pilotos. Rutas de código relativas a `Tesis/<repo>/` (son trazabilidad para el equipo; tú no necesitas abrirlas). Términos internos que verás: **cross** = la sesión coordinadora del trabajo (en la práctica, el usuario te dirá a quién escribir); **WI** = work item (unidad de trabajo interna); **HU** = historia de usuario; **DEC** = decisión registrada; **INTEROP** = contrato entre componentes; **OE5** = objetivo específico 5 de la tesis (el experimento RAG vs agente). Se explican en el glosario (6.2).
+> Versión 2 (2026-10-24, WI-CORE-095) del runbook revisado de forma independiente en WI-CORE-092. Actualizada con el resultado del smoke del Sandbox (WI-SANDBOX-021: imagen PHP ampliada). Solo lectura: se leyeron el código de Core, Sandbox, Integration y Console, el SDD, el informe `tjc-be-test-execution-sandbox/harness/reports/wi-sandbox-021-smoke-evidence.md` y los forks `rag-tesis-org/*` con `gh api` (GET). Este documento no ejecutó nada contra los pilotos: los resultados del smoke son los que reporta ese informe (✔ = citado del informe) y se repiten en tu máquina con la checklist 1.4. Rutas de código relativas a `Tesis/<repo>/` (son trazabilidad para el equipo; tú no necesitas abrirlas). Términos internos que verás: **cross** = la sesión coordinadora del trabajo (en la práctica, el usuario te dirá a quién escribir); **WI** = work item (unidad de trabajo interna); **HU** = historia de usuario; **DEC** = decisión registrada; **INTEROP** = contrato entre componentes; **OE5** = objetivo específico 5 de la tesis (el experimento RAG vs agente). Se explican en el glosario (6.2).
 > Leyenda: ✔ verificado leyendo (fuente entre paréntesis) · ⚠ solo se confirma ejecutando o depende de una decisión.
 
 Para quién es: una persona que sabe PHP, que opera desde su máquina con la Console (https://tjc-fe-rag-developer-console.onrender.com) y el Core en Render, y que NO necesita leer el SDD ni tocar `harness/` ni `spec/`.
@@ -9,6 +9,15 @@ Para quién es: una persona que sabe PHP, que opera desde su máquina con la Con
 ---
 
 ## 0. Antes de empezar
+
+### 0.0 Resumen de estado (leer primero)
+| Tema | Estado | Fuente |
+|---|---|---|
+| Imagen PHP del Sandbox | **Ampliada** (intl, gd, zip, bcmath, gmp; ICU 76.1; PHP 8.3.36; `memory_limit` 512M). El cambio está en el repo del Sandbox (commit `a4231d7`, rama `feature/jean`) ✔. **⚠ No está desplegado en la VM**: el informe lo dice (§5.6) y hay que confirmar con el usuario/cross que la VM ya usa la imagen nueva antes de cualquier smoke o corrida. Este runbook describe la imagen NUEVA | ✔ `tjc-be-test-execution-sandbox/app/docker/php/Dockerfile`, `zz-sandbox.ini`, `harness/reports/wi-sandbox-021-smoke-evidence.md` |
+| P1 `brick/money` | **PASA el smoke** (suite completa: 1060 tests OK) | ✔ informe §3.1 |
+| P2 `doctrine/orm` | **PASA el smoke** (suite completa: 3686 tests OK con avisos) | ✔ informe §3.2 |
+| P3 `EscolaLMS/Vouchers` | **NO APTO según el smoke; EN REVISIÓN.** El usuario decide si se sustituye P3; NO está descartado. No es un tema de imagen | ✔ informe §3.3 |
+| Primer acceso del compañero a los Projects de la organización | Bloqueo conocido (503) cuando Integration/Core están dormidos o la verificación falla; ver 0.3 y 0.3 bis | ✔ `AGENTS.md` raíz (arranque en frío) ⚠ causa exacta |
 
 ### 0.1 Qué se hace en este experimento (en 5 líneas)
 - Se trabaja sobre un fork de un repositorio PHP (`rag-tesis-org/money`, `orm` o `Vouchers`), rama `develop`.
@@ -36,12 +45,24 @@ Para quién es: una persona que sabe PHP, que opera desde su máquina con la Con
   4. Si persiste: avisa al usuario (dueño del proyecto) o a cross (la sesión coordinadora; ver glosario) con: tu usuario de GitHub, la hora, la pantalla y el texto exacto del error. Mientras tanto no uses la API a mano para evitarlo.
 - **Quién lo desbloquea:** el usuario o cross (aceptar permisos de la App en la organización o crear/forzar tu registro de acceso desde el lado de Core); tú no tienes acceso a Render ni a la base de datos y no debes.
 
+### 0.3 bis AVISO: despertar Integration y Core antes de cada sesión y de cada PR de caso
+Core e Integration están en el plan gratuito de Render: se duermen tras ~15 min sin tráfico y la primera petición tarda ≈ 30 s (22–33 s medidos por el equipo). Consecuencias reales:
+- Con Integration dormido, Core no puede verificar el acceso a GitHub y lo marca no verificable: **el compañero (sin registro de acceso previo) solo puede abrir los Projects de la organización con Integration despierto.** Es la causa más probable del 503 de 0.3 ⚠ (no confirmada por el código; sí por los logs de Render que cita el equipo).
+- **Un webhook de GitHub que llegue con Integration dormido puede perderse** (GitHub no lo reintenta y corta a ~10 s): el PR no crearía Run.
+
+Antes de CADA sesión y de abrir CADA PR de caso:
+1. Abre en el navegador `https://tjc-be-github-integration-api.onrender.com/health` y `https://tjc-be-rag-core-api.onrender.com/health` (ambos existen: `GET /health` público en cada servicio ✔ `tjc-be-rag-core-api/app/src/common/health/health.controller.ts`, `tjc-be-github-integration-api/app/src/health/health.controller.ts`; sin prefijo de ruta). Espera un 200 (el `/health` de Integration puede responder 503 `not_ready` si le falta configuración: en ese caso avisa; la respuesta puede tardar ≈ 30 s la primera vez; no recargues en bucle).
+2. Solo con ambas respondiendo, abre el PR.
+3. Tras abrir el PR, confirma en la Console que el Run aparece (2.b). Si no aparece en unos minutos, avisa; **no abras otro PR ni empujes commits** para «forzarlo».
+4. La VM del Sandbox también puede estar fría: si el experimento no avanza, avisa (no tienes acceso a ella).
+El usuario puede mantener los servicios despiertos con un monitor externo durante las ventanas de captura de evidencia; eso lo activa y pausa él/cross, no tú.
+
 ### 0.4 Herramientas locales
 | Herramienta | Para qué | Nota |
 |---|---|---|
 | Git | clonar el fork, crear rama y push | |
 | `gh` (GitHub CLI) autenticada con tu cuenta | abrir el PR contra `develop` del fork | opcional si lo haces desde la web |
-| PHP 8.3 y Composer 2 | reproducir localmente el smoke de la sección 1 | el Sandbox usa PHP 8.3 y Composer 2 ✔ (`tjc-be-test-execution-sandbox/app/docker/php/Dockerfile:10-11,19`) |
+| PHP 8.3 y Composer 2 | reproducir localmente el smoke de la sección 1 | el Sandbox usa PHP 8.3 y Composer 2 ✔ (`tjc-be-test-execution-sandbox/app/docker/php/Dockerfile:18-19`) |
 | Docker | smoke «igual al Sandbox» (sección 1.4) | recomendado: es la forma de ver lo mismo que verá el Sandbox |
 | Navegador | Console | |
 
@@ -57,102 +78,108 @@ Para quién es: una persona que sabe PHP, que opera desde su máquina con la Con
 ### 1.1 Qué soportan hoy Core y Sandbox
 | Capacidad | Hoy | Fuente |
 |---|---|---|
-| Imagen PHP | `php:8.3-cli` + `acl` + `unzip` + Composer 2; usuario no-root `sandbox` (UID 10001); imagen gestionada `tjc-sandbox-php:8.3-nonroot`. Puede cambiarse con `SANDBOX_DEFAULT_PHP_IMAGE` (decisión de infraestructura, no tuya) | ✔ `tjc-be-test-execution-sandbox/app/docker/php/Dockerfile:10-23`; `src/container/container-limits.config.ts` |
-| Extensiones | Solo las de la imagen base oficial: ctype, dom, fileinfo, mbstring, openssl, tokenizer, xml, pdo, pdo_sqlite, sqlite3, curl, iconv, json, sodium, zlib. **No** hay `intl`, `gd`, `zip`, `bcmath`, `gmp`, `pdo_mysql`, `pdo_pgsql`. La imagen no instala ninguna extensión adicional | ✔ `Dockerfile:5-8,16-18` (comentario + comandos); lista completa de la imagen base ⚠ (se comprueba con `php -m`, sección 1.4) |
+| Imagen PHP | **Imagen NUEVA** `tjc-sandbox-php:8.3-nonroot` (WI-SANDBOX-021): base `php:8.3-cli` (Debian 13), PHP **8.3.36**, ICU **76.1**, Composer 2.10.3, `acl` + `unzip`, usuario no-root `sandbox` (UID 10001) y `memory_limit = 512M` (`zz-sandbox.ini`). Digest de la imagen verificada en el smoke: `sha256:e41aa91aca5d4eb00e8228c4ebbc16d516fcb7ba8fe94a9038bbbe203694fbc7`. La base `php:8.3-cli` no está fijada por digest: una reconstrucción futura puede variar (ICU/PHP). ⚠ **No desplegada aún en la VM** (informe §5.6): confirma con el usuario/cross que la VM tiene esta imagen antes de usar este runbook. Se puede cambiar con `SANDBOX_DEFAULT_PHP_IMAGE` (decisión de infraestructura, no tuya) | ✔ `tjc-be-test-execution-sandbox/app/docker/php/Dockerfile`, `zz-sandbox.ini` (commit `a4231d7`, rama `feature/jean`); informe `harness/reports/wi-sandbox-021-smoke-evidence.md` §2 |
+| Extensiones | Las de la base (ctype, dom, fileinfo, mbstring, openssl, tokenizer, xml, pdo, pdo_sqlite, sqlite3, curl, iconv, json, sodium, zlib…) **más** `intl`, `gd` (jpeg, freetype, webp), `zip`, `bcmath` y `gmp`. **Ausentes a propósito:** `pdo_pgsql` y `pdo_mysql` (`mysqlnd` viene en la base) | ✔ `Dockerfile` (cabecera y `docker-php-ext-install`); `php -m` en informe §2 |
 | Instalación | `composer install --no-interaction --no-progress --prefer-dist --no-scripts`; respeta `composer.lock` si existe; con red solo en esta etapa; caché Composer compartida (volumen) | ✔ `container-runner.service.ts:219-240` |
-| **`--no-scripts`** | No corre ningún script de Composer (`post-autoload-dump`, `post-install-cmd`, etc.). Los *plugins* de Composer sí se cargan | ✔ `container-runner.service.ts:203,227` |
+| **`--no-scripts`** | No corre ningún script de Composer (`post-autoload-dump`, `post-install-cmd`, etc.). Los *plugins* de Composer sí se cargan | ✔ `container-runner.service.ts:204,228` |
 | PHPUnit | `php vendor/bin/phpunit --log-junit <archivo> [rutas de test]`; el runner se elige si `composer.json` declara `phpunit/phpunit` o existe `phpunit.xml(.dist)` en la raíz efectiva | ✔ `src/runner-adapters/phpunit-test-runner.adapter.ts:14-37` |
 | Perfiles | Un solo perfil PHP, `PHP_LARAVEL_PHPUNIT` (se usa también para PHP «puro»; el nombre dice Laravel, la imagen y el comando son genéricos) | ✔ `phpunit-test-runner.adapter.ts:18-19` |
 | Raíz del proyecto | Se busca `composer.json` (mayúsculas/minúsculas exactas); si hay varios candidatos, la ejecución no es posible (decisión interna aún pendiente, `DEC-PHP-ROOT-001`). Composer y PHPUnit corren en esa raíz | ✔ `spec/features/019-project-root-detection/spec.md:14,17,19`; WI-085 §2.1 |
 | Límites por defecto (los efectivos en la VM no se conocen) | memoria 1 GiB, 1 CPU, 128 procesos, instalación 180 s, tests 120 s, salida capturada 64 KiB, deadline total 10 min, workspace ≤ 2 GiB, descarga ≤ 200 MiB | ✔ `container-limits.config.ts`, `tjc-be-test-execution-sandbox/app/.env.example` (líneas `SANDBOX_*`); valores reales ⚠ |
 | Red en tests | La instalación tiene red; la **ejecución de tests no** | ✔ `.env.example` («Timeouts propios para instalación (con red) y ejecución (sin red)») |
-| Base de datos | No hay MySQL ni Postgres en el Sandbox; solo SQLite | ✔ `spec/features/019-project-root-detection/spec.md:29` |
+| Base de datos | No hay MySQL ni Postgres en el Sandbox; solo SQLite; y los tests corren sin red. No se añadió `pdo_pgsql`/`pdo_mysql` (decisión del leader del Sandbox) | ✔ `spec/features/019-project-root-detection/spec.md:29`; informe §4 |
 | Concurrencia del Sandbox | 2 ejecuciones simultáneas por defecto; las demás esperan en `PENDING` | ✔ `.env.example` (`SANDBOX_MAX_CONCURRENT_EXECUTIONS=2`), `src/executions/execution-pipeline.service.ts:51,103` |
 | Parser PHP en Core | `tree-sitter-php 0.24.2`; extrae clases, métodos y funciones; un archivo con error de sintaxis da menos fragmentos, no aborta | ✔ WI-085 §2.1 (`php-parser.service.ts`); comportamiento sobre estos repos ⚠ |
 | Indexación | ZIP del repo ≤ 50 MiB; se ignoran carpetas `vendor`, `node_modules`, `.git`, `storage`, `cache`, etc. (en minúscula) | ✔ `app/src/config/env.validation.ts:98`; `indexing.constants.ts:3-14` |
 
-### 1.2 ¿La brecha de extensiones BLOQUEA a cada piloto?
-Lo siguiente sale de leer `composer.json`, `phpunit.xml(.dist)` y los workflows de la rama `develop` de cada fork (consultados con `gh api repos/rag-tesis-org/<repo>/contents/...?ref=develop`, solo lectura). Ninguno de los tres forks trae `composer.lock` en la raíz ✔ (listado del contenido raíz): Composer resolverá las **versiones más recientes permitidas** el día de la corrida, así que **registra las versiones realmente instaladas** (sección 3.d).
+### 1.2 Resultado de la qualification por piloto (smoke del Sandbox, WI-SANDBOX-021)
+Fuente: `tjc-be-test-execution-sandbox/harness/reports/wi-sandbox-021-smoke-evidence.md` §3 (✔ = citado de ese informe). Se ejecutó en clones de trabajo de los SHA base (money `93f145c`, orm `b44f3dff4`, Vouchers `546f871`) con los límites del Sandbox (1 GiB, 1 CPU, 128 procesos, `--cap-drop ALL`, usuario 10001, tests con `--network none`, `APP_ENV=testing`, `APP_KEY` aleatorio) y la **imagen nueva**. No se probó el flujo real Core → Sandbox con estos repos (informe §5.7), y el smoke **no fue ejecutado por este runbook**: se repite en tu máquina (1.4). Ninguno de los tres forks trae `composer.lock` ✔ (listado del contenido raíz de `develop`): el Sandbox resuelve las versiones más recientes permitidas el día de la corrida, así que **registra las versiones realmente instaladas** (3.d). El smoke generó un `composer.lock` por fork en un clon de trabajo; ese lock no está en los forks.
 
 | | P1 `brick/money` | P2 `doctrine/orm` | P3 `EscolaLMS/Vouchers` |
 |---|---|---|---|
-| PHP requerido | `^8.2` ✔ (`composer.json`) → compatible con 8.3 | `^8.1` ✔ | `>=7.4` ✔ (pero ver dependencias) |
-| PHPUnit | `^11.0` (necesita PHP ≥ 8.2) ✔ | `^10.5 \|\| ^11.5` ✔ | `^9.0` ✔ |
-| Extensiones declaradas | `require-dev`: `ext-dom`, `ext-pdo` (ambas presentes en la imagen). `ext-intl` solo como `suggest` ✔ | `require`: `ext-ctype` (presente) ✔; `suggest`: `ext-dom`, `ext-deepclone` | ninguna directa; **transitivas**: ver abajo |
-| Config de PHPUnit | `phpunit.xml`, bootstrap `phpunit-bootstrap.php`, suite `tests/` ✔ | `phpunit.xml.dist`, bootstrap `tests/Tests/TestInit.php`, suite `tests/Tests/ORM`; BD por defecto `pdo_sqlite` en memoria ✔; `failOnWarning/Notice/Risky` activados | `phpunit.xml` con BD **`pgsql` en host `postgres`** (usuario/clave de prueba), bootstrap `vendor/autoload.php` ✔; existen variantes `env/mysql`, `env/postgres`, `env/codecov` |
-| CI propio del fork | `ci.yml`: PHPUnit en PHP 8.2–8.6 con `shivammathur/setup-php` (trae `intl`, `pdo`, etc.), `ubuntu-24.04` fijado «porque los tests de `intl` afirman datos CLDR que dependen de la versión de ICU» | `continuous-integration.yml`: instala `apcu`, `pdo`, `sqlite3`/`pdo_sqlite`; solo corre en ramas `*.x` | `test.yml`: contenedor `escolalms/php` + servicio **MySQL**; `migrate:fresh` antes de PHPUnit |
-| **¿La brecha bloquea?** | **SÍ, muy probable (alta confianza).** `phpunit-bootstrap.php` ejecuta `printf("ICU version: %s\n", INTL_ICU_VERSION)`: esa constante solo existe con `ext-intl`, que la imagen NO tiene → el bootstrap falla y PHPUnit no arranca para ningún test (síntoma esperado en el Sandbox: `TEST_EXECUTION_FAILED` con «runner results file is missing/empty», NO `TEST_ENVIRONMENT_CONFIGURATION_INVALID`; ver 1.3). `composer install` sí pasa (intl es solo «sugerida») ✔. Aunque se agregara `intl`, los tests de formato pueden fallar por diferencias de ICU frente a las cadenas esperadas ⚠ | **NO bloquea, riesgo operativo.** Solo exige `ext-ctype`; sqlite en memoria está soportado ✔. Riesgos ⚠: `composer install` con muchas dev-deps y sin lock en 1 CPU/1 GiB/180 s (`INSTALL_TIMEOUT` o falta de memoria); tests que usen `apcu` se saltan o fallan; `failOnWarning/Risky` convierte avisos en fallos de la línea base | **SÍ, muy probable (alta confianza).** (a) Los tests dependen de BD: `phpunit.xml` fija `DB_CONNECTION=pgsql`/`DB_HOST=postgres`; el Sandbox no tiene Postgres, ni `pdo_pgsql`, ni red en la fase de tests ✔; el síntoma NO está confirmado ⚠: puede ser `TEST_EXECUTION_FAILED` (si PHPUnit no llega a escribir resultados) o, con Testbench, que PHPUnit sí escriba el JUnit y salga un resultado con pruebas falladas o con error por la conexión rechazada, indistinguible a simple vista de un fallo de la estrategia; por eso el smoke del paso 1.4 es condición previa de cualquier corrida oficial. El pedido a Core no puede inyectar variables (las variables `DB_*` que fija `phpunit.xml` se respetan, `container-runner.service.ts:585`; el Sandbox solo inyecta `APP_ENV` y un `APP_KEY` aleatorio) ✔. (b) La instalación probablemente falla: `escolalms/cart` arrastra `maatwebsite/excel` → `phpoffice/phpspreadsheet`, que exige `ext-gd` y `ext-zip` (tampoco están en la imagen) (consulta a Packagist: `maatwebsite/excel 4.0.6` y `phpspreadsheet 5.10.0`) ⚠ Composer podría elegir versiones antiguas, pero todas piden `gd`; se confirma ejecutando. (c) El script `post-autoload-dump` (`testbench package:discover`) no corre con `--no-scripts`; el `TestCase` del fork registra los providers a mano, así que quizá no sea necesario ⚠ |
+| Resultado del smoke | **PASA** ✔ | **PASA** ✔ | **NO APTO** ✔ (**EN REVISIÓN**, no descartado) |
+| Instalación (sin lock, red habilitada) | exit 0, 11 s, pico ≈ 63 MiB; 2 paquetes + 29 dev | exit 0, 19 s, pico ≈ 79 MiB; 22 paquetes + 46 dev | exit 0, 40 s, pico ≈ 287 MiB; 139 + 48 paquetes; `laravel/framework` resuelve a `10.x-dev` (rama de desarrollo: poca reproducibilidad) |
+| Tests (sin red, 120 s) | exit 0, 2 s; **1060 tests, 2079 aserciones, OK**; bootstrap imprime `ICU version: 76.1`; sin fallos CLDR/ICU | exit 0, 16 s, pico ≈ 175 MiB, sin OOM; **3686 tests, 12431 aserciones, OK con avisos** (3 deprecaciones, 78 omitidos, 2 incompletos) | exit 2, **37 errores** `SQLSTATE[HY000]: General error: 1 no such table: roles` (con una variante SQLite de `phpunit.xml` hecha solo para el smoke) |
+| Memoria de PHP | n/a | **Con `memory_limit` 128M (valor por defecto de php-cli) la suite completa fallaba** al ≈ 52 % con «Allowed memory size of 134217728 bytes exhausted»; con 512M pasa. No era OOM del contenedor | n/a |
+| Causa / comentario | El bootstrap (`INTL_ICU_VERSION`) ya no falla porque la imagen tiene `intl`; el CI del fork fija ICU 74 y con 76.1 pasa entera | — | El CI del fork ejecuta `testbench migrate:fresh` antes de PHPUnit; el Sandbox no migra. `testbench.yaml` fuerza `pgsql` y sin `pdo_pgsql` falla con `could not find driver`; con SQLite las migraciones fallan (`SQLite doesn't support multiple calls to dropColumn / renameColumn`). **Añadir `pdo_pgsql` no lo arregla** (no hay servidor de BD, no hay red en tests y SQLite no sirve para sus migraciones) |
+| Qué NO prueba | Solo PHP 8.3.36 y ICU 76.1 (no PHP 8.2, ni ICU 74) ⚠ | Solo suite completa en este entorno; no el flujo real Core → Sandbox ⚠ | No mide el código de ningún PR |
+| Fuente | informe §3.1 | informe §3.2 y §2 (`memory_limit`) | informe §3.3 y §4 |
 
-**Conclusión honesta:** con la imagen actual del Sandbox, **P1 (money) y P3 (Vouchers) no pasarían la qualification**; P2 (orm) debería pasar salvo tiempos/memoria de instalación. Esto NO lo resuelves tú: ampliar la imagen del Sandbox (`intl`, `gd`, `zip`, `pdo_pgsql`, un servicio Postgres) o cambiar la configuración del fork (p. ej. `phpunit.xml` con SQLite) son decisiones de infraestructura/alcance que toman el usuario y cross antes de congelar. Lo que sí haces es **ejecutar la checklist 1.4 y reportar el resultado exacto**. Los casos marcados ⚠ se confirman únicamente ejecutando.
+**Qué significa para ti:**
+- **P1 y P2:** la línea base es verde con la imagen nueva (sujeto a que la imagen nueva esté desplegada, ⚠). Aun así repite el smoke 1.4 antes de congelar: no sustituye la repetición en tu máquina ni el flujo real Core → Sandbox, que sigue sin probarse (⚠).
+- **P3 (Vouchers):** **NO APTO según el smoke; EN REVISIÓN.** El usuario decide si se sustituye P3 por otro repositorio; **no lo des por descartado ni por aprobado**. Mientras tanto, **NO**:
+  1. toques el fork `Vouchers` para «arreglarlo» (ni `phpunit.xml`, ni `testbench.yaml`, ni migraciones, ni añadir un `phpunit.sqlite.xml`);
+  2. lances corridas oficiales de P3 (ni abras PR de caso en ese fork);
+  3. pidas que se instale `pdo_pgsql` ni propongas cambios de imagen: no resolvería el problema.
+  Si te piden ejecutar algo en P3, solo es la checklist 1.4 de solo lectura (en tu máquina, sin cambiar el fork) y reportar el resultado.
+- Lo que **no** se ha verificado: money en PHP 8.2 y otras versiones de su CI; paridad con ICU 74; tiempos medidos con muestreo de 1 s (picos cortos pueden no verse); límite total de 10 min del Sandbox (informe §5).
 
 ### 1.3 Qué señales verás si falla (para entender el informe del Sandbox)
 Códigos reales del Sandbox/Core: `DEPENDENCY_INSTALL_FAILED` (Composer falló), `INSTALL_TIMEOUT`, `TIMED_OUT`, `TEST_EXECUTION_FAILED`, `TEST_COMPILATION_FAILED`, `TEST_ENVIRONMENT_CONFIGURATION_INVALID`, `INVALID_PROJECT_ROOT`, `UNSUPPORTED_RUNNER`, `IMAGE_UNAVAILABLE`, `OOM_KILLED` ✔ (`tjc-be-test-execution-sandbox/app/src/common/errors/sandbox-fact-error.ts`, `src/executions/execution-pipeline.service.ts:241-261`; WI-085 §2.3). `COMPOSER_INSTALL_FAILED` NO existe en el código (solo aparece como ejemplo en un archivo de contrato): no lo busques.
 
 **Ojo con dos códigos:** `TEST_ENVIRONMENT_CONFIGURATION_INVALID` solo sale cuando la salida de error contiene el marcador de Jest «Validation Error:» (no aplica a PHP) (`execution-pipeline.service.ts:560,585-593`). Un fatal de PHP sin archivo de resultados (bootstrap roto, extensión o BD ausente) sale como **`TEST_EXECUTION_FAILED`** (categoría `TEST_RUNTIME`; `:570-573`), y un error de sintaxis como `TEST_COMPILATION_FAILED` (`:564-569`). En una corrida oficial esos dos códigos se conservan como resultado de la estrategia y no se repiten (4.2.3); por eso **no se lanza ninguna corrida oficial en un repo que no tenga smoke verde (1.4)**: en un repo sin smoke verde, un `TEST_EXECUTION_FAILED` es un fallo de qualification (se corrige y se repite), no un resultado.
 
+**Memoria:** el Sandbox acota el contenedor a 1 GiB, pero PHP tiene además su propio `memory_limit`, que en la imagen nueva es **512M** (antes 128M, el valor por defecto de php-cli, con el que orm fallaba). Un `Allowed memory size of … bytes exhausted` es del límite de PHP, no un `OOM_KILLED` del contenedor. `memory_limit` forma parte del entorno que se congela con el protocolo (modelo, presupuestos, imagen).
+
 ### 1.4 Checklist de smoke que puedes ejecutar tú solo
-Hazlo sobre el **SHA base** del fork (money `93f145c`, orm `b44f3df`, Vouchers `546f871`) y luego, cuando exista, sobre el HEAD del PR. Necesitas Docker. No hace falta el repo del Sandbox: esta imagen reproduce la suya.
+Hazlo sobre el **SHA base** del fork (money `93f145c`, orm `b44f3df`) y luego, cuando exista, sobre el HEAD del PR. **No lo hagas en Vouchers** mientras esté EN REVISIÓN (ver 1.2). Necesitas Docker. Usa la **imagen NUEVA** del Sandbox: si usas una imagen vieja o genérica, el resultado no vale.
 
-**Diferencias con el Sandbox real (el smoke es ejecutable y representativo, pero no idéntico):** el Sandbox monta el repo en `/app`, corre como usuario `sandbox` con `CapDrop ALL` y `no-new-privileges`, inyecta `APP_ENV=testing` y un `APP_KEY` aleatorio, y en el flujo real ejecuta solo los archivos de prueba generados (no la suite completa). El smoke sirve para detectar brechas de instalación y de arranque, no para reproducir al 100 % una corrida.
+**Diferencias con el Sandbox real (el smoke es ejecutable y representativo, pero no idéntico):** el Sandbox solo fija `Memory` (no `MemorySwap`: el `--memory-swap=1g` de los comandos reproduce la corrida del informe del Sandbox), monta el repo en `/app`, corre como usuario `sandbox` con `CapDrop ALL` y `no-new-privileges`, inyecta `APP_ENV=testing` y un `APP_KEY` aleatorio, y en el flujo real ejecuta solo los archivos de prueba generados (no la suite completa). El smoke sirve para detectar brechas de instalación y de arranque, no para reproducir al 100 % una corrida.
 
-**Paso A. Construir una imagen equivalente a la del Sandbox** (una sola vez; mismo contenido que `app/docker/php/Dockerfile`, sin el script interno):
+**Paso A. Obtener/construir la imagen nueva** (una sola vez). Necesitas tres archivos del repo del Sandbox (`app/docker/php/Dockerfile`, `restore-workspace-acl`, `zz-sandbox.ini`, commit `a4231d7`, rama `feature/jean`). Si no tienes acceso a ese repo, pídeselos al usuario/cross (⚠ no los copies de memoria). Luego:
 ```bash
-mkdir -p ~/tesis-smoke && cd ~/tesis-smoke
-cat > Dockerfile <<'EOF'
-FROM composer:2 AS composer
-FROM php:8.3-cli
-RUN apt-get update && apt-get install -y --no-install-recommends acl unzip && rm -rf /var/lib/apt/lists/*
-COPY --from=composer /usr/bin/composer /usr/local/bin/composer
-RUN groupadd --gid 10001 sandbox && useradd --uid 10001 --gid sandbox --create-home --shell /usr/sbin/nologin sandbox
-EOF
-docker build -t smoke-php83 .
+docker build -t tjc-sandbox-php:8.3-nonroot <carpeta-con-los-3-archivos>
+docker image inspect --format '{{.Id}}' tjc-sandbox-php:8.3-nonroot   # anota el digest
 ```
-⚠ La imagen real del Sandbox añade además un script `restore-workspace-acl` que no cambia PHP ni las extensiones. Si ya tienes el repo del Sandbox: `docker build -t tjc-sandbox-php:8.3-nonroot -f <sandbox>/app/docker/php/Dockerfile <sandbox>/app/docker/php`.
+⚠ La imagen verificada en el smoke tiene digest `sha256:e41aa91a…fbc7` (ver 1.1). Una reconstrucción puede dar otro digest porque la base `php:8.3-cli` no está fijada: anota el tuyo y las versiones de abajo, y dile al usuario si difieren.
 
 **Paso B. Clonar el SHA base** (ejemplo money; cambia repo y SHA):
 ```bash
-cd ~/tesis-smoke && rm -rf money && git clone https://github.com/rag-tesis-org/money.git && cd money && git checkout 93f145c
+mkdir -p ~/tesis-smoke && cd ~/tesis-smoke && rm -rf money && git clone https://github.com/rag-tesis-org/money.git && cd money && git checkout 93f145c
 ```
 
-**Paso C. Inspeccionar versión y extensiones**
+**Paso C. Verificar que la imagen es la nueva** (si no coincide, PARA y avisa):
 ```bash
-docker run --rm smoke-php83 php -v
-docker run --rm smoke-php83 php -m | sort > ../ext-imagen.txt
+IMG=tjc-sandbox-php:8.3-nonroot
+docker run --rm $IMG php -v                                   # esperado: PHP 8.3.36
+docker run --rm $IMG php -r 'echo INTL_ICU_VERSION, PHP_EOL;'  # esperado: 76.1
+docker run --rm $IMG php -m | sort > ../ext-imagen.txt         # deben estar intl, gd, zip, bcmath, gmp; NO pdo_pgsql/pdo_mysql
+docker run --rm $IMG php -r 'echo ini_get("memory_limit"), PHP_EOL;'   # esperado: 512M
 ```
 
-**Paso D. Instalar como lo hace el Sandbox** (1 CPU, 1 GiB, 128 procesos, red habilitada, mide el tiempo):
+**Paso D. Instalar como lo hace el Sandbox** (1 CPU, 1 GiB, 128 procesos, red habilitada). Como los forks no tienen `composer.lock`, esto equivale a resolver y escribir un lock local (no lo subas al fork):
 ```bash
-time docker run --rm --cpus=1 --memory=1g --pids-limit=128 \
+time docker run --rm --cpus=1 --memory=1g --memory-swap=1g --pids-limit=128 \
+  --cap-drop ALL --security-opt no-new-privileges \
   --user "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp -e COMPOSER_CACHE_DIR=/tmp/cc \
-  -v "$PWD":/w -w /w smoke-php83 \
+  -v "$PWD":/w -w /w $IMG \
   composer install --no-interaction --no-progress --prefer-dist --no-scripts
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w $IMG composer check-platform-reqs
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w $IMG composer show > ../versiones-instaladas-money.txt
 ```
-Si Composer se queja de una extensión (`ext-...` missing) → anota el nombre exacto: es la brecha de extensiones. Luego:
-```bash
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w smoke-php83 composer check-platform-reqs
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w smoke-php83 composer show > ../versiones-instaladas-money.txt
-```
-(`composer show` es tu registro de las versiones realmente resueltas porque no hay `composer.lock`.)
+Tiempos de referencia del smoke del Sandbox: money ≈ 11 s, orm ≈ 19 s (informe §3). Si Composer se queja de una extensión (`ext-...` missing) con la imagen nueva, anótala: no es esperable en money ni orm.
 
 **Paso E. Ejecutar PHPUnit sin red, con los límites de tests** (120 s):
 ```bash
-time docker run --rm --network none --cpus=1 --memory=1g --pids-limit=128 \
-  --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w smoke-php83 \
+time docker run --rm --network none --cpus=1 --memory=1g --memory-swap=1g --pids-limit=128 \
+  --cap-drop ALL --security-opt no-new-privileges \
+  --user "$(id -u):$(id -g)" -e APP_ENV=testing -v "$PWD":/w -w /w $IMG \
   timeout 120 php vendor/bin/phpunit --log-junit /tmp/junit.xml 2>&1 | tail -40
 ```
-Para `orm` (suite enorme) no corras toda: elige un archivo de la suite, p. ej. `php vendor/bin/phpunit tests/Tests/ORM/Hydration` (⚠ la ruta exacta es tuya; solo importa que corra bajo los límites). Los tests que ya fallen en la **línea base verde** (sin el cambio del PR) se anotan; un repo con la línea base roja no es apto.
+Referencia: money debe dar 1060 tests OK en ≈ 2 s; orm 3686 tests OK (con avisos) en ≈ 16 s con 512M de `memory_limit` ✔ informe §3. Si tus números difieren mucho, o falla algo que el informe da como verde, anótalo y avisa. Los tests que ya fallen en la **línea base** (sin el cambio del PR) se anotan; un repo con la línea base roja no es apto.
 
 **Paso F. Interpretar el resultado**
 | Resultado | Significa | Qué hacer |
 |---|---|---|
-| Instala y PHPUnit corre en verde (o con fallos propios de upstream documentados) | El Sandbox debería poder con el repo | Anota tiempos (instalación y tests), versión de PHP y `composer show`. Sigue con la sección 2 |
-| Composer falla por `ext-X` | Brecha de extensiones | **Para.** Anota `ext-X` exacto, el SHA y los comandos. Avisa al usuario/cross (sección 6). No cambies el repo ni «arregles» tú el Sandbox |
-| PHPUnit falla al arrancar (error de bootstrap, constante o clase indefinida) | Extensión faltante en ejecución (caso esperado de `money` por `INTL_ICU_VERSION`). El Sandbox lo reportaría como `TEST_EXECUTION_FAILED`, no como error de configuración | Igual: anota el mensaje literal (primeras 20 líneas) y avisa. Es un fallo de qualification, no un resultado |
-| Tests dependen de BD y fallan por conexión (caso esperado de `Vouchers`) | Falta servicio de BD | Anota el driver/host que pide `phpunit.xml`; avisa |
-| Instalación > 180 s o `Killed` por memoria | `INSTALL_TIMEOUT` / OOM probable en el Sandbox | Anota tiempos y memoria; avisa (se decide subir límites o precalentar la caché, no tú) |
+| Instala y PHPUnit corre en verde (como en el informe) | El Sandbox debería poder con el repo | Anota tiempos, digest de la imagen, versión de PHP/ICU y `composer show`. Sigue con la sección 2 |
+| Composer falla por `ext-X` | La imagen que usas no es la nueva, o falta una extensión nueva | **Para.** Revisa el paso C; anota `ext-X`, el SHA y los comandos; avisa al usuario/cross. No cambies el repo ni «arregles» tú el Sandbox |
+| PHPUnit falla al arrancar (bootstrap, constante o clase indefinida) | Imagen incorrecta o problema nuevo; con la imagen nueva NO es esperable en money ni orm | Anota el mensaje literal (primeras 20 líneas) y avisa. El Sandbox lo reportaría como `TEST_EXECUTION_FAILED`: es un fallo de qualification, no un resultado |
+| `Allowed memory size of … exhausted` | `memory_limit` de PHP demasiado bajo (p. ej. imagen sin `zz-sandbox.ini`: 128M) | Comprueba el paso C (`512M`); si no es 512M, la imagen es incorrecta: avisa |
+| Instalación > 180 s o `Killed` por memoria | `INSTALL_TIMEOUT` / `OOM_KILLED` probable en el Sandbox | Anota tiempos y memoria; avisa (se decide subir límites o precalentar la caché, no tú) |
+| Tests dependen de BD y fallan (`no such table`, `could not find driver`) | Caso de Vouchers (EN REVISIÓN) | No lo arregles; ver 1.2 |
 | Distinto en Docker que en tu PHP local | Tu PHP local no es la referencia | Vale lo que diga la imagen de Docker |
 
-**Qué documentar siempre:** repo, SHA, fecha, comandos usados, salida relevante, decisión tomada y quién la tomó. Un fallo corregido se vuelve a probar desde cero. Nada de esto entra a las métricas del experimento.
+**Qué documentar siempre:** repo, SHA, fecha, comandos usados, digest de la imagen, salida relevante, decisión tomada y quién la tomó. Un fallo corregido se vuelve a probar desde cero. Nada de esto entra a las métricas del experimento.
 
 ### 1.5 Otras comprobaciones de qualification (las hace el sistema; tú solo confirmas en la Console)
 | Qué | Cómo lo ves | Lo esperado |
@@ -167,6 +194,8 @@ Para `orm` (suite enorme) no corras toda: elige un archivo de la suite, p. ej. `
 ## 2. Cómo se crea un caso y se lanza el experimento
 
 ### 2.a Trabajar sobre `develop` del fork
+0. **Antes de empezar, despierta Integration y Core con `GET /health` (ver 0.3 bis)** y espera la respuesta (≈ 30 s la primera vez). Un webhook que llegue con Integration dormido puede perderse.
+
 1. Clona el fork y trabaja sobre `develop` (ya existe, creada desde main/3.7.x). Crea una rama de trabajo desde `develop`, p. ej. `caso-<id>-<descripcion>`.
 2. Aplica **exactamente** el cambio controlado que te entregó el equipo investigador (P1/P3) o la implementación basada en el issue público #11600 (P2). Tú no decides el cambio ni el oráculo: los define el equipo y te los entrega (el oráculo NO se te entrega para copiarlo al repo; ver abajo).
 3. **Nunca** pongas el oráculo (la especificación esperada), ni su identificador, ni notas sobre qué debe probar la prueba, en el repo, en el título/descripción/comentarios del PR ni en mensajes de commit. Esas entradas las lee el sistema; el oráculo debe quedar fuera de lo que ven RAG y GENERALIST_AGENT ✔ (`spec/features/008-experimental-comparison/spec.md`, «Repositorios piloto»: «no se copian ni almacenan en repositorios de producto ni piloto»).
@@ -266,21 +295,14 @@ Columnas reales (`referencias/tesis.md`, Anexo L, «Tabla 70. Estructura del evi
 
 Resultado: 2 de 8 campos se pueden rellenar automáticamente (Fecha, y Proyecto/snapshot/Run); los otros 6 son manuales. Detalles de CT-08: la checklist (Tabla 54) lleva su propio Evidence ID por enlace y es manual.
 
-### 3.f Convención de nombres y carpeta de trabajo (propuesta; el usuario/cross la integra)
-No se inventan rutas del repo. Propuesta de **carpeta local de trabajo** (luego se copia a la raíz externa de evidencia que la tesis define en §3.3.14 y Anexo L: `05_OE5_EXPERIMENTO`):
-```
-pilotos-trabajo/<piloto>/              # p1-money | p2-orm | p3-vouchers
-  00_qualification/    smoke-<fecha>-<sha>.txt, ext-imagen.txt, versiones-instaladas-<piloto>.txt, notas.md
-  01_caso-<id>/
-    pr-info.md                          # URL del PR, HEAD SHA, fecha
-    evidence-analysis-run-<analysisRunId>.json
-    evidence-experiment-<experimentId>.json
-    modelconfig-<experimentId>.png      # captura de «Proveedor y modelo/Esfuerzo/Presupuestos»
-    resultados-<experimentId>.png
-    trace-<analysisRunId>.png
-    hashes.sha256                       # shasum -a 256 de todo lo anterior
-```
-Nombres: conserva los de la Console (`evidence-...-<id>.json`); no los renombres, para poder verificarlos. Anota un `caseId` externo en `pr-info.md`: es solo tu clave para unir con el oráculo (que vive aparte y que tú no copias aquí).
+### 3.f Estructura de carpetas, EV-OE5-xxx y sellado SHA-256: los define el handoff de cross
+**Esta sección reemplaza la propuesta anterior.** La estructura de carpetas de evidencia, los identificadores `EV-OE5-xxx` y el sellado con SHA-256 los define el handoff que te entregará cross; este runbook **no** inventa una convención propia. Sigue ese handoff al pie de la letra.
+
+Lo único que este runbook afirma, por ser un hecho del software (✔):
+- **Qué se descarga y de dónde:** el JSON del Run («Descargar evidencia (JSON)» en el detalle del Run → `evidence-analysis-run-<id>.json`) y el JSON del experimento (mismo botón en la pantalla del experimento → `evidence-experiment-<id>.json`), solo cuando el proceso ya terminó; ver 3.a. La Console genera el nombre (`evidence-<tipo>-<id>.json`): no lo renombres sin instrucción del handoff.
+- Los dos paquetes no tienen el mismo contenido (3.a): el del experimento no trae repo/PR/HEAD ni `analysisRunId`; anota esos datos aparte (3.a y 3.e).
+- Core no genera identificadores `EV-OE*` (INTEROP §6.16): los asigna el equipo.
+- Capturas que conviene guardar (si el handoff las pide): el bloque de condiciones del experimento (solo visible con el experimento `COMPLETED`), la tabla de resultados y la «Traza operativa» del Run.
 
 ---
 
@@ -289,11 +311,14 @@ Nombres: conserva los de la Console (`evidence-...-<id>.json`); no los renombres
 ### 4.1 Tabla de fallos
 | Síntoma | Causa probable | Qué hacer | A quién avisar |
 |---|---|---|---|
-| Run/experimento falla con `DEPENDENCY_INSTALL_FAILED` | `composer install` falló: extensión PHP faltante, dependencia sin versión compatible, red del Sandbox ✔ | No relances. Reproduce con el smoke (1.4) para ver el mensaje de Composer; anota extensión/paquete | Usuario/cross (decide imagen o repo) |
+| Run/experimento falla con `DEPENDENCY_INSTALL_FAILED` | `composer install` falló: extensión PHP faltante (con la imagen nueva no esperable en money/orm; sí si la VM tiene la imagen vieja), dependencia sin versión compatible, red del Sandbox ✔ | No relances. Reproduce con el smoke (1.4) para ver el mensaje de Composer; anota extensión/paquete | Usuario/cross (decide imagen o repo) |
 | `INSTALL_TIMEOUT` | Instalación > 180 s (por defecto; caché fría, repo grande como orm) ✔ | No relances en bucle. Anota repo y hora | Usuario/cross |
+| «Allowed memory size of … bytes exhausted» en la salida de tests | `memory_limit` de PHP: 128M en la imagen vieja (orm fallaba al ≈ 52 %), 512M en la nueva ✔ informe §3.2 | Si ocurre con la imagen nueva, anota repo/SHA; si la VM tuviera la imagen vieja, avisa para que la actualicen. No relances | Usuario/cross |
+| Integration/Core dormido (webhook perdido, Run que no aparece, 502/503 al abrir un Project) | Plan gratuito de Render: arranque en frío ≈ 30 s ✔ (`AGENTS.md` raíz); un webhook con Integration dormido puede perderse | Despierta con `GET /health` (0.3 bis); no abras otro PR ni empujes commits; avisa si el Run no aparece | Usuario/cross |
+| Intentas P3 (Vouchers) y fallan tests con `no such table` o `could not find driver` | P3 NO APTO según el smoke (EN REVISIÓN) ✔ informe §3.3 | No toques el fork ni lances corridas oficiales; espera la decisión del usuario | Usuario |
 | `TIMED_OUT` en tests | La prueba generada (o la suite) superó el tiempo; para Core es un fallo **de la prueba generada**, no externo ✔ (INTEROP §6.5.1) | **No se repite.** Conserva el resultado | Solo registro; avisa si es sistemático |
-| `OOM_KILLED` (proceso matado, 1 GiB) | memoria del contenedor (instalación o tests); categoría `INFRASTRUCTURE` ✔ (`sandbox-fact-error.ts:144-147`) | Core reintenta una vez automáticamente los resultados `INFRASTRUCTURE` del Sandbox (incluidos `OOM_KILLED` e `IMAGE_UNAVAILABLE`, salvo `TIMED_OUT`; INTEROP §6.5.1), así que verás un segundo intento sin haber hecho nada. Anota el caso; no relances | Usuario/cross |
-| `TEST_EXECUTION_FAILED` («runner results file is missing/empty») | Un fatal de PHP sin archivo de resultados: bootstrap roto (money, `INTL_ICU_VERSION`), extensión o BD ausente (Vouchers), según 1.2 ⚠ (se confirma ejecutando); es el código que el Sandbox emite en estos casos (`execution-pipeline.service.ts:570-573`) | **En un repo sin smoke verde es un fallo de QUALIFICATION, no un resultado**: detén el piloto, corrige y repite la habilitación. En un repo con smoke verde y una prueba generada que falla en ejecución es resultado de la estrategia: se conserva y no se repite | Usuario/cross (si es qualification) |
+| `OOM_KILLED` (proceso matado, 1 GiB) | memoria del contenedor (no confundir con el `memory_limit` de PHP, 512M en la imagen nueva: un «Allowed memory size … exhausted» es de PHP y sale como fallo de ejecución, no como `OOM_KILLED`) (instalación o tests); categoría `INFRASTRUCTURE` ✔ (`sandbox-fact-error.ts:144-147`) | Core reintenta una vez automáticamente los resultados `INFRASTRUCTURE` del Sandbox (incluidos `OOM_KILLED` e `IMAGE_UNAVAILABLE`, salvo `TIMED_OUT`; INTEROP §6.5.1), así que verás un segundo intento sin haber hecho nada. Anota el caso; no relances | Usuario/cross |
+| `TEST_EXECUTION_FAILED` («runner results file is missing/empty») | Un fatal de PHP sin archivo de resultados: con la **imagen nueva ya no es esperable en la línea base de money ni de orm** (ambas pasan el smoke ✔ informe §3); sí lo sería en P3/Vouchers (BD y migraciones ausentes; EN REVISIÓN) o si la VM aún corre la imagen vieja (sin `intl`, `memory_limit` 128M) ⚠. Es el código que el Sandbox emite en estos casos (`execution-pipeline.service.ts:570-573`) | **En un repo sin smoke verde es un fallo de QUALIFICATION, no un resultado**: detén el piloto, corrige y repite la habilitación. En un repo con smoke verde, una prueba generada que falla en ejecución es resultado de la estrategia: se conserva y no se repite. Si aparece en money/orm sin que el cambio lo explique, **primero** pregunta al usuario/cross si la VM tiene la imagen nueva | Usuario/cross (si es qualification) |
 | `TEST_ENVIRONMENT_CONFIGURATION_INVALID` | Solo con el marcador de Jest «Validation Error:» (no esperable en estos repos PHP) ✔ | Es de qualification | Usuario/cross |
 | `TEST_COMPILATION_FAILED` (prueba generada no compila) | error de la estrategia (sintaxis/uso de clases) | Es un **resultado de la estrategia**: se conserva, no se repite | Registro |
 | Parser/indexación: el método objetivo no aparece como target, o la indexación no termina | gramática PHP o límites (ZIP 50 MiB, volumen de chunks) ⚠ | No cambies el PR. Anota repo/SHA y qué falta | Usuario/cross |
@@ -350,6 +375,9 @@ Nombres: conserva los de la Console (`evidence-...-<id>.json`); no los renombres
 ### 6.1 Qué avisar y a quién (paras y avisas)
 | Situación | Para y avisa |
 |---|---|
+| Antes de abrir un PR o iniciar sesión no pudiste despertar Integration/Core (`/health` no responde) | Usuario/cross; no abras el PR |
+| Te piden tocar el fork de Vouchers o lanzar corridas de P3 | Para: P3 está EN REVISIÓN; confirma con el usuario |
+| El smoke en money/orm no coincide con el informe (digest, versión de PHP/ICU, `memory_limit`, extensión) | Usuario/cross: puede que la VM no tenga la imagen nueva |
 | 503 de verificación de GitHub, no ves el Project o tu rol es insuficiente | Usuario/cross |
 | Smoke: falla de Composer, extensión faltante, bootstrap de PHPUnit roto, BD requerida, instalación lenta/OOM | Usuario/cross con el SHA, comandos y salida |
 | El Run queda `QUEUED`/`PROCESSING` ≥ 30 min, o `INFRASTRUCTURE_FAILURE`/`BASELINE_FAILED` | Usuario/cross |
@@ -378,11 +406,16 @@ Nombres: conserva los de la Console (`evidence-...-<id>.json`); no los renombres
 - **Qualification / smoke:** prueba previa de que el repo se instala y se prueba en el Sandbox; sus fallos no son resultados.
 - **Pilot v2:** nueva versión del protocolo cuando hay que cambiar condiciones tras iniciar; no se mezcla con la anterior.
 - **cross:** la sesión coordinadora que reparte el trabajo entre los componentes; cuando este runbook dice «avisa a cross», avisa al usuario o a quien él te indique.
-- **WI (work item):** unidad de trabajo interna del equipo (p. ej. WI-CORE-092 es este runbook). **HU:** historia de usuario del backlog. **DEC:** decisión registrada (aprobada o pendiente). **INTEROP:** documento de contrato entre componentes (Core, Console, Integration, Sandbox). **OE5:** objetivo específico 5 de la tesis (comparar RAG con el agente generalista).
+- **WI (work item):** unidad de trabajo interna del equipo (p. ej. WI-CORE-095 es la versión 2 de este runbook). **HU:** historia de usuario del backlog. **DEC:** decisión registrada (aprobada o pendiente). **INTEROP:** documento de contrato entre componentes (Core, Console, Integration, Sandbox). **OE5:** objetivo específico 5 de la tesis (comparar RAG con el agente generalista).
+- **ICU / `intl`:** biblioteca y extensión PHP de internacionalización; money la exige (su bootstrap imprime la versión de ICU). En la imagen nueva: `intl` con ICU 76.1.
+- **`memory_limit`:** límite de memoria de PHP (distinto del límite de 1 GiB del contenedor). 512M en la imagen nueva; 128M (por defecto de php-cli) era insuficiente para orm. Se congela con el entorno del protocolo.
+- **Arranque en frío (Render):** los servicios gratuitos se duermen y tardan ≈ 30 s en responder la primera vez; por eso se despierta `GET /health` antes de abrir un PR.
 - **CT-08:** auditoría manual de la trazabilidad de 9 enlaces sobre 3 AnalysisRuns (uno por piloto).
 - **Evidence ID:** identificador `EV-...` del registro de evidencia (lo asigna el equipo, no el sistema).
 
-### 6.3 Límites de este borrador
-- No se ejecutó ningún smoke ni se leyó ningún `.env`; las conclusiones de bloqueo de money y Vouchers son inferencias de lectura de `composer.json`, `phpunit.xml` y `phpunit-bootstrap.php` (alta confianza) que se confirman con la checklist 1.4.
+### 6.3 Límites de este documento
+- Los resultados del smoke de money, orm y Vouchers y los datos de la imagen (versiones, extensiones, `memory_limit`, digest, tiempos) provienen del informe `tjc-be-test-execution-sandbox/harness/reports/wi-sandbox-021-smoke-evidence.md` (✔ citado); este runbook no los reprodujo. El informe declara sus propios límites (§5): P3 sin BD, muestreo de memoria de 1 s, límite total de 10 min no aplicado, money solo en PHP 8.3.36 e ICU 76.1, y **imagen no desplegada en la VM ni flujo real Core → Sandbox probado**.
+- ⚠ Hay que confirmar que la imagen nueva está desplegada en la VM del Sandbox antes del smoke y de cualquier corrida; la base `php:8.3-cli` no está fijada por digest, así que una reconstrucción puede variar.
 - No existen hoy: consulta inversa del trace, estado de enlace inconsistente, descarga de la prueba generada, descarga de la salida completa de Composer/PHPUnit, pantalla de ocupación del Sandbox, bloqueo automático de configuración (`low` vs `medium`) y campo `caseId`/oráculo en el experimento.
-- Los tiempos reales (indexación, instalación, experimento), tamaño de la evidencia y límites efectivos de la VM del Sandbox son desconocidos (⚠).
+- Los tiempos reales (indexación, instalación y experimento en el flujo real), el tamaño de la evidencia y los límites efectivos de la VM del Sandbox son desconocidos (⚠). La estructura de evidencia y los identificadores EV-OE5-xxx los define el handoff de cross (3.f).
+- No se leyó ningún `.env` ni se usó ninguna clave.
