@@ -15,3 +15,4 @@
 - [x] **ST-CORE-095 · T-DONE · WI-CORE-079 · HU15, HU17:** pruebas de frontera de CT-01 en Core (ejemplos válidos pasan esquema y parser; inválidos fallan en ambos; paridad con brechas declaradas).
 - [x] **ST-CORE-096 · T-DONE · WI-CORE-079 · HU15, HU17:** SYSTEM-2.15 (texto neutral de `system-contract.md:287`), corrección de `sandbox-result.failed.json` y cabeceras de versión, README y CHANGELOG (INTEROP-2.20, GH-INTEROP-1.9, SYSTEM-2.15).
 - [x] **ST-CORE-097 · T-DONE · WI-CORE-079 · HU15, HU17:** Contract Sync a Integration, Sandbox y Console (tres eventos `C-PENDING`; Core no edita otros repositorios).
+- [ ] **ST-CORE-099 · T-IN_PROGRESS · WI-CORE-088 · HU10, HU15:** análisis de solo lectura de la modularidad del `LLMProvider` para ESC-MOD-01: neutralidad del puerto, segundo adaptador real, medición de M1/M2/M3 y recomendación sobre D-10; pedido por cross.

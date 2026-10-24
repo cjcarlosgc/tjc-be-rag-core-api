@@ -22855,5 +22855,91 @@
       "closedAt": "2026-10-24T06:38:54.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-088",
+    "component": "CORE",
+    "workItemType": "HARNESS",
+    "status": "W-IN_PROGRESS",
+    "title": "Analisis de modularidad del LLMProvider para ESC-MOD-01 (neutralidad del puerto, segundo adaptador, medicion M1/M2/M3, D-10): solo lectura",
+    "approved": true,
+    "storyIds": [
+      "HU10",
+      "HU15"
+    ],
+    "taskIds": [
+      "ST-CORE-099"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-088-scope.md",
+      "spec/features/017-cross-repository-dependency-gates/tasks.md"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-10-24T14:00:00.000Z",
+      "note": "Analisis de solo lectura pedido por cross; sin decisiones bloqueantes."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "sdd-analyst",
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-088",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-24T16:33:02.708Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-088-scope.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-088-scope.md"
+      ]
+    },
+    "evidence": [
+      "harness/reports/wi-core-088-scope.md"
+    ],
+    "blockedReason": null
+  }
 }

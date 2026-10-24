@@ -5030,6 +5030,37 @@
           "report": "harness/reports/wi-core-087-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-088",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Analisis de modularidad del LLMProvider para ESC-MOD-01 (neutralidad del puerto, segundo adaptador, medicion M1/M2/M3, D-10): solo lectura",
+      "storyIds": [
+        "HU10",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-099"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-087"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-modularidad-llm-provider-core.md que responde las 4 preguntas de cross (neutralidad del puerto LLMProvider con brechas archivo:linea, trabajo y configuracion para un segundo adaptador real, medicion de M1/M2/M3 sobre git diff con comandos y pruebas de contrato faltantes, recomendacion sobre D-10) contrastado con la tesis, marcando lo que requiere aprobacion del usuario y el WI minimo.",
+        "Solo lectura: sin cambios en app/, contratos, esquemas, .env ni referencias/; la key del proveedor no se lee ni se solicita; revision independiente del reviewer sobre la exactitud de las afirmaciones."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-088-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }
