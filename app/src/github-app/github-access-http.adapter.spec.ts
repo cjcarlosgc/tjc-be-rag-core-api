@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GithubAccessHttpAdapter } from './github-access-http.adapter.js';
 import { GithubIntegrationClientError } from './github-integration.client.js';
@@ -288,5 +289,186 @@ describe('GithubAccessHttpAdapter (HU64)', () => {
       { installationId: '123', repositoryName: 'acme/widgets' },
     ]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('GithubAccessHttpAdapter diagnostics (WI-CORE-087)', () => {
+  let client: { post: ReturnType<typeof vi.fn> };
+  let adapter: GithubAccessHttpAdapter;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  const warnings = (): string[] =>
+    warnSpy.mock.calls.map((call) => String(call[0]));
+
+  beforeEach(() => {
+    client = { post: vi.fn() };
+    adapter = new GithubAccessHttpAdapter(client as never);
+    warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('registers ERROR_CLIENTE with code, HTTP status and retryable flag, and keeps UNVERIFIABLE', async () => {
+    client.post.mockRejectedValue(
+      new GithubIntegrationClientError('SERVICE_UNAUTHORIZED', 401, false),
+    );
+
+    await expect(adapter.getRepositoryOwner(REPO)).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toMatch(
+      /"\/repositories\/owner": motivo=ERROR_CLIENTE:SERVICE_UNAUTHORIZED, estatus=401, reintentable=false, duracion=\d+ ms\./,
+    );
+  });
+
+  it('registers "sin respuesta" when the client error has no HTTP status', async () => {
+    client.post.mockRejectedValue(
+      new GithubIntegrationClientError(
+        'GITHUB_UPSTREAM_UNAVAILABLE',
+        undefined,
+        true,
+      ),
+    );
+
+    await expect(adapter.getRepositoryById('123', '9')).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toMatch(
+      /"\/repositories\/by-id": motivo=ERROR_CLIENTE:GITHUB_UPSTREAM_UNAVAILABLE, estatus=sin respuesta, reintentable=true, duracion=\d+ ms\./,
+    );
+  });
+
+  it('registers only the error name for unexpected errors and never its message', async () => {
+    client.post.mockRejectedValue(
+      new TypeError('token sk-test-SECRET-9f3a leaked in message'),
+    );
+
+    await expect(adapter.getRepositoryOwner(REPO)).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toMatch(
+      /motivo=ERROR_INESPERADO:TypeError, estatus=n\/a, reintentable=n\/a, duracion=\d+ ms\./,
+    );
+    expect(warnings()[0]).not.toContain('sk-test-SECRET-9f3a');
+  });
+
+  it('registers INTEGRATION_UNVERIFIABLE when Integration itself answers UNVERIFIABLE', async () => {
+    client.post.mockResolvedValue({ status: 'UNVERIFIABLE' });
+
+    await expect(adapter.getRepositoryOwner(REPO)).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toMatch(
+      /motivo=INTEGRATION_UNVERIFIABLE, estatus=n\/a, reintentable=n\/a, duracion=\d+ ms\./,
+    );
+  });
+
+  it('registers RESPUESTA_NO_RECONOCIDA for malformed or unknown responses', async () => {
+    client.post.mockResolvedValueOnce('not-an-object');
+    await expect(adapter.getRepositoryOwner(REPO)).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    client.post.mockResolvedValueOnce({ status: 'SOMETHING_NEW' });
+    await expect(adapter.getRepositoryOwner(REPO)).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    client.post.mockResolvedValueOnce({
+      status: 'OK',
+      value: { repositoryId: '9' },
+    });
+    await expect(adapter.getRepositoryOwner(REPO)).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    expect(warnings()).toHaveLength(3);
+    for (const message of warnings()) {
+      expect(message).toMatch(/motivo=RESPUESTA_NO_RECONOCIDA, /);
+    }
+  });
+
+  it('registers INSTALACIONES_NOT_FOUND_COMO_UNVERIFIABLE and keeps the UNVERIFIABLE result', async () => {
+    client.post.mockResolvedValue({ status: 'NOT_FOUND' });
+
+    await expect(adapter.listOrganizationInstallations()).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toMatch(
+      /"\/organizations\/installations": motivo=INSTALACIONES_NOT_FOUND_COMO_UNVERIFIABLE, estatus=n\/a, reintentable=n\/a, duracion=\d+ ms\./,
+    );
+  });
+
+  it('registers LISTA_DE_OWNERS_VACIA for an empty owner list and keeps the UNVERIFIABLE result', async () => {
+    client.post.mockResolvedValue({ status: 'OK', value: [] });
+
+    await expect(adapter.listOrganizationOwners(ORG)).resolves.toEqual({
+      status: 'UNVERIFIABLE',
+    });
+
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toMatch(
+      /"\/organizations\/owners": motivo=LISTA_DE_OWNERS_VACIA, estatus=n\/a, reintentable=n\/a, duracion=\d+ ms\./,
+    );
+  });
+
+  it('does not log for legitimate results', async () => {
+    client.post.mockResolvedValueOnce({ status: 'OK', value: owner });
+    await adapter.getRepositoryOwner(REPO);
+    client.post.mockResolvedValueOnce({ status: 'NOT_FOUND' });
+    await adapter.getRepositoryById('123', '9');
+    client.post.mockResolvedValueOnce({ status: 'NOT_INSTALLED' });
+    await adapter.getOrganizationMembership(ORG, '1001');
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('never leaks request identifiers or raw error text into logs', async () => {
+    const request = {
+      installationId: 'inst-LEAK-7781',
+      repositoryName: 'leak/repo-LEAK',
+      organizationLogin: 'leak-org',
+      githubUserId: 'user-LEAK-42',
+    };
+    client.post.mockRejectedValueOnce(
+      new Error(
+        `raw body for ${request.installationId} ${request.githubUserId}`,
+      ),
+    );
+    await adapter.getRepositoryPermission(
+      {
+        installationId: request.installationId,
+        repositoryName: request.repositoryName,
+      },
+      request.githubUserId,
+    );
+    client.post.mockResolvedValueOnce({ status: 'NOT_FOUND' });
+    await adapter.listOrganizationInstallations();
+    client.post.mockResolvedValueOnce({ status: 'OK', value: [] });
+    await adapter.listOrganizationOwners({
+      installationId: request.installationId,
+      organizationLogin: request.organizationLogin,
+    });
+
+    expect(warnings()).toHaveLength(3);
+    for (const message of warnings()) {
+      expect(message).not.toContain(request.installationId);
+      expect(message).not.toContain(request.repositoryName);
+      expect(message).not.toContain(request.organizationLogin);
+      expect(message).not.toContain(request.githubUserId);
+      expect(message).not.toContain('raw body');
+    }
   });
 });
