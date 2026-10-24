@@ -24035,5 +24035,120 @@
       "closedAt": "2026-10-24T18:41:58.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-094",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-IN_PROGRESS",
+    "title": "Extractor de evidencia de solo lectura (app/scripts): paquete JSON/CSV con tests generados, evidencia del Sandbox, modelConfig, trace de 9 enlaces con chequeo inverso, hashes y campos de la Tabla 70",
+    "approved": true,
+    "storyIds": [
+      "HU15",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-110",
+      "ST-CORE-111"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-094-scope.md",
+      "harness/reports/extractor-evidencia-analisis.md",
+      "spec/features/017-cross-repository-dependency-gates/tasks.md"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-VAL-001"
+      ],
+      "checkedAt": "2026-10-24T21:00:00.000Z",
+      "note": "Alcance aprobado por el usuario el 2026-10-24 (mensaje truncado en la decision sobre codigo de terceros, pendiente de confirmar); DEC-VAL-001 no bloquea: los pilotos no son validacion empresarial y el extractor no escribe codigo fuente de los repos."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "implementer-high",
+      "contractReviewAgent": null,
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "La suficiencia SDD del extractor se apoya en el analisis WI-CORE-093 (sdd-analyst, revisado de forma independiente en 2 ciclos): que se persiste y que no, requisitos tecnicos (RLS, Storage, hashes, migraciones), ubicacion app/scripts y aprobaciones; el usuario aprobo el alcance el 2026-10-24."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/extractor-evidencia-analisis.md"
+          ],
+          "evidence": [
+            "harness/reports/extractor-evidencia-analisis.md",
+            "harness/reports/wi-core-093-independent-review.md"
+          ],
+          "recommendedNextStep": "Implementar por implementer-high.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-094",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-24T18:43:40.078Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/extractor-evidencia-analisis.md",
+        "harness/reports/wi-core-094-scope.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-094-scope.md"
+      ]
+    },
+    "evidence": [
+      "harness/reports/wi-core-094-scope.md",
+      "harness/reports/extractor-evidencia-analisis.md"
+    ],
+    "blockedReason": null
+  }
 }

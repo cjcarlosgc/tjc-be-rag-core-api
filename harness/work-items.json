@@ -5308,6 +5308,38 @@
           "report": "harness/reports/wi-core-093-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-094",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Extractor de evidencia de solo lectura (app/scripts): paquete JSON/CSV con tests generados, evidencia del Sandbox, modelConfig, trace de 9 enlaces con chequeo inverso, hashes y campos de la Tabla 70",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-110",
+        "ST-CORE-111"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-093"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe app/scripts/extract-evidence.mjs (y modulos de apoyo) que, dado un AnalysisRun y/o ExperimentRun, escribe un paquete JSON/CSV con tests generados, sandboxEvidence, modelConfig, trace de 9 enlaces con chequeo inverso, verificacion de hashes sobre los bytes de la BD, campos de la Tabla 70 y un manifiesto con SHA-256 por archivo y lista de ausencias y truncados; solo SELECT dentro de BEGIN; SET TRANSACTION READ ONLY; Storage solo con download; no carga .env ni imprime credenciales; redaccion en copia aparte; PII anonimizada por defecto; --out obligatorio y fuera del repo; sin dependencias nuevas.",
+        "Pruebas con fixtures (sin tocar datos reales) que corren en CI y verifican READ ONLY, estructura y manifiesto del paquete, hashes, truncados, ausencias, redaccion, PII, rechazo de --out dentro del repo y migraciones ausentes; lint, tests y build verdes; sin cambios en app/src, contratos, esquemas ni migraciones; revision independiente del reviewer con foco en seguridad."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-094-scope.md",
+        "harness/reports/extractor-evidencia-analisis.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }
