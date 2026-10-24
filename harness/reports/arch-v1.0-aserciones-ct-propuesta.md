@@ -99,9 +99,9 @@ Cita: «reconstrucción directa e inversa cuando aplique»; evidencia «checklis
 | ID | Aserción | Parte | Dónde | Existente | Falta | Auto |
 |---|---|---|---|---|---|---|
 | CT-08-A1 | Dado un Run finalizado, la traza expone los 9 enlaces de Tabla 54 con sus identificadores (directo PR/HEAD→publication) | S, Post | Core | `analysis-run-trace.service.spec.ts` («returns the full chain for the DIRECTLY_CHANGED METHOD/FUNCTION targets…»); `analysis-trace.repository.pg.spec.ts` («builds the INTEROP §6.16 chain…») | ninguno | Auto |
-| CT-08-A2 | Comprobación inversa (resultado→PR/HEAD) llega al mismo repo/PR/HEAD | Post | Core (funcionalidad nueva) o checklist | ninguna: el trace solo expone `PRESENT`/`NOT_APPLICABLE` y no hay consulta inversa | Man (checklist Tabla 54) o funcionalidad nueva (M-L); ver D-11 | Man |
+| CT-08-A2 | Comprobación inversa (resultado→PR/HEAD) llega al mismo repo/PR/HEAD | Post | Checklist manual (Tabla 54) sobre los 3 AnalysisRuns de los pilotos | ninguna: el trace solo expone `PRESENT`/`NOT_APPLICABLE` y no hay consulta inversa automática | Man (checklist Tabla 54 contra los registros persistidos, con Evidence ID); la consulta automática queda como mejora posterior (D-11) | Man |
 | CT-08-A3 | Enlaces 7-9 son N/A justificado cuando el Run termina legítimamente antes (la tesis solo exige esto; el contrato vigente `interoperability-contract.md` §6.16 admite N/A también en 4-6 si el Run termina antes, p. ej. ACTION_REQUIRED) | Pre | Core | `analysis-run-trace.service.spec.ts` («NOT_APPLICABLE») | ninguno | Auto |
-| CT-08-A4 | Un enlace faltante o inconsistente se registra como tal | Err | Checklist o funcionalidad nueva | ninguna: Core no tiene estado de enlace faltante/inconsistente | Man (registrar en la checklist) o funcionalidad nueva; ver D-11 | Man |
+| CT-08-A4 | Un enlace faltante o inconsistente se registra como tal | Err | Checklist manual (Tabla 54) | ninguna: Core no tiene estado de enlace faltante/inconsistente | Man (registrar N/A justificado o incumplimiento en la checklist, con Evidence ID); sin funcionalidad nueva antes de `arch-v1.0` (D-11) | Man |
 | CT-08-A5 | Trace de Run no finalizado → 409 `EVIDENCE_NOT_FINISHED`; publicación PRESENT/STALE | Err | Core | `analysis-run-trace.service.spec.ts` | ninguno | Auto |
 | CT-08-A6 | Checklist de 9 enlaces (Tabla 54) verificada sobre 3 AnalysisRuns reales finalizados con HEAD congelado, uno por piloto (`brick/money`, `doctrine/orm`, `EscolaLMS/Vouchers`), con Evidence ID por checklist (D-9, D-11) | Evidencia | Core (datos reales de los pilotos, sobre `arch-v1.0`) | n/a | M (3 checklists manuales) | Man |
 
@@ -144,7 +144,7 @@ Discrepancia: la tesis habla de «puertos» para relacional y vectorial; en el c
 | CT-05 | 6 | 4 | 0 | 2 | M-L (A5 implementación) | Core | (D-5 decidida) |
 | CT-06 | 5 | 2 | 2 | 1 | S | Core + Sandbox | |
 | CT-07 | 5 | 3 | 1 | 1 | S | Core + Sandbox | |
-| CT-08 | 6 | 3 | 0 | 3 | M-L (A2/A4 manual o nueva funcionalidad) | Core | (D-9, D-11 decididas) |
+| CT-08 | 6 | 3 | 0 | 3 | M (A2/A4/A6 checklist manual; sin funcionalidad nueva, D-11) | Core | (D-9, D-11 decididas) |
 | CT-09 | 5 | 2 | 0 | 3 | L (ESC-MOD-01) | Core | (D-10 decidida) |
 | CT-10 | 5 | 0 | 4 | 1 | M | Core | D-6 |
 | **Total** | **52** | **21** | **14** | **17** | | | |

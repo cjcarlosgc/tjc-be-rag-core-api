@@ -4739,7 +4739,7 @@
       "component": "CORE",
       "workItemType": "HARNESS",
       "lane": "FAST",
-      "status": "W-IN_PROGRESS",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Registrar en la propuesta CT las decisiones D-2, D-9 y D-11 y los pilotos oficiales (solo documentacion)",
@@ -4763,7 +4763,26 @@
       "specPaths": [
         "harness/reports/wi-core-083-scope.md",
         "harness/reports/arch-v1.0-aserciones-ct-propuesta.md",
-        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-083-contract-sync-scope-review.md",
+        "harness/reports/wi-core-083-independent-review.md",
+        "harness/reports/wi-core-083-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-083 es un registro documental de decisiones.",
+          "report": "harness/reports/wi-core-083-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-083 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-083-contract-sync-scope-review.md"
+        }
       ]
     }
   ]
