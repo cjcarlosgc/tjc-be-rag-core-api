@@ -34,7 +34,7 @@ La aceptación técnica debe cubrir raíz `.`, raíz anidada única, frontend he
 
 Los repositorios empresariales `validacion-cursos`, `validacion-ventas` y `validacion-certificados` son insumos de validación reportados por el handoff, no fuentes del contrato ni evidencia local verificada en este corte. No modificarlos ni copiar oráculos, arreglos de tests o este handoff allí. Antes de ejecutar, confirmar permisos, SHA/HEAD congelado, dependencias y el harness real de cada repositorio. El caso de certificados permanece reconocido como PHP sin PHPUnit, temporalmente fuera de la validación ejecutable.
 
-Los tres repositorios controlados y sus nueve targets experimentales se detallan en `008-experimental-comparison`; los oráculos permanecen externos. Las nueve pruebas de piloto no reemplazan ni renumeran `OC01`–`OC15`.
+Los repositorios piloto del experimento y sus targets se congelan fuera del SDD (protocolo en `008-experimental-comparison`, «Repositorios piloto del experimento»); los oráculos permanecen externos. Las pruebas de piloto no reemplazan ni renumeran `OC01`–`OC15`.
 
 ## DEC-PHP-ROOT-001 — Varios candidatos PHP sin selector Console
 

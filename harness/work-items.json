@@ -4784,6 +4784,38 @@
           "report": "harness/reports/wi-core-083-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-084",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Despersonalizar los pilotos en el SDD de Core: spec/008 deja el protocolo generico y las identidades viven fuera del SDD",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-091"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-083"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "spec/features/008-experimental-comparison/spec.md reemplaza la seccion de pilotos antiguos y su tabla de simbolos por una seccion generica que conserva solo lo que Core debe cumplir (congelado de repositoryId, SHA/HEAD y effectiveProjectRoot, mismo snapshot por par, diseno pareado, CF/CO/VT sin ganador automatico, oraculos externos, no modificar repos piloto) y remite las identidades, targets y oraculos a la tesis y al AGENTS.md de la sesion coordinadora; spec/features/019-project-root-detection/spec.md apunta a esa seccion.",
+        "Solo texto en spec/ y CHANGELOG.md; sin cambios en app/, contratos, AGENTS.md de Core, tesis ni Full Paper; sin duplicar en Core lo que gobierna cross; revision independiente del reviewer sobre que no se pierde ningun requisito implementable ni se introducen contradicciones."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-084-scope.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/019-project-root-detection/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md"
+      ]
     }
   ]
 }

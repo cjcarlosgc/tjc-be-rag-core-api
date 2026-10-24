@@ -64,23 +64,17 @@ Decisiones: `DEC-EXP-FK-001` y `DEC-EXP-003`, ambas `APROBADO`. Contrato: `INTER
 - Jerarquía: CF primaria, CO secundaria y VT guardrail; CF/CO son externas y no se derivan de `valid`/`passed`; no hay ganador automático ni significancia estadística en el backend (`spec/transversal/experimental-metrics`).
 - Core soporta experimentos PHP/PHPUnit por `WI-CORE-013` y `WI-CORE-029`; el piloto cross-repo sigue condicionado a que Core y Sandbox sincronicen e implementen `projectRoot` (WIs locales pendientes; Core `WI-CORE-036`/`037`) y a congelar/verificar los snapshots externos.
 
-## Piloto controlado de compatibilidad PHP
+## Repositorios piloto del experimento (protocolo; sin identidades en el SDD)
 
-Este piloto complementa, pero no sustituye ni renumera, los casos operativos `OC01`–`OC15`. El handoff propone tres repositorios externos reportados como **Validación Ventas**, **Reservas** y **Suscripciones**, con tres targets cada uno. Sus permisos, HEADs, `projectRoot`, dependencias y existencia de símbolos deben confirmarse antes de ejecutar; esta tabla es un protocolo de selección, no evidencia verificada ni fuente de verdad funcional. No copiar ni almacenar oráculos en repositorios de producto.
+Los pilotos de OE5 y la evaluación confirmatoria son repositorios externos PHP/PHPUnit elegidos y documentados por el equipo investigador. Sus identidades, la modalidad del cambio (controlado o basado en un issue público), los targets y los oráculos son **decisiones de investigación** y viven fuera de este SDD (en el registro de evidencia de la tesis y en el `AGENTS.md` de la sesión coordinadora); no se replican aquí para que no queden desactualizadas. Este SDD fija solo lo que Core debe cumplir:
 
-| Repo piloto | Target | Categoría reportada | Símbolo reportado |
-| --- | --- | --- | --- |
-| Validación Ventas | SAL-1 | Local | `DiscountCalculator::applyPercentage()` |
-| Validación Ventas | SAL-2 | Functional | `DiscountPolicy::discountFor()` |
-| Validación Ventas | SAL-3 | Structural | `OrderPricingService::calculateTotal()` |
-| Reservas | RES-1 | Local | `ReservationPeriod::durationMinutes()` |
-| Reservas | RES-2 | Structural | `AvailabilityService::canReserve()` |
-| Reservas | RES-3 | Functional | `CancellationPolicy::refundAmount()` |
-| Suscripciones | SUB-1 | Local | `PlanPriceCalculator::monthlyAmount()` |
-| Suscripciones | SUB-2 | Structural | `RenewalService::renew()` |
-| Suscripciones | SUB-3 | Functional | `Subscription::handleFailedPayment()` |
+- Antes de la primera corrida de un piloto se congela y registra, por repositorio, el `repositoryId`, el commit SHA/HEAD y el `effectiveProjectRoot`; cada ejecución posterior de un par usa el mismo snapshot.
+- Se aplican el diseño pareado y las condiciones comunes de «Alineación SMART V3 — OE5» (repeticiones por target y estrategia en sesiones frescas, orden aleatorio reproducible, misma configuración de LLM y presupuesto comparable).
+- Se registran CF primaria, CO secundaria y VT guardrail, más las métricas técnicas y de costo ya definidas; ninguna se interpreta como oráculo ni produce un ganador automático.
+- Los oráculos permanecen externos: no se copian ni almacenan en repositorios de producto ni piloto (su exclusión de los inputs de RAG y GENERALIST_AGENT está en «Alineación SMART V3 — OE5»).
+- No se modifica ningún repositorio piloto ni se hace E2E hasta verificar acceso y congelar sus revisiones.
 
-Plan de medición: 3 repeticiones por target y estrategia (`RAG` y `GENERALIST_AGENT`), en sesiones frescas y con las condiciones pareadas de esta especificación: **9 targets, 27 pares y 54 ejecuciones**. Antes de la primera corrida se congela y registra el `repositoryId`, commit SHA y `effectiveProjectRoot` de cada repo; cada ejecución posterior usa el mismo snapshot del par. Se registran CF primaria, CO secundaria y VT guardrail, más métricas técnicas/costo ya definidas; ninguna se interpreta como oráculo ni produce un ganador automático. No se modifica ningún repo piloto ni se hace E2E hasta verificar acceso y congelar sus revisiones.
+Los pilotos complementan, sin sustituir ni renumerar, los casos operativos `OC01`–`OC15`.
 
 ## Evidencia privada por repetición (`WI-CORE-053`, 2026-10-13)
 
