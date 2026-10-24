@@ -5256,6 +5256,37 @@
           "report": "harness/reports/wi-core-092-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-093",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Analisis de viabilidad de un extractor de evidencia de solo lectura (que se persiste hoy, que no, propuesta de WI): documental",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-109"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-092"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/extractor-evidencia-analisis.md con el inventario verificado (tabla/columna o archivo:linea) de que se persiste hoy y que NO para el test generado por repeticion, la salida completa de Composer/PHPUnit y logs, el modelConfig, el trace de 9 enlaces con chequeo inverso, los hashes SHA-256 y los campos automaticos de la Tabla 70, la viabilidad solo con SELECT y una propuesta de WI (alcance, ubicacion del script, conexion sin exponer secretos, formato del paquete, aprobaciones, relacion con el tag).",
+        "Solo analisis: sin extractor escrito, sin leer .env ni consultar la base real, sin cambios en app/, contratos ni otros repos; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-093-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }

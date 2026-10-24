@@ -18,3 +18,4 @@
 - [x] **ST-CORE-099 · T-DONE · WI-CORE-088 · HU10, HU15:** análisis de solo lectura de la modularidad del `LLMProvider` para ESC-MOD-01: neutralidad del puerto, segundo adaptador real, medición de M1/M2/M3 y recomendación sobre D-10; pedido por cross.
 - [x] **ST-CORE-107 · T-DONE · WI-CORE-091 · HU14:** el build de Core genera el cliente de Prisma (`prisma generate && nest build`) para que el autodeploy de Render no dependa de la caché de `node_modules`; alcance aprobado por el usuario el 2026-10-24.
 - [x] **ST-CORE-108 · T-DONE · WI-CORE-092 · HU15, HU17:** runbook operativo de los pilotos (`harness/reports/pilotos-runbook-operativo.md`) para quien ejecuta desde su máquina; solo documental; pedido por cross.
+- [ ] **ST-CORE-109 · T-IN_PROGRESS · WI-CORE-093 · HU15, HU17:** análisis de viabilidad de un extractor de evidencia de solo lectura (qué se persiste hoy y qué no) y propuesta de WI; documental; pedido por cross.
