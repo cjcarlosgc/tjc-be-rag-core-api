@@ -21679,125 +21679,215 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-10-24T05:24:37.000Z"
+    },
+    {
+      "id": "WI-CORE-084",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "title": "Despersonalizar los pilotos en el SDD de Core: spec/008 deja el protocolo generico y las identidades viven fuera del SDD",
+      "approved": true,
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-091"
+      ],
+      "caseIds": [],
+      "sprint": "P2",
+      "specPaths": [
+        "harness/reports/wi-core-084-scope.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/019-project-root-detection/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-084-independent-review.md",
+        "harness/reports/wi-core-084-closure.md",
+        "harness/reports/wi-core-084-contract-sync-scope-review.md"
+      ],
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-084 solo cambia texto sobre pilotos.",
+          "report": "harness/reports/wi-core-084-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-084 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-084-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-24T09:00:00.000Z",
+        "note": "Cambio de texto aprobado por el usuario; sin decisiones bloqueantes."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": null,
+        "implementationAgent": "leader",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "leader",
+            "status": "APPROVED",
+            "findings": [
+              "Seccion de pilotos antiguos de spec/008 reemplazada por un protocolo generico; 019 apunta a ella; entrada de CHANGELOG; solo texto."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "spec/features/008-experimental-comparison/spec.md",
+              "spec/features/019-project-root-detection/spec.md",
+              "CHANGELOG.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-084-scope.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "leader",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium",
+              "reason": "cambio de texto en specs (no app/), carril FAST"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED; sin perdida de requisitos implementables ni contradicciones; L-1 aplicada en el cierre."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-084-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "unknown",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-084",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-24T05:32:12.822Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-084",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-24T05:34:56.844Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-084",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-24T05:34:56.944Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-084",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-24T05:34:57.052Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-084-scope.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-084-scope.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-084-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-084-scope.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-084-independent-review.md",
+          "harness/reports/wi-core-084-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-084-closure.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-084-contract-sync-scope-review.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-084-scope.md",
+        "harness/reports/wi-core-084-independent-review.md",
+        "harness/reports/wi-core-084-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-24T05:35:37.000Z"
     }
   ],
-  "activeWorkItem": {
-    "id": "WI-CORE-084",
-    "component": "CORE",
-    "workItemType": "PRODUCT",
-    "status": "W-IN_PROGRESS",
-    "title": "Despersonalizar los pilotos en el SDD de Core: spec/008 deja el protocolo generico y las identidades viven fuera del SDD",
-    "approved": true,
-    "storyIds": [
-      "HU17"
-    ],
-    "taskIds": [
-      "ST-CORE-091"
-    ],
-    "caseIds": [],
-    "sprint": "P2",
-    "specPaths": [
-      "harness/reports/wi-core-084-scope.md",
-      "spec/features/008-experimental-comparison/spec.md",
-      "spec/features/019-project-root-detection/spec.md",
-      "spec/features/008-experimental-comparison/tasks.md"
-    ],
-    "transversalPaths": [],
-    "deferredSyncIds": [],
-    "deferredSyncDigests": {},
-    "contractSyncReview": [],
-    "decisionGate": {
-      "checked": true,
-      "blockingDecisionIds": [],
-      "nonBlockingDecisionIds": [],
-      "checkedAt": "2026-10-24T09:00:00.000Z",
-      "note": "Cambio de texto aprobado por el usuario; sin decisiones bloqueantes."
-    },
-    "execution": {
-      "leaderAgent": "leader",
-      "analysisAgent": null,
-      "implementationAgent": "leader",
-      "contractReviewAgent": null,
-      "reviewAgent": null,
-      "handoffs": [
-        {
-          "agent": "leader",
-          "status": "APPROVED",
-          "findings": [
-            "Seccion de pilotos antiguos de spec/008 reemplazada por un protocolo generico; 019 apunta a ella; entrada de CHANGELOG; solo texto."
-          ],
-          "blockers": [],
-          "filesAffected": [
-            "spec/features/008-experimental-comparison/spec.md",
-            "spec/features/019-project-root-detection/spec.md",
-            "CHANGELOG.md"
-          ],
-          "evidence": [
-            "harness/reports/wi-core-084-scope.md"
-          ],
-          "recommendedNextStep": "Revision independiente.",
-          "executedBy": {
-            "agent": "leader",
-            "configuredModel": "claude-sonnet-5-5",
-            "servedModel": "unknown",
-            "effort": "medium",
-            "reason": "cambio de texto en specs (no app/), carril FAST"
-          }
-        }
-      ],
-      "reviewCycles": 0,
-      "maxReviewCycles": 2
-    },
-    "gates": {
-      "sddVerified": "G-PASSED",
-      "implementationCompleted": "G-PASSED",
-      "independentReviewPassed": "G-NOT_RUN",
-      "technicalChecksPassed": "G-PASSED",
-      "contractReviewed": "G-NOT_APPLICABLE",
-      "canonicalContractSynced": "G-NOT_APPLICABLE",
-      "contractSyncPublished": "G-NOT_APPLICABLE",
-      "interopSyncChecked": "G-NOT_RUN",
-      "noBlockingDecisions": "G-PASSED",
-      "retryLimitRespected": "G-NOT_RUN"
-    },
-    "coordination": {
-      "contractImpact": false,
-      "publishesContract": false,
-      "pullCheckpoints": [
-        {
-          "checkpoint": "start",
-          "workItem": "WI-CORE-084",
-          "relevantPendingSyncIds": [],
-          "acknowledgedSyncIds": [
-            "CS-20260920-001",
-            "CS-20260921-003"
-          ],
-          "resolvedSyncIds": [],
-          "deferredSyncIds": [],
-          "notRelevantSyncIds": [],
-          "checkedAt": "2026-10-24T05:32:12.822Z"
-        }
-      ],
-      "publishedSyncIds": [],
-      "pendingRelevantSyncIds": []
-    },
-    "gateEvidence": {
-      "sddVerified": [
-        "harness/reports/wi-core-084-scope.md"
-      ],
-      "implementationCompleted": [
-        "harness/reports/wi-core-084-scope.md"
-      ],
-      "technicalChecksPassed": [
-        "harness/reports/wi-core-084-scope.md"
-      ],
-      "noBlockingDecisions": [
-        "harness/reports/wi-core-084-scope.md"
-      ]
-    },
-    "evidence": [
-      "harness/reports/wi-core-084-scope.md"
-    ],
-    "blockedReason": null
-  }
+  "activeWorkItem": null
 }

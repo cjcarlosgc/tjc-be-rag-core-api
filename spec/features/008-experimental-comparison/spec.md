@@ -72,7 +72,7 @@ Los pilotos de OE5 y la evaluación confirmatoria son repositorios externos PHP/
 - Se aplican el diseño pareado y las condiciones comunes de «Alineación SMART V3 — OE5» (repeticiones por target y estrategia en sesiones frescas, orden aleatorio reproducible, misma configuración de LLM y presupuesto comparable).
 - Se registran CF primaria, CO secundaria y VT guardrail, más las métricas técnicas y de costo ya definidas; ninguna se interpreta como oráculo ni produce un ganador automático.
 - Los oráculos permanecen externos: no se copian ni almacenan en repositorios de producto ni piloto (su exclusión de los inputs de RAG y GENERALIST_AGENT está en «Alineación SMART V3 — OE5»).
-- No se modifica ningún repositorio piloto ni se hace E2E hasta verificar acceso y congelar sus revisiones.
+- No se modifica ningún repositorio piloto ni se hace E2E hasta verificar acceso, dependencias y símbolos target, y congelar sus revisiones.
 
 Los pilotos complementan, sin sustituir ni renumerar, los casos operativos `OC01`–`OC15`.
 
