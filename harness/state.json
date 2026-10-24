@@ -23063,5 +23063,141 @@
       "closedAt": "2026-10-24T16:41:00.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-089",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-IN_PROGRESS",
+    "title": "WI-A: neutralizar el puerto LLMProvider y la prosa contractual (INTEROP-2.21 / SYSTEM-2.16) antes del baseline arch-v1.0, con adaptador falso reutilizable y suites CT-09-A3/A4",
+    "approved": true,
+    "storyIds": [
+      "HU10",
+      "HU15"
+    ],
+    "taskIds": [
+      "ST-CORE-100",
+      "ST-CORE-101",
+      "ST-CORE-102",
+      "ST-CORE-103"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-089-scope.md",
+      "harness/reports/arch-v1.0-modularidad-llm-provider-core.md",
+      "spec/transversal/providers/spec.md",
+      "spec/transversal/providers/plan.md",
+      "spec/transversal/providers/tasks.md",
+      "app/src/providers/llm-provider.interface.ts",
+      "app/src/experiments/experiment-job.helpers.ts",
+      "app/src/common/sanitize-failure-message.util.ts"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-10-24T15:00:00.000Z",
+      "note": "Alcance de WI-A aprobado por el usuario en el chat de Core el 2026-10-24; sin decisiones bloqueantes."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "sdd-analyst",
+      "implementationAgent": "implementer",
+      "contractReviewAgent": "contract-reviewer",
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "sdd-analyst",
+          "status": "APPROVED",
+          "findings": [
+            "La suficiencia SDD de WI-A se apoya en el analisis WI-CORE-088 (sdd-analyst, revisado de forma independiente en 2 ciclos): brechas fuera de la frontera, medicion M1/M2/M3, WI minimos y aprobaciones; el usuario aprobo el alcance de WI-A el 2026-10-24."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/arch-v1.0-modularidad-llm-provider-core.md"
+          ],
+          "evidence": [
+            "harness/reports/arch-v1.0-modularidad-llm-provider-core.md",
+            "harness/reports/wi-core-088-independent-review.md"
+          ],
+          "recommendedNextStep": "Plan de implementacion detallado y delegacion al implementer.",
+          "executedBy": {
+            "agent": "sdd-analyst",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
+        }
+      ],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_RUN",
+      "canonicalContractSynced": "G-NOT_RUN",
+      "contractSyncPublished": "G-NOT_RUN",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": true,
+      "publishesContract": true,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-089",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [
+            "CS-CONSOLE-20261010-001",
+            "CS-GH-20260925-001",
+            "CS-GH-20260925-002",
+            "CS-GH-20260925-003",
+            "CS-GH-20260925-004",
+            "CS-GH-20260925-005",
+            "CS-GH-20260926-001",
+            "CS-GH-20260927-001",
+            "CS-GH-20261010-001",
+            "CS-GH-20261011-002",
+            "CS-GH-20261011-003",
+            "CS-SANDBOX-20261014-001"
+          ],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-24T16:57:39.777Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "gateEvidence": {
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-089-scope.md"
+      ],
+      "sddVerified": [
+        "harness/reports/arch-v1.0-modularidad-llm-provider-core.md",
+        "harness/reports/wi-core-089-scope.md"
+      ]
+    },
+    "evidence": [
+      "harness/reports/wi-core-089-scope.md"
+    ],
+    "blockedReason": null,
+    "syncScopePaths": [
+      "spec/contracts/system-contract.md",
+      "spec/contracts/interoperability-contract.md"
+    ]
+  }
 }

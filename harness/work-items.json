@@ -5082,6 +5082,50 @@
           "report": "harness/reports/wi-core-088-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-089",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "WI-A: neutralizar el puerto LLMProvider y la prosa contractual (INTEROP-2.21 / SYSTEM-2.16) antes del baseline arch-v1.0, con adaptador falso reutilizable y suites CT-09-A3/A4",
+      "storyIds": [
+        "HU10",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-100",
+        "ST-CORE-101",
+        "ST-CORE-102",
+        "ST-CORE-103"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-088"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "El puerto LLMProvider es neutral: provider y endpoint son string en el tipo comun, parseEffectiveConfig acepta cualquier proveedor sin reescribir 'openai'/'responses', la redaccion de credenciales es generica, y el comportamiento observable de OpenAI no cambia; existe un adaptador falso reutilizable que implementa LLMProvider, la suite de contrato CT-09-A3 parametrizada contra OpenAI y el falso, y el test de arquitectura CT-09-A4 (ningun SDK de proveedor fuera de app/src/providers).",
+        "La prosa de interoperability-contract.md:379 y system-contract.md:461,472 deja de nombrar la API de OpenAI como contrato (sin cambio de wire, rutas, DTO, enums ni esquemas); INTEROP-2.21 y SYSTEM-2.16 documentales con cabeceras, spec/README.md y CHANGELOG.md; providers/spec.md enmendado y plan.md:35 corregido; D-14 registrada en la propuesta CT.",
+        "Un evento de Contract Sync C-PENDING a integration, sandbox y console con digests finales y sourceRevision del commit final; lint, tests y build verdes; contract-reviewer y reviewer independientes aprueban; sin push, PR, merge ni tag."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-089-scope.md",
+        "harness/reports/arch-v1.0-modularidad-llm-provider-core.md",
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "app/src/providers/llm-provider.interface.ts",
+        "app/src/experiments/experiment-job.helpers.ts",
+        "app/src/common/sanitize-failure-message.util.ts"
+      ]
     }
   ]
 }

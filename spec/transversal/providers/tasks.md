@@ -6,3 +6,7 @@
 
 Una futura migración de modelo/dimensionalidad permanece como `IDEA-003`.
 Los checklists anteriores se conservan en Git, CHANGELOG y `harness/reports/open-task-triage-3.0.md`.
+- [ ] **ST-CORE-100 · T-IN_PROGRESS · WI-CORE-089 · HU10, HU15:** puerto `LLMProvider` neutral (`provider`/`endpoint` como `string`, `parseEffectiveConfig` sin rechazar otro proveedor, redacción genérica de credenciales) sin cambio del comportamiento de OpenAI; alcance aprobado por el usuario el 2026-10-24 (WI-A de ESC-MOD-01).
+- [ ] **ST-CORE-101 · T-IN_PROGRESS · WI-CORE-089 · HU10, HU15:** adaptador falso reutilizable de `LLMProvider`, suite de contrato CT-09-A3 (OpenAI y falso) y test de arquitectura CT-09-A4 (sin SDK de proveedor fuera de `app/src/providers`).
+- [ ] **ST-CORE-102 · T-IN_PROGRESS · WI-CORE-089 · HU10, HU15:** prosa contractual neutral (INTEROP-2.21, SYSTEM-2.16), enmienda de `providers/spec.md`, corrección de `plan.md:35`, versiones, README, CHANGELOG y decisión D-14 en la propuesta CT.
+- [ ] **ST-CORE-103 · T-IN_PROGRESS · WI-CORE-089 · HU10, HU15:** Contract Sync a Integration, Sandbox y Console (evento `C-PENDING`; Core no edita otros repositorios).
