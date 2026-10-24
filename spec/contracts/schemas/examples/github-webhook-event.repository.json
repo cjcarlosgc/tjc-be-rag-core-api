@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-repository",
+  "eventName": "repository",
+  "action": "created",
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "REPOSITORY",
+    "repository": {
+      "id": "1001",
+      "fullName": "example-org/example-repo",
+      "owner": {
+        "id": "3001",
+        "login": "example-org",
+        "type": "Organization"
+      }
+    },
+    "installationId": "2001"
+  }
+}

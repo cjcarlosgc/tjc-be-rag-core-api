@@ -57,7 +57,11 @@ const SENSITIVE_WORD_TOKEN =
 
 const BEARER_TOKEN = /\bBearer\s+[\w.~+/-]+=*/gi;
 const JWT = /\beyJ[\w-]+\.[\w-]+\.[\w-]*/g;
-const OPENAI_STYLE_KEY = /\bsk-[\w-]{8,}/g;
+/**
+ * Claves con prefijo `sk-`: cubre las de OpenAI y, por el mismo prefijo, también `sk-ant-…` (el formato exacto de
+ * las claves de Anthropic no está verificado en este repositorio).
+ */
+const SK_PREFIXED_KEY = /\bsk-[\w-]{8,}/g;
 const GITHUB_TOKEN = /\b(?:gh[pousr]_[A-Za-z0-9]{10,}|github_pat_\w{10,})/g;
 const AWS_ACCESS_KEY = /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g;
 /** Tokens de Slack (`xoxb-`, `xoxp-`, `xoxa-`, `xoxr-`, `xoxs-`). */
@@ -93,7 +97,7 @@ const REDACTION_RULES: ReadonlyArray<readonly [RegExp, string]> = [
   [SENSITIVE_WORD_TOKEN, `$1${REDACTED}`],
   [BEARER_TOKEN, `Bearer ${REDACTED}`],
   [JWT, REDACTED],
-  [OPENAI_STYLE_KEY, REDACTED],
+  [SK_PREFIXED_KEY, REDACTED],
   [GITHUB_TOKEN, REDACTED],
   [SLACK_TOKEN, REDACTED],
   [STRIPE_KEY, REDACTED],

@@ -4551,30 +4551,67 @@
       "id": "WI-CORE-079",
       "component": "CORE",
       "workItemType": "PRODUCT",
-      "status": "W-PLANNED",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
-      "title": "Errata E-01: ExperimentResultsResponse documenta targetId (nueva version documental de INTEROP con Contract Sync informativo)",
+      "title": "Ronda unica de contratos INTEROP-2.20 / GH-INTEROP-1.9 / SYSTEM-2.15: esquema canonico CT-01 (payload Integration->Core), errata E-01, SYSTEM-2.15 y correccion de sandbox-result.failed.json",
       "storyIds": [
+        "HU15",
         "HU17"
       ],
       "taskIds": [
-        "ST-CORE-086"
+        "ST-CORE-086",
+        "ST-CORE-094",
+        "ST-CORE-095",
+        "ST-CORE-096",
+        "ST-CORE-097"
       ],
       "caseIds": [],
       "dependsOn": [
-        "WI-CORE-078"
+        "WI-CORE-078",
+        "WI-CORE-086"
       ],
       "contractImpact": true,
       "publishesContract": true,
       "acceptanceCriteria": [
-        "INTEROP §6.5 documenta la forma real de ExperimentResultsResponse (targetId; analysisRunId y symbol quedan como definidos por HU17, pendientes y opcionales) y, si aplica, esquemas y ejemplos; el DTO no cambia; nueva version documental de INTEROP (2.20) y cabecera de SYSTEM/espejos coherentes.",
-        "Contract Sync informativo (breaking false) a console, github-integration y sandbox con digests finales y la correccion de E-02 (scopePaths); el usuario confirma antes de publicar la ronda extra de espejos; revision independiente con reviewer y contract-reviewer."
+        "Existe spec/contracts/schemas/github-webhook-event.schema.json con ejemplos validos (al menos uno por variante) en el manifest; valida los ejemplos validos y rechaza los invalidos; los validos pasan tambien parseNormalizedWebhookEvent (round-trip) y los invalidos fallan en ambos; paridad esquema/parser con la lista de brechas declarada; npm run contracts:generate y contracts:check limpios; lint, test y build verdes.",
+        "INTEROP §6.5 documenta targetId en ExperimentResultsResponse (E-01; el DTO no cambia); system-contract.md:287 sin identidades de pilotos; sandbox-result.failed.json con code DEPENDENCY_INSTALL_FAILED; versiones coherentes INTEROP-2.20, GH-INTEROP-1.9 y SYSTEM-2.15 en cabeceras, spec/README.md y CHANGELOG.md; todos breaking false; sin oracleRef ni cambio de DTO, rutas o comportamiento.",
+        "Tres eventos de Contract Sync C-PENDING (Integration, Sandbox sin github-integration-contract.md, Console) con digests finales y sourceRevision del commit final; contract-reviewer y reviewer independientes aprueban el rango; Core no edita otros repositorios y no hace push, PR ni merge."
       ],
       "specPaths": [
         "harness/reports/wi-core-079-scope.md",
+        "harness/reports/wi-core-079-sdd-analysis.md",
         "harness/reports/errata-pendientes-interop.md",
-        "spec/features/008-experimental-comparison/tasks.md"
+        "spec/features/008-experimental-comparison/tasks.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-079-technical-checks.md",
+        "harness/reports/wi-core-079-contract-sync-scope-review.md",
+        "harness/reports/wi-core-079-contract-review.md",
+        "harness/reports/wi-core-079-independent-review.md",
+        "harness/reports/wi-core-079-contract-sync-publication.md",
+        "harness/reports/wi-core-079-closure.md"
+      ],
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md",
+        "spec/contracts/github-integration-contract.md",
+        "spec/contracts/schemas"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; el esquema CT-01 solo hace ejecutable el payload normalizado existente y no cambia binding ni lifecycle.",
+          "report": "harness/reports/wi-core-079-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-079 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-079-contract-sync-scope-review.md"
+        }
       ]
     },
     {
@@ -4678,6 +4715,442 @@
           "disposition": "NOT_RELEVANT",
           "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-081 no cambia auth ni despliegue.",
           "report": "harness/reports/wi-core-081-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-082",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Propuesta de aserciones CT-01..CT-10 por contrato C-01..C-10 (tesis Anexo E) para arch-v1.0: solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-089"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-081"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-aserciones-ct-propuesta.md con 3 a 6 aserciones verificables por cada C-01..C-10 (derivadas de la fila del Anexo E, de spec/contracts y de las brechas del inventario WI-CORE-080), con dueño (Core u otro repo), prueba existente que ya la cubre y esfuerzo; es una propuesta para que el usuario apruebe, modifique o descarte.",
+        "Solo lectura: sin escribir pruebas, sin cambios en app/, contratos ni referencias/, sin corridas oficiales, sin numeros de IOE, sin tag; revision independiente del reviewer sobre la exactitud de las citas y de las pruebas existentes."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-082-scope.md",
+        "harness/reports/arch-v1.0-inventario-contratos-core.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/arch-v1.0-aserciones-ct-propuesta.md",
+        "harness/reports/wi-core-082-technical-checks.md",
+        "harness/reports/wi-core-082-contract-sync-scope-review.md",
+        "harness/reports/wi-core-082-independent-review.md",
+        "harness/reports/wi-core-082-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-082 es una propuesta documental de solo lectura.",
+          "report": "harness/reports/wi-core-082-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-082 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-082-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-083",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Registrar en la propuesta CT las decisiones D-2, D-9 y D-11 y los pilotos oficiales (solo documentacion)",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-090"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-082"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "La propuesta arch-v1.0-aserciones-ct-propuesta.md registra D-2, D-9 y D-11 como decididas con el texto del usuario (dos mitades + payload canonico compartido; 3 AnalysisRuns, uno por piloto brick/money, doctrine/orm y EscolaLMS/Vouchers; checklist manual con N/A justificado e incumplimiento, sin funcionalidad ni endpoints nuevos), ajusta CT-01-A1/A5 y CT-08-A6 y el resumen, y lista los documentos con descripcion desactualizada (pilotos antiguos en tesis 3.3.3 y 5.6; Full Paper por contrastar).",
+        "Solo documentacion en harness/reports: sin cambios en app/, contratos, esquemas, referencias/ ni Full Paper; revision independiente del reviewer sobre fidelidad a lo decidido por el usuario y a la tesis."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-083-scope.md",
+        "harness/reports/arch-v1.0-aserciones-ct-propuesta.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-083-contract-sync-scope-review.md",
+        "harness/reports/wi-core-083-independent-review.md",
+        "harness/reports/wi-core-083-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-083 es un registro documental de decisiones.",
+          "report": "harness/reports/wi-core-083-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-083 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-083-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-084",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Despersonalizar los pilotos en el SDD de Core: spec/008 deja el protocolo generico y las identidades viven fuera del SDD",
+      "storyIds": [
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-091"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-083"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "spec/features/008-experimental-comparison/spec.md reemplaza la seccion de pilotos antiguos y su tabla de simbolos por una seccion generica que conserva solo lo que Core debe cumplir (congelado de repositoryId, SHA/HEAD y effectiveProjectRoot, mismo snapshot por par, diseno pareado, CF/CO/VT sin ganador automatico, oraculos externos, no modificar repos piloto) y remite las identidades, targets y oraculos a la tesis y al AGENTS.md de la sesion coordinadora; spec/features/019-project-root-detection/spec.md apunta a esa seccion.",
+        "Solo texto en spec/ y CHANGELOG.md; sin cambios en app/, contratos, AGENTS.md de Core, tesis ni Full Paper; sin duplicar en Core lo que gobierna cross; revision independiente del reviewer sobre que no se pierde ningun requisito implementable ni se introducen contradicciones."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-084-scope.md",
+        "spec/features/008-experimental-comparison/spec.md",
+        "spec/features/019-project-root-detection/spec.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-084-independent-review.md",
+        "harness/reports/wi-core-084-closure.md",
+        "harness/reports/wi-core-084-contract-sync-scope-review.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-084 solo cambia texto sobre pilotos.",
+          "report": "harness/reports/wi-core-084-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-084 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-084-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-085",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Analisis de impacto de la decision de pilotos y evidencia (CT-01 esquema, smoke por piloto, oraculo, Console y Sandbox): solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-092"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-084"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-impacto-pilotos-core.md que responde por componente las 4 preguntas de cross (esquema CT-01 y version INTEROP, smoke por piloto con brechas, donde vive el oraculo y su identificacion, implicaciones para Console y Sandbox) con evidencia verificable (archivo y linea), orden sugerido de trabajo entre repos y marca de lo que requiere aprobacion del usuario.",
+        "Solo lectura: sin cambios en contratos, esquemas, app/ ni referencias/; sin ordenar nada a otros repos; revision independiente del reviewer sobre la exactitud de las afirmaciones."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-085-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/arch-v1.0-impacto-pilotos-core.md",
+        "harness/reports/wi-core-085-technical-checks.md",
+        "harness/reports/wi-core-085-contract-sync-scope-review.md",
+        "harness/reports/wi-core-085-independent-review.md",
+        "harness/reports/wi-core-085-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-085 es un analisis documental de solo lectura.",
+          "report": "harness/reports/wi-core-085-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-085 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-085-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-086",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Registrar en la propuesta CT las decisiones D-3, D-4, D-6, D-7, D-12 y D-13 (aprobadas por el usuario el 2026-10-24)",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-093"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-085"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "harness/reports/arch-v1.0-aserciones-ct-propuesta.md mueve D-3, D-4, D-6 y D-7 a decisiones tomadas con la recomendacion aceptada, anade D-12 (ronda unica de contratos sin oracleRef) y D-13 (pilotos sobre forks del usuario con la App instalada) y ajusta las aserciones y la tabla resumen que dependian de ellas.",
+        "Solo texto en harness/reports: sin cambios en app/, contratos, esquemas, referencias/, tesis, Full Paper ni AGENTS.md; revision independiente del reviewer sobre fidelidad a lo decidido por el usuario."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-086-scope.md",
+        "harness/reports/arch-v1.0-aserciones-ct-propuesta.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-086-technical-checks.md",
+        "harness/reports/wi-core-086-contract-sync-scope-review.md",
+        "harness/reports/wi-core-086-independent-review.md",
+        "harness/reports/wi-core-086-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-086 solo registra decisiones en un documento de harness/reports.",
+          "report": "harness/reports/wi-core-086-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-086 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-086-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-087",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Registrar el motivo del UNVERIFIABLE de las lecturas a GitHub Integration (GithubAccessHttpAdapter.lookup): codigo, estatus y duracion, sin cuerpos ni secretos",
+      "storyIds": [
+        "HU01",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-098"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-079"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Cada vez que una lectura a GitHub Integration termina en UNVERIFIABLE, GithubAccessHttpAdapter.lookup registra un WARN con el motivo (codigo y estatus del error del cliente o sin respuesta, error inesperado solo por nombre, respuesta UNVERIFIABLE de Integration frente a forma no reconocida, NOT_FOUND/NOT_INSTALLED tratado como UNVERIFIABLE) y la duracion en ms, sin cambiar el resultado devuelto.",
+        "Ninguna linea registrada contiene cuerpos, cabeceras, token, ids ni mensajes de error crudos (con pruebas); sin cambios en el cliente, el resolver, contratos, DTO, rutas ni timeouts; lint, tests y build en verde; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-087-scope.md",
+        "app/src/github-app/github-access-http.adapter.ts",
+        "app/src/github-app/github-access-http.adapter.spec.ts",
+        "spec/features/014-organizations-access/tasks.md",
+        "harness/reports/wi-core-087-technical-checks.md",
+        "harness/reports/wi-core-087-contract-sync-scope-review.md",
+        "harness/reports/wi-core-087-indicacion-integration.md",
+        "harness/reports/wi-core-087-independent-review.md",
+        "harness/reports/wi-core-087-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-087 solo anade logs del motivo de UNVERIFIABLE en un adaptador, sin cambiar resultados ni contratos.",
+          "report": "harness/reports/wi-core-087-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-087 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-087-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-088",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Analisis de modularidad del LLMProvider para ESC-MOD-01 (neutralidad del puerto, segundo adaptador, medicion M1/M2/M3, D-10): solo lectura",
+      "storyIds": [
+        "HU10",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-099"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-087"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-modularidad-llm-provider-core.md que responde las 4 preguntas de cross (neutralidad del puerto LLMProvider con brechas archivo:linea, trabajo y configuracion para un segundo adaptador real, medicion de M1/M2/M3 sobre git diff con comandos y pruebas de contrato faltantes, recomendacion sobre D-10) contrastado con la tesis, marcando lo que requiere aprobacion del usuario y el WI minimo.",
+        "Solo lectura: sin cambios en app/, contratos, esquemas, .env ni referencias/; la key del proveedor no se lee ni se solicita; revision independiente del reviewer sobre la exactitud de las afirmaciones."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-088-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/arch-v1.0-modularidad-llm-provider-core.md",
+        "harness/reports/wi-core-088-technical-checks.md",
+        "harness/reports/wi-core-088-contract-sync-scope-review.md",
+        "harness/reports/wi-core-088-independent-review.md",
+        "harness/reports/wi-core-088-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-088 es un analisis documental de solo lectura.",
+          "report": "harness/reports/wi-core-088-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-088 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-088-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-089",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "WI-A: neutralizar el puerto LLMProvider y la prosa contractual (INTEROP-2.21 / SYSTEM-2.16) antes del baseline arch-v1.0, con adaptador falso reutilizable y suites CT-09-A3/A4",
+      "storyIds": [
+        "HU10",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-100",
+        "ST-CORE-101",
+        "ST-CORE-102",
+        "ST-CORE-103"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-088"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "syncScopePaths": [
+        "spec/contracts/system-contract.md",
+        "spec/contracts/interoperability-contract.md"
+      ],
+      "acceptanceCriteria": [
+        "El puerto LLMProvider es neutral: provider y endpoint son string en el tipo comun, parseEffectiveConfig acepta cualquier proveedor sin reescribir 'openai'/'responses', la redaccion de credenciales es generica, y el comportamiento observable de OpenAI no cambia; existe un adaptador falso reutilizable que implementa LLMProvider, la suite de contrato CT-09-A3 parametrizada contra OpenAI y el falso, y el test de arquitectura CT-09-A4 (ningun SDK de proveedor fuera de app/src/providers).",
+        "La prosa de interoperability-contract.md:379 y system-contract.md:461,472 deja de nombrar la API de OpenAI como contrato (sin cambio de wire, rutas, DTO, enums ni esquemas); INTEROP-2.21 y SYSTEM-2.16 documentales con cabeceras, spec/README.md y CHANGELOG.md; providers/spec.md enmendado y plan.md:35 corregido; D-14 registrada en la propuesta CT.",
+        "Un evento de Contract Sync C-PENDING a integration, sandbox y console con digests finales y sourceRevision del commit final; lint, tests y build verdes; contract-reviewer y reviewer independientes aprueban; sin push, PR, merge ni tag."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-089-scope.md",
+        "harness/reports/arch-v1.0-modularidad-llm-provider-core.md",
+        "spec/transversal/providers/spec.md",
+        "spec/transversal/providers/plan.md",
+        "spec/transversal/providers/tasks.md",
+        "app/src/providers/llm-provider.interface.ts",
+        "app/src/experiments/experiment-job.helpers.ts",
+        "app/src/common/sanitize-failure-message.util.ts",
+        "harness/reports/wi-core-089-technical-checks.md",
+        "harness/reports/wi-core-089-contract-sync-scope-review.md",
+        "app/src/providers/testing/fake-llm.provider.ts",
+        "app/src/providers/llm-provider.contract.spec.ts",
+        "app/src/providers/provider-boundary.architecture.spec.ts",
+        "harness/reports/wi-core-089-contract-review.md",
+        "harness/reports/wi-core-089-independent-review.md",
+        "harness/reports/wi-core-089-contract-sync-publication.md",
+        "harness/reports/wi-core-089-closure.md",
+        "app/src/providers/testing/provider-boundary.scan.ts",
+        "app/src/experiments/experiment-job.helpers.spec.ts"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-089 neutraliza el puerto del LLM y su prosa contractual, sin tocar bindings.",
+          "report": "harness/reports/wi-core-089-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-089 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-089-contract-sync-scope-review.md"
         }
       ]
     }

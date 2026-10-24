@@ -8,7 +8,7 @@
   "failure": {
     "stage": "INSTALLING_DEPENDENCIES",
     "category": "DEPENDENCY",
-    "code": "COMPOSER_INSTALL_FAILED",
+    "code": "DEPENDENCY_INSTALL_FAILED",
     "message": "composer install terminó con código 2"
   },
   "stageDurations": [

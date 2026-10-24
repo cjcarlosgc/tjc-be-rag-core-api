@@ -84,14 +84,16 @@ export function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
   if (
     typeof candidate !== 'object' ||
     candidate === null ||
-    candidate.provider !== 'openai' ||
+    typeof candidate.provider !== 'string' ||
+    candidate.provider.trim() === '' ||
     typeof candidate.model !== 'string' ||
     typeof candidate.modelVersion !== 'string'
   ) {
     throw new Error('modelConfig del experimento no es válido.');
   }
   return {
-    provider: 'openai',
+    // WI-CORE-089: el identificador del adaptador se conserva tal cual (texto opaco para el dominio).
+    provider: candidate.provider,
     model: candidate.model,
     modelVersion: candidate.modelVersion,
     reasoningEffort:
@@ -104,9 +106,9 @@ export function parseEffectiveConfig(value: unknown): LLMEffectiveConfig {
       typeof candidate.maxOutputTokens === 'number'
         ? candidate.maxOutputTokens
         : null,
-    // WI-CORE-031: corridas anteriores no tienen endpoint; solo se conserva el valor conocido.
-    ...(candidate.endpoint === 'responses'
-      ? { endpoint: 'responses' as const }
+    // WI-CORE-031: corridas anteriores no tienen endpoint; solo se conserva si es texto (WI-CORE-089).
+    ...(typeof candidate.endpoint === 'string'
+      ? { endpoint: candidate.endpoint }
       : {}),
   };
 }

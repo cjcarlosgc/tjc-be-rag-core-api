@@ -1,0 +1,9 @@
+# WI-CORE-084 — cierre
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Resultado: el SDD de Core ya no contiene identidades de pilotos. `spec/features/008-experimental-comparison/spec.md` reemplaza «Piloto controlado de compatibilidad PHP» (pilotos antiguos y tabla de 9 símbolos) por «Repositorios piloto del experimento (protocolo; sin identidades en el SDD)»; `spec/features/019-project-root-detection/spec.md` apunta a esa sección. Aprobado por el usuario el 2026-10-24 y conservado tras su consulta («Conserva el cambio de spec/008 y cierra WI-CORE-084»). Commits `82c6603` (cambio) y el de cierre.
+
+- **Revisión independiente (`reviewer`):** APPROVED, ciclo 1 de 2: no se pierde ningún requisito implementable (lo perdido es identidad y dato de investigación); sin contradicciones con «Alineación SMART V3 — OE5», `experimental-metrics`, la configuración única del LLM ni 019; la sección nueva no contiene identidades, issue ni totales 54/27. L-1 (falta «dependencias y símbolos target» en la verificación previa) aplicada en el cierre. `contract-reviewer`: no aplica.
+- **Fuera de alcance, declarado:** `spec/contracts/system-contract.md:287` (`tjc-piloto-ventas`) e `interoperability-contract.md` (lote de erratas con el próximo cambio de INTEROP); los repositorios empresariales de validación de `projectRoot` de 019 (otro conjunto); `AGENTS.md` de Core (sin cambio: la «Frontera de contexto» ya excluye contenido académico).
+- `retryLimitRespected`: 0 ciclos de corrección de 2 permitidos.
+- **Reparto acordado:** el registro de pilotos oficiales, oráculo, habilitación técnica previa, gobierno de fallos, regla CT-08, integridad experimental y revisión final en `Tesis/AGENTS.md` lo hace el usuario desde el chat de cross; Core no envió nada a cross. Core conserva solo lo que el software debe cumplir.

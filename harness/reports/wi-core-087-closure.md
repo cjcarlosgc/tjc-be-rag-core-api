@@ -1,0 +1,11 @@
+# WI-CORE-087 — cierre
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Resultado: `GithubAccessHttpAdapter` (`app/src/github-app/github-access-http.adapter.ts`) registra ahora un **WARN con el motivo** cada vez que una lectura a GitHub Integration termina en `UNVERIFIABLE`, sin cambiar lo que devuelve: error del cliente (`ERROR_CLIENTE:<code>`, estatus HTTP o «sin respuesta», reintentable), error inesperado solo por nombre, `INTEGRATION_UNVERIFIABLE` frente a `RESPUESTA_NO_RECONOCIDA`, `INSTALACIONES_<estado>_COMO_UNVERIFIABLE` y `LISTA_DE_OWNERS_VACIA`; cada aviso lleva la ruta fija y la **duración en ms** (≈10 000 ms delata el timeout del cliente, es decir, el arranque en frío de Integration en Render). Sin cuerpos, cabeceras, token, ids ni mensajes crudos. Alcance aprobado por el usuario el 2026-10-24; sin cambio de contrato, cliente, resolver, timeouts ni reintentos.
+
+- **Verificaciones del leader:** lint y build en verde; 2735 tests pasan (2726 previos + 9 nuevos); validadores del Harness y `sdd-check` en verde.
+- **Revisión independiente (`reviewer`):** APPROVED, ciclo 1 de 2. Sin fuga de datos (el único log es `avisar`; `error.code` es un conjunto cerrado; `value.status` no se interpola); resultados idénticos a HEAD; los 5 caminos registran un solo aviso; 6 mutaciones sobre una copia hicieron fallar la spec. Observaciones opcionales no aplicadas: O-1 (limitar `error.name` a un patrón seguro; riesgo práctico nulo, sería cambio de lógica de producción fuera del tamaño «mínimo») y O-2 (la prueba de no fuga no cubre `ERROR_CLIENTE` ni `INTEGRATION_UNVERIFIABLE`; el tipado cerrado lo hace de bajo riesgo).
+- **Modelo del implementer:** el informe declara `claude-haiku-5-5` atendido frente a `claude-sonnet-5-5` configurado; revisado y aprobado igualmente por el `reviewer`.
+- `retryLimitRespected`: 0 ciclos de corrección de 2 permitidos.
+- **Para ver el motivo:** los logs aparecen cuando Core corre con este cambio (local ya; Render tras desplegar `develop`, lo que exige push y PR, decisión del usuario). Mientras tanto, el script de diagnóstico del chat de Core discrimina clave de la App, token y arranque en frío.
+- **Contraparte de Integration:** indicación compacta en `harness/reports/wi-core-087-indicacion-integration.md`, entregada a cross; Core no la ejecuta ni envía un handoff directo.

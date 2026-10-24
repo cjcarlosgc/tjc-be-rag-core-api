@@ -1,0 +1,8 @@
+# WI-CORE-089 — publicación de Contract Sync
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Evento publicado en `harness/contract-sync/outbox/`: **`CS-CORE-20261024-004`** (`C-PENDING`, `breaking: false`, `sourceWorkItem: WI-CORE-089`, `sourceRevision 2318b9df292b337db4998f04b66b0457f1df8e3f`, el commit que contiene los contratos finales). Un solo evento para `console`, `github-integration` y `sandbox` (patrón de `CS-CORE-20261021-004`), `scopePaths`: `interoperability-contract.md` y `system-contract.md`.
+
+Digests finales (sobre el árbol commiteado): `system-contract.md` (SYSTEM-2.16) `d0a492b4484c8883d65e709f76d8c7ff2462b0eb8c832649cf75723b9543ea77`; `interoperability-contract.md` (INTEROP-2.21) `7f946d55b24cf13dad180927108cf777b8dde036ce2185d37590e6c072d0d29d`; sin cambio: `github-integration-contract.md` (GH-INTEROP-1.9) `dedf00fa2f0f5be928cfaf1e5a12ff19f96e7579524a0a689757f1077bfc6e4e` y el árbol `spec/contracts/schemas/` `8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718`.
+
+Acción por consumidor (la entrega la hace cross; Core no edita otros repositorios ni resuelve los eventos de otros): re-espejar los dos contratos byte a byte **en un solo paso directo a INTEROP-2.21 y SYSTEM-2.16**, sin pasar por 2.20/2.15; sin cambio de `schemas/` ni de `generated/` (`contracts:check` debe seguir limpio); sin cambio de código. El evento **supera** a `CS-CORE-20261024-001..003` y `CS-CORE-20261021-001..004` en INTEROP y SYSTEM; `schemas/`, `github-integration-contract.md` y `generated/` se siguen sincronizando según `CS-CORE-20261024-001..003` (sus digests no cambian). No reescribir el commit `2318b9d` tras publicar.

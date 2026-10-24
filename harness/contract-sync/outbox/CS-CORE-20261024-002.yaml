@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261024-002
+source: core
+sourceWorkItem: WI-CORE-079
+targets: [sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md, spec/contracts/system-contract.md, spec/contracts/schemas]
+breaking: false
+changed:
+  - INTEROP-2.20 interoperability-contract.md sha256 f0b395785eed3a42818c2a81f020edecc0cc0eaac912961e81aba2a9ff8e4a6a; SYSTEM-2.15 system-contract.md sha256 f3b61da59fcff613b86c0e2945c165fbf808eb44b48504bfe86521fe78f728ce; arbol spec/contracts/schemas/ con examples/ sha256 8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718 (receta del arbol: cd spec/contracts/schemas && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256); github-integration-contract.md (GH-INTEROP-1.9) no aplica a Sandbox, que no lo espeja (corrige E-02). Ronda unica WI-CORE-079 aprobada por el usuario el 2026-10-24, documental y no incompatible (sin cambio de rutas, DTO, enums ni codigos de error): (1) esquema canonico CT-01 github-webhook-event.schema.json del payload Integration->Core con 15 ejemplos github-webhook-event.* en manifest.json; (2) E-01: INTEROP 6.5 documenta targetId en ExperimentResultsResponse (analysisRunId y symbol quedan pendientes de HU17 y opcionales); (3) SYSTEM-2.15: frase neutral en system-contract.md sin identidades de repositorios de prueba; (4) sandbox-result.failed.json: code DEPENDENCY_INSTALL_FAILED (antes COMPOSER_INSTALL_FAILED, valor ilustrativo que no existe en el codigo). Los espejos anteriores (SYSTEM-2.14, INTEROP-2.19, GH-INTEROP-1.8 y el arbol schemas/) quedan desfasados; conviene un solo re-espejo junto con los eventos CS-CORE-20261021 que sigan pendientes para ese consumidor.
+requiredAction:
+  - Re-espejar interoperability-contract.md, system-contract.md y spec/contracts/schemas/ completo byte a byte cruzando los digests (Sandbox no espeja github-integration-contract.md); ejecutar contracts:generate y contracts:check (el nuevo esquema cambia generated/); sin cambio de logica; el ejemplo sandbox-result.failed.json ya coincide con DEPENDENCY_INSTALL_FAILED de su sandbox-fact-error.ts; lint, build y test
+sourceRevision: 208c3bdfe21bfc4b294da118d8ab1318f0432ca5
+status: C-PENDING

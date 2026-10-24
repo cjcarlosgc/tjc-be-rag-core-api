@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-pull-request-synchronize",
+  "eventName": "pull_request",
+  "action": "synchronize",
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "PULL_REQUEST",
+    "repository": {
+      "id": "1001",
+      "fullName": "example-org/example-repo"
+    },
+    "installationId": "2001",
+    "pullRequestNumber": 7,
+    "pullRequest": {
+      "title": "Example pull request",
+      "draft": false,
+      "merged": false,
+      "createdAt": "2026-10-24T09:55:00.000Z",
+      "base": {
+        "ref": "main",
+        "sha": "0123456789abcdef0123456789abcdef01234567"
+      },
+      "head": {
+        "ref": "example-feature",
+        "sha": "fedcba9876543210fedcba9876543210fedcba98"
+      },
+      "userLogin": "example-user"
+    }
+  }
+}

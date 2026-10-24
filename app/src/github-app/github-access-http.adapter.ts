@@ -1,5 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { GithubIntegrationClient } from './github-integration.client.js';
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  GithubIntegrationClient,
+  GithubIntegrationClientError,
+} from './github-integration.client.js';
 import type {
   GithubAccessPort,
   GithubLookup,
@@ -20,6 +23,8 @@ import type {
  */
 @Injectable()
 export class GithubAccessHttpAdapter implements GithubAccessPort {
+  private readonly logger = new Logger(GithubAccessHttpAdapter.name);
+
   constructor(
     private readonly githubIntegrationClient: GithubIntegrationClient,
   ) {}
@@ -67,19 +72,29 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
   async listOrganizationInstallations(): Promise<
     GithubLookup<OrganizationInstallation[]>
   > {
-    const result = await this.lookup<OrganizationInstallation[]>(
+    const consulta = await this.consultar<OrganizationInstallation[]>(
       '/organizations/installations',
       {},
       isOrganizationInstallations,
     );
+    this.registrarFallo('/organizations/installations', consulta);
 
     // A missing App installation endpoint is not proof that there are no
     // organization installs; the old App-JWT lookup treated it conservatively.
-    if (result.status === 'NOT_FOUND' || result.status === 'NOT_INSTALLED') {
+    if (
+      consulta.resultado.status === 'NOT_FOUND' ||
+      consulta.resultado.status === 'NOT_INSTALLED'
+    ) {
+      this.avisar('/organizations/installations', {
+        motivo: `INSTALACIONES_${consulta.resultado.status}_COMO_UNVERIFIABLE`,
+        estatus: 'n/a',
+        reintentable: 'n/a',
+        duracion: consulta.duracion,
+      });
       return { status: 'UNVERIFIABLE' };
     }
 
-    return result;
+    return consulta.resultado;
   }
 
   async getOrganizationMembership(
@@ -100,7 +115,7 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
   async listOrganizationOwners(
     organization: OrganizationRef,
   ): Promise<GithubLookup<OrganizationOwner[]>> {
-    const result = await this.lookup<OrganizationOwner[]>(
+    const consulta = await this.consultar<OrganizationOwner[]>(
       '/organizations/owners',
       {
         installationId: organization.installationId,
@@ -108,14 +123,24 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
       },
       isOrganizationOwners,
     );
+    this.registrarFallo('/organizations/owners', consulta);
 
     // Una organización de GitHub no puede tener cero owners. Mantener esta
     // salvaguarda local evita convertir una respuesta vacía en una revocación.
-    if (result.status === 'OK' && result.value.length === 0) {
+    if (
+      consulta.resultado.status === 'OK' &&
+      consulta.resultado.value.length === 0
+    ) {
+      this.avisar('/organizations/owners', {
+        motivo: 'LISTA_DE_OWNERS_VACIA',
+        estatus: 'n/a',
+        reintentable: 'n/a',
+        duracion: consulta.duracion,
+      });
       return { status: 'UNVERIFIABLE' };
     }
 
-    return result;
+    return consulta.resultado;
   }
 
   private async lookup<T>(
@@ -123,38 +148,127 @@ export class GithubAccessHttpAdapter implements GithubAccessPort {
     request: unknown,
     isValue: (value: unknown) => value is T,
   ): Promise<GithubLookup<T>> {
+    const consulta = await this.consultar(path, request, isValue);
+    this.registrarFallo(path, consulta);
+    return consulta.resultado;
+  }
+
+  /**
+   * Llama a GitHub Integration y clasifica el resultado. Nunca lanza: los
+   * fallos de transporte o inesperados se traducen a UNVERIFIABLE conservador
+   * y se describen en `fallo` solo con código, estatus, reintentabilidad o nombre.
+   */
+  private async consultar<T>(
+    path: string,
+    request: unknown,
+    isValue: (value: unknown) => value is T,
+  ): Promise<Consulta<T>> {
+    const inicio = Date.now();
     try {
-      const result = await this.githubIntegrationClient.post<unknown>(
+      const respuesta = await this.githubIntegrationClient.post<unknown>(
         path,
         request,
       );
-      return toGithubLookup(result, isValue);
-    } catch {
+      const duracion = Date.now() - inicio;
+      const { resultado, motivo } = toGithubLookup(respuesta, isValue);
+      return motivo
+        ? {
+            resultado,
+            duracion,
+            fallo: { motivo, estatus: 'n/a', reintentable: 'n/a' },
+          }
+        : { resultado, duracion };
+    } catch (error) {
       // Service auth/config/upstream failures cannot prove absence or revoke
       // persisted access; return the conservative port result without leaking
       // internal error text or response bodies.
-      return { status: 'UNVERIFIABLE' };
+      const duracion = Date.now() - inicio;
+      if (error instanceof GithubIntegrationClientError) {
+        return {
+          resultado: { status: 'UNVERIFIABLE' },
+          duracion,
+          fallo: {
+            motivo: `ERROR_CLIENTE:${error.code}`,
+            estatus:
+              error.status === undefined
+                ? 'sin respuesta'
+                : String(error.status),
+            reintentable: String(error.retryable),
+          },
+        };
+      }
+      return {
+        resultado: { status: 'UNVERIFIABLE' },
+        duracion,
+        fallo: {
+          motivo: `ERROR_INESPERADO:${error instanceof Error ? error.name : 'desconocido'}`,
+          estatus: 'n/a',
+          reintentable: 'n/a',
+        },
+      };
     }
   }
+
+  private registrarFallo<T>(path: string, consulta: Consulta<T>): void {
+    if (!consulta.fallo) return;
+    this.avisar(path, {
+      ...consulta.fallo,
+      duracion: consulta.duracion,
+    });
+  }
+
+  private avisar(path: string, detalle: DetalleAviso): void {
+    this.logger.warn(
+      `GitHub Integration no pudo verificar "${path}": motivo=${detalle.motivo}, estatus=${detalle.estatus}, reintentable=${detalle.reintentable}, duracion=${detalle.duracion} ms.`,
+    );
+  }
+}
+
+interface DetalleAviso {
+  motivo: string;
+  estatus: string;
+  reintentable: string;
+  duracion: number;
+}
+
+interface Consulta<T> {
+  resultado: GithubLookup<T>;
+  duracion: number;
+  fallo?: Omit<DetalleAviso, 'duracion'>;
 }
 
 function toGithubLookup<T>(
   value: unknown,
   isValue: (value: unknown) => value is T,
-): GithubLookup<T> {
-  if (!isRecord(value)) return { status: 'UNVERIFIABLE' };
+): { resultado: GithubLookup<T>; motivo?: string } {
+  if (!isRecord(value)) {
+    return {
+      resultado: { status: 'UNVERIFIABLE' },
+      motivo: 'RESPUESTA_NO_RECONOCIDA',
+    };
+  }
 
   switch (value.status) {
     case 'NOT_FOUND':
     case 'NOT_INSTALLED':
+      return { resultado: { status: value.status } };
     case 'UNVERIFIABLE':
-      return { status: value.status };
+      return {
+        resultado: { status: 'UNVERIFIABLE' },
+        motivo: 'INTEGRATION_UNVERIFIABLE',
+      };
     case 'OK':
       return isValue(value.value)
-        ? { status: 'OK', value: value.value }
-        : { status: 'UNVERIFIABLE' };
+        ? { resultado: { status: 'OK', value: value.value } }
+        : {
+            resultado: { status: 'UNVERIFIABLE' },
+            motivo: 'RESPUESTA_NO_RECONOCIDA',
+          };
     default:
-      return { status: 'UNVERIFIABLE' };
+      return {
+        resultado: { status: 'UNVERIFIABLE' },
+        motivo: 'RESPUESTA_NO_RECONOCIDA',
+      };
   }
 }
 

@@ -5,6 +5,7 @@ export interface LLMGenerationResult {
   /**
    * WI-CORE-027: configuración efectiva con la que el adaptador envió la llamada. Opcional: fakes y adaptadores
    * que no la informan dejan la evidencia de generación con `null`, nunca con un valor inventado.
+   * WI-CORE-089: `provider` lo fija cada adaptador (p. ej. `'openai'` en el adaptador de OpenAI).
    */
   effective?: { provider: LLMEffectiveConfig['provider']; model: string; reasoningEffort: string | null };
 }
@@ -14,7 +15,11 @@ export interface LLMGenerationResult {
  * ambos brazos (DEC-EXP-004). `null` significa que el parámetro no se envía.
  */
 export interface LLMEffectiveConfig {
-  provider: 'openai';
+  /**
+   * Identificador del adaptador que envía la llamada (WI-CORE-089). El dominio lo trata como texto opaco: cada
+   * adaptador fija su valor (el de OpenAI fija `'openai'`) y el dominio no lo reescribe ni lo compara con una lista.
+   */
+  provider: string;
   model: string;
   modelVersion: string;
   reasoningEffort: string | null;
@@ -23,9 +28,10 @@ export interface LLMEffectiveConfig {
   /**
    * Endpoint interno del adaptador (WI-CORE-031). Lo escribe resolveEffectiveConfig y
    * queda en ExperimentRun.modelConfig; es opcional para corridas anteriores y nunca
-   * forma parte de la respuesta de la API.
+   * forma parte de la respuesta de la API. Es texto opaco para el dominio: el adaptador de
+   * OpenAI fija `'responses'` (WI-CORE-089).
    */
-  endpoint?: 'responses';
+  endpoint?: string;
 }
 
 /** Definición neutral de herramienta; `parameters` es un JSON Schema. */

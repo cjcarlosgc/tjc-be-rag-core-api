@@ -43,6 +43,12 @@ describe('sanitizeFailureMessage (WI-CORE-007)', () => {
     );
   });
 
+  it('redacta claves sk-, también las con formato sk-ant- (WI-CORE-089, regresión)', () => {
+    expect(sanitizeFailureMessage('invalid key sk-ant-api03-Zq9Wx7Vb2Mn4')).toBe(
+      'invalid key [REDACTED]',
+    );
+  });
+
   it('redacta tokens de GitHub (ghp_, gho_, ghs_, github_pat_)', () => {
     expect(sanitizeFailureMessage('ghp_0123456789abcdefABCDEF')).toBe('[REDACTED]');
     expect(sanitizeFailureMessage('gho_0123456789abcdefABCDEF')).toBe('[REDACTED]');

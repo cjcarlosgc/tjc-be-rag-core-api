@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "example-delivery-installation",
+  "eventName": "installation",
+  "action": "created",
+  "receivedAt": "2026-10-24T10:00:00.000Z",
+  "data": {
+    "kind": "INSTALLATION",
+    "installationId": "2001",
+    "account": {
+      "id": "3001",
+      "type": "Organization"
+    }
+  }
+}
