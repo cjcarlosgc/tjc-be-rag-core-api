@@ -23410,5 +23410,91 @@
       "closedAt": "2026-10-24T17:17:44.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "id": "WI-CORE-091",
+    "component": "CORE",
+    "workItemType": "PRODUCT",
+    "status": "W-IN_PROGRESS",
+    "title": "El build de Core genera el cliente de Prisma (build: prisma generate && nest build) para que el autodeploy de Render no dependa de la cache de node_modules",
+    "approved": true,
+    "storyIds": [
+      "HU14"
+    ],
+    "taskIds": [
+      "ST-CORE-107"
+    ],
+    "caseIds": [],
+    "sprint": "P2",
+    "specPaths": [
+      "harness/reports/wi-core-091-scope.md",
+      "app/package.json",
+      "spec/features/017-cross-repository-dependency-gates/tasks.md"
+    ],
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [],
+      "checkedAt": "2026-10-24T18:00:00.000Z",
+      "note": "Alcance aprobado por el usuario en el chat de Core el 2026-10-24; sin decisiones bloqueantes."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": null,
+      "implementationAgent": "implementer",
+      "contractReviewAgent": null,
+      "reviewAgent": null,
+      "handoffs": [],
+      "reviewCycles": 0,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-NOT_RUN",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-NOT_RUN",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-NOT_RUN",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-091",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-24T17:55:59.294Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-091-scope.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-091-scope.md"
+      ]
+    },
+    "evidence": [
+      "harness/reports/wi-core-091-scope.md"
+    ],
+    "blockedReason": null
+  }
 }

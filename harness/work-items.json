@@ -5153,6 +5153,37 @@
           "report": "harness/reports/wi-core-089-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-091",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "El build de Core genera el cliente de Prisma (build: prisma generate && nest build) para que el autodeploy de Render no dependa de la cache de node_modules",
+      "storyIds": [
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-107"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-089"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "El script build de app/package.json es prisma generate && nest build; con app/src/generated/ ausente, pnpm run build regenera el cliente de Prisma y compila; postinstall y prisma:generate se conservan.",
+        "Lint, tests y build en verde; sin cambios en el esquema de Prisma, migraciones, contratos ni comportamiento; entrada en CHANGELOG.md; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-091-scope.md",
+        "app/package.json",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }
