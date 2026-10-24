@@ -4733,6 +4733,38 @@
           "report": "harness/reports/wi-core-082-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-083",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Registrar en la propuesta CT las decisiones D-2, D-9 y D-11 y los pilotos oficiales (solo documentacion)",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-090"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-082"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "La propuesta arch-v1.0-aserciones-ct-propuesta.md registra D-2, D-9 y D-11 como decididas con el texto del usuario (dos mitades + payload canonico compartido; 3 AnalysisRuns, uno por piloto brick/money, doctrine/orm y EscolaLMS/Vouchers; checklist manual con N/A justificado e incumplimiento, sin funcionalidad ni endpoints nuevos), ajusta CT-01-A1/A5 y CT-08-A6 y el resumen, y lista los documentos con descripcion desactualizada (pilotos antiguos en tesis 3.3.3 y 5.6; Full Paper por contrastar).",
+        "Solo documentacion en harness/reports: sin cambios en app/, contratos, esquemas, referencias/ ni Full Paper; revision independiente del reviewer sobre fidelidad a lo decidido por el usuario y a la tesis."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-083-scope.md",
+        "harness/reports/arch-v1.0-aserciones-ct-propuesta.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }

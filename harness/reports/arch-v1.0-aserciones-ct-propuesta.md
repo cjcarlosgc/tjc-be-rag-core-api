@@ -18,9 +18,9 @@ Cita: «fijar repositorio/PR/HEAD»; «evento no elegible, permisos insuficiente
 | CT-01-A2 | Dado un bearer inválido, cuando llega el evento, entonces 401 y no se crea Run; sin credencial configurada, 503 | E, Err | Core | `src/github-webhooks/github-webhooks.controller.spec.ts` («Core internal GitHub webhook receiver») | ninguno | Auto |
 | CT-01-A3 | Dado un segundo evento con el mismo repo/PR/HEAD, entonces 200 sin Run nuevo (duplicado) y 202 el primero | Err | Core | controller.spec (202 nuevo, 200 duplicado); `analysis-runs.service.spec.ts` (redelivery mismo HEAD) | ninguno | Auto |
 | CT-01-A4 | Dado un evento no elegible o de instalación sin permisos, entonces no se crea Run y el estado queda indicado | Pre, Err | Core | `github-webhooks.service.spec.ts` (instalación, repository events) piezas sueltas | S (nombrar como CT) | Auto |
-| CT-01-A5 | El payload que Integration emite (saneado, sin secretos) valida contra el ejemplo canónico que Core consume | S, Evidencia | Integration (`app/src/github-webhooks/github-webhook-normalizer.spec.ts`, `github-webhook-core-client.spec.ts`) | Existen specs de normalizer y cliente; sin schema/ejemplo compartido en `spec/contracts/schemas/` | M | Auto |
+| CT-01-A5 | El payload que Integration emite (saneado, sin secretos) valida contra el ejemplo canónico que Core consume | S, Evidencia | Integration (`app/src/github-webhooks/github-webhook-normalizer.spec.ts`, `github-webhook-core-client.spec.ts`) | Existen specs de normalizer y cliente; sin schema/ejemplo compartido en `spec/contracts/schemas/` | M (esquema canónico + ejemplo validado en Core e Integration + Contract Sync a Integration; D-2) | Auto |
 
-Discrepancia a señalar: la tesis dice «webhook/evento autenticado»; en el código GitHub llama a Integration y Core recibe evento interno con bearer. Decisión D-2.
+Frontera entre dos repositorios (Git Integration → Core): la tesis ya los trata como componentes separados (el tag exige SHA de Git Integration). **D-2 decidida:** dos mitades (Integration: webhook de GitHub a evento; Core: evento autenticado a AnalysisRun) más un esquema JSON canónico del payload en `spec/contracts/schemas/` con ejemplo validado por ambos repos; sin prueba extremo a extremo entre repos.
 
 ## C-02 — Run Orchestrator → Repository Intelligence / Analysis (CT-02)
 Cita: «alcance de validación separado de actualización del índice».
@@ -103,7 +103,7 @@ Cita: «reconstrucción directa e inversa cuando aplique»; evidencia «checklis
 | CT-08-A3 | Enlaces 7-9 son N/A justificado cuando el Run termina legítimamente antes (la tesis solo exige esto; el contrato vigente `interoperability-contract.md` §6.16 admite N/A también en 4-6 si el Run termina antes, p. ej. ACTION_REQUIRED) | Pre | Core | `analysis-run-trace.service.spec.ts` («NOT_APPLICABLE») | ninguno | Auto |
 | CT-08-A4 | Un enlace faltante o inconsistente se registra como tal | Err | Checklist o funcionalidad nueva | ninguna: Core no tiene estado de enlace faltante/inconsistente | Man (registrar en la checklist) o funcionalidad nueva; ver D-11 | Man |
 | CT-08-A5 | Trace de Run no finalizado → 409 `EVIDENCE_NOT_FINISHED`; publicación PRESENT/STALE | Err | Core | `analysis-run-trace.service.spec.ts` | ninguno | Auto |
-| CT-08-A6 | Checklist de 9 enlaces verificada sobre un Run real evaluado | Evidencia | Core (datos reales) | n/a | M | Man |
+| CT-08-A6 | Checklist de 9 enlaces (Tabla 54) verificada sobre 3 AnalysisRuns reales finalizados con HEAD congelado, uno por piloto (`brick/money`, `doctrine/orm`, `EscolaLMS/Vouchers`), con Evidence ID por checklist (D-9, D-11) | Evidencia | Core (datos reales de los pilotos, sobre `arch-v1.0`) | n/a | M (3 checklists manuales) | Man |
 
 Discrepancia tesis↔código (C-08): la tesis pide comprobación inversa y registro de enlaces faltantes/inconsistentes; el trace de Core solo expone `PRESENT`/`NOT_APPLICABLE`, sin consulta inversa ni estado de enlace inconsistente. Decisión D-11.
 
@@ -137,41 +137,41 @@ Discrepancia: la tesis habla de «puertos» para relacional y vectorial; en el c
 
 | CT | Aserciones | Cubiertas | Parciales | Sin cobertura | Esfuerzo faltante | Dueño | Decisiones abiertas |
 |---|---|---|---|---|---|---|---|
-| CT-01 | 5 | 2 | 3 | 0 | M | Core + Integration | D-2 |
+| CT-01 | 5 | 2 | 3 | 0 | M | Core + Integration | (D-2 decidida) |
 | CT-02 | 4 | 1 | 2 | 1 | M | Core | D-3 |
 | CT-03 | 6 | 2 | 1 | 3 | M-L | Core | D-4 |
 | CT-04 | 5 | 2 | 1 | 2 | M | Core | D-7 |
 | CT-05 | 6 | 4 | 0 | 2 | M-L (A5 implementación) | Core | (D-5 decidida) |
 | CT-06 | 5 | 2 | 2 | 1 | S | Core + Sandbox | |
 | CT-07 | 5 | 3 | 1 | 1 | S | Core + Sandbox | |
-| CT-08 | 6 | 3 | 0 | 3 | M-L (A2/A4 manual o nueva funcionalidad) | Core | D-9, D-11 |
+| CT-08 | 6 | 3 | 0 | 3 | M-L (A2/A4 manual o nueva funcionalidad) | Core | (D-9, D-11 decididas) |
 | CT-09 | 5 | 2 | 0 | 3 | L (ESC-MOD-01) | Core | (D-10 decidida) |
 | CT-10 | 5 | 0 | 4 | 1 | M | Core | D-6 |
 | **Total** | **52** | **21** | **14** | **17** | | | |
 
-Conteo por lectura con el criterio de arriba; 22+13+17=52.
+Conteo por lectura con el criterio de arriba; 21+14+17=52.
 
 ## 2. Decisiones
 
 ### Decisiones tomadas por el usuario (chat de Core, 2026-10-23)
 - **D-1:** un registro de evidencia por CT (p. ej. EV-OE1-CT-xx con SHA, comando y resultado, en el registro de evidencias de la tesis, Anexo G/HITO-OE1).
 - **D-5:** «contexto insuficiente» = sin código del target, o sin ningún candidato que pase el mínimo de relevancia Y faltan reglas funcionales requeridas ⇒ ACTION_REQUIRED y no se genera; lo demás no bloquea. Core hoy no lo define ni lo prueba: requiere implementación + prueba (CT-05-A5).
+- **D-2 (2026-10-24):** C-01 cruza dos repositorios (Integration es un repo aparte). Se prueba en **dos mitades más un payload canónico compartido**: Integration prueba su mitad (webhook de GitHub a evento: firma, permisos, elegibilidad, duplicado); Core prueba la suya (evento autenticado con bearer de Integration a AnalysisRun, identidad PR/HEAD preservada, duplicado idempotente); el vínculo es un **esquema JSON canónico del payload Integration→Core** en `spec/contracts/schemas/` con un ejemplo que **ambos repos validan** (CT-01-A1, A5). Requiere un WI de implementación y Contract Sync a Integration; sin prueba extremo a extremo entre repos.
+- **D-9 (2026-10-24):** CT-08 audita **3 AnalysisRuns representativos, uno por cada piloto**: `brick/money`, `doctrine/orm` y `EscolaLMS/Vouchers`. Cada uno finalizado, con HEAD congelado, y con la cadena de 9 enlaces reconstruible en sentido directo y, cuando aplique, inverso. **No** se repite la checklist para las 54 ejecuciones del experimento OE5 ni necesariamente para los 9 casos: esas 54 pertenecen al protocolo comparativo de OE5 y conservan sus propios identificadores y evidencias. La evidencia se recoge sobre `arch-v1.0` con los pilotos nuevos. Detalle del handoff del usuario (`HANDOFF_PILOTOS_EVIDENCIA_CIERRE_DOCUMENTAL.md`, §6-§7).
+- **D-11 (2026-10-24):** CT-08 se cierra con **checklist manual trazable** sobre esos AnalysisRuns reales: 9 enlaces en directo e inverso mediante identificadores persistidos, consultas disponibles y evidencia asociada; cuando una comprobación inversa no exista como consulta automática se verifica manualmente contra los registros persistidos y se documenta el Evidence ID (Tabla 54). Un enlace que no aplica porque el flujo terminó antes de esa etapa se registra como **N/A justificado**, no como fallo; un enlace obligatorio que falta o es inconsistente se registra como **incumplimiento**. **No** se implementa funcionalidad nueva ni se crean endpoints antes de `arch-v1.0`; la automatización de la consulta inversa queda como mejora posterior (CT-08-A2, A4, A6).
 - **D-10:** baseline de ESC-MOD-01 = suite de contrato de `LLMProvider` contra el adaptador OpenAI y un segundo adaptador FALSO de prueba, sin tocar el dominio; el segundo proveedor real queda para OE5 (CT-09-A3, A5).
 
 ### Pendientes (con recomendación)
-1. D-2: C-01 = evento interno de Integration con bearer (no el webhook de GitHub). Recomiendo aclararlo en A1 y no probar la firma de GitHub en Core.
-2. D-3: formato canónico de CHANGESET/INDEX DELTA para CT-02. Recomiendo el contrato de interoperabilidad vigente, sin schema nuevo antes del tag.
-3. D-4: ¿el ranking final es de Retriever o de ContextBuilder? Recomiendo que CT-03 cubra candidatos+score y CT-05 el recorte (así quedó CT-03-A4).
-4. D-6: qué cuenta como «puerto» en C-10. Recomiendo declarar los repositorios como adapters y cubrir con test de arquitectura, sin refactor antes del tag.
-5. D-7: qué es «sin autoridad» en reglas FK. Recomiendo: no ACTIVE o sin procedencia confirmada.
-6. D-9: Runs reales para CT-08-A6/IOE1.1. Recomiendo usar los ya finalizados y vigentes, sin generar uno nuevo para el tag.
-7. D-11 (nueva): ¿se acepta checklist manual sobre un Run real para la comprobación inversa y el enlace faltante/inconsistente (CT-08-A2, A4) o se construye antes del tag la consulta inversa/validación de enlace en Core? Recomiendo checklist manual para el tag (Tabla 54 la define como procedimiento) y dejar la funcionalidad como mejora posterior.
+1. D-3: formato canónico de CHANGESET/INDEX DELTA para CT-02. Recomiendo el contrato de interoperabilidad vigente, sin schema nuevo antes del tag.
+2. D-4: ¿el ranking final es de Retriever o de ContextBuilder? Recomiendo que CT-03 cubra candidatos+score y CT-05 el recorte (así quedó CT-03-A4).
+3. D-6: qué cuenta como «puerto» en C-10. Recomiendo declarar los repositorios como adapters y cubrir con test de arquitectura, sin refactor antes del tag.
+4. D-7: qué es «sin autoridad» en reglas FK. Recomiendo: no ACTIVE o sin procedencia confirmada.
 
 D-8 se retiró: la Tabla 56 ya exige registrar los SHA de los repos integrados; queda como requisito de CT-07-A5.
 
 ## 3. Orden sugerido por valor para el tag
 
-1. CT-08: A1/A3/A5 ya cubiertas; A2/A4/A6 como checklist manual sobre Run real (D-11, D-9), exigido por IOE1.1 y Tabla 54.
+1. CT-08: A1/A3/A5 ya cubiertas; A2/A4/A6 como 3 checklists manuales (uno por piloto; D-9, D-11), exigido por IOE1.1 y Tabla 54.
 2. CT-09 + ESC-MOD-01 (A3 suite con adaptador falso; A5 tras el tag, D-10).
 3. CT-05-A5 (regla D-5, requiere implementación) y CT-10-A3/A5 y CT-01-A1/A5.
 4. CT-03-A3/A4, CT-04-A2 (aserciones de frontera, S/M).
@@ -180,3 +180,7 @@ D-8 se retiró: la Tabla 56 ya exige registrar los SHA de los repos integrados; 
 ## 4. Nota
 
 Propuesta por lectura; sin pruebas escritas ni corridas oficiales.
+
+## 5. Documentos con descripción desactualizada (para la revisión final de coherencia; no se modifican aquí)
+
+Decisión del usuario (2026-10-24): los pilotos oficiales son `brick/money` (cambio funcional controlado), `doctrine/orm` (cambio basado en el issue público #11600) y `EscolaLMS/Vouchers` (cambio funcional controlado), y **sustituyen** a los antiguos pilotos creados por el equipo de ventas, reservas y suscripciones. La tesis aún describe los antiguos en §3.3.3 («Sales/Discounts, Reservations y Subscriptions») y en el baseline del piloto de §5.6 (`tjc-piloto-ventas`, `tjc-piloto-reservas`, `tjc-piloto-suscripciones`); el Full Paper debe contrastarse igual. El diseño de OE5 (3 repositorios × 3 casos × 2 estrategias × 3 repeticiones = 54 ejecuciones y 27 pares) se mantiene. Se marcan para la revisión final de coherencia documental; la tesis y el Full Paper no se modifican sin instrucción explícita.
