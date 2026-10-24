@@ -4835,6 +4835,37 @@
           "report": "harness/reports/wi-core-084-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-085",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Analisis de impacto de la decision de pilotos y evidencia (CT-01 esquema, smoke por piloto, oraculo, Console y Sandbox): solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-092"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-084"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/arch-v1.0-impacto-pilotos-core.md que responde por componente las 4 preguntas de cross (esquema CT-01 y version INTEROP, smoke por piloto con brechas, donde vive el oraculo y su identificacion, implicaciones para Console y Sandbox) con evidencia verificable (archivo y linea), orden sugerido de trabajo entre repos y marca de lo que requiere aprobacion del usuario.",
+        "Solo lectura: sin cambios en contratos, esquemas, app/ ni referencias/; sin ordenar nada a otros repos; revision independiente del reviewer sobre la exactitud de las afirmaciones."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-085-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }
