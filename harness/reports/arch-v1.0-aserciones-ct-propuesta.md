@@ -114,9 +114,9 @@ Cita: «Core no depende de SDK concreto»; evidencia «interfaz/adapter + ESC-MO
 |---|---|---|---|---|---|---|
 | CT-09-A1 | El adapter OpenAI cumple `LLMProvider`: genera, devuelve contenido y tokens, reporta modelo/esfuerzo efectivos | E, S | Core | `providers/openai-llm.provider.spec.ts` («sends the prompt through responses…», «reports the effective provider…») | ninguno | Auto |
 | CT-09-A2 | Fallos del proveedor se envuelven como `LLM_PROVIDER_UNAVAILABLE`; config inválida falla sin llamar a la API | Err | Core | mismo spec («wraps provider failures…», «fails explicitly without calling the API…») | ninguno | Auto |
-| CT-09-A3 | La suite de contrato de `LLMProvider` pasa contra el adaptador OpenAI y un segundo adaptador FALSO de prueba (misma forma de respuesta y errores), sin tocar el dominio | Post | Core | ninguna (solo dobles sueltos) | M | Auto |
-| CT-09-A4 | Fuera de `src/providers` y `providers.module` no se importa el SDK del proveedor | Post | Core | ninguna | S | Auto (test de arquitectura) |
-| CT-09-A5 | ESC-MOD-01 (D-10): tomando `arch-v1.0` como baseline, la suite de contrato A3 con el adaptador falso en una rama/commit posterior da M1=0, M2=0, M3=100% | Evidencia | Core | definido en `spec/transversal/providers/spec.md` y ST-CORE-030; sin ejecutar | L (posterior al tag) | Man + Auto |
+| CT-09-A3 | La suite de contrato de `LLMProvider` pasa contra el adaptador OpenAI y un segundo adaptador FALSO de prueba (misma forma de respuesta y errores), sin tocar el dominio | Post | Core | `providers/llm-provider.contract.spec.ts` (`describe.each` sobre `OpenAiLLMProvider` con cliente simulado y `providers/testing/fake-llm.provider.ts`; WI-CORE-089) | ninguno | Auto |
+| CT-09-A4 | Fuera de `src/providers` y `providers.module` no se importa el SDK del proveedor | Post | Core | `providers/provider-boundary.architecture.spec.ts` sobre `src/` y `test/` reales, con prueba del detector en árbol temporal (WI-CORE-089) | ninguno | Auto (test de arquitectura) |
+| CT-09-A5 | ESC-MOD-01 (D-10 revisada por D-14): tomando `arch-v1.0` como baseline, la evidencia de ESC-MOD-01 se ejecuta en una rama/commit posterior con el adaptador REAL (la suite A3 sigue con el falso) y da M1=0, M2=0, M3=100% | Evidencia | Core | definido en `spec/transversal/providers/spec.md` y ST-CORE-030; sin ejecutar | L (posterior al tag; WI-B en `feature/esc-mod-01`) | Man + Auto |
 
 ## C-10 — Persistence / Vector / Artifact adapters (CT-10)
 Cita: «Core consume puertos, no proveedores concretos».
@@ -145,11 +145,11 @@ Discrepancia: la tesis habla de «puertos» para relacional y vectorial; en el c
 | CT-06 | 5 | 2 | 2 | 1 | S | Core + Sandbox | |
 | CT-07 | 5 | 3 | 1 | 1 | S | Core + Sandbox | |
 | CT-08 | 6 | 3 | 0 | 3 | M (A2/A4/A6 checklist manual; sin funcionalidad nueva, D-11) | Core | (D-9, D-11 decididas) |
-| CT-09 | 5 | 2 | 0 | 3 | L (ESC-MOD-01) | Core | (D-10 decidida) |
+| CT-09 | 5 | 4 | 0 | 1 | L (A5, ESC-MOD-01 con adaptador real; WI-B) | Core | (D-10 revisada por D-14) |
 | CT-10 | 5 | 0 | 4 | 1 | M | Core | (D-6 decidida) |
-| **Total** | **52** | **21** | **14** | **17** | | | |
+| **Total** | **52** | **23** | **14** | **15** | | | |
 
-Conteo por lectura con el criterio de arriba; 21+14+17=52.
+Conteo por lectura con el criterio de arriba; 23+14+15=52 tras WI-CORE-089 (CT-09-A3 y CT-09-A4 pasan a cubiertas: sus suites existen y se ejecutan en `pnpm test`; CT-09-A5 sigue sin cubrir).
 
 ## 2. Decisiones
 
@@ -159,7 +159,7 @@ Conteo por lectura con el criterio de arriba; 21+14+17=52.
 - **D-2 (2026-10-24):** C-01 cruza dos repositorios (Integration es un repo aparte). Se prueba en **dos mitades más un payload canónico compartido**: Integration prueba su mitad (webhook de GitHub a evento: firma, permisos, elegibilidad, duplicado); Core prueba la suya (evento autenticado con bearer de Integration a AnalysisRun, identidad PR/HEAD preservada, duplicado idempotente); el vínculo es un **esquema JSON canónico del payload Integration→Core** en `spec/contracts/schemas/` con un ejemplo que **ambos repos validan** (CT-01-A1, A5). Requiere un WI de implementación y Contract Sync a Integration; sin prueba extremo a extremo entre repos.
 - **D-9 (2026-10-24):** CT-08 audita **3 AnalysisRuns representativos, uno por cada piloto**: `brick/money`, `doctrine/orm` y `EscolaLMS/Vouchers`. Cada uno finalizado, con HEAD congelado, y con la cadena de 9 enlaces reconstruible en sentido directo y, cuando aplique, inverso. **No** se repite la checklist para las 54 ejecuciones del experimento OE5 ni necesariamente para los 9 casos: esas 54 pertenecen al protocolo comparativo de OE5 y conservan sus propios identificadores y evidencias. La evidencia se recoge sobre `arch-v1.0` con los pilotos nuevos. Detalle del handoff del usuario (`HANDOFF_PILOTOS_EVIDENCIA_CIERRE_DOCUMENTAL.md`, §6-§7).
 - **D-11 (2026-10-24):** CT-08 se cierra con **checklist manual trazable** sobre esos AnalysisRuns reales: 9 enlaces en directo e inverso mediante identificadores persistidos, consultas disponibles y evidencia asociada; cuando una comprobación inversa no exista como consulta automática se verifica manualmente contra los registros persistidos y se documenta el Evidence ID (Tabla 54). Un enlace que no aplica porque el flujo terminó antes de esa etapa se registra como **N/A justificado**, no como fallo; un enlace obligatorio que falta o es inconsistente se registra como **incumplimiento**. **No** se implementa funcionalidad nueva ni se crean endpoints antes de `arch-v1.0`; la automatización de la consulta inversa queda como mejora posterior (CT-08-A2, A4, A6).
-- **D-10:** baseline de ESC-MOD-01 = suite de contrato de `LLMProvider` contra el adaptador OpenAI y un segundo adaptador FALSO de prueba, sin tocar el dominio; el segundo proveedor real queda para OE5 (CT-09-A3, A5).
+- **D-10:** baseline de ESC-MOD-01 = suite de contrato de `LLMProvider` contra el adaptador OpenAI y un segundo adaptador FALSO de prueba, sin tocar el dominio; el segundo proveedor real queda para OE5 (CT-09-A3, A5). **Revisada por D-14.**
 
 - **D-3 (2026-10-24):** el formato canónico de CHANGESET/INDEX DELTA para CT-02 es el del contrato de interoperabilidad vigente; no se crea schema nuevo antes del tag (recomendación aceptada).
 - **D-4 (2026-10-24):** el ranking final no se asigna a un solo componente: CT-03 cubre candidatos+score y CT-05 el recorte (así quedó CT-03-A4) (recomendación aceptada).
@@ -167,6 +167,7 @@ Conteo por lectura con el criterio de arriba; 21+14+17=52.
 - **D-7 (2026-10-24):** en las reglas funcionales, «sin autoridad» = no ACTIVE o sin procedencia confirmada (CT-04-A2) (recomendación aceptada).
 - **D-12 (2026-10-24):** **una sola ronda** de contratos: esquema JSON canónico del payload Integration→Core (CT-01, D-2), errata E-01 (`ExperimentResultsResponse` documenta `targetId`), SYSTEM-2.15 (mención de `tjc-piloto-ventas` en `system-contract.md`) y corrección del ejemplo `sandbox-result.failed.json` (`COMPOSER_INSTALL_FAILED` no existe en el código; la categoría real es `DEPENDENCY_INSTALL_FAILED`), publicadas como INTEROP-2.20 y GH-INTEROP-1.9 con Contract Sync. **No** se añade `oracleRef` ni campo equivalente a `ExperimentRun`: el oráculo se identifica por convención del registro de evidencia (`oracleId`, `caseId`, hash). *Plan del leader (no decisión del usuario):* la ejecución sería `WI-CORE-079` (reactivado con este alcance); Integration, Sandbox y Console recibirían su parte por Contract Sync vía cross.
 - **D-13 (2026-10-24):** los pilotos corren sobre **forks del usuario con la GitHub App instalada** (no sobre los repos upstream, donde el equipo no puede instalarla). Consecuencias verificadas en el código (WI-CORE-085, no decisiones nuevas): el workspace del Project debe ser la cuenta u organización dueña de los forks y el binding se crea antes de abrir el PR. Detalle abierto: si la cuenta dueña es personal u organización.
+- **D-14 (2026-10-24, aprobaciones del usuario en el chat de Core junto con WI-A y WI-B):** (a) WI-A y WI-B aprobados; (b) tokenizador `cl100k_base` aceptado como aproximación documentada; (c) definición de M1/M2/M3 de `arch-v1.0-modularidad-llm-provider-core.md` §3 aceptada (M1 sobre `app/src` y `app/test`; `package.json` y lockfile cuentan como configuración, listados aparte); (d) proveedor previsto Anthropic, en la rama `feature/esc-mod-01` (WI-B); la tabla de esfuerzo para Anthropic la propone el leader antes de implementar. **D-10 revisada:** el adaptador falso es el doble de CT-09-A3 (determinismo, sin red ni coste); la evidencia de ESC-MOD-01 (CT-09-A5) usa el adaptador real en la rama posterior al tag; una prueba de humo real es opcional, marcada como integración y excluida de `pnpm test` por defecto.
 
 ### Pendientes
 

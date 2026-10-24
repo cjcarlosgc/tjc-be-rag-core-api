@@ -1,6 +1,6 @@
 # Contrato canónico del sistema
 
-**Versión del contrato:** SYSTEM-2.15
+**Versión del contrato:** SYSTEM-2.16
 **Fecha de corte:** 2026-10-24
 **Estado:** APROBADO salvo decisiones `PENDING` explícitas
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/system-contract.md`
@@ -458,7 +458,7 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 
 **Estado:** APROBADO (2026-10-08, por el usuario)
 
-**Resolución:** la configuración actual del proyecto para el flujo de producto no cambia por esta decisión. Los experimentos RAG vs `GENERALIST_AGENT` usan el modelo `gpt-6-luna` mediante la API de OpenAI en ambos brazos, con `reasoning_effort` en el valor máximo que soporten el modelo y el runtime. Ambos brazos usan exactamente el mismo modelo y el mismo esfuerzo y los dos valores efectivos se registran en la evidencia experimental. El experimento no degrada en silencio el modelo ni el esfuerzo: si la configuración pedida no es compatible con alguno de los brazos (por ejemplo, el modelo no admite herramientas con ese esfuerzo), la creación falla con `422 REASONING_EFFORT_UNSUPPORTED` y la corrección es una decisión de configuración que toma una persona antes de reintentar. El identificador del modelo y el esfuerzo máximo soportado se confirman en tiempo de ejecución contra la API; un modelo no disponible impide crear el experimento.
+**Resolución:** la configuración actual del proyecto para el flujo de producto no cambia por esta decisión. Los experimentos RAG vs `GENERALIST_AGENT` usan, en ambos brazos, la configuración del LLM del adaptador vigente (con el adaptador de OpenAI de esa fecha, el modelo `gpt-6-luna` mediante su API y el esfuerzo de razonamiento del entorno; el criterio de esfuerzo máximo fue sustituido por `DEC-EXP-005`). Ambos brazos usan exactamente el mismo modelo y el mismo esfuerzo y los dos valores efectivos se registran en la evidencia experimental. El experimento no degrada en silencio el modelo ni el esfuerzo: si la configuración pedida no es compatible con alguno de los brazos (por ejemplo, el modelo no admite herramientas con ese esfuerzo), la creación falla con `422 REASONING_EFFORT_UNSUPPORTED` y la corrección es una decisión de configuración que toma una persona antes de reintentar. El identificador del modelo y el esfuerzo máximo soportado se confirman en tiempo de ejecución contra la API; un modelo no disponible impide crear el experimento.
 
 **Enmienda:** `DEC-EXP-005` (2026-10-21) sustituye en esta decisión la configuración del flujo de producto, el criterio de esfuerzo máximo y el `422 REASONING_EFFORT_UNSUPPORTED` por esfuerzo no admitido. El resto (mismo modelo y esfuerzo en ambos brazos, confirmación del modelo contra la API al crear) se conserva.
 
@@ -469,7 +469,7 @@ Esta resolución selecciona una topología y controles, pero no equivale a haber
 **Blocks:** NONE
 
 **Resolución:**
-1. El flujo de producto y los experimentos usan una única configuración del LLM: `LLM_MODEL` (por defecto `gpt-6-luna`) y `LLM_REASONING_EFFORT`. El flujo de producto pasa de `gpt-4o-mini` a `gpt-6-luna`; es un cambio de modelo y de costo declarado.
+1. El flujo de producto y los experimentos usan una única configuración del LLM: `LLM_MODEL` y `LLM_REASONING_EFFORT` (con el adaptador de OpenAI, el valor por defecto de `LLM_MODEL` es `gpt-6-luna`). El flujo de producto pasa de `gpt-4o-mini` a `gpt-6-luna`; es un cambio de modelo y de costo declarado.
 2. `LLM_REASONING_EFFORT` es obligatorio y no tiene valor por defecto en el código. Lo fija cada entorno (`low` en pruebas, `medium` en evidencia oficial). El arranque falla si falta, está vacío o no pertenece a `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 3. No hay lista de combinaciones modelo/esfuerzo. Si la API rechaza el esfuerzo, la llamada falla con error explícito: la repetición del experimento queda como fallo (`failureType` `UNKNOWN`, sin reintento) y el detalle de la API queda en el log del servidor con modelo y esfuerzo.
 4. `422 REASONING_EFFORT_UNSUPPORTED` al crear un experimento sale solo cuando la temperatura configurada es incompatible con razonamiento activo; en ese caso `details.supportedEfforts` es `['none']`.
@@ -485,6 +485,8 @@ Sin cambio de rutas, DTO, enums ni códigos de error.
 **Resolución:** `ProjectRole` pasa a `ADMIN | MAINTAINER | WRITER | READER`. `write` en el repositorio vinculado produce Writer; `maintain` o `admin`, Maintainer. Writer puede todo lo que hoy puede un Maintainer salvo responder preguntas funcionales y registrar `UNKNOWN`. Esto restringe a quienes hoy tienen solo `write` y es un cambio observable. Las menciones de roles de `DEC-ORG-001` y `DEC-ORG-002` y de los planes de cortes ya implementados describen la historia; donde difieran, prevalece esta decisión.
 
 ## Regla de compatibilidad
+
+`SYSTEM-2.16` (2026-10-24, `WI-CORE-089`, alcance aprobado por el usuario) es documental y no incompatible: neutraliza la prosa de `DEC-EXP-004` y `DEC-EXP-005` (la configuración del LLM es comportamiento del adaptador configurado; el contrato no nombra la API de un proveedor ni `reasoning_effort`). Sin cambio de rutas, DTO, enums ni códigos de error. Los espejos en GitHub Integration, Console y Sandbox siguen en la versión anterior hasta su re-espejo byte a byte por Contract Sync. `INTEROP-2.21` es la versión compatible desde `SYSTEM-2.16`; `INTEROP-2.20` lo fue hasta `SYSTEM-2.15`.
 
 `SYSTEM-2.15` (2026-10-24, `WI-CORE-079`, ronda única de contratos aprobada por el usuario) es documental y no incompatible: añade a `INTEROP-2.20` la errata E-01 de `ExperimentResultsResponse` (`targetId`), el esquema canónico CT-01 del webhook normalizado (`schemas/github-webhook-event.schema.json`, `GH-INTEROP-1.9`), la corrección de `sandbox-result.failed.json` (`DEPENDENCY_INSTALL_FAILED`) y una frase neutral sobre el E2E de producción de §Sandbox. Sin cambio de rutas, DTO, enums ni códigos de error. Los espejos en GitHub Integration, Console y Sandbox siguen en la versión anterior hasta su re-espejo byte a byte y la regeneración de `generated/` por Contract Sync. `INTEROP-2.20` es la versión compatible.
 
