@@ -5204,6 +5204,37 @@
           "report": "harness/reports/wi-core-091-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-092",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Runbook operativo de los pilotos (qualification, casos, experimento, evidencia, fallos y concurrencia) para quien ejecuta desde su maquina: documental, solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-108"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-091"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/pilotos-runbook-operativo.md, paso a paso y verificado contra spec/008, el codigo, la Console y los composer.json de los forks, para quien conoce PHP pero no el SDD: prerrequisitos y bloqueo de acceso, qualification/smoke por piloto, creacion de casos y lanzamiento del experimento con verificacion del modelConfig, exportacion de evidencia y campos automaticos de la Tabla 70, fallos esperables y que no hacer, y concurrencia de dos personas.",
+        "Solo documental: sin cambios en app/, contratos, .env, tesis ni otros repos; cada afirmacion verificable cita su fuente; revision independiente del reviewer; se entrega la ruta a cross."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-092-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md"
+      ]
     }
   ]
 }
