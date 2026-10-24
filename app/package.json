@@ -28,6 +28,7 @@
     "db:down": "docker compose down",
     "contracts:generate": "node scripts/generate-contract-types.mjs",
     "contracts:check": "node scripts/generate-contract-types.mjs --check",
+    "evidence:extract": "node scripts/extract-evidence.mjs",
     "lint:types": "oxlint --type-aware -A all -D typescript/no-floating-promises src/ test/"
   },
   "dependencies": {

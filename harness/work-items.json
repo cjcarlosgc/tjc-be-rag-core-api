@@ -5204,6 +5204,165 @@
           "report": "harness/reports/wi-core-091-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-092",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Runbook operativo de los pilotos (qualification, casos, experimento, evidencia, fallos y concurrencia) para quien ejecuta desde su maquina: documental, solo lectura",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-108"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-091"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/pilotos-runbook-operativo.md, paso a paso y verificado contra spec/008, el codigo, la Console y los composer.json de los forks, para quien conoce PHP pero no el SDD: prerrequisitos y bloqueo de acceso, qualification/smoke por piloto, creacion de casos y lanzamiento del experimento con verificacion del modelConfig, exportacion de evidencia y campos automaticos de la Tabla 70, fallos esperables y que no hacer, y concurrencia de dos personas.",
+        "Solo documental: sin cambios en app/, contratos, .env, tesis ni otros repos; cada afirmacion verificable cita su fuente; revision independiente del reviewer; se entrega la ruta a cross."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-092-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/pilotos-runbook-operativo.md",
+        "harness/reports/wi-core-092-technical-checks.md",
+        "harness/reports/wi-core-092-contract-sync-scope-review.md",
+        "harness/reports/wi-core-092-independent-review.md",
+        "harness/reports/wi-core-092-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-092 es un documento operativo de solo lectura.",
+          "report": "harness/reports/wi-core-092-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-092 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-092-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-093",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DONE",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Analisis de viabilidad de un extractor de evidencia de solo lectura (que se persiste hoy, que no, propuesta de WI): documental",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-109"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-092"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe harness/reports/extractor-evidencia-analisis.md con el inventario verificado (tabla/columna o archivo:linea) de que se persiste hoy y que NO para el test generado por repeticion, la salida completa de Composer/PHPUnit y logs, el modelConfig, el trace de 9 enlaces con chequeo inverso, los hashes SHA-256 y los campos automaticos de la Tabla 70, la viabilidad solo con SELECT y una propuesta de WI (alcance, ubicacion del script, conexion sin exponer secretos, formato del paquete, aprobaciones, relacion con el tag).",
+        "Solo analisis: sin extractor escrito, sin leer .env ni consultar la base real, sin cambios en app/, contratos ni otros repos; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-093-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/extractor-evidencia-analisis.md",
+        "harness/reports/wi-core-093-technical-checks.md",
+        "harness/reports/wi-core-093-contract-sync-scope-review.md",
+        "harness/reports/wi-core-093-independent-review.md",
+        "harness/reports/wi-core-093-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-093 es un analisis documental de solo lectura.",
+          "report": "harness/reports/wi-core-093-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-093 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-093-contract-sync-scope-review.md"
+        }
+      ]
+    },
+    {
+      "id": "WI-CORE-094",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Extractor de evidencia de solo lectura (app/scripts): paquete JSON/CSV con tests generados, evidencia del Sandbox, modelConfig, trace de 9 enlaces con chequeo inverso, hashes y campos de la Tabla 70",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-110",
+        "ST-CORE-111"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-093"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe app/scripts/extract-evidence.mjs (y modulos de apoyo) que, dado un AnalysisRun y/o ExperimentRun, escribe un paquete JSON/CSV con tests generados, sandboxEvidence, modelConfig, trace de 9 enlaces con chequeo inverso, verificacion de hashes sobre los bytes de la BD, campos de la Tabla 70 y un manifiesto con SHA-256 por archivo y lista de ausencias y truncados; solo SELECT dentro de BEGIN; SET TRANSACTION READ ONLY; Storage solo con download; no carga .env ni imprime credenciales; redaccion en copia aparte; PII anonimizada por defecto; --out obligatorio y fuera del repo; sin dependencias nuevas.",
+        "Pruebas con fixtures (sin tocar datos reales) que corren en CI y verifican READ ONLY, estructura y manifiesto del paquete, hashes, truncados, ausencias, redaccion, PII, rechazo de --out dentro del repo y migraciones ausentes; lint, tests y build verdes; sin cambios en app/src, contratos, esquemas ni migraciones; revision independiente del reviewer con foco en seguridad."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-094-scope.md",
+        "harness/reports/extractor-evidencia-analisis.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-094-technical-checks.md",
+        "harness/reports/wi-core-094-contract-sync-scope-review.md",
+        "app/scripts/extract-evidence.mjs",
+        "app/scripts/README.md",
+        "app/package.json",
+        "harness/reports/wi-core-094-independent-review.md",
+        "harness/reports/wi-core-094-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-094 anade un script de lectura fuera del producto.",
+          "report": "harness/reports/wi-core-094-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-094 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-094-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }
