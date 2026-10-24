@@ -4976,6 +4976,39 @@
           "report": "harness/reports/wi-core-086-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-087",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "FAST",
+      "status": "W-IN_PROGRESS",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Registrar el motivo del UNVERIFIABLE de las lecturas a GitHub Integration (GithubAccessHttpAdapter.lookup): codigo, estatus y duracion, sin cuerpos ni secretos",
+      "storyIds": [
+        "HU01",
+        "HU14"
+      ],
+      "taskIds": [
+        "ST-CORE-098"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-079"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Cada vez que una lectura a GitHub Integration termina en UNVERIFIABLE, GithubAccessHttpAdapter.lookup registra un WARN con el motivo (codigo y estatus del error del cliente o sin respuesta, error inesperado solo por nombre, respuesta UNVERIFIABLE de Integration frente a forma no reconocida, NOT_FOUND/NOT_INSTALLED tratado como UNVERIFIABLE) y la duracion en ms, sin cambiar el resultado devuelto.",
+        "Ninguna linea registrada contiene cuerpos, cabeceras, token, ids ni mensajes de error crudos (con pruebas); sin cambios en el cliente, el resolver, contratos, DTO, rutas ni timeouts; lint, tests y build en verde; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-087-scope.md",
+        "app/src/github-app/github-access-http.adapter.ts",
+        "app/src/github-app/github-access-http.adapter.spec.ts",
+        "spec/features/014-organizations-access/tasks.md"
+      ]
     }
   ]
 }
