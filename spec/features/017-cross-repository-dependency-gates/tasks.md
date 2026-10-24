@@ -9,4 +9,4 @@
 - [x] **ST-CORE-088 · T-DONE · WI-CORE-081 · HU15, HU17:** corregir el filtro de vitest del job de specs con PostgreSQL en la CI (`No test files found`); configuración de CI sin cambio de código.
 - [x] **ST-CORE-089 · T-DONE · WI-CORE-082 · HU15, HU17:** proponer las aserciones de CT-01…CT-10 por contrato C-01…C-10 (solo lectura; el usuario aprueba, modifica o descarta); sin pruebas nuevas.
 - [x] **ST-CORE-090 · T-DONE · WI-CORE-083 · HU15, HU17:** registrar en la propuesta CT las decisiones D-2, D-9 y D-11 y los pilotos oficiales (solo texto en `harness/reports`; tesis y Full Paper sin modificar).
-- [ ] **ST-CORE-092 · T-IN_PROGRESS · WI-CORE-085 · HU15, HU17:** análisis de impacto (solo lectura) de la decisión de pilotos y evidencia: esquema CT-01 y versión INTEROP, smoke por piloto, oráculo, Console y Sandbox.
+- [x] **ST-CORE-092 · T-DONE · WI-CORE-085 · HU15, HU17:** análisis de impacto (solo lectura) de la decisión de pilotos y evidencia: esquema CT-01 y versión INTEROP, smoke por piloto, oráculo, Console y Sandbox.
