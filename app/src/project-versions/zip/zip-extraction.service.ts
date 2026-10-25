@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { Injectable, Logger } from '@nestjs/common';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
+import { removeWorkspaceDir } from '../../common/remove-workspace-dir.util.js';
 import { listSafeZipEntries } from './zip-entries.util.js';
 
 export interface ExtractedWorkspace {
@@ -11,6 +12,8 @@ export interface ExtractedWorkspace {
 
 @Injectable()
 export class ZipExtractionService {
+  private readonly logger = new Logger(ZipExtractionService.name);
+
   async extract(buffer: Buffer): Promise<ExtractedWorkspace> {
     const dir = await mkdtemp(join(tmpdir(), 'rag-core-'));
 
@@ -34,10 +37,10 @@ export class ZipExtractionService {
 
       return {
         dir,
-        cleanup: () => rm(dir, { recursive: true, force: true }),
+        cleanup: () => removeWorkspaceDir(dir, this.logger),
       };
     } catch (error) {
-      await rm(dir, { recursive: true, force: true });
+      await removeWorkspaceDir(dir, this.logger);
       throw error;
     }
   }

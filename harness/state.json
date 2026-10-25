@@ -25477,6 +25477,212 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-10-25T20:18:45.000Z"
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "sprint": "P2",
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "id": "WI-CORE-101",
+      "status": "W-DONE",
+      "title": "Materializacion del snapshot sin enmascarar errores y limpieza del workspace best-effort: esperar a los escritores del lote, conservar el error original y que la limpieza no lance (sin contrato)",
+      "approved": true,
+      "storyIds": [
+        "HU14",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-123"
+      ],
+      "caseIds": [],
+      "specPaths": [
+        "harness/reports/wi-core-101-scope.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-101-technical-checks.md",
+        "harness/reports/wi-core-101-contract-sync-scope-review.md",
+        "harness/reports/wi-core-101-independent-review.md",
+        "harness/reports/wi-core-101-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-101 cambia la limpieza del workspace temporal, no el binding.",
+          "report": "harness/reports/wi-core-101-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-101 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-101-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-25T21:04:00.000Z",
+        "note": "Opcion A aprobada por el usuario en el chat de Core (2026-10-25); sin cambio de contrato; sin decisiones PENDING que bloqueen."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "leader",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "materialize espera a todos los escritores del lote (allSettled) y relanza el error original; limpieza best-effort con removeWorkspaceDir (reintentos, nunca lanza) en materialize, ZipExtractionService y cleanup; 9 pruebas nuevas; 5 mutaciones detectadas; lint, build y 3147 tests en verde."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/common/remove-workspace-dir.util.ts",
+              "app/src/snapshot-intelligence/github-snapshot-materializer.service.ts",
+              "app/src/project-versions/zip/zip-extraction.service.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-101-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 de 2: APPROVED sin hallazgos HIGH ni MEDIUM; el nucleo (allSettled, error original, limpieza no lanzante) verificado; volver a Promise.all falla 5 de 5; 2 LOW aplicados por el leader en el cierre (pruebas del primer rechazo y del zip; maxRetries a 2)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-101-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 0,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-101",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-25T21:04:00.858Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-101",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-25T21:09:54.459Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-101",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-25T21:09:54.561Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-101",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-25T21:15:57.252Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-101-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-101-scope.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-101-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-101-technical-checks.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-101-contract-sync-scope-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-101-independent-review.md",
+          "harness/reports/wi-core-101-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-101-closure.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-101-scope.md",
+        "harness/reports/wi-core-101-technical-checks.md",
+        "harness/reports/wi-core-101-contract-sync-scope-review.md",
+        "harness/reports/wi-core-101-independent-review.md",
+        "harness/reports/wi-core-101-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-25T21:15:59.000Z"
     }
   ],
   "activeWorkItem": null
