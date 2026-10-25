@@ -341,7 +341,7 @@ export class ExperimentsService {
       if (error instanceof LLMConfigurationError && error.code === 'TEMPERATURE_UNSUPPORTED_WITH_REASONING') {
         throw new AppException(
           ErrorCode.REASONING_EFFORT_UNSUPPORTED,
-          `La temperatura configurada es incompatible con el razonamiento activo del modelo "${error.model}". Use esfuerzo "none" o quite la temperatura.`,
+          `La temperatura configurada no es compatible con el esfuerzo de inferencia solicitado para el modelo "${error.model}". Use esfuerzo "none" o quite la temperatura.`,
           HttpStatus.UNPROCESSABLE_ENTITY,
           {
             model: error.model,

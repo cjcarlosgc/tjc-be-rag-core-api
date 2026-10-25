@@ -19,6 +19,7 @@ import {
   type PromptBuilder,
 } from './prompt-builder.service.js';
 import type { TestFileMergeService } from './test-file-merge.service.js';
+import { assessContextSufficiency } from './context-sufficiency.js';
 
 /**
  * Pasos comunes del pipeline de generación (WI-CORE-070, corte B) que usan `ExperimentJobHandler`
@@ -49,6 +50,12 @@ export interface AcquireGenerationContextInput {
    * pasa `{}`: la diferencia se conserva en el caller.
    */
   contextOptions: ContextBuilderOptions;
+  /**
+   * WI-CORE-098 (D-5): si se pasa, se aplica la compuerta de contexto suficiente tras construir el contexto
+   * y se lanza `InsufficientGenerationContextError` sin devolver `GenerationContext`. Sin este parámetro el
+   * comportamiento es el de siempre. Solo lo usan validación y el pre-chequeo de experimentos.
+   */
+  sufficiency?: { requiredScenarioKeys: readonly string[] };
 }
 
 /**
@@ -84,6 +91,16 @@ export async function acquireGenerationContext(
     functionalRules,
     dependencyContext,
   );
+  if (input.sufficiency) {
+    const insufficiency = assessContextSufficiency({
+      generationContext,
+      retrievedRuleScenarioKeys: functionalRules.map((rule) => rule.scenarioKey),
+      requiredScenarioKeys: input.sufficiency.requiredScenarioKeys,
+    });
+    if (insufficiency) {
+      throw insufficiency;
+    }
+  }
   return { retrieval, generationContext };
 }
 

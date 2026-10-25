@@ -22,3 +22,4 @@ No se modifica almacenamiento persistido antes de inventario y revisión contrac
 - [x] **ST-CORE-085 · T-DONE · WI-CORE-078 · HU11, HU17:** endurecer la validación de entorno (escapar valores en los mensajes, topes de `SANDBOX_MAX_POLL_ATTEMPTS` y `SANDBOX_REQUEST_TIMEOUT_MS`, evaluar O3); requiere aprobación de alcance del usuario.
 - [x] **ST-CORE-086 · T-DONE · WI-CORE-079 · HU15, HU17:** errata E-01 de `ExperimentResultsResponse` (documenta `targetId`) dentro de la ronda única de contratos INTEROP-2.20 / GH-INTEROP-1.9 / SYSTEM-2.15; alcance aprobado por el usuario el 2026-10-24.
 - [x] **ST-CORE-091 · T-DONE · WI-CORE-084 · HU17:** despersonalizar los pilotos en el SDD (la sección de pilotos antiguos de `spec/008` pasa a protocolo genérico; las identidades viven fuera del SDD); solo texto.
+- [x] **ST-CORE-116 · T-DONE · WI-CORE-098 · HU10, HU17:** texto neutral del 422 de temperature en `experiments.service.ts` (F2 de ESC-MOD-01); mismo código de error.

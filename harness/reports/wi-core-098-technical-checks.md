@@ -1,0 +1,8 @@
+# WI-CORE-098 — verificaciones técnicas
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Verificado por el leader sobre el árbol de trabajo tras la implementación (desde `app/`, `corepack pnpm@12.14.0`): `lint` exit 0; `build` exit 0; `test` completo: 174 ficheros pasan y 7 omitidos, 3007 tests pasan y 104 omitidos, 0 fallos (base antes del WI: 2981 pasan y 104 omitidos; +26 pruebas nuevas del WI). Desde la raíz: `node scripts/sdd-check.mjs`, `node harness/validate-work-items.mjs`, `node harness/validate-harness.mjs` y `node harness/validate-completions.mjs` en verde.
+
+- **Implementación:** `implementer-high` (escalada decidida por el leader por tocar el pipeline compartido y dos handlers con requisito de paridad entre brazos). El modelo servido fue `claude-haiku-5-5`, no el del perfil: declarado; la revisión independiente la hace otro agente.
+- **Desviación del diseño y decisión del leader:** además de las 3 aserciones de conteo anunciadas en el diseño, fallaban 2 pruebas existentes de `experiment-job.handler.spec.ts` por el mismo motivo (el pre-chequeo único añade +1 llamada por experimento): `persists contract-shaped empty details before workspace extraction fails` (`retrieve` pasa de «no se llama» a «una llamada, la del pre-chequeo») y `calls the dependency service after retrieval…` (3→4 llamadas a `resolve` y a `build` con dependencias). Se ajustaron esas expectativas (cambio del leader solo en pruebas, 3 aserciones); se descartó condicionar el pre-chequeo a `analysisRunId` para no modificar comportamiento de producción por conveniencia de las pruebas.
+- Sin cambio de ruta, DTO, enum, `ErrorCode`, evento, esquema, variable de entorno ni migración; `ContextBuilder` y `spec/contracts/` intactos.
