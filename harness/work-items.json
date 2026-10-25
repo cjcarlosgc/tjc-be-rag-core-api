@@ -5415,6 +5415,38 @@
           "report": "harness/reports/wi-core-095-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-096",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-PLANNED",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Indexacion por lotes con memoria acotada: embeber e insertar por lotes, ProjectVersion creada antes y politica de fallo parcial, sin cambio de contrato",
+      "storyIds": [
+        "HU03"
+      ],
+      "taskIds": [
+        "ST-CORE-113"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-095"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "El handler snapshot-analysis embebe e inserta por lotes (embedMany nunca recibe mas que un lote y los vectores de un lote no sobreviven al siguiente), crea la ProjectVersion antes de embeber y deja las mismas filas de code_chunks que la implementacion anterior; detectSymbols y los testTargets usan solo metadatos.",
+        "Un fallo del embedding, de una insercion o posterior marca la ProjectVersion FAILED con motivo, borra sus chunks parciales y mantiene el camino de fallo del Run (INFRASTRUCTURE_FAILURE y Check); sin version huerfana no terminal; sin cambio de rutas, DTO, enums, errores ni esquemas; sin variable de entorno nueva.",
+        "Evidencia de pico de memoria con parser real y proveedor sintetico (money 709 chunks, referencia de 3000-5000 y orm 11152) bajo --max-old-space-size=256 que muestra el pico por lotes frente al actual y el techo esperado en free 512 MB; lint, build y test en verde; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-096-scope.md",
+        "spec/features/002-project-version-indexing/tasks.md"
+      ],
+      "contractSyncReview": []
     }
   ]
 }
