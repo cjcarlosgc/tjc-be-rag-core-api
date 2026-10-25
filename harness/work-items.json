@@ -5669,6 +5669,58 @@
           "report": "harness/reports/wi-core-100-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-101",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Materializacion del snapshot sin enmascarar errores y limpieza del workspace best-effort: esperar a los escritores del lote, conservar el error original y que la limpieza no lance (sin contrato)",
+      "storyIds": [
+        "HU14",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-123"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-100"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Cuando una descarga del lote falla con escritores hermanos aun activos, materialize relanza el error original (no ENOTEMPTY), espera a todas las escrituras del lote antes de limpiar y deja el directorio eliminado sin escrituras tardias.",
+        "La limpieza del workspace (materialize, ZipExtractionService y cleanup de los handlers) es best-effort: usa rm recursivo con force y reintentos, nunca lanza ni enmascara el error original y registra un aviso sin rutas ni contenido si falla.",
+        "Sin cambio de ruta, DTO, enum, ErrorCode, evento, esquema, variable de entorno ni migracion; lint, build y test en verde; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-101-scope.md",
+        "spec/features/013-pr-driven-analysis/tasks.md",
+        "harness/reports/wi-core-101-technical-checks.md",
+        "harness/reports/wi-core-101-contract-sync-scope-review.md",
+        "harness/reports/wi-core-101-independent-review.md",
+        "harness/reports/wi-core-101-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-101 cambia la limpieza del workspace temporal, no el binding.",
+          "report": "harness/reports/wi-core-101-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-101 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-101-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

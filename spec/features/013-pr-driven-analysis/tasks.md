@@ -18,3 +18,4 @@
 
 El trabajo histórico de esta feature está en `CHANGELOG.md`, `harness/reports/` y Git. Su antigua numeración de HU no se reutiliza como evidencia de aceptación de las 18 HU vigentes.
 - [x] **ST-CORE-081 · T-DONE · WI-CORE-074 · HU12:** WI-D en cola: tiempo real de AnalysisRun y experimento por suscripción explícita (INTEROP §6.6), CORS compartido y decisión de autenticación del socket.
+- [x] **ST-CORE-123 · T-DONE · WI-CORE-101 · HU14, HU15:** materialización del snapshot sin enmascarar errores y limpieza del workspace best-effort (sin contrato); alcance en `harness/reports/wi-core-101-scope.md`.

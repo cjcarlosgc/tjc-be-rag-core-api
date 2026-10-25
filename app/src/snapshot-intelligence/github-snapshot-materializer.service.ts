@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { Injectable, Logger } from '@nestjs/common';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { removeWorkspaceDir } from '../common/remove-workspace-dir.util.js';
 import { GithubRepositoryContentService } from '../github-app/github-repository-content.service.js';
 import { isComposerManifest, isIgnoredPath, isPhpPoolFile, isTypeScriptPoolFile } from '../project-versions/indexing.constants.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
@@ -17,6 +18,8 @@ const CONTENT_FETCH_CONCURRENCY = 8;
  */
 @Injectable()
 export class GithubSnapshotMaterializerService {
+  private readonly logger = new Logger(GithubSnapshotMaterializerService.name);
+
   constructor(
     private readonly githubRepositoryContentService: GithubRepositoryContentService,
   ) {}
@@ -47,10 +50,12 @@ export class GithubSnapshotMaterializerService {
 
       return {
         dir,
-        cleanup: () => rm(dir, { recursive: true, force: true }),
+        cleanup: () => removeWorkspaceDir(dir, this.logger),
       };
     } catch (error) {
-      await rm(dir, { recursive: true, force: true });
+      // La limpieza no lanza y se hace tras esperar a los escritores del lote,
+      // de modo que el error original nunca queda enmascarado por ella.
+      await removeWorkspaceDir(dir, this.logger);
       throw error;
     }
   }
@@ -64,7 +69,10 @@ export class GithubSnapshotMaterializerService {
   ): Promise<void> {
     for (let i = 0; i < paths.length; i += CONTENT_FETCH_CONCURRENCY) {
       const batch = paths.slice(i, i + CONTENT_FETCH_CONCURRENCY);
-      await Promise.all(
+      // `allSettled` espera a TODAS las escrituras del lote antes de limpiar:
+      // con `Promise.all` el rechazo inmediato dejaba escritores activos
+      // compitiendo con el `rm` (ENOTEMPTY que reemplazaba al error original).
+      const results = await Promise.allSettled(
         batch.map(async (path) => {
           const content = await this.githubRepositoryContentService.getFileContent(
             installationId,
@@ -77,6 +85,12 @@ export class GithubSnapshotMaterializerService {
           await writeFile(targetPath, content, 'utf8');
         }),
       );
+      const rejected = results.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (rejected) {
+        throw rejected.reason;
+      }
     }
   }
 }
