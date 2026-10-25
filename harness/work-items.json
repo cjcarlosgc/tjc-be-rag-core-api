@@ -5453,7 +5453,7 @@
       "component": "CORE",
       "workItemType": "HARNESS",
       "lane": "FAST",
-      "status": "W-DECISION_REQUIRED",
+      "status": "W-DONE",
       "priority": "P2",
       "sprint": "P2",
       "title": "Aislamiento por Project y purga de datos para los Projects de calificacion prepiloto-*: informe de solo lectura con citas, DEC-VAL-001 y riesgo de gobierno de datos",
@@ -5482,7 +5482,8 @@
         "harness/reports/wi-core-097-technical-checks.md",
         "harness/reports/wi-core-097-contract-sync-scope-review.md",
         "harness/reports/wi-core-097-independent-review.md",
-        "harness/reports/wi-core-097-independent-review-cycle-2.md"
+        "harness/reports/wi-core-097-independent-review-cycle-2.md",
+        "harness/reports/wi-core-097-closure.md"
       ],
       "contractSyncReview": [
         {
