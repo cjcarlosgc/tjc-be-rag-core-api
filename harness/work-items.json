@@ -5612,6 +5612,63 @@
           "report": "harness/reports/wi-core-099-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-100",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Verificacion OE3 de Core: suite de los casos C1-C6 y campos de auditoria de FK, prueba pg del indice unico parcial de reglas ACTIVE y protocolo de verificacion viva: solo pruebas y documentos",
+      "storyIds": [
+        "HU07",
+        "HU08",
+        "HU09",
+        "HU15"
+      ],
+      "taskIds": [
+        "ST-CORE-120",
+        "ST-CORE-121",
+        "ST-CORE-122"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-099"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Una suite oe3-c1-c6.spec.ts nombra y prueba cada caso C1-C6 de la Tabla 62 y los campos de auditoria de la Tabla 63 con el comportamiento real de Core, y falla si se rompe la logica cubierta.",
+        "Una prueba pg oe3-active-index.pg.spec.ts (CT_TEST_DATABASE_URL, solo localhost, limpia solo sus filas) demuestra contra Postgres real el indice unico parcial de reglas ACTIVE, la atomicidad de supersede y la coexistencia por clave; pasa contra un Postgres local descartable y en el job de CI.",
+        "El protocolo oe3-protocolo-verificacion.md describe la ejecucion viva de C1-C6, el calculo de IOE3.1/IOE3.2 y ConcordanciaFK sin afirmar resultados no ejecutados; sin cambio de codigo de produccion, contrato, DTO, enum, ErrorCode ni migracion; lint, build y test en verde; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-100-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-100-technical-checks.md",
+        "harness/reports/wi-core-100-contract-sync-scope-review.md",
+        "harness/reports/oe3-protocolo-verificacion.md",
+        "harness/reports/wi-core-100-independent-review.md",
+        "harness/reports/wi-core-100-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-100 solo agrega pruebas y un protocolo.",
+          "report": "harness/reports/wi-core-100-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-100 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-100-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

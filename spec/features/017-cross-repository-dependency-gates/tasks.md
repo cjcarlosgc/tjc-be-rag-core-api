@@ -26,3 +26,6 @@
 - [x] **ST-CORE-117 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-01…CT-03 de Core (grupo A de `harness/reports/wi-core-099-scope.md`).
 - [x] **ST-CORE-118 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-04…CT-07 de Core (grupo B).
 - [x] **ST-CORE-119 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-10, declaraciones aprobadas y mapa de evidencia CT (grupo C).
+- [x] **ST-CORE-120 · T-DONE · WI-CORE-100 · HU07, HU08, HU09, HU15:** suite OE3 de los casos C1–C6 y campos de auditoría de FK de Core (`app/src/ct/oe3-c1-c6.spec.ts`).
+- [x] **ST-CORE-121 · T-DONE · WI-CORE-100 · HU09, HU15:** prueba pg del índice único parcial de reglas ACTIVE (`app/src/ct/oe3-active-index.pg.spec.ts`).
+- [x] **ST-CORE-122 · T-DONE · WI-CORE-100 · HU07, HU08, HU15:** protocolo de verificación viva de OE3 (`harness/reports/oe3-protocolo-verificacion.md`).
