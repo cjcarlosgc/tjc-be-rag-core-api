@@ -5557,6 +5557,61 @@
           "report": "harness/reports/wi-core-098-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-099",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Aserciones CT-01..CT-10 de Core que faltan por probar (~25), declaraciones G-02/G-04/G-05(b)/G-06/G-07/G-08/G-09 y mapa de evidencia para el tag arch-v1.0: solo pruebas y documentos",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-117",
+        "ST-CORE-118",
+        "ST-CORE-119"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-098"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Las aserciones CT listadas en wi-core-099-scope.md tienen pruebas nuevas en app/src/ct (con titulos CT-NN-Ax) que pasan y fallan si se rompe la logica cubierta; las *.pg se activan por CT_TEST_DATABASE_URL (solo localhost), pasan contra un Postgres local descartable con migraciones y quedan configuradas en el job de CI de pgvector.",
+        "arch-v1.0-aserciones-ct-propuesta.md recoge las declaraciones aprobadas (G-02, G-04, G-05(b), G-06, G-07, G-08, G-09(1), CT-05-A5 V1) y arch-v1.0-ct-evidencia-mapa.md mapea las 52 aserciones a estado, prueba real y comando de evidencia.",
+        "Sin cambio de codigo de produccion, contrato, DTO, enum, ErrorCode, variable de entorno ni migracion; lint, build y test en verde; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-099-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-099-technical-checks.md",
+        "harness/reports/wi-core-099-contract-sync-scope-review.md",
+        "harness/reports/arch-v1.0-ct-evidencia-mapa.md",
+        "harness/reports/wi-core-099-independent-review.md",
+        "harness/reports/wi-core-099-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-099 solo agrega pruebas y documentos.",
+          "report": "harness/reports/wi-core-099-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-099 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-099-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

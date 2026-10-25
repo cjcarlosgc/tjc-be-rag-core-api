@@ -1,0 +1,10 @@
+# WI-CORE-099 — cierre
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Resultado: pruebas CT de Core que faltaban (CT-01 a CT-07 y CT-10, 11 ficheros en `app/src/ct/`, 82 tests nuevos: 75 sin pg y 7 con pg), declaraciones aprobadas D-15 a D-23, mapa de evidencia de las 52 aserciones (`arch-v1.0-ct-evidencia-mapa.md`: 37 cubiertas, 5 con Postgres, 4 declaradas, 3 manuales, 2 externas, 1 posterior) y la variable `CT_TEST_DATABASE_URL` en el job `postgres` de CI. Solo pruebas y documentos: sin cambio de código de producción, contrato, DTO, enum, `ErrorCode`, variable de entorno de producto ni migración.
+
+- **Verificación (leader):** lint exit 0, build exit 0, `tsc` sin errores en `src/ct/`, `test` completo 3089 pasan y 111 omitidos con 0 fallos, pruebas pg 111 pasan contra Postgres local descartable (4 ejecuciones), validadores del Harness en verde.
+- **Revisión independiente (`reviewer`):** APPROVED en el ciclo 1 de 2, sin hallazgos HIGH. Hizo 18 mutaciones de producción propias (todas detectadas) y comprobó que las pruebas pg no dejan filas (31 tablas idénticas antes y después). Hallazgos aplicados en el cierre: 1 MEDIUM (nota en CT-07-A4: la mitad del Sandbox es de su repo) y 6 LOW (alcance de CT-04-A5 sin RLS, estado vigente de la propuesta y párrafo de D-5 actualizado, procedencia de D-9/D-11 declarada, interpretaciones de CT-06-A3/A4 llevadas a la propuesta, límite del test de arquitectura anotado en el mapa, exports sin uso quitados).
+- **Declarado y no cubierto:** CT-02-A2 (forma estricta NO CUMPLE; D-19), CT-04-A2, CT-10-A4 y CT-10-A5 (reformuladas o con lista permitida); CT-08-A2/A4/A6 manuales tras los Runs oficiales; CT-01-A5 y CT-07-A5 con su mitad en Integration y Sandbox; CT-09-A5 sobre `feature/esc-mod-01` tras el tag. No verificado: la corrida real del job `postgres` en GitHub Actions.
+- `retryLimitRespected`: 0 ciclos de corrección de 2 permitidos.
+- **Publicación:** commit local; saldrá a `develop` con el lote de WI-CORE-100 bajo la autorización permanente.

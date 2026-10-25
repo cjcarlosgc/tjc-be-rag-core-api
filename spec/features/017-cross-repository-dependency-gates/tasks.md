@@ -23,3 +23,6 @@
 - [x] **ST-CORE-111 · T-DONE · WI-CORE-094 · HU15, HU17:** pruebas con fixtures del extractor (READ ONLY, estructura y manifiesto, hashes, truncados, ausencias, redacción en copia aparte, PII por defecto, rechazo de `--out` en el repo, migraciones ausentes) que corren en CI.
 - [x] **ST-CORE-112 · T-DONE · WI-CORE-095 · HU15, HU17:** runbook operativo de los pilotos v2 con la imagen PHP ampliada del Sandbox, el resultado del smoke, Vouchers en revisión y el aviso de despertar Integration y Core; documental; pedido por cross.
 - [x] **ST-CORE-114 · T-DONE · WI-CORE-097 · HU15, HU17:** informe de aislamiento por Project y purga de datos para los Projects de calificación `prepiloto-*` (`harness/reports/wi-core-097-aislamiento-y-purga-projects.md`): verificación de solo lectura con citas, `DEC-VAL-001` y riesgo de gobierno de datos; sin cambios de producto.
+- [x] **ST-CORE-117 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-01…CT-03 de Core (grupo A de `harness/reports/wi-core-099-scope.md`).
+- [x] **ST-CORE-118 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-04…CT-07 de Core (grupo B).
+- [x] **ST-CORE-119 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-10, declaraciones aprobadas y mapa de evidencia CT (grupo C).
