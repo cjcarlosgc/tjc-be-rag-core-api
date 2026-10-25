@@ -5447,6 +5447,59 @@
         "spec/features/002-project-version-indexing/tasks.md"
       ],
       "contractSyncReview": []
+    },
+    {
+      "id": "WI-CORE-097",
+      "component": "CORE",
+      "workItemType": "HARNESS",
+      "lane": "FAST",
+      "status": "W-DECISION_REQUIRED",
+      "priority": "P2",
+      "sprint": "P2",
+      "title": "Aislamiento por Project y purga de datos para los Projects de calificacion prepiloto-*: informe de solo lectura con citas, DEC-VAL-001 y riesgo de gobierno de datos",
+      "storyIds": [
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-114"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-095"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "El informe demuestra con citas de codigo/spec que chunks, embeddings (vector search), test targets, Functional Knowledge y experimentos estan acotados por projectVersionId/projectId, rotula lo verificado, lo inferido y lo no verificado, y senala los matices (ancla del vector search, binding unico por repositorio).",
+        "El informe describe lo que existe para borrar un Project (borrado logico HU56, sin purga fisica ni borrado de Storage), el orden de borrado por FK y las claves de Storage, propone sin ejecutar el cierre de la calificacion y un script de purga sujeto a aprobacion, y registra el riesgo de gobierno de datos y la decision PENDING DEC-VAL-001 sin darla por cerrada.",
+        "Solo documental: sin cambios en app/, contratos, BD ni Storage; revision independiente del reviewer; se entrega la ruta a cross."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-097-scope.md",
+        "harness/reports/wi-core-097-aislamiento-y-purga-projects.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-097-technical-checks.md",
+        "harness/reports/wi-core-097-contract-sync-scope-review.md",
+        "harness/reports/wi-core-097-independent-review.md",
+        "harness/reports/wi-core-097-independent-review-cycle-2.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-097 es un informe de solo lectura que describe el borrado logico existente y no lo cambia.",
+          "report": "harness/reports/wi-core-097-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-097 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-097-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

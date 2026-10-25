@@ -24485,5 +24485,217 @@
       "closedAt": "2026-10-24T19:32:04.000Z"
     }
   ],
-  "activeWorkItem": null
+  "activeWorkItem": {
+    "component": "CORE",
+    "workItemType": "HARNESS",
+    "sprint": "P2",
+    "transversalPaths": [],
+    "deferredSyncIds": [],
+    "deferredSyncDigests": {},
+    "contractSyncReview": [
+      {
+        "eventId": "CS-20260920-001",
+        "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-097 es un informe de solo lectura que describe el borrado logico existente y no lo cambia.",
+        "report": "harness/reports/wi-core-097-contract-sync-scope-review.md"
+      },
+      {
+        "eventId": "CS-20260921-003",
+        "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+        "disposition": "NOT_RELEVANT",
+        "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-097 no cambia auth ni despliegue.",
+        "report": "harness/reports/wi-core-097-contract-sync-scope-review.md"
+      }
+    ],
+    "id": "WI-CORE-097",
+    "status": "W-DECISION_REQUIRED",
+    "title": "Aislamiento por Project y purga de datos para los Projects de calificacion prepiloto-*: informe de solo lectura con citas, DEC-VAL-001 y riesgo de gobierno de datos",
+    "approved": true,
+    "storyIds": [
+      "HU15",
+      "HU17"
+    ],
+    "taskIds": [
+      "ST-CORE-114"
+    ],
+    "caseIds": [],
+    "specPaths": [
+      "harness/reports/wi-core-097-scope.md",
+      "harness/reports/wi-core-097-aislamiento-y-purga-projects.md",
+      "spec/features/017-cross-repository-dependency-gates/tasks.md",
+      "harness/reports/wi-core-097-technical-checks.md",
+      "harness/reports/wi-core-097-contract-sync-scope-review.md",
+      "harness/reports/wi-core-097-independent-review.md",
+      "harness/reports/wi-core-097-independent-review-cycle-2.md"
+    ],
+    "decisionGate": {
+      "checked": true,
+      "blockingDecisionIds": [],
+      "nonBlockingDecisionIds": [
+        "DEC-VAL-001"
+      ],
+      "checkedAt": "2026-10-25T05:34:23.000Z",
+      "note": "Informe de solo lectura; DEC-VAL-001 (PENDING, Blocks ingestion de codigo empresarial) se reporta y no se cierra; no bloquea este informe."
+    },
+    "execution": {
+      "leaderAgent": "leader",
+      "analysisAgent": "leader",
+      "implementationAgent": "leader",
+      "contractReviewAgent": null,
+      "reviewAgent": "reviewer",
+      "handoffs": [
+        {
+          "agent": "leader",
+          "status": "APPROVED",
+          "findings": [
+            "Informe de solo lectura hecho por el leader (sin cambio de producto): aislamiento por projectVersionId/projectId verificado por lectura de codigo, borrado logico existente sin purga fisica ni borrado de Storage, DEC-VAL-001 PENDING reportada sin cerrarla y riesgo de gobierno de datos registrado."
+          ],
+          "blockers": [],
+          "filesAffected": [
+            "harness/reports/wi-core-097-aislamiento-y-purga-projects.md"
+          ],
+          "evidence": [
+            "harness/reports/wi-core-097-aislamiento-y-purga-projects.md",
+            "harness/reports/wi-core-097-technical-checks.md"
+          ],
+          "recommendedNextStep": "Revision independiente del reviewer contra el codigo.",
+          "executedBy": {
+            "agent": "leader",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "unknown",
+            "effort": "medium"
+          }
+        },
+        {
+          "agent": "reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "Ciclo 1 de 2: CHANGES_REQUESTED. H1 (lista de datos con texto de codigo en BD), H2 (DEC-INF-001/002 limitan el Sandbox y la VM a demostracion/piloto) y H3 (orden de borrado: tablas sin FK, FK SET NULL, cascadas de ContextTrace, Artifact heredada) MEDIUM; H4-H9 LOW (rotulos, citas desfasadas, adaptador remove, alcance del borrado logico). El leader los aplico al informe."
+          ],
+          "blockers": [],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-097-independent-review.md"
+          ],
+          "recommendedNextStep": "Ciclo 2: releer las secciones modificadas.",
+          "executedBy": {
+            "agent": "reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "claude-sonnet-5-5",
+            "effort": "medium"
+          }
+        },
+        {
+          "agent": "reviewer",
+          "status": "CHANGES_REQUESTED",
+          "findings": [
+            "Ciclo 2 de 2: CHANGES_REQUESTED menor, sin riesgo de fondo: N1 (MEDIUM: generation es solo metadatos y trajectory solo puede contener fragmentos, no verificado), N2 (LOW: rotulo de no verificado del orden de borrado) y N3 (LOW: cita de findById :94-96). El revisor indica que con ellas aplicadas daria APPROVED sin otro ciclo. El leader las aplico y verifico; al agotarse el maximo de 2 ciclos el cierre queda pendiente de la aceptacion del usuario, sin inventar aprobacion."
+          ],
+          "blockers": [
+            "Maximo de 2 ciclos de revision agotado sin APPROVED formal: el cierre requiere que el usuario acepte las 3 correcciones menores aplicadas o autorice otro ciclo."
+          ],
+          "filesAffected": [],
+          "evidence": [
+            "harness/reports/wi-core-097-independent-review-cycle-2.md"
+          ],
+          "recommendedNextStep": "El usuario decide: aceptar el cierre con las correcciones aplicadas o autorizar un tercer ciclo.",
+          "executedBy": {
+            "agent": "reviewer",
+            "configuredModel": "claude-sonnet-5-5",
+            "servedModel": "claude-sonnet-5-5",
+            "effort": "medium"
+          }
+        }
+      ],
+      "reviewCycles": 2,
+      "maxReviewCycles": 2
+    },
+    "gates": {
+      "sddVerified": "G-PASSED",
+      "implementationCompleted": "G-PASSED",
+      "independentReviewPassed": "G-NOT_RUN",
+      "technicalChecksPassed": "G-PASSED",
+      "contractReviewed": "G-NOT_APPLICABLE",
+      "canonicalContractSynced": "G-NOT_APPLICABLE",
+      "contractSyncPublished": "G-NOT_APPLICABLE",
+      "interopSyncChecked": "G-PASSED",
+      "noBlockingDecisions": "G-PASSED",
+      "retryLimitRespected": "G-NOT_RUN"
+    },
+    "coordination": {
+      "contractImpact": false,
+      "publishesContract": false,
+      "pullCheckpoints": [
+        {
+          "checkpoint": "start",
+          "workItem": "WI-CORE-097",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [],
+          "checkedAt": "2026-10-25T05:34:23.578Z"
+        },
+        {
+          "checkpoint": "implementation-delivery",
+          "workItem": "WI-CORE-097",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-25T05:34:37.003Z"
+        },
+        {
+          "checkpoint": "before-review",
+          "workItem": "WI-CORE-097",
+          "relevantPendingSyncIds": [],
+          "acknowledgedSyncIds": [],
+          "resolvedSyncIds": [],
+          "deferredSyncIds": [],
+          "notRelevantSyncIds": [
+            "CS-20260920-001",
+            "CS-20260921-003"
+          ],
+          "checkedAt": "2026-10-25T05:34:37.109Z"
+        }
+      ],
+      "publishedSyncIds": [],
+      "pendingRelevantSyncIds": []
+    },
+    "gateEvidence": {
+      "sddVerified": [
+        "harness/reports/wi-core-097-scope.md"
+      ],
+      "noBlockingDecisions": [
+        "harness/reports/wi-core-097-scope.md"
+      ],
+      "implementationCompleted": [
+        "harness/reports/wi-core-097-technical-checks.md"
+      ],
+      "technicalChecksPassed": [
+        "harness/reports/wi-core-097-technical-checks.md"
+      ],
+      "interopSyncChecked": [
+        "harness/reports/wi-core-097-contract-sync-scope-review.md"
+      ],
+      "independentReviewPassed": [
+        "harness/reports/wi-core-097-independent-review.md",
+        "harness/reports/wi-core-097-independent-review-cycle-2.md"
+      ]
+    },
+    "evidence": [
+      "harness/reports/wi-core-097-scope.md",
+      "harness/reports/wi-core-097-aislamiento-y-purga-projects.md",
+      "harness/reports/wi-core-097-technical-checks.md",
+      "harness/reports/wi-core-097-contract-sync-scope-review.md",
+      "harness/reports/wi-core-097-independent-review.md",
+      "harness/reports/wi-core-097-independent-review-cycle-2.md"
+    ],
+    "blockedReason": "Ciclos de revision agotados (2 de 2): el reviewer pidio 3 correcciones menores (N1 MEDIUM, N2 y N3 LOW), el leader las aplico y verifico, pero no hay APPROVED formal; el cierre queda pendiente de la aceptacion del usuario."
+  }
 }

@@ -1,0 +1,45 @@
+# WI-CORE-097 — revisión independiente
+Modelo: reviewer · configurado claude-sonnet-5-5 · atendido claude-sonnet-5-5 · esfuerzo medium
+
+Ciclo 1 de 2. Objeto: `harness/reports/wi-core-097-aislamiento-y-purga-projects.md`, contrastado con `app/src`, `app/prisma/schema.prisma`, `app/prisma/migrations` y `spec/contracts/system-contract.md`. Solo lectura; no se ejecutó nada contra BD ni Storage ni se leyó `.env`.
+
+## Veredicto: CHANGES_REQUESTED
+
+Las conclusiones centrales son correctas: no encontré ninguna lectura de chunks, embeddings, targets, Functional Knowledge o experimentos del producto sin acotar por `projectVersionId`/`projectId` (o por un id de recurso ya autorizado). El informe se queda corto en tres puntos que cambian la lectura de gobierno de datos y de la purga (H1 a H3, MEDIUM). El resto son correcciones LOW.
+
+## Hallazgos
+
+| # | Sev | Dónde | Qué cambiar |
+|---|---|---|---|
+| H1 | MEDIUM | §3 «Gobierno de datos», primer viñeta | Lista solo `code_chunks.content`, snapshots y propuestas. Hay más contenido derivado del código de la empresa en la BD: `ExperimentRepetitionArtifact.testContent` (hasta 256 KiB) y `sandboxEvidence` (stdout/stderr, `schema.prisma:919-947`), `ExperimentRepetition.trajectory`, `GeneratedTestProposal.generation`, además de `AnalysisSymbol` (nombres/rutas/constructos) y trazas con rutas y símbolos. Añadir esta enumeración (rotulando cuáles contienen texto de código y cuáles solo metadatos: `AnalysisRetrieval.candidates` y `RetrievalComparisonResult.candidates` guardan solo ids, rutas, símbolos, líneas y puntajes, verificado en `analysis-trace-evidence.util.ts:43-52`). Mencionar como atenuante que `promptSha256` guarda solo el hash del prompt (`schema.prisma:903`). Lo que no esté confirmado, rotularlo «no verificado». |
+| H2 | MEDIUM | §3, cita de `DEC-VAL-001` y §2 «Copias fuera del alcance» | Falta citar que `DEC-INF-001` (`system-contract.md:265`) limita el Sandbox/VM a «exclusivamente repositorios de demostración/piloto … no código empresarial» y que `DEC-INF-002` (`:281`) repite que los puertos 80/443 públicos «no habilitan código empresarial». Hoy ingestar `prepiloto-*` con código de empresa en el Sandbox contradice además ese alcance aprobado, no solo la `Blocks` de `DEC-VAL-001`. Añadir esa frase y la cita. |
+| H3 | MEDIUM | §2 «Qué habría que borrar» (orden de borrado) | Incompleto respecto del grafo real. (a) Faltan las tablas con datos de Project sin FK: `WebhookDelivery` (`repositoryId`, `prNumber`, `headSha`, `analysisRunId?`, `schema.prisma:652`) e `IdempotencyRecord` (`operationId` = runId/experimentId, sin FK); junto con `jobs.payload` ya citado. `UserGithubIdentity` es de usuario, no de Project: decirlo explícitamente como fuera de alcance. (b) Faltan las FK `SET NULL` que reales: `analysis_runs.projectVersionId`, `generated_test_proposals.analysisSymbolId` y `.contextId` (migraciones `20260914015220`, `20261009150000`, `20261009140000`); afirmar que «el resto es `Restrict`» es inexacto. No bloquean el borrado, pero el texto debe decirlo. (c) Añadir que `ContextTrace` también cascadea desde `ProjectVersion`, `TestTarget` y `ExperimentRun` (FK compuestas, `schema.prisma:953-959`), y que `Artifact` (tabla heredada con `storageKey`, `schema.prisma:794`) no tiene escritura en el producto (no encontré `artifact.create`): sus filas no deberían existir, pero un script de purga debe contarlas. Las FK `ON DELETE` de las migraciones coinciden con el schema (revisadas todas). |
+| H4 | LOW | §1, fila Experimentos y fila Test targets | Se afirma que el snapshot se carga «de su propia versión» (`experiment-job.handler.ts:214,231`), pero el handler hace `findById(payload.projectVersionId)` y `testTargetsRepository.findById(payload.targetId)` sin scoping (`:210-213`, ids del payload del job) y no se comprobó que coincidan con el `ExperimentRun`. Rotular como inferido (los payloads los fija la creación autorizada del experimento), y mencionar que `findById` sin scoping (también en `functional-knowledge.repository.ts:~104`, `test-targets.repository.ts:~47`) es de uso interno de jobs. |
+| H5 | LOW | §4 «Qué se verificó» | «Verificado: predicados por projectVersionId/projectId» es demasiado fuerte si no se acompaña del método. Indicar que se hizo un barrido de `codeChunk`, `$queryRaw`, `$executeRaw` y `findMany/findFirst` en `app/src` (excluyendo specs y generated) y que no se halló ninguna lectura de chunks/embeddings sin acotar; el único acceso por `id` suelto es el ancla (ya señalado). Citar también que el sitio de inserción es `code-chunks.repository.ts:35-43` con `projectVersionId`. |
+| H6 | LOW | §1, matiz del ancla | Correcto, pero precisar que el `SELECT … WHERE id = anchorChunkId` aparece 5 veces (`:187,191-194`) y que el único llamador de `findSimilarByEmbedding` es `retrieval.service.ts` (`:134,152`), con el ancla de `findBySymbol(projectVersionId, …)` (`:111`). Así el rótulo «inferido» queda respaldado por un barrido de llamadores. |
+| H7 | LOW | Citas | Desfases de 1 a 2 líneas: las llamadas en `retrieval.service.ts` están en `:111,134,152` (los `:112,135` son el argumento); `test-targets.repository.ts:11-35` debería ser `:12-41` (`findByProjectVersion` en `:35-40`, `findMethodsOfClass`/`findTestableTargets` en `:62-76`); `experiment-job.handler.ts:231` es `:232` (`objectStorageService.get`). `code-chunks.repository.ts:176-197` y `:188` son correctos. |
+| H8 | LOW | §2 «Storage (claves)» | Las claves coinciden con los `put` reales (`snapshot-analysis-job.handler.ts:452-453`, `analysis-run-validation-job.handler.ts:269-270` y `:760`, `sandbox-execution.service.ts:326-327`). Añadir que `test-runs/<testRunId>/validation/<uuid>` es el contenido que se entrega al Sandbox por URL prefirmada de vida corta (`presignGet`, `:328`), y que `analysis-runs/<runId>/snapshot.zip` se sobrescribe por Run. El adaptador de Supabase implementa `remove` (`supabase-object-storage.adapter.ts:50`): la capacidad existe; solo falta quien la llame. |
+| H9 | LOW | §2 «Propuesta», paso 1 | Aclarar que el borrado lógico no borra `ProjectAccess` ni bloquea el acceso a Runs por otras vías (`findLatestCompletedByProject` y demás siguen sirviendo datos del Project borrado a quien tenga acceso interno); no afecta el aislamiento entre Projects, pero el informe dice «sin tocar datos» y debe aclarar que los datos siguen en BD y Storage. |
+
+## Verificado directamente
+
+- Fila 1 y 2 (chunks/embeddings y estructural): `findSimilarByEmbedding` filtra `c."projectVersionId" = $1` (`:188`); `findBySymbol`, `findByFile`, `findPhpTypeSymbolNames`, `findPhpTypeDeclarations`, `findPhpConstructorDeclarations` y `findByProjectVersion` filtran por `projectVersionId`. Barrido de `codeChunk|code_chunks|$queryRaw|$executeRaw` en `app/src`: no hay otro acceso a chunks; el resto de `$queryRaw` son locks `FOR UPDATE`, advisory locks y jobs.
+- Índice (`schema.prisma:716`), `repositoryId @unique` (`:297`, el informe cita bien), `DEC-VEC-001` (`spec/transversal/persistence/spec.md:20`).
+- Targets, Functional Knowledge (`findActive`, `findActiveByTargetRef`, `findByProjectForOwner` con `accessibleProject`), experimentos y trazas (todas las lecturas de usuario por `accessibleProject`; las internas por id de recurso), bindings (`findByInstallation` es transversal por instalación pero no devuelve datos de chunks).
+- Borrado lógico (`projects.repository.ts:77-125`, controller `:60` con `@RequireProjectRole('ADMIN')`); no hay `delete`/`remove` de Storage invocado fuera del adaptador y el puerto (`grep` sin llamadas); no hay script de purga (`app/scripts` solo tiene extractor, generador de contratos y entorno PHP).
+- FK `onDelete` en `schema.prisma` y en todas las migraciones SQL: las cinco cascadas citadas son correctas (más las cascadas de `ContextTrace` y la de `ProjectAccess`); las diferencias son las de H3.
+- `DEC-VAL-001`: `Estado: PENDING` y `Blocks` citados fielmente (`system-contract.md:301-307`); el informe no la da por cerrada. Cita `:269` (retención de snapshots, 14 días, `KEEP_AUTO_SNAPSHOTS`) correcta.
+- No hay secretos, IDs de Project/Run ni contenido de BD real en el informe; español y sin promesas de ejecución («nada ejecutado», «sin ejecutarse hasta que el usuario lo apruebe»).
+
+## No pude verificar
+
+- Contenido real de BD y Storage, retención de OpenAI/Supabase/GCP, y que cada llamador interno de `findById` reciba ids coherentes con su Run (por eso H4 es LOW).
+- Comportamiento de las FK en la BD desplegada (solo leí schema y migraciones SQL).
+
+## Criterios de aceptación de WI-CORE-097
+
+1. Aislamiento con citas y rótulos: cumplido, sujeto a H4 a H7.
+2. Borrado, orden por FK, claves de Storage, propuesta sin ejecutar, riesgo y `DEC-VAL-001` pendiente: cumplido en lo esencial; requiere H1, H2, H3 para ser completo y exacto.
+3. Solo documental: `git status` solo muestra harness/spec y los cuatro informes; `app/` sin cambios.
+
+Aplicados H1 a H3 (y H4 a H9 por el leader en el cierre), recomiendo APPROVED en el ciclo 2 con una relectura de esas secciones.
