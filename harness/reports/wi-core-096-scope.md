@@ -1,7 +1,7 @@
-# WI-CORE-096 — alcance propuesto: indexación por lotes (memoria acotada), pendiente de aprobación del usuario
+# WI-CORE-096 — alcance propuesto: indexación por lotes (memoria acotada) — DESCARTADO
 Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
 
-**Estado:** PROPUESTA (`W-PLANNED`). Nada implementado. Origen: Core (Render free, 512 MB) murió por `JavaScript heap out of memory` al indexar `rag-tesis-org/orm` (2026-10-24 22:06:38 UTC) y el usuario pidió (2026-10-25, relayado por cross) un WI para que Core indexe repos más grandes en el plan gratuito. La aprobación de alcance es del usuario, en el chat de Core.
+**Estado:** DESCARTADA por decisión del usuario (2026-10-25, relayada por cross, no confirmada directamente en el chat de Core): orm se sustituye y los demás repos son 15–35× menores; WI cancelado (`W-CANCELLED`), nada implementado. La propuesta y la medición se conservan como referencia. Origen: Core (Render free, 512 MB) murió por `JavaScript heap out of memory` al indexar `rag-tesis-org/orm` (2026-10-24 22:06:38 UTC) y el usuario pidió (2026-10-25, relayado por cross) un WI para que Core indexe repos más grandes en el plan gratuito. La aprobación de alcance es del usuario, en el chat de Core.
 
 ## 1. Problema y evidencia
 

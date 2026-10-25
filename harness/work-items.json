@@ -5421,7 +5421,7 @@
       "component": "CORE",
       "workItemType": "PRODUCT",
       "lane": "STANDARD",
-      "status": "W-PLANNED",
+      "status": "W-CANCELLED",
       "priority": "P1",
       "sprint": "P2",
       "title": "Indexacion por lotes con memoria acotada: embeber e insertar por lotes, ProjectVersion creada antes y politica de fallo parcial, sin cambio de contrato",
