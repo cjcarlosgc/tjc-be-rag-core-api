@@ -22,3 +22,10 @@
 - [x] **ST-CORE-110 · T-DONE · WI-CORE-094 · HU15, HU17:** extractor de evidencia de solo lectura en `app/scripts` (paquete JSON/CSV con manifiesto, tests generados, evidencia del Sandbox, `modelConfig`, trace de 9 enlaces con chequeo inverso, hashes y campos de la Tabla 70; solo SELECT en transacción READ ONLY; sin endpoints ni DTO); alcance aprobado por el usuario el 2026-10-24.
 - [x] **ST-CORE-111 · T-DONE · WI-CORE-094 · HU15, HU17:** pruebas con fixtures del extractor (READ ONLY, estructura y manifiesto, hashes, truncados, ausencias, redacción en copia aparte, PII por defecto, rechazo de `--out` en el repo, migraciones ausentes) que corren en CI.
 - [x] **ST-CORE-112 · T-DONE · WI-CORE-095 · HU15, HU17:** runbook operativo de los pilotos v2 con la imagen PHP ampliada del Sandbox, el resultado del smoke, Vouchers en revisión y el aviso de despertar Integration y Core; documental; pedido por cross.
+- [x] **ST-CORE-114 · T-DONE · WI-CORE-097 · HU15, HU17:** informe de aislamiento por Project y purga de datos para los Projects de calificación `prepiloto-*` (`harness/reports/wi-core-097-aislamiento-y-purga-projects.md`): verificación de solo lectura con citas, `DEC-VAL-001` y riesgo de gobierno de datos; sin cambios de producto.
+- [x] **ST-CORE-117 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-01…CT-03 de Core (grupo A de `harness/reports/wi-core-099-scope.md`).
+- [x] **ST-CORE-118 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-04…CT-07 de Core (grupo B).
+- [x] **ST-CORE-119 · T-DONE · WI-CORE-099 · HU15, HU17:** pruebas CT-10, declaraciones aprobadas y mapa de evidencia CT (grupo C).
+- [x] **ST-CORE-120 · T-DONE · WI-CORE-100 · HU07, HU08, HU09, HU15:** suite OE3 de los casos C1–C6 y campos de auditoría de FK de Core (`app/src/ct/oe3-c1-c6.spec.ts`).
+- [x] **ST-CORE-121 · T-DONE · WI-CORE-100 · HU09, HU15:** prueba pg del índice único parcial de reglas ACTIVE (`app/src/ct/oe3-active-index.pg.spec.ts`).
+- [x] **ST-CORE-122 · T-DONE · WI-CORE-100 · HU07, HU08, HU15:** protocolo de verificación viva de OE3 (`harness/reports/oe3-protocolo-verificacion.md`).

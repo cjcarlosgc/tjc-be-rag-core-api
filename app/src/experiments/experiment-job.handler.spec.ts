@@ -356,6 +356,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       }),
       resolveEffectiveConfig: vi.fn().mockResolvedValue(effectiveConfig),
     },
+    analysisSymbolsRepository: {
+      findByAnalysisRun: vi.fn().mockResolvedValue([]),
+    },
     experimentRealtime: {
       statusChanged: vi.fn().mockResolvedValue(undefined),
       progressChanged: vi.fn().mockResolvedValue(undefined),
@@ -389,6 +392,7 @@ function makeHandler(
     deps.configService as never,
     deps.llmProvider as never,
     deps.experimentRealtime as never,
+    deps.analysisSymbolsRepository as never,
   );
 }
 
@@ -1277,7 +1281,8 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    expect(deps.retrievalService.retrieve).not.toHaveBeenCalled();
+    // WI-CORE-098: solo el pre-chequeo único del experimento recupera; ningún intento lo hace antes de fallar la extracción.
+    expect(deps.retrievalService.retrieve).toHaveBeenCalledTimes(1);
     expect(deps.fileDiscoveryService.discover).not.toHaveBeenCalled();
     expect(deps.contextTracesRepository.updateDetail).toHaveBeenCalledTimes(6);
 
@@ -1344,7 +1349,8 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    expect(deps.retrievalService.retrieve).toHaveBeenCalledTimes(3);
+    // WI-CORE-098: +1 por el pre-chequeo de contexto suficiente (una vez por experimento).
+    expect(deps.retrievalService.retrieve).toHaveBeenCalledTimes(4);
     const ragAttemptIndexes =
       deps.contextTracesRepository.beginAttempt.mock.calls
         .map((call: unknown[], index: number) =>
@@ -1494,7 +1500,8 @@ describe('ExperimentJobHandler', () => {
 
     await handler.handle(payload, 'job-1');
 
-    expect(deps.functionalRulesRetriever.retrieve).toHaveBeenCalledTimes(3);
+    // WI-CORE-098: 3 brazos RAG + 1 pre-chequeo de contexto suficiente.
+    expect(deps.functionalRulesRetriever.retrieve).toHaveBeenCalledTimes(4);
     expect(deps.functionalRulesRetriever.retrieve).toHaveBeenCalledWith(
       'project-1',
       expect.objectContaining({ filePath: 'src/foo.ts' }),
@@ -1502,7 +1509,7 @@ describe('ExperimentJobHandler', () => {
     const withRules = deps.contextBuilder.build.mock.calls.filter(
       (call: unknown[]) => (call[4] as unknown[]).length > 0,
     );
-    expect(withRules).toHaveLength(3);
+    expect(withRules).toHaveLength(4);
     for (const call of withRules) {
       expect(call[4]).toEqual([rule]);
     }
@@ -4031,16 +4038,16 @@ describe('ExperimentJobHandler PHP dependency context (WI-CORE-057)', () => {
 
     await makeHandler(deps).handle(payload, 'job-1');
 
-    // Solo el brazo RAG (3 repeticiones); el agente generalista no llama al servicio.
-    expect(deps.phpDependencyContextService.resolve).toHaveBeenCalledTimes(3);
+    // Solo el brazo RAG (3 repeticiones) más el pre-chequeo único de WI-CORE-098; el agente generalista no llama al servicio.
+    expect(deps.phpDependencyContextService.resolve).toHaveBeenCalledTimes(4);
     expect(deps.phpDependencyContextService.resolve).toHaveBeenCalledWith(
       expect.any(String),
       [chunk],
       expect.any(String),
     );
-    // initializeTraceDetail llama a build sin sección; las tres llamadas RAG reales la reciben.
+    // initializeTraceDetail llama a build sin sección; las tres llamadas RAG reales y el pre-chequeo la reciben.
     const withDependency = buildSpy.mock.calls.filter((call) => call[5] !== undefined);
-    expect(withDependency).toHaveLength(3);
+    expect(withDependency).toHaveLength(4);
     for (const call of withDependency) {
       expect(call[5]).toEqual(dependencyContext);
     }
@@ -5199,5 +5206,122 @@ describe('ExperimentJobHandler: reintentos de GET del Sandbox no incrementan att
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('ExperimentJobHandler: contexto suficiente (WI-CORE-098, D-5 V1)', () => {
+  const symbolRequiringRule = {
+    id: 'symbol-1',
+    filePath: 'src/foo.ts',
+    qualifiedName: 'foo',
+    behaviorConstructs: [
+      { scenarioKind: 'EXPECTED_RESULT', scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa', order: 0, snippet: 'x' },
+    ],
+  };
+  const runWithAnalysis = (overrides: Record<string, unknown> = {}) => ({
+    id: 'exp-1',
+    status: 'PENDING',
+    analysisRunId: 'analysis-1',
+    ...overrides,
+  });
+  // Sin candidatos sobre el mínimo (ninguno elegible) y el target con código.
+  const noCandidatesContextBuilder = () => ({
+    build: vi.fn().mockImplementation(() => ({
+      target: { filePath: 'src/foo.ts', symbolName: 'foo', methodName: null, targetType: 'FUNCTION', content: 'x' },
+      relatedChunks: [],
+      functionalRules: [],
+      metadata: { language: 'typescript', framework: 'VITEST' },
+      retrievedChunks: 1,
+      selectedChunks: 0,
+      contextTokens: 10,
+      audit: {
+        functionalRules: { retrieved: 0, selected: 0, tokenCount: 0, omitted: [] },
+        target: { chunkIds: [], chunks: [], tokenCount: 0 },
+        candidates: [
+          {
+            chunkId: 'c1', filePath: 'src/bar.ts', symbolKind: 'FUNCTION', symbolName: 'bar', parentSymbolName: null,
+            startLine: 1, endLine: 2, content: 'y', tokenCount: 5, rank: 1, semanticScore: 0.1, structuralMatch: null,
+            combinedScore: 0.1, matchedVia: ['SEMANTIC'], decision: 'DISCARDED', discardReason: 'BELOW_MINIMUM_SCORE',
+          },
+        ],
+        configuration: { minimumScore: 0.5, topK: 10, maxContextTokens: 6000, semanticWeight: 0.7, structuralWeight: 0.3 },
+      },
+    })),
+  });
+
+  it('marks the experiment FAILED without repetitions, LLM or Sandbox when the context is insufficient, and does not rethrow', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: {
+        ...makeDeps().deps.experimentRunsRepository,
+        findById: vi.fn().mockResolvedValue(runWithAnalysis()),
+      },
+      analysisSymbolsRepository: { findByAnalysisRun: vi.fn().mockResolvedValue([symbolRequiringRule]) },
+      contextBuilder: noCandidatesContextBuilder(),
+    });
+
+    await expect(makeHandler(deps).handle(payload, 'job-1')).resolves.toBeUndefined();
+
+    expect(deps.experimentRunsRepository.markFailed).toHaveBeenCalledTimes(1);
+    const [experimentId, code, message] = deps.experimentRunsRepository.markFailed.mock.calls[0];
+    expect(experimentId).toBe('exp-1');
+    expect(code).toBe('EXPERIMENT_FAILED');
+    expect(message).toContain('Contexto insuficiente');
+    expect(deps.experimentRealtime.statusChanged).toHaveBeenCalled();
+    expect(deps.contextTracesRepository.beginAttempt).not.toHaveBeenCalled();
+    expect(deps.llmProvider.generate).not.toHaveBeenCalled();
+    expect(deps.generalistAgentService.generate).not.toHaveBeenCalled();
+    expect(deps.sandboxExecutionService.execute).not.toHaveBeenCalled();
+    expect(deps.objectStorageService.get).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.complete).not.toHaveBeenCalled();
+  });
+
+  it('keeps parity: when the context is sufficient, both arms run their 3 repetitions each', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: {
+        ...makeDeps().deps.experimentRunsRepository,
+        findById: vi.fn().mockResolvedValue(runWithAnalysis()),
+      },
+      analysisSymbolsRepository: { findByAnalysisRun: vi.fn().mockResolvedValue([symbolRequiringRule]) },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    expect(deps.experimentRunsRepository.markFailed).not.toHaveBeenCalled();
+    expect(deps.contextTracesRepository.beginAttempt).toHaveBeenCalledTimes(6);
+    const strategies = deps.contextTracesRepository.beginAttempt.mock.calls.map(
+      (call: unknown[]) => (call[0] as { strategy: string }).strategy,
+    );
+    expect(strategies.filter((strategy: string) => strategy === 'RAG')).toHaveLength(3);
+    expect(strategies.filter((strategy: string) => strategy !== 'RAG')).toHaveLength(3);
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+  });
+
+  it('does not look up required rules when the run has no AnalysisRun (legacy), and keeps the normal flow', async () => {
+    const { deps } = makeDeps({
+      contextBuilder: noCandidatesContextBuilder(),
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    expect(deps.analysisSymbolsRepository.findByAnalysisRun).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.markFailed).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
+  });
+
+  it('continues the normal flow when the preflight fails with an error other than insufficient context', async () => {
+    const { deps } = makeDeps({
+      experimentRunsRepository: {
+        ...makeDeps().deps.experimentRunsRepository,
+        findById: vi.fn().mockResolvedValue(runWithAnalysis()),
+      },
+      analysisSymbolsRepository: {
+        findByAnalysisRun: vi.fn().mockRejectedValue(new Error('database unavailable')),
+      },
+    });
+
+    await makeHandler(deps).handle(payload, 'job-1');
+
+    expect(deps.experimentRunsRepository.markFailed).not.toHaveBeenCalled();
+    expect(deps.experimentRunsRepository.complete).toHaveBeenCalledWith('exp-1');
   });
 });

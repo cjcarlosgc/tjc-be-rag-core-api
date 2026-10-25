@@ -13,7 +13,11 @@ import { ObjectStorageService } from '../object-storage/object-storage.service.j
 import { ZipExtractionService, type ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
 import { RetrievalService } from '../retrieval/retrieval.service.js';
 import { ContextBuilder } from '../retrieval/context-builder.service.js';
-import { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
+import { FunctionalRulesRetriever, functionalTargetRef } from '../retrieval/functional-rules.retriever.js';
+import type { RetrievalTarget } from '../retrieval/generation-context.js';
+import { InsufficientGenerationContextError } from '../generation/context-sufficiency.js';
+import { AnalysisSymbolsRepository, readBehaviorConstructs } from '../analysis-runs/persistence/analysis-symbols.repository.js';
+import { sanitizeFailureMessage } from '../common/sanitize-failure-message.util.js';
 import { PhpDependencyContextService } from '../retrieval/php-dependency-context.service.js';
 import { PromptBuilder } from '../generation/prompt-builder.service.js';
 import {
@@ -157,6 +161,8 @@ export class ExperimentJobHandler
     private readonly configService: ConfigService,
     @Inject(LLM_PROVIDER) private readonly llmProvider: LLMProvider,
     private readonly experimentRealtime: ExperimentRealtimeEvents,
+    // WI-CORE-098 (D-5): solo para el pre-chequeo de contexto suficiente; al final para no desplazar los demás.
+    private readonly analysisSymbolsRepository: AnalysisSymbolsRepository,
   ) {}
 
   onModuleInit(): void {
@@ -228,6 +234,26 @@ export class ExperimentJobHandler
 
       // Runner, perfil y presupuesto persistidos al crear el experimento (WI-CORE-025).
       // Corridas previas sin esos valores usan la versión actual y el entorno.
+      // WI-CORE-098 (D-5, V1): pre-chequeo único del experimento, antes de snapshot, pares e intentos.
+      // Si el contexto es insuficiente, el experimento termina FAILED sin repeticiones ni LLM ni Sandbox.
+      const insufficiency = await this.findInsufficientContext(
+        run,
+        payload,
+        target,
+        detectedFramework,
+        language,
+        budget,
+      );
+      if (insufficiency) {
+        await this.experimentRunsRepository.markFailed(
+          payload.experimentId,
+          'EXPERIMENT_FAILED',
+          sanitizeFailureMessage(insufficiency.message),
+        );
+        await this.experimentRealtime.statusChanged(payload.experimentId);
+        return;
+      }
+
       const snapshotKey = version.snapshotKey;
       const snapshotBuffer = await this.objectStorageService.get(snapshotKey);
       const runContext: RunContext = {
@@ -291,6 +317,76 @@ export class ExperimentJobHandler
       await this.experimentRealtime.statusChanged(payload.experimentId);
       throw error;
     }
+  }
+
+  /**
+   * WI-CORE-098 (D-5, V1): compuerta de contexto suficiente evaluada una vez por experimento. Ambos brazos
+   * comparten esta decisión (paridad por construcción). Solo lee BD: no llama al LLM ni al Sandbox. Devuelve
+   * el error si el contexto es insuficiente; cualquier otro fallo del pre-chequeo se registra y el flujo
+   * continúa como antes (los intentos lo reportarán como hoy).
+   */
+  private async findInsufficientContext(
+    run: { runnerHint: string | null; analysisRunId: string | null },
+    payload: ExperimentJobPayload,
+    target: TestTarget,
+    detectedFramework: 'JEST' | 'VITEST' | 'PHPUNIT' | null,
+    language: 'php' | 'typescript',
+    budget: ExperimentBudget,
+  ): Promise<InsufficientGenerationContextError | null> {
+    try {
+      const retrievalTarget = toRetrievalTarget(target);
+      await acquireGenerationContext(
+        {
+          retrievalService: this.retrievalService,
+          functionalRulesRetriever: this.functionalRulesRetriever,
+          phpDependencyContextService: this.phpDependencyContextService,
+          contextBuilder: this.contextBuilder,
+        },
+        {
+          projectId: payload.projectId,
+          projectVersionId: payload.projectVersionId,
+          retrievalTarget,
+          framework: parseRunnerHint(run.runnerHint) ?? detectedFramework,
+          language,
+          contextOptions: { maxContextTokens: budget.contextTokenBudget },
+          sufficiency: {
+            requiredScenarioKeys: await this.requiredScenarioKeysOf(run.analysisRunId, retrievalTarget),
+          },
+        },
+      );
+      return null;
+    } catch (error) {
+      if (error instanceof InsufficientGenerationContextError) {
+        return error;
+      }
+      this.logger.warn(
+        `Pre-chequeo de contexto del experimento ${payload.experimentId} no concluyente; se continúa como antes: ${
+          error instanceof Error ? error.message : 'error desconocido'
+        }`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Claves de las construcciones de comportamiento del símbolo del AnalysisRun que corresponde al target.
+   * Sin AnalysisRun (experimentos antiguos) o sin símbolo, no se exige ninguna regla.
+   */
+  private async requiredScenarioKeysOf(
+    analysisRunId: string | null,
+    retrievalTarget: RetrievalTarget,
+  ): Promise<string[]> {
+    if (!analysisRunId) {
+      return [];
+    }
+    const targetRef = functionalTargetRef(retrievalTarget);
+    const symbols = await this.analysisSymbolsRepository.findByAnalysisRun(analysisRunId);
+    const symbol = symbols.find(
+      (candidate) => `${candidate.filePath}::${candidate.qualifiedName}` === targetRef,
+    );
+    return (readBehaviorConstructs(symbol?.behaviorConstructs ?? null) ?? []).map(
+      (construct) => construct.scenarioKey,
+    );
   }
 
   /**

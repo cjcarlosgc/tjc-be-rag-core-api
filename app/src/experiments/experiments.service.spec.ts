@@ -269,6 +269,8 @@ describe('ExperimentsService', () => {
       });
       expect((error as AppException).message).toContain('temperatura');
       expect((error as AppException).message).toContain('"none"');
+      // WI-CORE-098 (G-03): texto neutral; no atribuye la incompatibilidad al razonamiento ni a un proveedor.
+      expect((error as AppException).message).not.toContain('razonamiento');
       expect((error as AppException).getStatus()).toBe(422);
       expect(deps.experimentRunsRepository.create).not.toHaveBeenCalled();
       expect(deps.jobsService.enqueue).not.toHaveBeenCalled();

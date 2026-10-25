@@ -10,7 +10,7 @@ import {
   AnalysisRunsService,
   type AnalysisRunCompletionStatus,
 } from '../analysis-runs/analysis-runs.service.js';
-import { AnalysisSymbolsRepository } from '../analysis-runs/persistence/analysis-symbols.repository.js';
+import { AnalysisSymbolsRepository, readBehaviorConstructs } from '../analysis-runs/persistence/analysis-symbols.repository.js';
 import { RepositoryBindingsRepository } from '../repository-bindings/repository-bindings.repository.js';
 import { ProjectVersionsRepository } from '../project-versions/project-versions.repository.js';
 import { TestTargetsRepository } from '../project-versions/persistence/test-targets.repository.js';
@@ -33,6 +33,7 @@ import {
   mergeGeneratedTest,
 } from '../generation/test-generation-pipeline.js';
 import { phpTestLocation } from '../generation/php-test-path.js';
+import { InsufficientGenerationContextError } from '../generation/context-sufficiency.js';
 import {
   TestFileMergeService,
   coLocatedSpecPath,
@@ -434,6 +435,12 @@ export class AnalysisRunValidationJobHandler
           framework,
           language,
           contextOptions: {},
+          // WI-CORE-098 (D-5): claves de las construcciones de comportamiento que exigen regla del símbolo.
+          sufficiency: {
+            requiredScenarioKeys: (readBehaviorConstructs(symbol.behaviorConstructs) ?? []).map(
+              (construct) => construct.scenarioKey,
+            ),
+          },
         },
       );
       contextId = await this.persistTraceEvidence(
@@ -549,6 +556,22 @@ export class AnalysisRunValidationJobHandler
         platformFailure: outcome.failureType === 'INFRASTRUCTURE',
       };
     } catch (error) {
+      // WI-CORE-098 (D-5, V1): contexto insuficiente. La propuesta queda HELD sin LLM ni Sandbox y sin
+      // evidencia de recuperación; el símbolo es fallo técnico no de plataforma (sin nuevo estado ni código).
+      if (error instanceof InsufficientGenerationContextError) {
+        const proposalId = await this.persistProposal(run, symbol, {
+          relativePath,
+          content: '',
+          status: 'HELD',
+          failureSummary: sanitizeFailureMessage(error.message),
+          contextId: null,
+          generation: null,
+        });
+        this.logger.debug(
+          `Propuesta ${proposalId} retenida: contexto insuficiente para ${symbol.qualifiedName}.`,
+        );
+        return { symbol, kind: 'TECHNICAL_GENERATION_FAILURE' };
+      }
       const summary =
         error instanceof SandboxUnavailableError
           ? error.message

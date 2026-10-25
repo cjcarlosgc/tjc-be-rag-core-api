@@ -2580,4 +2580,185 @@ describe('AnalysisRunValidationJobHandler', () => {
       );
     });
   });
+
+  describe('contexto suficiente (WI-CORE-098, D-5 V1)', () => {
+    const requiringRule = (symbolId: string) =>
+      buildSymbol({
+        id: symbolId,
+        behaviorConstructs: [
+          { scenarioKind: 'EXPECTED_RESULT', scenarioKey: 'EXPECTED_RESULT:aaaaaaaaaaaaaaaa', order: 0, snippet: 'x' },
+        ],
+      } as Partial<AnalysisSymbol>);
+    const candidate = {
+      chunkId: 'c1',
+      filePath: 'src/other.ts',
+      symbolKind: 'FUNCTION',
+      symbolName: 'other',
+      parentSymbolName: null,
+      startLine: 1,
+      endLine: 2,
+      content: 'other() {}',
+      tokenCount: 5,
+      rank: 1,
+      semanticScore: 0.9,
+      structuralMatch: null,
+      combinedScore: 0.9,
+      matchedVia: ['SEMANTIC'],
+      decision: 'SELECTED',
+      discardReason: null,
+    };
+
+    it('holds the proposal without calling the LLM, the Sandbox or the trace when the target has no code', async () => {
+      const {
+        handler,
+        contextBuilder,
+        llmProvider,
+        sandboxExecutionService,
+        analysisTraceRepository,
+        generatedTestProposalsRepository,
+        analysisRunsService,
+      } = await setup();
+      contextBuilder.build.mockReturnValueOnce(
+        buildGenerationContext({
+          target: { filePath: 'src/thing.ts', symbolName: 'Thing', methodName: 'doIt', targetType: 'METHOD', content: '   ' },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertRetrieval).not.toHaveBeenCalled();
+      expect(analysisTraceRepository.upsertContext).not.toHaveBeenCalled();
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          contextId: null,
+          failureSummary: expect.stringContaining('Contexto insuficiente'),
+        }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('holds the proposal when a rule is required, none is retrieved and no candidate passes the minimum', async () => {
+      const {
+        handler,
+        analysisSymbolsRepository,
+        contextBuilder,
+        llmProvider,
+        sandboxExecutionService,
+        generatedTestProposalsRepository,
+        analysisRunsService,
+      } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([requiringRule('symbol-1')]);
+      contextBuilder.build.mockReturnValueOnce(buildGenerationContext({ retrievedChunks: 0 }));
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+      expect(sandboxExecutionService.execute).not.toHaveBeenCalled();
+      expect(generatedTestProposalsRepository.upsertForSymbol).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'HELD',
+          failureSummary: expect.stringContaining('faltan reglas funcionales requeridas'),
+        }),
+      );
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('does not block when a rule is required but at least one candidate passes the minimum', async () => {
+      const { handler, analysisSymbolsRepository, contextBuilder, llmProvider } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([requiringRule('symbol-1')]);
+      contextBuilder.build.mockReturnValueOnce(
+        buildGenerationContext({
+          retrievedChunks: 1,
+          selectedChunks: 1,
+          audit: {
+            ...buildGenerationContext().audit,
+            candidates: [{ ...candidate, decision: 'SELECTED', discardReason: null }],
+          },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not block a symbol without behavior constructs and without candidates (generation as before)', async () => {
+      const { handler, llmProvider, analysisRunsService } = await setup();
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'SUCCESS',
+        expect.anything(),
+      );
+    });
+
+    it('completes TECHNICAL_GENERATION_FAILURE when one symbol is blocked and another is AVAILABLE', async () => {
+      const { handler, analysisSymbolsRepository, contextBuilder, analysisRunsService } = await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        requiringRule('symbol-1'),
+        buildSymbol({ id: 'symbol-2', qualifiedName: 'Thing.ok' }),
+      ]);
+      contextBuilder.build
+        .mockReturnValueOnce(buildGenerationContext({ retrievedChunks: 0 }))
+        .mockReturnValueOnce(buildGenerationContext());
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'TECHNICAL_GENERATION_FAILURE',
+        expect.anything(),
+      );
+    });
+
+    it('keeps BEHAVIORAL_MISMATCH over a blocked symbol (DEC-VAL-002 precedence)', async () => {
+      const { handler, analysisSymbolsRepository, contextBuilder, sandboxExecutionService, analysisRunsService } =
+        await setup();
+      analysisSymbolsRepository.findByAnalysisRun.mockResolvedValue([
+        requiringRule('symbol-1'),
+        buildSymbol({ id: 'symbol-2', qualifiedName: 'Thing.mismatch' }),
+      ]);
+      contextBuilder.build
+        .mockReturnValueOnce(buildGenerationContext({ retrievedChunks: 0 }))
+        .mockReturnValueOnce(buildGenerationContext());
+      sandboxExecutionService.execute.mockResolvedValueOnce(
+        sandboxResult({
+          facts: {
+            runner: 'JEST',
+            compiled: true,
+            executed: true,
+            passed: false,
+            totalTests: 1,
+            passedTests: 0,
+            failedTests: 1,
+            skippedTests: 0,
+            testCases: [],
+            testCasesTruncated: false,
+          },
+        }),
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+      expect(analysisRunsService.completeRunFromSystem).toHaveBeenCalledWith(
+        expect.anything(),
+        'BEHAVIORAL_MISMATCH',
+        expect.anything(),
+      );
+    });
+  });
 });
