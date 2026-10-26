@@ -5946,7 +5946,7 @@
       "component": "CORE",
       "workItemType": "PRODUCT",
       "lane": "STANDARD",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Obligaciones abstractas heredadas en la seccion de dependencias PHP (calibracion con smoke del Piloto v2): metodos abstractos sin implementar de la jerarquia de una clase declarante abstracta o interfaz, dentro del tope de 500 tokens (INTEROP-2.24 aditivo)",
@@ -5978,7 +5978,8 @@
         "harness/reports/wi-core-106-technical-checks.md",
         "harness/reports/wi-core-106-contract-review.md",
         "harness/reports/wi-core-106-independent-review.md",
-        "harness/reports/wi-core-106-closure.md"
+        "harness/reports/wi-core-106-closure.md",
+        "harness/reports/wi-core-106-contract-sync-publication.md"
       ],
       "contractSyncReview": [
         {
