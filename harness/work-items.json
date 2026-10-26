@@ -5836,7 +5836,7 @@
       "component": "CORE",
       "workItemType": "PRODUCT",
       "lane": "STANDARD",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Seccion de dependencias PHP R2a+R2b (R2 del Piloto v2): visibilidad del constructor y fabricas publicas de los tipos-dependencia, glosario de FQCN del contexto y tope de 500 tokens (INTEROP-2.23 aditivo)",
@@ -5867,7 +5867,8 @@
         "harness/reports/wi-core-104-technical-checks.md",
         "harness/reports/wi-core-104-contract-review.md",
         "harness/reports/wi-core-104-independent-review.md",
-        "harness/reports/wi-core-104-closure.md"
+        "harness/reports/wi-core-104-closure.md",
+        "harness/reports/wi-core-104-contract-sync-publication.md"
       ],
       "contractSyncReview": [
         {
