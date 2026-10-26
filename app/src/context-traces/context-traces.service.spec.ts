@@ -839,6 +839,15 @@ describe('ContextTracesService dependencyContext (WI-CORE-057, INTEROP-2.14)', (
     expect(detail.kind).toBe('RAG');
     expect((detail as { contextTokens: number }).contextTokens).toBe(20);
   });
+
+  it('accepts entries: [] with tokenCount > 0 (section with only the FQCN glossary, WI-CORE-104)', async () => {
+    const glossaryOnly = { entries: [], unresolvedCount: 0, tokenCount: 480, truncated: true };
+    const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(ragWith(glossaryOnly)) } });
+
+    const detail = (await service.getContextTraceDetail('trace-1', USER_ID)) as unknown as Record<string, unknown>;
+
+    expect(detail.dependencyContext).toEqual({ entries: [], unresolvedCount: 0, tokenCount: 480, truncated: true });
+  });
 });
 
 describe('ContextTracesService dependencyContext final (WI-CORE-058, INTEROP-2.15)', () => {

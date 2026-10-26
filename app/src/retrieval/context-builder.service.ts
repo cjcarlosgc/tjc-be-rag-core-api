@@ -215,6 +215,10 @@ export class ContextBuilder {
         content: entry.candidate.chunk.content,
         score: entry.score,
         matchedVia: entry.matchedVia,
+        // WI-CORE-104: interno, para el glosario de FQCN; ni el prompt ni la traza lo serializan.
+        ...(Array.isArray(entry.candidate.chunk.importsUsed)
+          ? { importsUsed: [...entry.candidate.chunk.importsUsed] }
+          : {}),
       });
     };
     const discard = (

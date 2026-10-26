@@ -108,7 +108,9 @@ export function makeRagDetail(
 
   const dependency = generationContext.dependencyContext;
   const dependencyEvidence =
-    dependency && (dependency.entries.length > 0 || dependency.unresolvedCount > 0)
+    // WI-CORE-104: con solo glosario de FQCN no hay entradas, pero la sección existe (`tokenCount > 0`).
+    dependency &&
+    (dependency.entries.length > 0 || dependency.unresolvedCount > 0 || dependency.tokenCount > 0)
       ? {
           // WI-CORE-057 (INTEROP-2.14): sin `text`; el texto solo viaja al prompt.
           dependencyContext: {

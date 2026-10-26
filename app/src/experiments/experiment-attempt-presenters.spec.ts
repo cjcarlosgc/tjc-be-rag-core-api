@@ -72,3 +72,83 @@ describe('makeRagDetail (WI-CORE-103, INTEROP-2.22)', () => {
     expect(detail.configuration.strategy).toBe('RANKED');
   });
 });
+
+describe('makeRagDetail dependencyContext y importsUsed (WI-CORE-104)', () => {
+  const MARKER = 'Brick\\Money\\Context\\MARCADOR_IMPORT_INTERNO';
+
+  function buildWithImports(dependencyContext?: Parameters<ContextBuilder['build']>[5]) {
+    const candidates: RetrievalCandidate[] = [
+      { chunk: chunk('declaring', { importsUsed: [MARKER] }), semanticScore: null, structuralMatch: 'DECLARING_CLASS' },
+      { chunk: chunk('semantic', { importsUsed: [MARKER] }), semanticScore: 0.9, structuralMatch: null },
+    ];
+    const result: RetrievalResult = { targetChunks: [chunk('target', { importsUsed: [MARKER] })], candidates };
+    const builder = new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as never);
+    return builder.build(
+      result,
+      { filePath: 'src/target.php', symbolName: 'target', methodName: null, targetType: 'FUNCTION' },
+      { framework: 'PHPUNIT', language: 'php' },
+      undefined,
+      [],
+      dependencyContext,
+    );
+  }
+
+  it('el importsUsed interno de relatedChunks no se serializa en la traza', () => {
+    const context = buildWithImports();
+
+    expect(context.relatedChunks.some((related) => related.importsUsed?.includes(MARKER))).toBe(true);
+    expect(JSON.stringify(makeRagDetail(context))).not.toContain(MARKER);
+    expect(JSON.stringify(makeRagDetail(context))).not.toContain('importsUsed');
+  });
+
+  it('con solo glosario (entries: [], tokenCount > 0) persiste la sección sin texto, glosario ni campos internos', () => {
+    const context = buildWithImports({
+      entries: [],
+      unresolvedCount: 0,
+      tokenCount: 123,
+      truncated: true,
+      text: 'Nombres completos (FQCN) de los tipos que aparecen en el código de contexto:\n- X → A\\X',
+    });
+
+    const detail = makeRagDetail(context) as unknown as { dependencyContext?: Record<string, unknown> };
+
+    expect(detail.dependencyContext).toEqual({ entries: [], unresolvedCount: 0, tokenCount: 123, truncated: true });
+    expect(JSON.stringify(detail)).not.toContain('Nombres completos');
+  });
+
+  it('no persiste constructorVisibility, factories, signature ni glosario de las entradas', () => {
+    const entry = {
+      typeName: 'Money',
+      fqcn: 'Brick\\Money\\Money',
+      origin: 'CONSTRUCTOR' as const,
+      resolvedBy: 'IMPORT' as const,
+      final: true as const,
+      signature: '(int $a)',
+      constructorVisibility: 'private',
+      factories: ['of(): static'],
+    };
+    const context = buildWithImports({
+      entries: [entry],
+      unresolvedCount: 0,
+      tokenCount: 50,
+      truncated: false,
+      text: 'texto',
+    } as never);
+
+    const detail = makeRagDetail(context) as unknown as { dependencyContext: { entries: unknown[] } };
+
+    expect(detail.dependencyContext.entries).toEqual([
+      { typeName: 'Money', fqcn: 'Brick\\Money\\Money', origin: 'CONSTRUCTOR', resolvedBy: 'IMPORT', final: true },
+    ]);
+    expect(JSON.stringify(detail)).not.toContain('factories');
+    expect(JSON.stringify(detail)).not.toContain('constructorVisibility');
+  });
+
+  it('sin entradas, sin no resueltos y sin tokens no persiste la sección', () => {
+    const detail = makeRagDetail(
+      buildWithImports({ entries: [], unresolvedCount: 0, tokenCount: 0, truncated: false, text: '' }),
+    ) as unknown as Record<string, unknown>;
+
+    expect(detail).not.toHaveProperty('dependencyContext');
+  });
+});

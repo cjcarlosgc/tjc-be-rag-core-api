@@ -55,6 +55,12 @@ export interface ContextChunk {
   content: string;
   score: number;
   matchedVia: Array<'SEMANTIC' | StructuralMatch>;
+  /**
+   * WI-CORE-104 (R2b): imports que el índice asocia al chunk. INTERNO: solo alimenta el glosario de FQCN de la
+   * sección de dependencias PHP; PromptBuilder renderiza únicamente `content` y la traza se construye desde
+   * `audit.candidates`, así que no sale por ninguno de los dos.
+   */
+  importsUsed?: string[];
 }
 
 export interface GenerationContextMetadata {

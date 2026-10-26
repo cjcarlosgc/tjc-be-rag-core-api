@@ -209,3 +209,51 @@ describe('CodeChunksRepository.findPhpConstructorDeclarations (WI-CORE-065)', ()
     ]);
   });
 });
+
+describe('CodeChunksRepository.findPhpStaticMethodDeclarations (WI-CORE-104)', () => {
+  function makeRepository(rows: unknown[] = []) {
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const repository = new CodeChunksRepository({ codeChunk: { findMany } } as unknown as PrismaService);
+    return { findMany, repository };
+  }
+
+  it('does not query when the class list is empty', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await expect(repository.findPhpStaticMethodDeclarations('version-1', [])).resolves.toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('is a read-only query of part 1 of PHP METHOD chunks that mention static, in deterministic order and bounded', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await repository.findPhpStaticMethodDeclarations('version-1', ['Pilot\\A', 'Pilot\\A', 'Pilot\\B']);
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      projectVersionId: 'version-1',
+      symbolKind: 'METHOD',
+      parentSymbolName: { in: ['Pilot\\A', 'Pilot\\B'] },
+      filePath: { endsWith: '.php' },
+      partIndex: 1,
+      content: { contains: 'static' },
+    });
+    expect(findMany.mock.calls[0][0].orderBy).toEqual([
+      { parentSymbolName: 'asc' },
+      { symbolName: 'asc' },
+      { filePath: 'asc' },
+    ]);
+    expect(findMany.mock.calls[0][0].take).toBe(400);
+  });
+
+  it('returns parent, method name and content, skipping rows without parent', async () => {
+    const { repository } = makeRepository([
+      { parentSymbolName: 'Pilot\\A', symbolName: 'Pilot\\A::of', filePath: 'src/A.php', content: 'public static function of(): static {}' },
+      { parentSymbolName: null, symbolName: 'helper', filePath: 'src/h.php', content: 'static function helper() {}' },
+    ]);
+
+    await expect(repository.findPhpStaticMethodDeclarations('version-1', ['Pilot\\A'])).resolves.toEqual([
+      { parentSymbolName: 'Pilot\\A', symbolName: 'Pilot\\A::of', content: 'public static function of(): static {}' },
+    ]);
+  });
+});

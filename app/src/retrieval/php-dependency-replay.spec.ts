@@ -315,7 +315,7 @@ describe.skipIf(!REPLAY_DIR)('WI-CORE-057 replay de dependencias PHP (datos fuer
     });
 
     // WI-CORE-058: tope de tokens y texto de marca con marcas activas.
-    expect(sectionTokens).toBeLessThanOrEqual(300);
+    expect(sectionTokens).toBeLessThanOrEqual(500);
     expect(sectionTokens).toBeGreaterThanOrEqual(sectionTokensSinFirmas);
     // WI-CORE-066: la traza (entries) solo contiene directas; la profundidad 2 va aparte (transitiveEntries).
     expect(dependencyContext?.entries.every((e) => (e as { via?: string }).via === undefined) ?? true).toBe(true);

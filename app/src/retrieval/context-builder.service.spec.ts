@@ -1125,3 +1125,77 @@ describe('ContextBuilder LAYERED con minimumScore (WI-CORE-103)', () => {
     expect(context.contextTokens).toBeLessThanOrEqual(200);
   });
 });
+
+describe('ContextBuilder importsUsed interno de relatedChunks (WI-CORE-104, R2b)', () => {
+  const phpTarget = { filePath: 'src/Foo.php', symbolName: 'Foo::bar', methodName: 'bar', targetType: 'METHOD' as const };
+
+  it('copia importsUsed del chunk seleccionado (RANKED), sin compartir la referencia', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const imports = ['Brick\\Money\\Context\\AutoContext'];
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ id: 'target', tokenCount: 4 })],
+      candidates: [
+        makeCandidate({ chunk: makeChunk({ id: 'c1', filePath: 'src/a.ts', tokenCount: 10, importsUsed: imports }), semanticScore: 0.9 }),
+        makeCandidate({ chunk: makeChunk({ id: 'c2', filePath: 'src/b.ts', tokenCount: 10, importsUsed: [] }), semanticScore: 0.8 }),
+      ],
+    };
+
+    const context = builder.build(result, target, { framework: 'VITEST' });
+
+    expect(context.relatedChunks.map((chunk) => chunk.importsUsed)).toEqual([imports, []]);
+    expect(context.relatedChunks[0].importsUsed).not.toBe(imports);
+  });
+
+  it('copia importsUsed también con la estrategia LAYERED de PHP', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ id: 'target', filePath: 'src/Foo.php', symbolKind: 'METHOD', symbolName: 'Foo::bar', tokenCount: 4 })],
+      candidates: [
+        makeCandidate({
+          chunk: makeChunk({ id: 'semantic', filePath: 'tests/FooTest.php', symbolKind: 'METHOD', tokenCount: 10, importsUsed: ['A\\B\\C'] }),
+          semanticScore: 0.95,
+        }),
+      ],
+    };
+
+    const context = builder.build(result, phpTarget, { framework: 'PHPUNIT', language: 'php' });
+
+    expect(context.audit?.configuration.strategy).toBe('LAYERED');
+    expect(context.relatedChunks).toHaveLength(1);
+    expect(context.relatedChunks[0].importsUsed).toEqual(['A\\B\\C']);
+  });
+
+  it('no añade la clave cuando el chunk no trae importsUsed', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const chunk = makeChunk({ id: 'c1', filePath: 'src/a.ts', tokenCount: 10 });
+    delete (chunk as Partial<CodeChunk>).importsUsed;
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ id: 'target', tokenCount: 4 })],
+      candidates: [makeCandidate({ chunk, semanticScore: 0.9 })],
+    };
+
+    const context = builder.build(result, target, { framework: 'VITEST' });
+
+    expect(context.relatedChunks[0]).not.toHaveProperty('importsUsed');
+  });
+
+  it('PromptBuilder no imprime importsUsed: solo el content del chunk', () => {
+    const builder = new ContextBuilder(makeConfigService());
+    const result: RetrievalResult = {
+      targetChunks: [makeChunk({ id: 'target', tokenCount: 4 })],
+      candidates: [
+        makeCandidate({
+          chunk: makeChunk({ id: 'c1', filePath: 'src/a.ts', tokenCount: 10, content: 'new AutoContext()', importsUsed: ['Brick\\Money\\Context\\AutoContext'] }),
+          semanticScore: 0.9,
+        }),
+      ],
+    };
+    const context = builder.build(result, target, { framework: 'VITEST' });
+
+    const prompt = new PromptBuilder().build(context);
+
+    expect(prompt).toContain('new AutoContext()');
+    expect(prompt).not.toContain('Brick\\Money\\Context\\AutoContext');
+    expect(prompt).not.toContain('importsUsed');
+  });
+});

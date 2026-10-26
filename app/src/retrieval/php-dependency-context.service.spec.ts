@@ -62,7 +62,7 @@ describe('PhpDependencyContextService.resolve', () => {
     expect(result?.truncated).toBe(false);
     expect(result?.text).toContain(`- RenewalDatePolicy → ${NS}\\RenewalDatePolicy (constructor)`);
     expect(result?.tokenCount).toBeGreaterThan(0);
-    expect(result?.tokenCount).toBeLessThanOrEqual(300);
+    expect(result?.tokenCount).toBeLessThanOrEqual(500);
   });
 
   it('usa los tipos conocidos del repositorio para decidir SAME_NAMESPACE', async () => {
@@ -151,7 +151,7 @@ describe('PhpDependencyContextService final marks (WI-CORE-058)', () => {
     expect(byFqcn.get(REPOSITORY)).not.toHaveProperty('final');
     expect(result?.text).toContain(`- RenewalDatePolicy → ${POLICY} (constructor) — final: no se puede mockear`);
     expect(result?.text).not.toContain('- PaymentGateway → ' + GATEWAY + ' (constructor) —');
-    expect(result?.tokenCount).toBeLessThanOrEqual(300);
+    expect(result?.tokenCount).toBeLessThanOrEqual(500);
   });
 
   it('no marca un tipo que no está en el índice de declaraciones', async () => {
@@ -282,6 +282,6 @@ describe('PhpDependencyContextService enum mark (WI-CORE-068)', () => {
     );
     expect(result?.text).not.toContain('new, o un caso');
     expect(result?.entries[0].final).toBe(true);
-    expect(result?.tokenCount).toBeLessThanOrEqual(300);
+    expect(result?.tokenCount).toBeLessThanOrEqual(500);
   });
 });

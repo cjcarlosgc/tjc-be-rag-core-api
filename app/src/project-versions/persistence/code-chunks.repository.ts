@@ -169,6 +169,39 @@ export class CodeChunksRepository {
   }
 
   /**
+   * WI-CORE-104: parte 1 de los chunks `METHOD` PHP de las clases indicadas cuyo contenido menciona `static`
+   * (prefiltro de fábricas estáticas; el filtro real lo hace el extractor puro). Solo lectura, orden determinista
+   * (parentSymbolName, symbolName, filePath) y un máximo de `limit` filas en total.
+   */
+  async findPhpStaticMethodDeclarations(
+    projectVersionId: string,
+    parentSymbolNames: string[],
+    limit = 400,
+  ): Promise<Array<{ parentSymbolName: string; symbolName: string | null; content: string }>> {
+    const names = [...new Set(parentSymbolNames)];
+    if (names.length === 0) return [];
+    const rows = await this.prisma.codeChunk.findMany({
+      where: {
+        projectVersionId,
+        symbolKind: 'METHOD',
+        parentSymbolName: { in: names },
+        filePath: { endsWith: '.php' },
+        partIndex: 1,
+        content: { contains: 'static' },
+      },
+      select: { parentSymbolName: true, symbolName: true, filePath: true, content: true },
+      orderBy: [{ parentSymbolName: 'asc' }, { symbolName: 'asc' }, { filePath: 'asc' }],
+      take: limit,
+    });
+    const methods: Array<{ parentSymbolName: string; symbolName: string | null; content: string }> = [];
+    for (const row of rows) {
+      if (row.parentSymbolName === null) continue;
+      methods.push({ parentSymbolName: row.parentSymbolName, symbolName: row.symbolName, content: row.content });
+    }
+    return methods;
+  }
+
+  /**
    * Similitud coseno de pgvector (`<=>`) contra el embedding de un chunk ancla,
    * excluyendo ese mismo chunk y cualquier parte hermana de un mismo símbolo
    * oversized (mismo filePath/symbolKind/symbolName/parentSymbolName).
