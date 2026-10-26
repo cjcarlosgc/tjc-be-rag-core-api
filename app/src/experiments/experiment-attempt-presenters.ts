@@ -145,6 +145,7 @@ export function makeRagDetail(
       matchedVia: candidate.matchedVia,
       decision: candidate.decision,
       discardReason: candidate.discardReason,
+      layer: candidate.layer,
     })),
     retrievedChunks: generationContext.retrievedChunks,
     selectedChunks: generationContext.selectedChunks,

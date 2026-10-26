@@ -20,7 +20,7 @@ Persistir y exponer evidencia navegable de cómo se adquirió el contexto de una
 
 - Conservar el target raíz y todos los candidatos recuperados después de deduplicar por `chunkId`, incluidos seleccionados y descartados.
 - Cada candidato registra señales `SEMANTIC`, `IMPORTS` o `IMPORTED_BY`, score semántico nullable, relación estructural nullable, score combinado, ranking, tokens y configuración efectiva de `ContextBuilder`.
-- La decisión es `SELECTED` o `DISCARDED`. Un descarte declara exactamente `BELOW_MINIMUM_SCORE`, `TOP_K_LIMIT` o `TOKEN_BUDGET`; no se inventa una causa que el algoritmo no observó.
+- La decisión es `SELECTED` o `DISCARDED`. Un descarte declara exactamente `BELOW_MINIMUM_SCORE`, `BELOW_RELEVANCE_THRESHOLD` (solo con la estrategia `LAYERED`, INTEROP-2.22), `TOP_K_LIMIT` o `TOKEN_BUDGET`; no se inventa una causa que el algoritmo no observó. Con `LAYERED`, el candidato seleccionado registra la capa que lo seleccionó (`layer`) y la configuración efectiva registra `strategy`, `relevanceThreshold`, `declaringClassMaxTokens` y `targetEvidenceMaxTokens`; las trazas anteriores no tienen esos campos y se siguen leyendo igual.
 - El score explica el ranking configurado y no se presenta como probabilidad, confianza científica o prueba causal.
 
 ### Exploración experimental del agente

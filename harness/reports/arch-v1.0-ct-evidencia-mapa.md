@@ -34,11 +34,11 @@ Qué es: por cada una de las 52 aserciones de `arch-v1.0-aserciones-ct-propuesta
 | CT-04-A4 | CUBIERTA | `src/ct/ct-04-functional-knowledge.spec.ts` (`CT-04-A4`); `functional-context-evaluator.service.spec.ts`; `functional-continuation-job.handler.spec.ts` | |
 | CT-04-A5 | CUBIERTA-PG | `src/ct/ct-04-access.pg.spec.ts` (`CT-04-A5`) | Predicado `accessibleProject` contra SQL real (lectura de reglas y resolución del Project); no hay RLS; la confirmación sin rol suficiente está en CT-04-A3 (sin pg). |
 | CT-05-A1 | CUBIERTA | `src/retrieval/context-builder.service.spec.ts` | |
-| CT-05-A2 | CUBIERTA | `src/retrieval/context-builder.service.spec.ts` | |
+| CT-05-A2 | CUBIERTA | `src/retrieval/context-builder.service.spec.ts` | WI-CORE-103: `context-builder.service.spec.ts` cubre `LAYERED` (capas, topes, umbral, techo `topK`, presupuesto) y `RANKED`; `retrieval-comparison-golden.spec.ts` fija que la comparación OE2 no cambia. |
 | CT-05-A3 | CUBIERTA | `src/ct/ct-05-context.spec.ts` (`CT-05-A3`) | SE y SEM. |
 | CT-05-A4 | CUBIERTA | `src/retrieval/context-builder.service.spec.ts` (ContextBuilder functional rules) | |
-| CT-05-A5 | CUBIERTA | `src/generation/context-sufficiency.spec.ts`; `src/generation/test-generation-pipeline.spec.ts`; `validation/analysis-run-validation-job.handler.spec.ts`; `experiments/experiment-job.handler.spec.ts` (WI-CORE-098) | D-16: variante V1 (HELD en Validation; experimento FAILED sin repeticiones en Experiments); V2 (ACTION_REQUIRED con pregunta) es limitación. |
-| CT-05-A6 | CUBIERTA-PG | `analysis-trace.repository.pg.spec.ts`; `src/context-traces/context-traces.repository.spec.ts` | |
+| CT-05-A5 | CUBIERTA | `src/generation/context-sufficiency.spec.ts`; `src/generation/test-generation-pipeline.spec.ts`; `validation/analysis-run-validation-job.handler.spec.ts`; `experiments/experiment-job.handler.spec.ts` (WI-CORE-098) | D-16: variante V1 (HELD en Validation; experimento FAILED sin repeticiones en Experiments); V2 (ACTION_REQUIRED con pregunta) es limitación. WI-CORE-103: con `LAYERED` el motivo `BELOW_RELEVANCE_THRESHOLD` cuenta como `BELOW_MINIMUM_SCORE` (pruebas en `context-sufficiency.spec.ts`), con el efecto declarado en spec 004. |
+| CT-05-A6 | CUBIERTA-PG | `analysis-trace.repository.pg.spec.ts`; `src/context-traces/context-traces.repository.spec.ts` | WI-CORE-103: `context-traces.service.spec.ts` y `experiments/experiment-attempt-presenters.spec.ts` cubren `layer`, el motivo nuevo y la lectura de trazas anteriores. |
 | CT-06-A1 | CUBIERTA | `src/sandbox/sandbox-execution.contract.spec.ts` | |
 | CT-06-A2 | CUBIERTA | `src/sandbox/sandbox-execution.service.spec.ts` | |
 | CT-06-A3 | CUBIERTA | `src/ct/ct-06-sandbox-request.spec.ts` (`CT-06-A3`) | Se interpreta como «el cuerpo del request»; el service token viaja en `Authorization` por diseño (DEC-AUTH-001) y el test fija el conjunto cerrado de cabeceras. |

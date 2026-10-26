@@ -595,3 +595,54 @@ describe('SANDBOX_MAX_POLL_ATTEMPTS y SANDBOX_REQUEST_TIMEOUT_MS (WI-CORE-078)',
     await moduleRef.close();
   });
 });
+
+describe('RETRIEVAL_* por capas (WI-CORE-103)', () => {
+  it('uses the defaults LAYERED, 0.6, 4000 and 2000 when the variables are absent', () => {
+    const result = validateEnv(baseConfig());
+
+    expect(result.RETRIEVAL_CONTEXT_STRATEGY).toBe('LAYERED');
+    expect(result.RETRIEVAL_RELEVANCE_THRESHOLD).toBe(0.6);
+    expect(result.RETRIEVAL_DECLARING_CLASS_MAX_TOKENS).toBe(4000);
+    expect(result.RETRIEVAL_TARGET_EVIDENCE_MAX_TOKENS).toBe(2000);
+  });
+
+  it('accepts valid values and converts the numeric ones', () => {
+    const result = validateEnv(
+      baseConfig({
+        RETRIEVAL_CONTEXT_STRATEGY: 'RANKED',
+        RETRIEVAL_RELEVANCE_THRESHOLD: '0.75',
+        RETRIEVAL_DECLARING_CLASS_MAX_TOKENS: '0',
+        RETRIEVAL_TARGET_EVIDENCE_MAX_TOKENS: '1500',
+      }),
+    );
+
+    expect(result.RETRIEVAL_CONTEXT_STRATEGY).toBe('RANKED');
+    expect(result.RETRIEVAL_RELEVANCE_THRESHOLD).toBe(0.75);
+    expect(result.RETRIEVAL_DECLARING_CLASS_MAX_TOKENS).toBe(0);
+    expect(result.RETRIEVAL_TARGET_EVIDENCE_MAX_TOKENS).toBe(1500);
+  });
+
+  it('accepts the threshold bounds 0 and 1', () => {
+    expect(() => validateEnv(baseConfig({ RETRIEVAL_RELEVANCE_THRESHOLD: 0 }))).not.toThrow();
+    expect(() => validateEnv(baseConfig({ RETRIEVAL_RELEVANCE_THRESHOLD: 1 }))).not.toThrow();
+  });
+
+  it('rejects an unknown strategy', () => {
+    expect(() => validateEnv(baseConfig({ RETRIEVAL_CONTEXT_STRATEGY: 'layered' }))).toThrow(/inválida/);
+    expect(() => validateEnv(baseConfig({ RETRIEVAL_CONTEXT_STRATEGY: 'OTHER' }))).toThrow(/inválida/);
+  });
+
+  it('rejects a threshold outside 0..1 or not numeric', () => {
+    expect(() => validateEnv(baseConfig({ RETRIEVAL_RELEVANCE_THRESHOLD: 1.1 }))).toThrow(/inválida/);
+    expect(() => validateEnv(baseConfig({ RETRIEVAL_RELEVANCE_THRESHOLD: -0.1 }))).toThrow(/inválida/);
+    expect(() => validateEnv(baseConfig({ RETRIEVAL_RELEVANCE_THRESHOLD: 'abc' }))).toThrow(/inválida/);
+  });
+
+  it('rejects negative or non-integer layer caps', () => {
+    for (const name of ['RETRIEVAL_DECLARING_CLASS_MAX_TOKENS', 'RETRIEVAL_TARGET_EVIDENCE_MAX_TOKENS']) {
+      expect(() => validateEnv(baseConfig({ [name]: -1 }))).toThrow(/inválida/);
+      expect(() => validateEnv(baseConfig({ [name]: 1.5 }))).toThrow(/inválida/);
+      expect(() => validateEnv(baseConfig({ [name]: 'abc' }))).toThrow(/inválida/);
+    }
+  });
+});

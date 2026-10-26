@@ -981,3 +981,120 @@ describe('ContextTracesService dependencyContext enum (WI-CORE-068)', () => {
     expect(detail.dependencyContext.entries[0]).not.toHaveProperty('enum');
   });
 });
+
+describe('ContextTracesService trazas por capas (WI-CORE-103, INTEROP-2.22)', () => {
+  const layeredConfiguration = {
+    minimumScore: 0,
+    topK: 10,
+    maxContextTokens: 8000,
+    semanticWeight: 0.7,
+    structuralWeight: 0.3,
+    strategy: 'LAYERED',
+    relevanceThreshold: 0.6,
+    declaringClassMaxTokens: 4000,
+    targetEvidenceMaxTokens: 2000,
+  };
+
+  function traceWith(candidates: unknown[], configuration?: Record<string, unknown>) {
+    const trace = makeRagTrace(candidates);
+    if (configuration) (trace.detail as Record<string, unknown>).configuration = configuration;
+    return trace;
+  }
+
+  async function readDetail(trace: ReturnType<typeof makeRagTrace>) {
+    const { service } = makeService({ reads: { findForOwner: vi.fn().mockResolvedValue(trace) } });
+    const detail = await service.getContextTraceDetail('trace-1', USER_ID);
+    if (detail.kind !== 'RAG') throw new Error('expected RAG detail');
+    return detail;
+  }
+
+  it('accepts BELOW_RELEVANCE_THRESHOLD and exposes the layer of the selected candidates', async () => {
+    const detail = await readDetail(
+      traceWith(
+        [
+          makeRagCandidate({ chunkId: 'a', rank: 1, layer: 'DECLARING_CLASS' }),
+          makeRagCandidate({ chunkId: 'b', rank: 2, layer: 'TARGET_EVIDENCE' }),
+          makeRagCandidate({ chunkId: 'c', rank: 3, layer: 'RELEVANT_SEMANTIC' }),
+          makeRagCandidate({
+            chunkId: 'd',
+            rank: 4,
+            decision: 'DISCARDED',
+            discardReason: 'BELOW_RELEVANCE_THRESHOLD',
+            layer: null,
+          }),
+        ],
+        layeredConfiguration,
+      ),
+    );
+
+    expect(detail.candidates.map((candidate) => [candidate.chunkId, candidate.layer, candidate.discardReason])).toEqual([
+      ['a', 'DECLARING_CLASS', null],
+      ['b', 'TARGET_EVIDENCE', null],
+      ['c', 'RELEVANT_SEMANTIC', null],
+      ['d', null, 'BELOW_RELEVANCE_THRESHOLD'],
+    ]);
+    expect(detail.configuration).toEqual(layeredConfiguration);
+  });
+
+  it('reads a previous trace without layer or the new configuration fields and does not add them', async () => {
+    const detail = await readDetail(makeRagTrace([makeRagCandidate()]));
+
+    expect('layer' in detail.candidates[0]).toBe(false);
+    expect(detail.configuration).toEqual({
+      minimumScore: 0.1,
+      topK: 2,
+      maxContextTokens: 100,
+      semanticWeight: 0.7,
+      structuralWeight: 0.3,
+    });
+    for (const key of ['strategy', 'relevanceThreshold', 'declaringClassMaxTokens', 'targetEvidenceMaxTokens']) {
+      expect(key in detail.configuration).toBe(false);
+    }
+  });
+
+  it('exposes only the configuration fields that were stored', async () => {
+    const detail = await readDetail(
+      traceWith([makeRagCandidate()], {
+        minimumScore: 0,
+        topK: 10,
+        maxContextTokens: 8000,
+        semanticWeight: 0.7,
+        structuralWeight: 0.3,
+        strategy: 'RANKED',
+      }),
+    );
+
+    expect(detail.configuration.strategy).toBe('RANKED');
+    expect('relevanceThreshold' in detail.configuration).toBe(false);
+  });
+
+  it('rejects a layer outside the contract and a malformed layer type', async () => {
+    for (const layer of ['OTHER_LAYER', 3, true]) {
+      const { service } = makeService({
+        reads: {
+          findForOwner: vi.fn().mockResolvedValue(makeRagTrace([makeRagCandidate({ layer })])),
+        },
+      });
+
+      await expect(service.getContextTraceDetail('trace-1', USER_ID)).rejects.toThrow();
+    }
+  });
+
+  it('rejects an invalid stored strategy or limits', async () => {
+    const invalid: Array<Record<string, unknown>> = [
+      { ...layeredConfiguration, strategy: 'OTHER' },
+      { ...layeredConfiguration, relevanceThreshold: 'x' },
+      { ...layeredConfiguration, declaringClassMaxTokens: -1 },
+      { ...layeredConfiguration, targetEvidenceMaxTokens: 1.5 },
+    ];
+    for (const configuration of invalid) {
+      const { service } = makeService({
+        reads: {
+          findForOwner: vi.fn().mockResolvedValue(traceWith([makeRagCandidate()], configuration)),
+        },
+      });
+
+      await expect(service.getContextTraceDetail('trace-1', USER_ID)).rejects.toThrow();
+    }
+  });
+});

@@ -119,7 +119,17 @@ export interface GenerationContext {
 
 export type RagCandidateDecision = 'SELECTED' | 'DISCARDED';
 export type RagDiscardReason =
-  'BELOW_MINIMUM_SCORE' | 'TOP_K_LIMIT' | 'TOKEN_BUDGET';
+  | 'BELOW_MINIMUM_SCORE'
+  | 'BELOW_RELEVANCE_THRESHOLD'
+  | 'TOP_K_LIMIT'
+  | 'TOKEN_BUDGET';
+
+/** Estrategia efectiva del ContextBuilder (WI-CORE-103). `LAYERED` solo aplica a PHP. */
+export type RagContextStrategy = 'LAYERED' | 'RANKED';
+
+/** Capa que seleccionó un candidato con `LAYERED` (WI-CORE-103). */
+export type RagContextLayer =
+  'DECLARING_CLASS' | 'TARGET_EVIDENCE' | 'RELEVANT_SEMANTIC';
 
 export interface GenerationContextAuditChunk {
   chunkId: string;
@@ -141,6 +151,8 @@ export interface GenerationContextAuditCandidate extends GenerationContextAuditC
   matchedVia: Array<'SEMANTIC' | StructuralMatch>;
   decision: RagCandidateDecision;
   discardReason: RagDiscardReason | null;
+  /** Capa de selección (`LAYERED`); null si se descartó o con `RANKED`. */
+  layer: RagContextLayer | null;
 }
 
 export interface GenerationContextAuditFunctionalRuleOmission {
@@ -174,5 +186,10 @@ export interface GenerationContextAudit {
     maxContextTokens: number;
     semanticWeight: number;
     structuralWeight: number;
+    /** Estrategia efectiva: `RANKED` siempre que el proyecto no sea PHP. */
+    strategy: RagContextStrategy;
+    relevanceThreshold: number;
+    declaringClassMaxTokens: number;
+    targetEvidenceMaxTokens: number;
   };
 }

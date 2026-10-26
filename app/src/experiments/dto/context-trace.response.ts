@@ -39,7 +39,14 @@ export type RagStructuralMatch =
 export type RagMatchedVia = 'SEMANTIC' | RagStructuralMatch;
 export type RagCandidateDecision = 'SELECTED' | 'DISCARDED';
 export type RagDiscardReason =
-  'BELOW_MINIMUM_SCORE' | 'TOP_K_LIMIT' | 'TOKEN_BUDGET';
+  | 'BELOW_MINIMUM_SCORE'
+  | 'BELOW_RELEVANCE_THRESHOLD'
+  | 'TOP_K_LIMIT'
+  | 'TOKEN_BUDGET';
+/** INTEROP-2.22 (WI-CORE-103). */
+export type RagContextStrategy = 'LAYERED' | 'RANKED';
+export type RagContextLayer =
+  'DECLARING_CLASS' | 'TARGET_EVIDENCE' | 'RELEVANT_SEMANTIC';
 
 export interface RagTargetNodeResponse {
   chunkIds: string[];
@@ -58,6 +65,8 @@ export interface RagCandidateNodeResponse {
   matchedVia: RagMatchedVia[];
   decision: RagCandidateDecision;
   discardReason: RagDiscardReason | null;
+  /** INTEROP-2.22 (WI-CORE-103): capa que lo seleccionó; null si se descartó; ausente en trazas anteriores. */
+  layer?: RagContextLayer | null;
 }
 
 export type RagDependencyOrigin = 'CONSTRUCTOR' | 'METHOD_SIGNATURE';
@@ -94,6 +103,11 @@ export interface RagContextTraceDetailResponse extends ContextTraceSummaryRespon
     maxContextTokens: number;
     semanticWeight: number;
     structuralWeight: number;
+    /** INTEROP-2.22 (WI-CORE-103): ausentes en trazas anteriores. */
+    strategy?: RagContextStrategy;
+    relevanceThreshold?: number;
+    declaringClassMaxTokens?: number;
+    targetEvidenceMaxTokens?: number;
   };
   /** INTEROP-2.14; solo PHP; ausente en trazas anteriores y en TypeScript. */
   dependencyContext?: RagDependencyContextResponse;

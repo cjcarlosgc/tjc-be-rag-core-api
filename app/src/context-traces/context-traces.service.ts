@@ -15,6 +15,8 @@ import type {
   ContextTraceSummaryResponse,
   DiscoveredFileResponse,
   RagCandidateNodeResponse,
+  RagContextLayer,
+  RagContextStrategy,
   RagContextTraceDetailResponse,
   RagDependencyContextResponse,
   RagDependencyEntryResponse,
@@ -81,8 +83,17 @@ function isRagStructuralMatch(value: unknown): value is RagStructuralMatch {
 function isRagDiscardReason(value: unknown): value is RagDiscardReason {
   return (
     value === 'BELOW_MINIMUM_SCORE' ||
+    value === 'BELOW_RELEVANCE_THRESHOLD' ||
     value === 'TOP_K_LIMIT' ||
     value === 'TOKEN_BUDGET'
+  );
+}
+
+function isRagContextLayer(value: unknown): value is RagContextLayer {
+  return (
+    value === 'DECLARING_CLASS' ||
+    value === 'TARGET_EVIDENCE' ||
+    value === 'RELEVANT_SEMANTIC'
   );
 }
 
@@ -548,6 +559,14 @@ export class ContextTracesService {
     ) {
       throw invalidStoredDetail();
     }
+    // INTEROP-2.22 (WI-CORE-103): `layer` es opcional; las trazas anteriores no lo tienen.
+    if (
+      value.layer !== undefined &&
+      value.layer !== null &&
+      !isRagContextLayer(value.layer)
+    ) {
+      throw invalidStoredDetail();
+    }
     return {
       chunkId: value.chunkId,
       rank: value.rank as number,
@@ -559,6 +578,9 @@ export class ContextTracesService {
       matchedVia: value.matchedVia as RagMatchedVia[],
       decision,
       discardReason,
+      ...(value.layer !== undefined
+        ? { layer: value.layer as RagContextLayer | null }
+        : {}),
     };
   }
 
@@ -665,6 +687,27 @@ export class ContextTracesService {
       maxContextTokens: this.requireNonNegativeInteger(config.maxContextTokens),
       semanticWeight: this.requireFiniteNumber(config.semanticWeight),
       structuralWeight: this.requireFiniteNumber(config.structuralWeight),
+      // INTEROP-2.22 (WI-CORE-103): solo se exponen si están almacenados (trazas anteriores no los tienen).
+      ...(config.strategy !== undefined
+        ? { strategy: this.requireContextStrategy(config.strategy) }
+        : {}),
+      ...(config.relevanceThreshold !== undefined
+        ? { relevanceThreshold: this.requireFiniteNumber(config.relevanceThreshold) }
+        : {}),
+      ...(config.declaringClassMaxTokens !== undefined
+        ? {
+            declaringClassMaxTokens: this.requireNonNegativeInteger(
+              config.declaringClassMaxTokens,
+            ),
+          }
+        : {}),
+      ...(config.targetEvidenceMaxTokens !== undefined
+        ? {
+            targetEvidenceMaxTokens: this.requireNonNegativeInteger(
+              config.targetEvidenceMaxTokens,
+            ),
+          }
+        : {}),
     };
   }
 
@@ -709,6 +752,11 @@ export class ContextTracesService {
       throw invalidStoredDetail();
     }
     return value.toLowerCase();
+  }
+
+  private requireContextStrategy(value: unknown): RagContextStrategy {
+    if (value !== 'LAYERED' && value !== 'RANKED') throw invalidStoredDetail();
+    return value;
   }
 
   private requireFiniteNumber(value: unknown): number {

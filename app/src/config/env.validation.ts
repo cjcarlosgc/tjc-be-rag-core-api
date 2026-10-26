@@ -153,6 +153,23 @@ class EnvironmentVariables {
   @Min(1)
   RETRIEVAL_TOP_K: number = 10;
 
+  /** WI-CORE-103: `LAYERED` solo aplica a proyectos PHP; TypeScript usa `RANKED`. */
+  @IsIn(['LAYERED', 'RANKED'])
+  RETRIEVAL_CONTEXT_STRATEGY: string = 'LAYERED';
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  RETRIEVAL_RELEVANCE_THRESHOLD: number = 0.6;
+
+  @IsInt()
+  @Min(0)
+  RETRIEVAL_DECLARING_CLASS_MAX_TOKENS: number = 4000;
+
+  @IsInt()
+  @Min(0)
+  RETRIEVAL_TARGET_EVIDENCE_MAX_TOKENS: number = 2000;
+
   @IsInt()
   @Min(1)
   RETRIEVAL_MAX_CONTEXT_TOKENS: number = DEFAULT_RETRIEVAL_MAX_CONTEXT_TOKENS;
