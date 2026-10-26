@@ -39,7 +39,7 @@ import { AnalysisRunChecksService } from '../checks/analysis-run-checks.service.
 import { EMBEDDING_PROVIDER } from '../providers/providers.constants.js';
 import type { EmbeddingProvider } from '../providers/embedding-provider.interface.js';
 import type { ExtractedWorkspace } from '../project-versions/zip/zip-extraction.service.js';
-import type { AnalysisIndexMode, CodeChunk } from '../generated/prisma/client.js';
+import type { AnalysisIndexMode, CodeChunk, RepositoryBinding } from '../generated/prisma/client.js';
 import { ProjectLanguage, type TestFramework } from '../generated/prisma/enums.js';
 import type { ResolvedTestTarget } from '../project-versions/inventory/existing-test-resolver.service.js';
 import { resolveUniqueComposerRoot, validateProjectRoot } from '../project-versions/project-root.util.js';
@@ -345,7 +345,7 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
         projectRoot: selectedProjectRoot,
       });
 
-      await this.persistSnapshot(version.id, workspace.dir);
+      await this.persistSnapshot(version.id, workspace.dir, binding, run.headSha);
 
       let symbols = await this.detectSymbols(
         chunksToPersist,
@@ -446,8 +446,15 @@ export class SnapshotAnalysisJobHandler implements JobHandler<SnapshotAnalysisJo
    * no bloquea el Run: se registra solo el nombre del error (sin mensaje, que
    * puede traer URLs firmadas) y `snapshotKey` queda sin definir.
    */
-  private async persistSnapshot(versionId: string, workspaceDir: string): Promise<void> {
+  private async persistSnapshot(
+    versionId: string,
+    workspaceDir: string,
+    binding: RepositoryBinding,
+    headSha: string,
+  ): Promise<void> {
     try {
+      // Fixtures de texto solo para el Sandbox (WI-CORE-102): después de indexar y antes de zipear.
+      await this.githubSnapshotMaterializerService.addSandboxFixtures(binding, headSha, workspaceDir);
       const snapshotBuffer = zipDirectory(workspaceDir);
       const snapshotKey = `project-versions/${versionId}/snapshot.zip`;
       await this.objectStorageService.put(snapshotKey, snapshotBuffer, 'application/zip');

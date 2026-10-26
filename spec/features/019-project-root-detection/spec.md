@@ -24,7 +24,7 @@ Soportar un repositorio GitHub que contiene una aplicación PHP en un subdirecto
 
 ## Aislamiento PHP y compatibilidad
 
-Para un Project con `projectRoot = sistema-ventas-dn`, el parser, el inventario, la detección PHPUnit, retrieval, generación y exploración de `GENERALIST_AGENT` solo procesan ese subtree. El snapshot puede conservar el repositorio completo para trazabilidad. Los artefactos de test se materializan bajo `sistema-ventas-dn/` y el Sandbox instala dependencias y ejecuta PHPUnit con cwd en el directorio seleccionado.
+Para un Project con `projectRoot = sistema-ventas-dn`, el parser, el inventario, la detección PHPUnit, retrieval, generación y exploración de `GENERALIST_AGENT` solo procesan ese subtree. El snapshot que recibe el Sandbox no conserva el repositorio completo: contiene el pool PHP y, desde `WI-CORE-102`, los fixtures de texto con topes definidos en `002-project-version-indexing`. Los artefactos de test se materializan bajo `sistema-ventas-dn/` y el Sandbox instala dependencias y ejecuta PHPUnit con cwd en el directorio seleccionado.
 
 TypeScript/Jest/Vitest conserva su detección y ejecución legacy, incluso cuando el repositorio contiene un frontend hermano. No se modifica CORS, no se levanta el frontend para ejecutar PHPUnit, no se agrega MySQL al Sandbox y no se modifican repositorios empresariales de validación.
 

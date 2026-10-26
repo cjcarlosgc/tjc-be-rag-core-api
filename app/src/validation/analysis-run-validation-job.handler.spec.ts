@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import AdmZip from 'adm-zip';
 import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisRunValidationJobHandler } from './analysis-run-validation-job.handler.js';
@@ -226,6 +227,9 @@ describe('AnalysisRunValidationJobHandler', () => {
       materialize: vi
         .fn()
         .mockResolvedValue({ dir: workspaceDir, cleanup: workspaceCleanup }),
+      addSandboxFixtures: vi
+        .fn()
+        .mockResolvedValue({ requested: 0, included: 0, bytes: 0, omitted: {} }),
     };
     const retrievalService = {
       retrieve: vi.fn().mockResolvedValue({ targetChunks: [], candidates: [] }),
@@ -858,6 +862,43 @@ describe('AnalysisRunValidationJobHandler', () => {
       expect.any(Buffer),
       'application/zip',
     );
+  });
+
+  it('adds the sandbox fixtures with binding, headSha and workspace dir before zipping the snapshot', async () => {
+    const { handler, githubSnapshotMaterializerService, objectStorageService, workspaceDir } =
+      await setup();
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    expect(githubSnapshotMaterializerService.addSandboxFixtures).toHaveBeenCalledTimes(1);
+    expect(githubSnapshotMaterializerService.addSandboxFixtures).toHaveBeenCalledWith(
+      binding,
+      'head-sha',
+      workspaceDir,
+    );
+    const snapshotPutIndex = objectStorageService.put.mock.calls.findIndex(
+      (call) => call[0] === 'analysis-runs/run-1/snapshot.zip',
+    );
+    expect(githubSnapshotMaterializerService.addSandboxFixtures.mock.invocationCallOrder[0])
+      .toBeLessThan(objectStorageService.put.mock.invocationCallOrder[snapshotPutIndex]);
+  });
+
+  it('includes the fixtures added to the workspace in the uploaded snapshot ZIP (added before zipping)', async () => {
+    const { handler, githubSnapshotMaterializerService, objectStorageService } = await setup();
+    githubSnapshotMaterializerService.addSandboxFixtures.mockImplementation(
+      async (_binding: unknown, _sha: string, dir: string) => {
+        await mkdir(join(dir, 'examples'), { recursive: true });
+        await writeFile(join(dir, 'examples', 'rbac_model.conf'), '[request_definition]', 'utf8');
+      },
+    );
+
+    await handler.handle({ analysisRunId: 'run-1' }, 'job-1');
+
+    const snapshotCall = objectStorageService.put.mock.calls.find(
+      (call) => call[0] === 'analysis-runs/run-1/snapshot.zip',
+    );
+    const entries = new AdmZip(snapshotCall?.[1] as Buffer).getEntries().map((entry) => entry.entryName);
+    expect(entries).toContain('examples/rbac_model.conf');
   });
 
   it('skips a symbol that already has an existing test and completes NO_ADDITIONAL_TESTS_REQUIRED', async () => {

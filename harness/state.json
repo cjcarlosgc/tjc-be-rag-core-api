@@ -25683,6 +25683,215 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-10-25T21:15:59.000Z"
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "sprint": "P2",
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "id": "WI-CORE-102",
+      "status": "W-DONE",
+      "title": "Snapshot con fixtures no-PHP para el Sandbox (C1 del Piloto v2): predicado isSandboxSnapshotFile, fixtures de texto tras indexar y antes de zipear, topes y skip-on-failure registrado, sin contrato",
+      "approved": true,
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-124"
+      ],
+      "caseIds": [],
+      "specPaths": [
+        "harness/reports/wi-core-102-scope.md",
+        "spec/features/002-project-version-indexing/tasks.md",
+        "harness/reports/wi-core-102-contract-sync-scope-review.md",
+        "harness/reports/wi-core-102-technical-checks.md",
+        "harness/reports/wi-core-102-independent-review.md",
+        "harness/reports/wi-core-102-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-102 cambia la composicion del snapshot para el Sandbox, no el binding.",
+          "report": "harness/reports/wi-core-102-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-102 no cambia auth ni despliegue (el snapshot es transporte interno, spec 002).",
+          "report": "harness/reports/wi-core-102-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-25T22:00:00.000Z",
+        "note": "Alcance aprobado por el usuario en el chat de Core (2026-10-25, D-v2-1..6 y WI-CORE-102..105); DEC-RAG-001 sigue PENDING y no bloquea (C1 no es test-aware); DEC-VAL-001 PENDING no bloquea (forks publicos de demostracion, sin codigo empresarial)."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "leader",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Snapshot PHP con fixtures de texto solo para el Sandbox: predicado isSandboxSnapshotFile/isSandboxFixtureFile (nunca archivos del pool), addSandboxFixtures que nunca lanza (topes 500/1MiB/5MiB, orden por ruta, omisiones como contadores) llamado tras indexar y antes de zipear en analisis y Validation; hallazgo del leader (package.json/tsconfig/jest.config como fixtures) corregido con pruebas; 5 mutaciones detectadas; lint, build y 3223 tests en verde (reproducidos por el leader). El subagente declaro esfuerzo bajo sin verificarlo."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/project-versions/indexing.constants.ts",
+              "app/src/snapshot-intelligence/github-snapshot-materializer.service.ts",
+              "app/src/snapshot-intelligence/snapshot-analysis-job.handler.ts",
+              "app/src/validation/analysis-run-validation-job.handler.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-102-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "APPROVED en el primer ciclo sin cambios obligatorios (11 mutaciones detectadas). Hallazgo medio (relacion de compresion >100 hace que el Sandbox rechace el snapshot) y bajo (nombres sensibles) mitigados por el leader dentro del alcance con guard de ratio >80 y regex de nombres; re-revision del delta APPROVED. Observaciones bajas declaradas: regex heuristica (falsos positivos/negativos), getTree truncado no reflejado."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-102-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "low"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-102",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-26T01:58:48.303Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-102",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T02:09:06.923Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-102",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T02:09:07.121Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-102",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T02:19:07.079Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-102-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-102-scope.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-102-contract-sync-scope-review.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-102-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-102-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-102-independent-review.md",
+          "harness/reports/wi-core-102-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-102-closure.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-102-scope.md",
+        "harness/reports/wi-core-102-technical-checks.md",
+        "harness/reports/wi-core-102-independent-review.md",
+        "harness/reports/wi-core-102-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-26T02:19:09.000Z"
     }
   ],
   "activeWorkItem": null

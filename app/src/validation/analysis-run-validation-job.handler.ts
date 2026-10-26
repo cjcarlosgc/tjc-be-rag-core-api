@@ -266,6 +266,12 @@ export class AnalysisRunValidationJobHandler
         binding,
         run.headSha,
       );
+      // Fixtures de texto solo para el Sandbox (WI-CORE-102): antes de zipear.
+      await this.githubSnapshotMaterializerService.addSandboxFixtures(
+        binding,
+        run.headSha,
+        workspace.dir,
+      );
       const snapshotBuffer = zipDirectory(workspace.dir);
       const snapshotKey = `analysis-runs/${run.id}/snapshot.zip`;
       await this.objectStorageService.put(

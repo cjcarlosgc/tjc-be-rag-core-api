@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import AdmZip from 'adm-zip';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SnapshotAnalysisJobHandler } from './snapshot-analysis-job.handler.js';
@@ -120,6 +121,7 @@ describe('SnapshotAnalysisJobHandler', () => {
         await mkdir(join(dir, 'backend'), { recursive: true });
         return { dir, cleanup: workspaceCleanup };
       }),
+      addSandboxFixtures: vi.fn().mockResolvedValue({ requested: 0, included: 0, bytes: 0, omitted: {} }),
     };
     const analysisSymbolsRepository = { insertMany: vi.fn().mockResolvedValue(undefined) };
     const symbolBehaviorConstructsService = {
@@ -780,6 +782,56 @@ describe('SnapshotAnalysisJobHandler', () => {
   });
 
   describe('snapshot persistence', () => {
+    it('adds the sandbox fixtures with binding, headSha and workspace dir before zipping and persisting', async () => {
+      const { handler, githubSnapshotMaterializerService, objectStorageService } = setup();
+
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      expect(githubSnapshotMaterializerService.addSandboxFixtures).toHaveBeenCalledTimes(1);
+      expect(githubSnapshotMaterializerService.addSandboxFixtures).toHaveBeenCalledWith(
+        binding,
+        'head-sha',
+        expect.stringContaining('snapshot-handler-test-'),
+      );
+      expect(githubSnapshotMaterializerService.addSandboxFixtures.mock.invocationCallOrder[0])
+        .toBeLessThan(objectStorageService.put.mock.invocationCallOrder[0]);
+    });
+
+    it('includes the fixtures added to the workspace in the persisted ZIP (added before zipping)', async () => {
+      const { handler, githubSnapshotMaterializerService, objectStorageService } = setup();
+      githubSnapshotMaterializerService.addSandboxFixtures.mockImplementation(
+        async (_binding: unknown, _sha: string, dir: string) => {
+          await mkdir(join(dir, 'examples'), { recursive: true });
+          await writeFile(join(dir, 'examples', 'rbac_model.conf'), '[request_definition]', 'utf8');
+        },
+      );
+
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      const snapshotCall = objectStorageService.put.mock.calls.find(
+        (call) => call[0] === 'project-versions/version-1/snapshot.zip',
+      );
+      const entries = new AdmZip(snapshotCall?.[1] as Buffer).getEntries().map((entry) => entry.entryName);
+      expect(entries).toContain('examples/rbac_model.conf');
+    });
+
+    it('keeps the run completing without a snapshotKey when adding the fixtures rejects', async () => {
+      const {
+        handler,
+        githubSnapshotMaterializerService,
+        objectStorageService,
+        projectVersionsRepository,
+        analysisSymbolsRepository,
+      } = setup();
+      githubSnapshotMaterializerService.addSandboxFixtures.mockRejectedValue(new Error('fixtures boom'));
+
+      await handler.handle({ analysisRunId: 'run-1' });
+
+      expect(objectStorageService.put).not.toHaveBeenCalled();
+      expect(projectVersionsRepository.setSnapshotKey).not.toHaveBeenCalled();
+      expect(analysisSymbolsRepository.insertMany).toHaveBeenCalled();
+    });
+
     it('stores the zipped workspace under a version-scoped key and links it to the ProjectVersion', async () => {
       const { handler, objectStorageService, projectVersionsRepository } = setup();
 

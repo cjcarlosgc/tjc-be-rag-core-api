@@ -5721,6 +5721,59 @@
           "report": "harness/reports/wi-core-101-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-102",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Snapshot con fixtures no-PHP para el Sandbox (C1 del Piloto v2): predicado isSandboxSnapshotFile, fixtures de texto tras indexar y antes de zipear, topes y skip-on-failure registrado, sin contrato",
+      "storyIds": [
+        "HU11",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-124"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-101"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "El zip de un repo PHP incluye los fixtures de texto de la lista cerrada bajo los topes (500 archivos, 1 MiB por archivo, 5 MiB en total, orden por ruta) y no incluye .env*, binarios, lockfiles de Node ni rutas con segmentos ignorados.",
+        "Un fixture que falla al leerse, supera un tope o no es UTF-8 valido se omite y se registra sin rutas sensibles ni contenido; el resto del snapshot se materializa.",
+        "isPhpPoolFile, isPoolFile, el descubrimiento de archivos, el indice y las herramientas del agente generalista no cambian; los fixtures se anaden despues de indexar y solo viajan al Sandbox, igual en experimentos y en Validation.",
+        "Sin cambio de ruta, DTO, enum, ErrorCode, evento, esquema, variable de entorno ni migracion; lint, build y test en verde; revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-102-scope.md",
+        "spec/features/002-project-version-indexing/tasks.md",
+        "harness/reports/wi-core-102-contract-sync-scope-review.md",
+        "harness/reports/wi-core-102-technical-checks.md",
+        "harness/reports/wi-core-102-independent-review.md",
+        "harness/reports/wi-core-102-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-102 cambia la composicion del snapshot para el Sandbox, no el binding.",
+          "report": "harness/reports/wi-core-102-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-102 no cambia auth ni despliegue (el snapshot es transporte interno, spec 002).",
+          "report": "harness/reports/wi-core-102-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

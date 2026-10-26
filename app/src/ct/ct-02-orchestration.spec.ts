@@ -330,7 +330,10 @@ describe('CT-02-A4: target no resoluble dentro de Validation', () => {
       { findForRun: vi.fn().mockResolvedValue({ id: 'binding-1', installationId: '999', repositoryName: 'org/repo' } as RepositoryBinding) } as never,
       { findById: vi.fn().mockResolvedValue({ id: 'version-1', detectedFramework: 'JEST', effectiveProjectRoot: '.' } as ProjectVersion) } as never,
       { findByProjectVersion: vi.fn().mockResolvedValue([]) } as never,
-      { materialize: vi.fn().mockResolvedValue({ dir: workspaceDir, cleanup: vi.fn().mockResolvedValue(undefined) }) } as never,
+      {
+        materialize: vi.fn().mockResolvedValue({ dir: workspaceDir, cleanup: vi.fn().mockResolvedValue(undefined) }),
+        addSandboxFixtures: vi.fn().mockResolvedValue({ requested: 0, included: 0, bytes: 0, omitted: {} }),
+      } as never,
       retrievalService as never,
       { build: vi.fn().mockReturnValue(generationContext) } as never,
       { retrieve: vi.fn().mockResolvedValue([]) } as never,
