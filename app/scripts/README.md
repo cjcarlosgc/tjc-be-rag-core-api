@@ -7,6 +7,7 @@ Herramientas del repositorio que no forman parte del producto (no entran en `dis
 | `generate-contract-types.mjs` | Genera o verifica los tipos de contratos (`pnpm contracts:generate` / `pnpm contracts:check`). |
 | `local-php-env.mjs` | Genera los `.env` locales para probar PHP en local. |
 | `extract-evidence.mjs` | Extractor de evidencia de solo lectura (WI-CORE-094). Ver abajo. |
+| `oe2.mjs` | Herramientas de evaluación OE2 de retrieval (WI-CORE-107): volcados, muestra, hojas ciegas y puntuación. Ver al final. |
 
 ## Extractor de evidencia (`extract-evidence.mjs`)
 
@@ -134,3 +135,53 @@ Las pruebas usan dobles de la base y de Storage; no se conectan a nada. Corren c
 - **`envSuspect` es heurístico:** `ENV-03` y `ENV-04` se evalúan con cualquier tipo de fallo, así que un bucle de memoria o un socket abierto por la estrategia pueden marcarse como entorno; solo informan, nunca puntúan ni excluyen.
 - **`oe5-preflight before`:** un `/health` en 200 solo prueba que el proceso despertó; no prueba que Core ya verifique el acceso a GitHub ni que Integration reciba webhooks (ver el runbook).
 - El manifiesto no puede probar su propia integridad (ver `manifest.sha256`).
+
+## Evaluación OE2 de retrieval (`oe2.mjs`; WI-CORE-107)
+
+CLI de solo lectura sobre la base (solo `dump-chunks` y `dump-results`) y sobre archivos locales (el resto). Uso desde `app/`:
+
+```bash
+node scripts/oe2.mjs <subcomando> [opciones]     # sin subcomando: ayuda (exit 0)
+```
+
+Códigos de salida: **0** correcto; **1** error de ejecución, diferencias (`compare-dumps`) o incongruencias de re-ranking (`score`); **2** uso incorrecto. `DATABASE_URL` se exporta en tu shell; el script no carga `.env` y no imprime valores de configuración. `--out` debe estar vacía o no existir y, salvo `--allow-out-in-repo`, fuera del repositorio. Toda salida escrita lleva `manifest.json` (tamaño y SHA-256 por archivo), `hashes.txt` y `manifest.sha256`; `compare-dumps` sin `--out` solo imprime el resumen y no escribe nada.
+
+| Subcomando | Entrada | Salida (en `--out`) |
+|---|---|---|
+| `dump-chunks --project-version <id>` | base (solo lectura) | `chunks.jsonl` (una línea por chunk: `filePath, symbolKind, symbolName, parentSymbolName, startLine, endLine, partIndex, partsTotal, importsUsed, tokenCount, contentSha256, content`) |
+| `dump-results --analysis-run <id>` o `--comparison <id>...` | base (solo lectura) | Un `<id>.json` por comparación COMPLETED con la forma de `RetrievalComparisonResultsResponse`. Las demás van a `manifest.json` como `omitted`. |
+| `compare-dumps --a <jsonl> --b <jsonl> [--out <carpeta>]` | dos `chunks.jsonl` | Resumen por stdout (`identical`, recuentos). Sale con 1 si hay diferencias. Con `--out`, `comparacion.json`. |
+| `sample --dump <jsonl> --seed <texto> [--calibration 3] [--reserve 3] [--official 12] [--exclude <archivo>] [--repo <nombre>]` | `chunks.jsonl` | `universe.csv`, `eligible.csv`, `sample.csv` (`role,order,repo,filePath,qualifiedName,kind,closureSize,closureTypes`), `sample.json` (parámetros, semilla, algoritmo, primeras 5 salidas crudas en hex, recuentos). |
+| `support-files --sample <csv> --checkout <carpeta>` | `sample.csv` + checkout (solo lectura) | Copias con la línea `// oe2-support` al final, `support-manifest.json` (SHA-256 antes, de la copia y después; el checkout no cambia). |
+| `pool --dump <jsonl> --sample <csv> --results <carpeta> --seed <texto> [--max-chars 6000]` | volcado, sample y resultados | `ciego/hojas/T<nn>.md`, `ciego/annotation-template.csv`, `clave/key.json` y `pool-summary.csv`. |
+| `score --results <carpeta> --gt <gt.json> --gt-sha256 <hex> --sample <csv> [--include-calibration]` | resultados, GT y sample | `metrics-per-target.csv` (solo oficiales) y `scores.json` (solo oficiales). Con `--include-calibration`, la calibración y la reserva van solo a `metrics-calibracion-reserva-NO-REPORTABLE.csv` (marcado «no reportable»), nunca a `scores.json`. |
+
+### Reglas que fija el CLI
+
+- **Elegibilidad ex ante (sin retrieval):** METHOD y FUNCTION (los CONSTRUCTOR y los tipos no son targets); archivo PHP que no es de prueba (`isTestFile`) ni de directorio ignorado; partes completas; firma con cuerpo; cierre estático de profundidad 1 no vacío; no excluido por `--exclude` (`filePath::qualifiedName`, una por línea). El motivo de exclusión queda en `universe.csv`.
+- **Cierre de profundidad 1** (`closure.mjs`, compartido por `sample` y `pool`): tipos CLASS/INTERFACE/TRAIT/ENUM del volcado que (a) están en `importsUsed` (sin `\` inicial), o (b) comparten namespace y su nombre corto aparece como palabra completa, o (c) aparecen como `\FQCN` seguido de un carácter que no es de identificador (o fin de texto; igual que R-PHP4). Se excluye la clase declarante. `pool` recalcula el cierre y falla si no coincide con `sample.csv`.
+- **Sorteo:** semilla = primeros 32 bits big-endian de SHA-256 de la semilla (UTF-8); generador mulberry32 (`state = (state + 0x6D2B79F5) | 0`, mezcla con `Math.imul`, salida `(t ^ (t >>> 14)) >>> 0`); barajado de Fisher–Yates descendente sobre la lista ordenada por `(filePath, qualifiedName)` con comparación por unidades de código. Roles por posición: calibración, oficiales, reserva. Si faltan elegibles, se usan todos y se advierte; no se relajan criterios.
+- **Pool:** candidatos `selected` de SE ∪ SEM ∪ declaración de cada tipo del cierre, deduplicado por `(filePath, symbolQualifiedName)`, sin el propio target. Un candidato CONSTRUCTOR (`Clase.constructor`) seleccionado en SE o SEM se resuelve a su código igual que un método; CONSTRUCTOR sigue fuera del universo de `sample`. El orden de las hojas y de `candidate_id` depende solo de la semilla y de la identidad del candidato, nunca de su procedencia (SE, SEM o cierre). Se comprueba la configuración congelada (SE: `semanticTopK 20`, `finalTopK 10`, pesos 0.7/0.3; SEM: sin pesos; `embeddingModel` solo se registra). El barajado por target usa SHA-256(semilla + `|` + targetId); `candidate_id` = `<targetId>-<k:02d>`.
+- **Ceguera:** `ciego/` (hojas y plantilla) no contiene modo, rank, score, relación estructural ni origen; eso va solo en `clave/key.json`. La carpeta `ciego/` es la única que se entrega a los anotadores. `pool-summary.csv` es agregado y no es ciego.
+- **Score:** GT validada contra `--gt-sha256` (si no coincide, no se puntúa). P@k y R@k con k fijo (5 y 10); hits = elementos distintos de la GT recuperados. Un target sin GT o con GT vacía es `NA`. Antes de puntuar se re-rankea cada modo con la copia de `rankComparisonCandidates`; si los `rank`, `chunkId`, `selected` o `combinedScore` no coinciden, sale con 1. **Sensibilidad** (solo SE, no cambia el producto): re-orden por score combinado desc, semántico desc, `(filePath, symbolQualifiedName)` asc y `rank` original como último criterio; se reportan ΔP/ΔR frente al SE persistido.
+- **Paridad:** `product-copies.mjs` (métricas, ranking, nombres calificados, `isTestFile`, `isIgnoredPath`, regex R-PHP3/R-PHP4, fórmula combinada) tiene pruebas de paridad contra el producto en `oe2/product-parity.spec.ts`.
+
+### Limitaciones y decisiones tomadas donde la especificación dejaba margen
+
+- El escáner de firma PHP (`php-signature.mjs`) no es un parser: no interpreta heredocs ni nowdocs; ignora comentarios, cadenas y atributos `#[...]`.
+- Solo se consideran archivos `.php` como elegibles (el cierre es PHP). Los símbolos con partes faltantes o repetidas se marcan `partes-incompletas`; un candidato del pool con partes incompletas aborta.
+- Si un mismo (archivo, nombre) tiene varios grupos de chunk, la hoja usa el de mayor precedencia (METHOD, FUNCTION, tipos, CONSTRUCTOR) y se cuenta en `ambiguousKinds`.
+- Los candidatos del pool sin `symbolQualifiedName` no tienen identidad: se excluyen y se cuentan en `nSinIdentidad`.
+- Las rutas de salida de los paquetes siguen la restricción del extractor (segmentos `[A-Za-z0-9._-]`); un archivo con otros caracteres en la ruta aborta `support-files`.
+- `support-files` no admite `--out` dentro del checkout.
+- El código de cada candidato se trunca a `--max-chars` (6000 por defecto; la decisión de subirlo la toma cross) con un marcador explícito en la hoja, que indica cuántos caracteres se muestran y cuántos tiene el original. El truncado afecta sobre todo a candidatos de tipo, cuya declaración completa (la clase) suele superar el límite: el anotador ve la cabecera y parte del cuerpo. El manifiesto de `pool` cuenta los bloques truncados (`truncatedBlocks`) y los de tipo (`truncatedTypeCandidates`).
+- `sample` escribe `repo` vacío si no se pasa `--repo`.
+- Sin estadística inferencial (κ, bootstrap, Wilcoxon): se hace fuera del CLI.
+
+### Pruebas
+
+```bash
+DOTENV_CONFIG_PATH=/nonexistent corepack pnpm@12.14.0 exec vitest run scripts/oe2
+```
+
+Usan fixtures sintéticos (PHP inventado, sin datos reales) y un doble del driver de PostgreSQL. No se conectan a ninguna base ni a red. Las pruebas de la paridad comparan con el código del producto.

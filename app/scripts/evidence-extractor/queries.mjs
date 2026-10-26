@@ -296,6 +296,37 @@ export const CONTEXT_TRACES = {
   sql: `SELECT t."experimentRepetitionId", t."kind", t."strategy", t."repetition", t."attempt", t."current", t."state", t."detail", t."toolCalls", t."filesInspected" FROM "context_traces" t WHERE t."experimentId" = $1 ORDER BY t."strategy", t."repetition", t."attempt", t."kind"`,
 };
 
+// ---------------------------------------------------------------------------------------------------------------
+// OE2 (WI-CORE-107, `scripts/oe2`): volcados de chunks y de comparaciones de retrieval. Solo lectura.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Chunks de una ProjectVersion. El orden lo fija el CLI en JavaScript (no depende de la collation de la base). */
+export const OE2_CODE_CHUNKS = {
+  id: 'oe2CodeChunks',
+  sql: `SELECT c."filePath" AS "filePath", c."symbolKind" AS "symbolKind", c."symbolName" AS "symbolName", c."parentSymbolName" AS "parentSymbolName", c."startLine" AS "startLine", c."endLine" AS "endLine", c."partIndex" AS "partIndex", c."partsTotal" AS "partsTotal", c."importsUsed" AS "importsUsed", c."tokenCount" AS "tokenCount", c."content" AS "content" FROM "code_chunks" c WHERE c."projectVersionId" = $1`,
+};
+
+/** Comparaciones de retrieval de un AnalysisRun (sin verdad de terreno: no se exporta). */
+export const OE2_COMPARISONS_BY_RUN = {
+  id: 'oe2ComparisonsByRun',
+  json: ['symbol'],
+  sql: `SELECT c."id" AS "id", c."analysisRunId" AS "analysisRunId", c."projectVersionId" AS "projectVersionId", c."symbol" AS "symbol", c."status" AS "status", c."completedAt" AS "completedAt" FROM "retrieval_comparisons" c WHERE c."analysisRunId" = $1 ORDER BY c."createdAt" ASC, c."id" ASC`,
+};
+
+/** Comparación de retrieval por id. */
+export const OE2_COMPARISON_BY_ID = {
+  id: 'oe2ComparisonById',
+  json: ['symbol'],
+  sql: `SELECT c."id" AS "id", c."analysisRunId" AS "analysisRunId", c."projectVersionId" AS "projectVersionId", c."symbol" AS "symbol", c."status" AS "status", c."completedAt" AS "completedAt" FROM "retrieval_comparisons" c WHERE c."id" = $1`,
+};
+
+/** Resultados por modo (SE y SEM) de una comparación. */
+export const OE2_COMPARISON_RESULTS = {
+  id: 'oe2ComparisonResults',
+  json: ['config', 'candidates', 'metrics'],
+  sql: `SELECT r."id" AS "id", r."comparisonId" AS "comparisonId", r."mode" AS "mode", r."config" AS "config", r."candidates" AS "candidates", r."metrics" AS "metrics" FROM "retrieval_comparison_results" r WHERE r."comparisonId" = $1 ORDER BY r."mode" ASC`,
+};
+
 /** Todas las definiciones de consulta de datos (sin contar el sondeo), para verificar que son de solo lectura. */
 export function allDataQueries() {
   return [
@@ -305,6 +336,7 @@ export function allDataQueries() {
     repetitionsQuery({ trial: false }), repetitionsQuery({ trial: true }),
     artifactsQuery({ trial: false }), artifactsQuery({ trial: true }),
     ...INVERSE_CHECKS,
+    OE2_CODE_CHUNKS, OE2_COMPARISONS_BY_RUN, OE2_COMPARISON_BY_ID, OE2_COMPARISON_RESULTS,
   ];
 }
 
