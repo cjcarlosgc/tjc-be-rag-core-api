@@ -20,6 +20,14 @@ export type CodeChunkDependencyFields = Pick<
 
 const PHP_TYPE_SYMBOL_KINDS = ['CLASS', 'INTERFACE', 'TRAIT', 'ENUM'];
 
+/** WI-CORE-106: la consulta alcanzó su tope de filas y el resultado podría estar incompleto. */
+export class PhpDeclarationQueryLimitError extends Error {
+  constructor(query: string, limit: number) {
+    super(`${query} alcanzó el límite de ${limit} filas`);
+    this.name = 'PhpDeclarationQueryLimitError';
+  }
+}
+
 function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.map((value) => value.toFixed(8)).join(',')}]`;
 }
@@ -131,6 +139,99 @@ export class CodeChunksRepository {
       if (declarations.length === 1) unique.push(declarations[0]);
     }
     return unique;
+  }
+
+  /**
+   * WI-CORE-106: todas las partes de los chunks de tipo PHP (CLASS, INTERFACE, TRAIT, ENUM) de cada FQCN pedido,
+   * ordenadas por `partIndex`, para leer la cabecera (parte 1) y las firmas de una interfaz grande. Un FQCN
+   * declarado en más de un archivo (o con más de un tipo de símbolo) es ambiguo y se omite. Solo lectura, orden
+   * determinista y un máximo de `limit` filas en total: el llamador trata `resultado.length >= limit` como
+   * resultado posiblemente incompleto.
+   */
+  async findPhpTypeDeclarationParts(
+    projectVersionId: string,
+    symbolNames: string[],
+    limit = 400,
+  ): Promise<Array<{ symbolName: string; symbolKind: string; partIndex: number; content: string; importsUsed: string[] }>> {
+    const names = [...new Set(symbolNames)];
+    if (names.length === 0) return [];
+    const rows = await this.prisma.codeChunk.findMany({
+      where: {
+        projectVersionId,
+        symbolKind: { in: PHP_TYPE_SYMBOL_KINDS },
+        symbolName: { in: names },
+        filePath: { endsWith: '.php' },
+      },
+      select: { symbolName: true, symbolKind: true, filePath: true, partIndex: true, content: true, importsUsed: true },
+      orderBy: [{ symbolName: 'asc' }, { filePath: 'asc' }, { partIndex: 'asc' }],
+      take: limit,
+    });
+    // Un resultado cortado por el tope puede dejar una declaración sin sus partes: no se afirma nada.
+    if (rows.length >= limit) throw new PhpDeclarationQueryLimitError('findPhpTypeDeclarationParts', limit);
+    const bySymbol = new Map<string, typeof rows>();
+    for (const row of rows) {
+      if (row.symbolName === null) continue;
+      const list = bySymbol.get(row.symbolName) ?? [];
+      list.push(row);
+      bySymbol.set(row.symbolName, list);
+    }
+    const parts: Array<{ symbolName: string; symbolKind: string; partIndex: number; content: string; importsUsed: string[] }> = [];
+    for (const [symbolName, list] of bySymbol) {
+      const origins = new Set(list.map((row) => `${row.filePath}|${row.symbolKind}`));
+      if (origins.size > 1) continue;
+      for (const row of [...list].sort((left, right) => left.partIndex - right.partIndex)) {
+        parts.push({
+          symbolName,
+          symbolKind: row.symbolKind,
+          partIndex: row.partIndex,
+          content: row.content,
+          importsUsed: row.importsUsed,
+        });
+      }
+    }
+    return parts;
+  }
+
+  /**
+   * WI-CORE-106: parte 1 de los chunks `METHOD` y `CONSTRUCTOR` PHP de las clases indicadas (todos, no solo los
+   * estáticos), para saber qué métodos declara cada clase. Un padre con métodos en más de un archivo es ambiguo y
+   * se omite. Solo lectura, orden determinista y un máximo de `limit` filas en total: si la consulta alcanza
+   * el tope lanza `PhpDeclarationQueryLimitError` (resultado posiblemente incompleto) en vez de devolverlo.
+   */
+  async findPhpMethodDeclarations(
+    projectVersionId: string,
+    parentSymbolNames: string[],
+    limit = 600,
+  ): Promise<Array<{ parentSymbolName: string; symbolName: string | null; content: string }>> {
+    const names = [...new Set(parentSymbolNames)];
+    if (names.length === 0) return [];
+    const rows = await this.prisma.codeChunk.findMany({
+      where: {
+        projectVersionId,
+        symbolKind: { in: ['METHOD', 'CONSTRUCTOR'] },
+        parentSymbolName: { in: names },
+        filePath: { endsWith: '.php' },
+        partIndex: 1,
+      },
+      select: { parentSymbolName: true, symbolName: true, filePath: true, content: true },
+      orderBy: [{ parentSymbolName: 'asc' }, { filePath: 'asc' }, { symbolName: 'asc' }],
+      take: limit,
+    });
+    // Un resultado cortado por el tope puede dejar una clase sin todos sus métodos: no se afirma nada.
+    if (rows.length >= limit) throw new PhpDeclarationQueryLimitError('findPhpMethodDeclarations', limit);
+    const byParent = new Map<string, typeof rows>();
+    for (const row of rows) {
+      if (row.parentSymbolName === null) continue;
+      const list = byParent.get(row.parentSymbolName) ?? [];
+      list.push(row);
+      byParent.set(row.parentSymbolName, list);
+    }
+    const methods: Array<{ parentSymbolName: string; symbolName: string | null; content: string }> = [];
+    for (const [parentSymbolName, list] of byParent) {
+      if (new Set(list.map((row) => row.filePath)).size > 1) continue;
+      for (const row of list) methods.push({ parentSymbolName, symbolName: row.symbolName, content: row.content });
+    }
+    return methods;
   }
 
   /**

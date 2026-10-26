@@ -5940,6 +5940,62 @@
           "report": "harness/reports/wi-core-105-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-106",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-IN_REVIEW",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Obligaciones abstractas heredadas en la seccion de dependencias PHP (calibracion con smoke del Piloto v2): metodos abstractos sin implementar de la jerarquia de una clase declarante abstracta o interfaz, dentro del tope de 500 tokens (INTEROP-2.24 aditivo)",
+      "storyIds": [
+        "HU05",
+        "HU10",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-128"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-105"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "Cuando la clase declarante del target PHP es abstracta o una interfaz, la seccion de dependencias incluye un bloque de los metodos abstractos sin implementar de su jerarquia (los abstract propios, los de las interfaces que implementa y los de las clases padre indexadas, profundidad maxima 3, maximo 12 firmas, sin duplicados) restando los implementados con cuerpo en la clase declarante o en un ancestro concreto; una clase concreta, una funcion o una cabecera ilegible no producen bloque y nada se afirma de tipos fuera del indice.",
+        "El bloque cuenta dentro del tope de 500 tokens con el orden de recorte glosario, fabricas, obligaciones, firmas/profundidad 2 y entradas; el servicio devuelve la seccion aunque solo haya obligaciones; dependencyContext en la traza no cambia de forma (entries [] con tokenCount > 0 si solo hay el bloque) y las firmas no se exponen.",
+        "Sin cambio de ruta, esquema JSON ni migracion; cambio documental aditivo INTEROP-2.24 publicado por Contract Sync (subsume CS-CORE-20261025-002); el agente generalista, el ranking y la capa de contexto no cambian; lint, build y test en verde; revision del contract-reviewer y revision independiente del reviewer."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-106-scope.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "harness/reports/wi-core-106-contract-sync-scope-review.md",
+        "harness/reports/oe5-v2-qualification-criterios.md",
+        "harness/reports/wi-core-106-technical-checks.md",
+        "harness/reports/wi-core-106-contract-review.md",
+        "harness/reports/wi-core-106-independent-review.md",
+        "harness/reports/wi-core-106-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-106 cambia el contenido de la seccion de dependencias del prompt, no el binding.",
+          "report": "harness/reports/wi-core-106-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-106 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-106-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }
