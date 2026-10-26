@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261025-001
+source: core
+sourceWorkItem: WI-CORE-103
+targets: [console, github-integration, sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.22 interoperability-contract.md sha256 76f5e77431969995d359fb973f58c9d94ccd43c12c3429557e45806a72a29c43; SYSTEM-2.16 system-contract.md (sin cambio) sha256 d0a492b4484c8883d65e709f76d8c7ff2462b0eb8c832649cf75723b9543ea77; github-integration-contract.md (GH-INTEROP-1.9, sin cambio) sha256 dedf00fa2f0f5be928cfaf1e5a12ff19f96e7579524a0a689757f1077bfc6e4e; arbol spec/contracts/schemas/ con examples/ (sin cambio) sha256 8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718 (receta del arbol: cd spec/contracts/schemas && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256). WI-CORE-103 (C2 del Piloto v2), alcance aprobado por el usuario el 2026-10-25, aditivo y no incompatible: 6.7 Trazas de contexto documenta, de la estrategia de contexto por capas, el motivo de descarte BELOW_RELEVANCE_THRESHOLD, los tipos RagContextStrategy y RagContextLayer, el campo opcional layer de RagCandidateNodeResponse y los campos opcionales strategy, relevanceThreshold, declaringClassMaxTokens y targetEvidenceMaxTokens de configuration; sin cambio de rutas, DTO existentes, codigos de error ni esquemas. Este evento SUBSUME el INTEROP de CS-CORE-20261024-004 (2.21): el re-espejo de interoperability-contract.md debe ir directo a 2.22; system-contract.md se queda en SYSTEM-2.16 segun ese evento; schemas/, github-integration-contract.md y generated/ no cambian.
+requiredAction:
+  - Re-espejar interoperability-contract.md byte a byte cruzando el digest, en UN solo paso directo a INTEROP-2.22 (subsume CS-CORE-20261024-004 para INTEROP); sin cambio de schemas ni de generated/ (contracts:check debe seguir limpio); sin cambio de codigo en Integration ni Sandbox (solo re-espejo documental; ejecutar lint, build y test). Console: ademas del re-espejo, tolerar y etiquetar el motivo de descarte BELOW_RELEVANCE_THRESHOLD (types.ts, ragLabels.ts y fallback en RagSidePanel.tsx:103, que hoy mostraria vacio); los campos layer y strategy son opcionales y mostrarlos es opcional. Core no resuelve los eventos de otros: cada consumidor registra su evidencia.
+sourceRevision: e4d6dd8bb02e3bb2d78b547cb3e41441a0511672
+status: C-PENDING

@@ -44,8 +44,9 @@ export interface ContextSufficiencyInput {
 
 /**
  * Devuelve el error si el contexto es insuficiente, o `null` si puede generarse. Pura: no lee BD ni
- * configuración. Un candidato cuenta como elegible si su descarte no fue `BELOW_MINIMUM_SCORE`; los que
- * caen después por `TOP_K_LIMIT` o `TOKEN_BUDGET` sí cuentan (D-5 habla de relevancia, no de presupuesto).
+ * configuración. Un candidato cuenta como elegible si su descarte no fue `BELOW_MINIMUM_SCORE` ni
+ * `BELOW_RELEVANCE_THRESHOLD` (umbral de relevancia de la estrategia `LAYERED`, WI-CORE-103); los que caen
+ * después por `TOP_K_LIMIT` o `TOKEN_BUDGET` sí cuentan (D-5 habla de relevancia, no de presupuesto).
  */
 export function assessContextSufficiency(
   input: ContextSufficiencyInput,
@@ -54,7 +55,11 @@ export function assessContextSufficiency(
   const retrievedCandidates = generationContext.retrievedChunks;
   const auditCandidates = generationContext.audit?.candidates;
   const eligibleCandidates = auditCandidates
-    ? auditCandidates.filter((candidate) => candidate.discardReason !== 'BELOW_MINIMUM_SCORE').length
+    ? auditCandidates.filter(
+        (candidate) =>
+          candidate.discardReason !== 'BELOW_MINIMUM_SCORE' &&
+          candidate.discardReason !== 'BELOW_RELEVANCE_THRESHOLD',
+      ).length
     : retrievedCandidates;
 
   if (generationContext.target.content.trim() === '') {

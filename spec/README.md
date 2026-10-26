@@ -2,7 +2,7 @@
 
 `spec/` es la fuente de verdad del proyecto.
 
-**Línea base común:** SDD 3.1 / Harness V3 en los cuatro repositorios. Core mantiene los contratos canónicos SYSTEM-2.16, INTEROP-2.21 y GH-INTEROP-1.9 (`WI-CORE-089`, documental; los espejos de GitHub Integration, Console y Sandbox siguen en SYSTEM-2.15 e INTEROP-2.20 hasta su re-espejo por Contract Sync), más los esquemas JSON de `spec/contracts/schemas/`; GitHub Integration y Console los espejan byte a byte, y Sandbox espeja SYSTEM e INTEROP.
+**Línea base común:** SDD 3.1 / Harness V3 en los cuatro repositorios. Core mantiene los contratos canónicos SYSTEM-2.16, INTEROP-2.23 y GH-INTEROP-1.9 (`WI-CORE-089` y, para INTEROP-2.22 y 2.23, `WI-CORE-103` y `WI-CORE-104`, aditivos; los espejos de GitHub Integration, Console y Sandbox están en SYSTEM-2.16 e INTEROP-2.21 (`CS-CORE-20261024-004` resuelto) hasta su re-espejo de INTEROP-2.23 por Contract Sync), más los esquemas JSON de `spec/contracts/schemas/`; GitHub Integration y Console los espejan byte a byte, y Sandbox espeja SYSTEM e INTEROP.
 
 Orden de lectura: `contracts/system-contract.md` -> `contracts/interoperability-contract.md` -> `constitution/project-context.md` -> `constitution/planning-model.md` y constitución aplicable -> `backlog.md`/`operational-cases.md` -> feature `spec.md` -> `plan.md` -> `tasks.md` -> transversales aplicables -> `harness/work-items.json`. La extracción está detallada en `features/016-github-integration/`; las dependencias entre repos y sus puertas locales, en `features/017-cross-repository-dependency-gates/`. Cada repo mantiene solo WIs locales y se coordina por Contract Sync.
 

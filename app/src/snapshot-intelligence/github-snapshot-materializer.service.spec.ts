@@ -1,6 +1,11 @@
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import AdmZip from 'adm-zip';
+import { Logger } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
+import { FileDiscoveryService } from '../project-versions/discovery/file-discovery.service.js';
+import { zipDirectory } from '../project-versions/zip/zip-directory.util.js';
 import { GithubSnapshotMaterializerService } from './github-snapshot-materializer.service.js';
 import type { RepositoryBinding } from '../generated/prisma/client.js';
 
@@ -298,5 +303,439 @@ describe('GithubSnapshotMaterializerService', () => {
     await expect(workspace.cleanup()).resolves.toBeUndefined();
     await expect(stat(workspace.dir)).rejects.toThrow();
     await expect(workspace.cleanup()).resolves.toBeUndefined();
+  });
+});
+
+/** Texto hexadecimal poco compresible (ratio ~2) de exactamente `size` bytes. */
+const noisy = (size: number): string => randomBytes(Math.ceil(size / 2)).toString('hex').slice(0, size);
+
+describe('GithubSnapshotMaterializerService.addSandboxFixtures (WI-CORE-102)', () => {
+  let githubRepositoryContentService: {
+    getTree: ReturnType<typeof vi.fn>;
+    getFileContent: ReturnType<typeof vi.fn>;
+  };
+  let service: GithubSnapshotMaterializerService;
+  let workspaceDir: string;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let contents: Record<string, string>;
+
+  beforeEach(async () => {
+    const { tmpdir } = await vi.importActual<typeof import('node:os')>('node:os');
+    workspaceDir = await mkdtemp(join(tmpdir(), 'rag-core-fixtures-spec-'));
+    githubRepositoryContentService = { getTree: vi.fn(), getFileContent: vi.fn() };
+    service = new GithubSnapshotMaterializerService(githubRepositoryContentService as never);
+    contents = {};
+    githubRepositoryContentService.getFileContent.mockImplementation(
+      async (_i: string, _r: string, path: string) => contents[path] ?? `content of ${path}`,
+    );
+    logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await rm(workspaceDir, { recursive: true, force: true });
+  });
+
+  const phpTree = (...paths: string[]): Array<{ path: string }> =>
+    [{ path: 'composer.json' }, { path: 'src/Foo.php' }, ...paths.map((path) => ({ path }))];
+
+  const requestedPaths = (): string[] =>
+    githubRepositoryContentService.getFileContent.mock.calls.map((call) => call[2] as string);
+
+  async function exists(path: string): Promise<boolean> {
+    return stat(join(workspaceDir, path)).then(() => true, () => false);
+  }
+
+  it('includes the text fixtures and writes their content', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(
+      phpTree('examples/rbac_model.conf', 'examples/rbac_policy.csv', 'tests/fixtures/data.json'),
+    );
+    contents['examples/rbac_model.conf'] = '[request_definition]\nr = sub, obj, act\n';
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(githubRepositoryContentService.getTree).toHaveBeenCalledWith('999', 'org/repo', 'head-sha');
+    expect(report.requested).toBe(3);
+    expect(report.included).toBe(3);
+    expect(report.bytes).toBe(
+      Buffer.byteLength(contents['examples/rbac_model.conf'], 'utf8')
+        + Buffer.byteLength('content of examples/rbac_policy.csv', 'utf8')
+        + Buffer.byteLength('content of tests/fixtures/data.json', 'utf8'),
+    );
+    expect(report.omitted).toEqual({ maxFiles: 0, fetchFailed: 0, fileTooLarge: 0, notUtf8: 0, highCompression: 0, totalLimit: 0 });
+    expect(await readFile(join(workspaceDir, 'examples/rbac_model.conf'), 'utf8')).toBe(
+      contents['examples/rbac_model.conf'],
+    );
+    expect(await readFile(join(workspaceDir, 'tests/fixtures/data.json'), 'utf8')).toBe(
+      'content of tests/fixtures/data.json',
+    );
+  });
+
+  it('does not request .env files, binaries, lockfiles, ignored paths or PHP pool files', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(
+      phpTree(
+        '.env', '.env.testing', '.github/workflows/ci.yml', 'image.png', 'package-lock.json', 'yarn.lock',
+        'pnpm-lock.yaml', 'vendor/x/y.json', 'build/a.json', 'README.md', 'composer.lock', 'phpunit.xml',
+        'examples/ok.conf',
+      ),
+    );
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(requestedPaths()).toEqual(['examples/ok.conf']);
+    expect(report.requested).toBe(1);
+    expect(report.included).toBe(1);
+    expect(await exists('.env')).toBe(false);
+    expect(await exists('vendor/x/y.json')).toBe(false);
+  });
+
+  it('does not request Node pool config files (package.json, tsconfig.json, jest/vitest config) as fixtures', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(
+      phpTree('package.json', 'tests/package.json', 'tsconfig.json', 'jest.config.json', 'vitest.config.json', 'examples/a.conf'),
+    );
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(requestedPaths()).toEqual(['examples/a.conf']);
+    expect(report.requested).toBe(1);
+    expect(await exists('package.json')).toBe(false);
+    expect(await exists('tests/package.json')).toBe(false);
+  });
+
+  it('does not change what FileDiscoveryService discovers: pool plus fixtures equals pool alone', async () => {
+    const { tmpdir } = await vi.importActual<typeof import('node:os')>('node:os');
+    const base = await mkdtemp(join(tmpdir(), 'rag-core-discovery-fx-'));
+    osState.base = base;
+    try {
+      githubRepositoryContentService.getTree.mockResolvedValue([
+        { path: 'composer.json' },
+        { path: 'src/Foo.php' },
+        { path: 'tests/FooTest.php' },
+        { path: 'phpunit.xml.dist' },
+        { path: 'examples/rbac_model.conf' },
+        { path: 'tests/fixtures/data.json' },
+        { path: 'tests/data.csv' },
+        { path: 'package.json' },
+        { path: 'tests/package.json' },
+        { path: 'tsconfig.json' },
+        { path: 'jest.config.json' },
+        { path: 'vitest.config.json' },
+      ]);
+      const workspace = await service.materialize(binding, 'head-sha');
+      const discovery = new FileDiscoveryService();
+      const before = (await discovery.discover(workspace.dir)).sort();
+
+      const report = await service.addSandboxFixtures(binding, 'head-sha', workspace.dir);
+      const after = (await discovery.discover(workspace.dir)).sort();
+
+      expect(report.included).toBe(3);
+      expect(await readdir(join(workspace.dir, 'examples'))).toEqual(['rbac_model.conf']);
+      expect(before).toEqual(['composer.json', 'phpunit.xml.dist', 'src/Foo.php', 'tests/FooTest.php']);
+      expect(after).toEqual(before);
+      await workspace.cleanup();
+    } finally {
+      osState.base = undefined;
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
+  it('is deterministic: requests candidates in sorted path order regardless of tree order', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(
+      phpTree('z/last.conf', 'a/first.conf', 'm/middle.csv', 'B/upper.conf'),
+    );
+
+    await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(requestedPaths()).toEqual(['B/upper.conf', 'a/first.conf', 'm/middle.csv', 'z/last.conf']);
+  });
+
+  it('attempts only the first 500 sorted candidates and counts the rest as maxFiles', async () => {
+    const paths = Array.from({ length: 501 }, (_, i) => `fx/f${String(i).padStart(3, '0')}.conf`);
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree(...[...paths].reverse()));
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.requested).toBe(501);
+    expect(report.included).toBe(500);
+    expect(report.omitted.maxFiles).toBe(1);
+    expect(requestedPaths()).toHaveLength(500);
+    expect(requestedPaths()).not.toContain('fx/f500.conf');
+    expect(await exists('fx/f499.conf')).toBe(true);
+    expect(await exists('fx/f500.conf')).toBe(false);
+  });
+
+  it('omits a file larger than 1 MiB after downloading it and keeps the rest', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree('big.json', 'small.json'));
+    contents['big.json'] = 'x'.repeat(1_048_577);
+    contents['small.json'] = '{}';
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(1);
+    expect(report.omitted.fileTooLarge).toBe(1);
+    expect(await exists('big.json')).toBe(false);
+    expect(await exists('small.json')).toBe(true);
+  });
+
+  it('accepts a file of exactly 1 MiB', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree('exact.json'));
+    contents['exact.json'] = noisy(1_048_576);
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(1);
+    expect(report.omitted.fileTooLarge).toBe(0);
+  });
+
+  it('enforces the 5 MiB total limit but still includes a later small file that fits', async () => {
+    const paths = ['a1.json', 'a2.json', 'a3.json', 'a4.json', 'a5.json', 'a6.json'];
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree(...paths));
+    for (const path of paths.slice(0, 5)) {
+      contents[path] = noisy(1_000_000);
+    }
+    contents['a6.json'] = noisy(1_000_000); // total 6_000_000 > 5_242_880 → omitted
+    paths.push('z-small.json');
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree(...paths));
+    contents['z-small.json'] = 'tiny';
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(6);
+    expect(report.bytes).toBe(5_000_004);
+    expect(report.omitted.totalLimit).toBe(1);
+    expect(await exists('a6.json')).toBe(false);
+    expect(await exists('z-small.json')).toBe(true);
+  });
+
+  it('omits a highly repetitive file (compression ratio above 80) and keeps the rest', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree('rep.csv', 'ok.csv'));
+    contents['rep.csv'] = 'a,b,c,d\n'.repeat(55000);
+    contents['ok.csv'] = 'id,name\n1,Ana\n2,Luis\n';
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(1);
+    expect(report.omitted.highCompression).toBe(1);
+    expect(await exists('rep.csv')).toBe(false);
+    expect(await exists('ok.csv')).toBe(true);
+  });
+
+  it('includes a normal, little repetitive CSV', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree('normal.csv'));
+    contents['normal.csv'] = Array.from({ length: 3000 }, (_, i) => `${i},user${i},${randomBytes(6).toString('hex')}`).join('\n');
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(1);
+    expect(report.omitted.highCompression).toBe(0);
+  });
+
+  it('never produces a ZIP entry with a compression ratio above 100, even with repetitive fixtures around', async () => {
+    const { tmpdir } = await vi.importActual<typeof import('node:os')>('node:os');
+    const base = await mkdtemp(join(tmpdir(), 'rag-core-zip-ratio-'));
+    osState.base = base;
+    try {
+      githubRepositoryContentService.getTree.mockResolvedValue(
+        phpTree('examples/rep.csv', 'examples/normal.csv', 'examples/model.conf'),
+      );
+      contents['examples/rep.csv'] = 'a,b,c,d\n'.repeat(55000);
+      contents['examples/normal.csv'] = Array.from({ length: 2000 }, (_, i) => `${i},${randomBytes(8).toString('hex')}`).join('\n');
+      contents['examples/model.conf'] = '[request_definition]\nr = sub, obj, act\n';
+      const workspace = await service.materialize(binding, 'head-sha');
+
+      await service.addSandboxFixtures(binding, 'head-sha', workspace.dir);
+      const entries = new AdmZip(zipDirectory(workspace.dir)).getEntries().filter((entry) => !entry.isDirectory);
+
+      expect(entries.map((entry) => entry.entryName)).toContain('examples/normal.csv');
+      expect(entries.map((entry) => entry.entryName)).not.toContain('examples/rep.csv');
+      for (const entry of entries) {
+        if (entry.header.size > 0) {
+          expect(entry.header.size / Math.max(entry.header.compressedSize, 1)).toBeLessThanOrEqual(100);
+        }
+      }
+      await workspace.cleanup();
+    } finally {
+      osState.base = undefined;
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
+  it('does not request sensitive-named files (auth.json, credentials.json, secrets, service accounts)', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(
+      phpTree(
+        'auth.json', 'credentials.json', 'config/secrets.yml', 'service-account.json', 'my_secret.json',
+        'oauth2.json', 'authors.json', 'examples/rbac_model.conf',
+      ),
+    );
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(requestedPaths()).toEqual(['authors.json', 'examples/rbac_model.conf', 'oauth2.json']);
+    expect(report.requested).toBe(3);
+    expect(await exists('auth.json')).toBe(false);
+    expect(await exists('credentials.json')).toBe(false);
+  });
+
+  it('omits a file whose download fails and includes the others', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree('a.conf', 'b.conf', 'c.conf'));
+    githubRepositoryContentService.getFileContent.mockImplementation(
+      async (_i: string, _r: string, path: string) => {
+        if (path === 'b.conf') {
+          throw new Error('https://signed.example/secret?token=abc');
+        }
+        return `content of ${path}`;
+      },
+    );
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(2);
+    expect(report.omitted.fetchFailed).toBe(1);
+    expect(await exists('a.conf')).toBe(true);
+    expect(await exists('b.conf')).toBe(false);
+    expect(await exists('c.conf')).toBe(true);
+    const logged = [...logSpy.mock.calls, ...warnSpy.mock.calls].flat().join(' ');
+    expect(logged).not.toContain('signed.example');
+  });
+
+  it('omits content that is not valid UTF-8 (U+FFFD)', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree('bin.csv', 'ok.csv'));
+    contents['bin.csv'] = 'abc\uFFFDdef';
+    contents['ok.csv'] = 'a,b';
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(1);
+    expect(report.omitted.notUtf8).toBe(1);
+    expect(await exists('bin.csv')).toBe(false);
+  });
+
+  it('is a no-op for non-PHP repositories without fetching any file', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue([
+      { path: 'package.json' },
+      { path: 'src/a.ts' },
+      { path: 'data/config.json' },
+      { path: 'data/x.csv' },
+    ]);
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(githubRepositoryContentService.getFileContent).not.toHaveBeenCalled();
+    expect(report).toEqual({
+      requested: 0,
+      included: 0,
+      bytes: 0,
+      omitted: { maxFiles: 0, fetchFailed: 0, fileTooLarge: 0, notUtf8: 0, highCompression: 0, totalLimit: 0 },
+    });
+    expect(await readdir(workspaceDir)).toEqual([]);
+  });
+
+  it('does not treat a Composer manifest under an ignored directory as a PHP project', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue([
+      { path: 'vendor/x/composer.json' },
+      { path: 'data/x.csv' },
+    ]);
+
+    await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(githubRepositoryContentService.getFileContent).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty report without throwing when getTree fails', async () => {
+    githubRepositoryContentService.getTree.mockRejectedValue(new Error('github down'));
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.requested).toBe(0);
+    expect(report.included).toBe(0);
+    expect(githubRepositoryContentService.getFileContent).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
+    expect([...logSpy.mock.calls, ...warnSpy.mock.calls].flat().join(' ')).not.toContain('github down');
+  });
+
+  it('never writes outside the workspace: traversal paths are not candidates and absolute paths count as fetchFailed', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(
+      phpTree('../escape.conf', 'a/../../escape2.conf', '/abs/evil.conf', 'ok.conf'),
+    );
+
+    const report = await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    expect(report.included).toBe(1);
+    expect(report.requested).toBe(2);
+    expect(report.omitted.fetchFailed).toBe(1);
+    expect(requestedPaths()).toEqual(['ok.conf']);
+    expect(await exists('ok.conf')).toBe(true);
+    await expect(stat(join(workspaceDir, '..', 'escape.conf'))).rejects.toThrow();
+    await expect(stat('/abs/evil.conf')).rejects.toThrow();
+  });
+
+  it('logs only counters: no paths and no content', async () => {
+    githubRepositoryContentService.getTree.mockResolvedValue(phpTree('secret/dir/model.conf', 'big/huge.json'));
+    contents['secret/dir/model.conf'] = 'TOP-SECRET-CONTENT';
+    contents['big/huge.json'] = 'x'.repeat(1_048_577);
+
+    await service.addSandboxFixtures(binding, 'head-sha', workspaceDir);
+
+    const logged = [...logSpy.mock.calls, ...warnSpy.mock.calls].flat().join('\n');
+    expect(logged).toContain('requested=2');
+    expect(logged).toContain('included=1');
+    expect(logged).toContain('fileTooLarge=1');
+    expect(logged).not.toContain('secret/dir');
+    expect(logged).not.toContain('model.conf');
+    expect(logged).not.toContain('huge.json');
+    expect(logged).not.toContain('TOP-SECRET-CONTENT');
+  });
+
+  it('materialize still brings no fixtures: only the PHP pool', async () => {
+    const { tmpdir } = await vi.importActual<typeof import('node:os')>('node:os');
+    const base = await mkdtemp(join(tmpdir(), 'rag-core-materialize-nofx-'));
+    osState.base = base;
+    try {
+      githubRepositoryContentService.getTree.mockResolvedValue(
+        phpTree('examples/rbac_model.conf', 'tests/data.json'),
+      );
+
+      const workspace = await service.materialize(binding, 'head-sha');
+
+      expect(requestedPaths().sort()).toEqual(['composer.json', 'src/Foo.php']);
+      expect(await readdir(workspace.dir)).toEqual(expect.arrayContaining(['composer.json', 'src']));
+      expect(await readdir(workspace.dir)).not.toContain('examples');
+      await workspace.cleanup();
+    } finally {
+      osState.base = undefined;
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
+  it('produces a ZIP with the PHP pool plus only the fixtures (real zipDirectory)', async () => {
+    const { tmpdir } = await vi.importActual<typeof import('node:os')>('node:os');
+    const base = await mkdtemp(join(tmpdir(), 'rag-core-zip-fx-'));
+    osState.base = base;
+    try {
+      githubRepositoryContentService.getTree.mockResolvedValue(
+        phpTree(
+          'examples/rbac_model.conf', 'tests/data.json', '.env', 'image.png', 'package-lock.json',
+          'vendor/x/y.json', 'README.md',
+        ),
+      );
+      const workspace = await service.materialize(binding, 'head-sha');
+
+      await service.addSandboxFixtures(binding, 'head-sha', workspace.dir);
+      const entries = new AdmZip(zipDirectory(workspace.dir))
+        .getEntries()
+        .filter((entry) => !entry.isDirectory)
+        .map((entry) => entry.entryName)
+        .sort();
+
+      expect(entries).toEqual([
+        'composer.json', 'examples/rbac_model.conf', 'src/Foo.php', 'tests/data.json',
+      ]);
+      await workspace.cleanup();
+    } finally {
+      osState.base = undefined;
+      await rm(base, { recursive: true, force: true });
+    }
   });
 });

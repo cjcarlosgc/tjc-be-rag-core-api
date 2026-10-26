@@ -3,38 +3,40 @@ import { CodeChunksRepository, type CodeChunkDependencyFields } from '../project
 import {
   applyDependencyTokenCap,
   extractPhpConstructorSignature,
+  extractPhpConstructorVisibility,
+  extractPhpPublicStaticFactories,
   isFinalPhpDeclaration,
   MAX_PHP_DEPENDENCY_ENTRIES,
   MAX_PHP_DEPENDENCY_TOKENS,
+  MAX_PHP_FACTORIES_PER_CLASS,
   renderPhpDependencySection,
   resolvePhpConstructorTypes,
   resolvePhpDependencies,
+  type PhpConstructorVisibility,
   type PhpDependencyEntry,
+  type PhpDependencySection,
 } from './php-dependency-context.js';
 
-export interface PhpDependencyContext {
-  /** Solo dependencias directas: es lo que se traza (sin cambio de forma). */
-  entries: PhpDependencyEntry[];
-  /** WI-CORE-066: dependencias de profundidad 2 (tipos del constructor de una directa), tras el tope. Interno. */
-  transitiveEntries: PhpDependencyEntry[];
-  unresolvedCount: number;
-  truncated: boolean;
-  tokenCount: number;
-  /** Texto de la sección: directas y, después, profundidad 2. */
-  text: string;
-}
+/**
+ * Sección de dependencias PHP. WI-CORE-104: el texto puede incluir el glosario de FQCN, que añade el pipeline
+ * con `composePhpDependencySection`; aquí solo se arman las dependencias.
+ */
+export type PhpDependencyContext = PhpDependencySection;
 
 /** WI-CORE-065: firma y datos del constructor de una dependencia directa, para la profundidad 2. */
 interface ConstructorInfo {
   signature: string;
   content: string;
   importsUsed: string[];
+  /** WI-CORE-104 (R2a): visibilidad declarada del constructor; null si no se pudo leer. */
+  visibility: PhpConstructorVisibility | null;
 }
 
 const METHOD_KINDS = new Set(['METHOD', 'CONSTRUCTOR', 'FUNCTION']);
 const MAX_FINAL_LOOKUPS = 20;
 const MAX_CONSTRUCTOR_LOOKUPS = 20;
 const MAX_TRANSITIVE_LOOKUPS = 20;
+const MAX_FACTORY_LOOKUPS = 20;
 
 /**
  * Sección best-effort de dependencias PHP del código objetivo. Un fallo del repositorio no se
@@ -82,9 +84,22 @@ export class PhpDependencyContextService {
         resolved.entries.map((entry) => entry.fqcn),
         index.kinds,
       );
-      const withSignatures = resolved.entries.map((entry) => {
+      // WI-CORE-104 (R2a): solo directas que el índice confirma como CLASS con constructor no público.
+      const nonPublicConstructors = resolved.entries
+        .filter((entry) => {
+          const visibility = constructors.get(entry.fqcn)?.visibility;
+          return index.kinds.get(entry.fqcn) === 'CLASS' && (visibility === 'private' || visibility === 'protected');
+        })
+        .map((entry) => entry.fqcn);
+      const factories = await this.resolveFactories(projectVersionId, nonPublicConstructors);
+      const withSignatures = resolved.entries.map((entry): PhpDependencyEntry => {
         const info = constructors.get(entry.fqcn);
-        return info === undefined ? entry : { ...entry, signature: info.signature };
+        if (info === undefined) return entry;
+        if (nonPublicConstructors.includes(entry.fqcn) && (info.visibility === 'private' || info.visibility === 'protected')) {
+          // La firma de un constructor no público sería engañosa: no se guarda ni se imprime.
+          return { ...entry, constructorVisibility: info.visibility, factories: factories.get(entry.fqcn) ?? [] };
+        }
+        return { ...entry, signature: info.signature };
       });
       const transitive = await this.resolveTransitiveEntries(
         projectVersionId,
@@ -167,6 +182,7 @@ export class PhpDependencyContextService {
             signature,
             content: declaration.content,
             importsUsed: declaration.importsUsed ?? [],
+            visibility: extractPhpConstructorVisibility(declaration.content),
           });
         }
       }
@@ -176,6 +192,35 @@ export class PhpDependencyContextService {
       return new Map<string, ConstructorInfo>();
     }
     return constructors;
+  }
+
+  /**
+   * WI-CORE-104 (R2a): fábricas públicas estáticas (`nombre(params): retorno`) de las clases dadas, tomadas de
+   * sus chunks `METHOD` del mismo `ProjectVersion`: orden estable por nombre y como máximo 4 por clase.
+   * Best-effort: un error de repositorio no se propaga y deja el mapa vacío (sin fábricas).
+   */
+  private async resolveFactories(projectVersionId: string, fqcns: string[]): Promise<Map<string, string[]>> {
+    const factories = new Map<string, string[]>();
+    const lookup = [...new Set(fqcns)].slice(0, MAX_FACTORY_LOOKUPS);
+    if (lookup.length === 0) return factories;
+    try {
+      const declarations = await this.codeChunks.findPhpStaticMethodDeclarations(projectVersionId, lookup);
+      for (const fqcn of lookup) {
+        const found = new Set<string>();
+        for (const declaration of declarations) {
+          if (declaration.parentSymbolName !== fqcn) continue;
+          for (const factory of extractPhpPublicStaticFactories(declaration.content, fqcn)) found.add(factory);
+        }
+        // El nombre del método siempre precede a `(`, que es menor que cualquier carácter de un identificador.
+        const sorted = [...found].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+        if (sorted.length > 0) factories.set(fqcn, sorted.slice(0, MAX_PHP_FACTORIES_PER_CLASS));
+      }
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.warn(`Fábricas de constructor no público omitidas por error de repositorio: ${errorName}`);
+      return new Map<string, string[]>();
+    }
+    return factories;
   }
 
   /**

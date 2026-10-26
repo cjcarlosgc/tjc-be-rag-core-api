@@ -221,7 +221,7 @@ describe('PhpDependencyContextService profundidad 2 (WI-CORE-066)', () => {
       `- Plan → ${PLAN} (vía Subscription) — constructor(public string $code, public float $monthlyPrice)`,
     );
     expect(result?.text.indexOf('- Subscription →')).toBeLessThan(result?.text.indexOf('- Plan →') ?? -1);
-    expect(result?.tokenCount).toBeLessThanOrEqual(300);
+    expect(result?.tokenCount).toBeLessThanOrEqual(500);
   });
 
   it('no incluye tipos de profundidad 2 que son interfaz, enum o trait según el índice', async () => {

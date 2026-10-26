@@ -236,3 +236,118 @@ describe('assessContextSufficiency (WI-CORE-098, D-5)', () => {
     expect(error?.message).not.toContain(RULE_KEY);
   });
 });
+
+describe('assessContextSufficiency con LAYERED (WI-CORE-103)', () => {
+  function buildPhpContext(candidates: RetrievalResult['candidates'], options: { maxContextTokens?: number } = {}) {
+    const builder = new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as unknown as ConfigService);
+    return builder.build(
+      { targetChunks: [chunk('target-1', 'doIt() { return true; }')], candidates },
+      TARGET,
+      { framework: 'PHPUNIT', language: 'php' },
+      options,
+    );
+  }
+
+  function phpCandidate(id: string, semanticScore: number | null) {
+    return {
+      chunk: { ...chunk(id, `${id}()`, 5), filePath: `src/${id}.php`, symbolName: id },
+      semanticScore,
+      structuralMatch: null,
+    };
+  }
+
+  it('10. a candidate discarded as BELOW_RELEVANCE_THRESHOLD does not count as eligible, like BELOW_MINIMUM_SCORE', () => {
+    const context = buildPhpContext([phpCandidate('weak', 0.59), phpCandidate('none', null)]);
+
+    expect(context.audit?.configuration.strategy).toBe('LAYERED');
+    expect(context.audit?.candidates.map((entry) => entry.discardReason)).toEqual([
+      'BELOW_RELEVANCE_THRESHOLD',
+      'BELOW_RELEVANCE_THRESHOLD',
+    ]);
+    const error = assessContextSufficiency({
+      generationContext: context,
+      retrievedRuleScenarioKeys: [],
+      requiredScenarioKeys: [RULE_KEY],
+    });
+
+    expect(error?.reason).toBe('NO_RELEVANT_CANDIDATES_AND_MISSING_RULES');
+    expect(error?.eligibleCandidates).toBe(0);
+    expect(error?.retrievedCandidates).toBe(2);
+  });
+
+  it('11. a relevant candidate selected or lost to TOKEN_BUDGET or TOP_K_LIMIT still counts as eligible', () => {
+    const selected = buildPhpContext([phpCandidate('ok', 0.9), phpCandidate('weak', 0.1)]);
+    expect(
+      assessContextSufficiency({
+        generationContext: selected,
+        retrievedRuleScenarioKeys: [],
+        requiredScenarioKeys: [RULE_KEY],
+      }),
+    ).toBeNull();
+
+    const overBudget = buildPhpContext([phpCandidate('big', 0.9)], { maxContextTokens: 5 });
+    expect(overBudget.audit?.candidates[0]?.discardReason).toBe('TOKEN_BUDGET');
+    expect(
+      assessContextSufficiency({
+        generationContext: overBudget,
+        retrievedRuleScenarioKeys: [],
+        requiredScenarioKeys: [RULE_KEY],
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('assessContextSufficiency: cambio de D-5 con LAYERED frente a RANKED (WI-CORE-103)', () => {
+  function build(strategy: 'LAYERED' | 'RANKED') {
+    const builder = new ContextBuilder({ get: (_key: string, fallback: unknown) => fallback } as unknown as ConfigService);
+    const php = (id: string, semanticScore: number | null, structuralMatch: 'IMPORTED_BY' | null) => ({
+      chunk: { ...chunk(id, `${id}()`, 5), filePath: `src/${id}.php`, symbolName: id },
+      semanticScore,
+      structuralMatch,
+    });
+    // Sin clase declarante: solo IMPORTED_BY o semántico por debajo de 0.60.
+    return builder.build(
+      {
+        targetChunks: [chunk('target-1', 'doIt() { return true; }')],
+        candidates: [
+          php('imported-by-null', null, 'IMPORTED_BY'),
+          php('imported-by-low', 0.5, 'IMPORTED_BY'),
+          php('semantic-low', 0.59, null),
+        ],
+      },
+      TARGET,
+      { framework: 'PHPUNIT', language: 'php' },
+      { strategy },
+    );
+  }
+
+  const missingRule = {
+    retrievedRuleScenarioKeys: [] as string[],
+    requiredScenarioKeys: [RULE_KEY],
+  };
+
+  it('12. with LAYERED nothing is selected, every candidate is BELOW_RELEVANCE_THRESHOLD and clause (b) blocks', () => {
+    const context = build('LAYERED');
+
+    expect(context.audit?.configuration.strategy).toBe('LAYERED');
+    expect(context.selectedChunks).toBe(0);
+    expect(context.audit?.candidates).toHaveLength(3);
+    expect(context.audit?.candidates.every((entry) => entry.discardReason === 'BELOW_RELEVANCE_THRESHOLD')).toBe(true);
+
+    const error = assessContextSufficiency({ generationContext: context, ...missingRule });
+
+    expect(error?.reason).toBe('NO_RELEVANT_CANDIDATES_AND_MISSING_RULES');
+    expect(error?.eligibleCandidates).toBe(0);
+    expect(error?.retrievedCandidates).toBe(3);
+    expect(error?.missingScenarioKeys).toEqual([RULE_KEY]);
+  });
+
+  it('13. the same scenario with RANKED does not block: its candidates are not BELOW_MINIMUM_SCORE', () => {
+    const context = build('RANKED');
+
+    expect(context.audit?.configuration.strategy).toBe('RANKED');
+    expect(context.audit?.candidates.some((entry) => entry.discardReason === 'BELOW_MINIMUM_SCORE')).toBe(false);
+    expect(context.selectedChunks).toBe(3);
+    expect(assessContextSufficiency({ generationContext: context, ...missingRule })).toBeNull();
+  });
+});

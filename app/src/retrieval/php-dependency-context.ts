@@ -22,6 +22,33 @@ export interface PhpDependencyEntry {
   signature?: string;
   /** WI-CORE-066: typeName de la dependencia directa de origen; presente solo en profundidad 2. Interno, no va a la traza. */
   via?: string;
+  /**
+   * WI-CORE-104 (R2a): interno, no va a la traza. Presente solo en dependencias directas cuyo constructor el
+   * índice declara `private` o `protected`; entonces `signature` no se imprime ni se guarda.
+   */
+  constructorVisibility?: 'private' | 'protected';
+  /** WI-CORE-104 (R2a): interno; fábricas públicas estáticas (`nombre(params): retorno`, máximo 4). Solo con `constructorVisibility`. */
+  factories?: string[];
+}
+
+/** WI-CORE-104 (R2b): entrada del glosario de FQCN del contexto. */
+export interface PhpFqcnGlossaryEntry {
+  typeName: string;
+  fqcn: string;
+}
+
+export type PhpConstructorVisibility = 'public' | 'protected' | 'private';
+
+/** WI-CORE-104: sección completa (dependencias + glosario). Es lo que consume el prompt y lo que se traza (sin `text`). */
+export interface PhpDependencySection {
+  /** Solo dependencias directas: es lo que se traza (sin cambio de forma). */
+  entries: PhpDependencyEntry[];
+  /** WI-CORE-066: profundidad 2, interna; no va a la traza. */
+  transitiveEntries: PhpDependencyEntry[];
+  unresolvedCount: number;
+  truncated: boolean;
+  tokenCount: number;
+  text: string;
 }
 
 /** WI-CORE-066: FQCN resuelto desde el constructor de una dependencia directa (profundidad 2). */
@@ -64,12 +91,20 @@ export interface CappedPhpDependencies {
 }
 
 export const MAX_PHP_DEPENDENCY_ENTRIES = 20;
-export const MAX_PHP_DEPENDENCY_TOKENS = 300;
+/** WI-CORE-104: tope de TODA la sección (dependencias, constructor no público/fábricas y glosario). Era 300. */
+export const MAX_PHP_DEPENDENCY_TOKENS = 500;
+export const MAX_PHP_FQCN_GLOSSARY_ENTRIES = 30;
+export const MAX_PHP_FACTORIES_PER_CLASS = 4;
 
 const SECTION_HEADER =
   'Dependencias del código objetivo (nombres completos de clase; usa exactamente estos nombres en los `use`):';
 
 const FINAL_MARK = ' — final: no se puede mockear; usa una instancia real con new';
+
+// WI-CORE-104: con constructor no público la marca de final no manda a usar `new`.
+const FINAL_MARK_WITHOUT_NEW = ' — final: no se puede mockear';
+
+const GLOSSARY_HEADER = 'Nombres completos (FQCN) de los tipos que aparecen en el código de contexto:';
 
 const ENUM_MARK = ' — enum: no se puede mockear ni instanciar con new; usa un caso (Enum::Caso)';
 
@@ -136,20 +171,46 @@ export function resolvePhpDependencies(input: ResolvePhpDependenciesInput): Reso
   };
 }
 
-/** Texto de la sección; vacío si no hay entradas. */
+/** Texto de la sección de dependencias; vacío si no hay entradas. */
 export function renderPhpDependencySection(entries: readonly PhpDependencyEntry[]): string {
   if (entries.length === 0) return '';
   const direct = entries.filter((entry) => entry.via === undefined);
   const transitive = entries.filter((entry) => entry.via !== undefined);
-  const renderLine = (entry: PhpDependencyEntry): string =>
-    `- ${entry.typeName} → ${entry.fqcn} (${
-      entry.via !== undefined
-        ? `vía ${entry.via}`
-        : entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'
-    })` +
-    (entry.enum === true ? ENUM_MARK : entry.final === true ? FINAL_MARK : '') +
-    (entry.signature !== undefined ? ` — constructor${entry.signature}` : '');
+  const renderLine = (entry: PhpDependencyEntry): string => {
+    // WI-CORE-104 (R2a): constructor no público; el enum conserva su marca y nunca lleva este aviso.
+    const visibility = entry.enum === true ? undefined : entry.constructorVisibility;
+    const finalMark =
+      entry.enum === true ? ENUM_MARK : entry.final === true ? (visibility !== undefined ? FINAL_MARK_WITHOUT_NEW : FINAL_MARK) : '';
+    let constructorMark = '';
+    if (visibility !== undefined) {
+      const factories = entry.factories ?? [];
+      constructorMark =
+        ` — constructor ${visibility === 'private' ? 'privado' : 'protegido'}: no uses new` +
+        (factories.length > 0 ? `; fábricas públicas: ${factories.join(', ')}` : '');
+    } else if (entry.signature !== undefined) {
+      constructorMark = ` — constructor${entry.signature}`;
+    }
+    return (
+      `- ${entry.typeName} → ${entry.fqcn} (${
+        entry.via !== undefined
+          ? `vía ${entry.via}`
+          : entry.origin === 'CONSTRUCTOR' ? 'constructor' : 'firma del método'
+      })` +
+      finalMark +
+      constructorMark
+    );
+  };
   return [SECTION_HEADER, ...direct.map(renderLine), ...transitive.map(renderLine)].join('\n');
+}
+
+/** WI-CORE-104 (R2b): bloque del glosario; vacío si no hay entradas. */
+export function renderPhpFqcnGlossary(glossary: readonly PhpFqcnGlossaryEntry[]): string {
+  if (glossary.length === 0) return '';
+  return [GLOSSARY_HEADER, ...glossary.map((entry) => `- ${entry.typeName} → ${entry.fqcn}`)].join('\n');
+}
+
+function renderFullSection(entries: readonly PhpDependencyEntry[], glossary: readonly PhpFqcnGlossaryEntry[]): string {
+  return [renderPhpDependencySection(entries), renderPhpFqcnGlossary(glossary)].filter((part) => part !== '').join('\n\n');
 }
 
 /**
@@ -267,7 +328,7 @@ export function extractPhpConstructorSignature(content: string): string | null {
     const match = CONSTRUCTOR_PATTERN.exec(content);
     if (!match) return null;
     const parameters = readParameterList(content, match.index + match[0].length - 1);
-    return parameters === null ? null : `(${parameters})`;
+    return parameters === null ? null : `(${parameters.text})`;
   } catch {
     return null;
   }
@@ -275,8 +336,114 @@ export function extractPhpConstructorSignature(content: string): string | null {
 
 const CONSTRUCTOR_PATTERN = /\bfunction\s+__construct\s*\(/i;
 
-/** Lee la lista de parámetros desde `(` hasta su `)` de cierre, omitiendo atributos y comentarios. */
-function readParameterList(content: string, open: number): string | null {
+const PHP_IDENTIFIER = '[A-Za-z_][A-Za-z0-9_]*';
+
+/**
+ * WI-CORE-104 (R2a): visibilidad declarada de `__construct`, ignorando docblocks, comentarios, atributos y
+ * `final`. Sin modificador de visibilidad es `public` (PHP). `null` si el contenido no empieza en una
+ * declaración de método legible o si declara dos visibilidades distintas. Nunca lanza.
+ */
+export function extractPhpConstructorVisibility(content: string): PhpConstructorVisibility | null {
+  try {
+    if (typeof content !== 'string') return null;
+    const declaration = stripLeadingPhpNoise(content);
+    const match = new RegExp(
+      `^((?:(?:public|protected|private|final|abstract|static)\\s+)*)function\\s+__construct\\s*\\(`,
+      'i',
+    ).exec(declaration);
+    if (!match) return null;
+    const visibilities = new Set(
+      match[1]
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((word) => word === 'public' || word === 'protected' || word === 'private'),
+    );
+    if (visibilities.size > 1) return null;
+    const [visibility] = [...visibilities];
+    return (visibility as PhpConstructorVisibility | undefined) ?? 'public';
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * WI-CORE-104 (R2a): si el chunk de un método de `className` (FQCN) es `public static function nombre(...)`
+ * con tipo de retorno `static`, `self`, el nombre corto de la clase o su FQCN (con o sin `?`), devuelve
+ * `[ 'nombre(params): retorno' ]` con espacios normalizados; en cualquier otro caso (no estático, no público,
+ * abstracto, método mágico `__*`, retorno de otro tipo o ausente, unión de tipos, ilegible) devuelve `[]`. Nunca lanza.
+ */
+export function extractPhpPublicStaticFactories(content: string, className: string): string[] {
+  try {
+    if (typeof content !== 'string' || typeof className !== 'string') return [];
+    const declaration = stripLeadingPhpNoise(content);
+    const match = new RegExp(
+      `^((?:(?:public|protected|private|final|abstract|static)\\s+)+)function\\s+(${PHP_IDENTIFIER})\\s*\\(`,
+      'i',
+    ).exec(declaration);
+    if (!match) return [];
+    const modifiers = match[1].toLowerCase().split(/\s+/).filter((word) => word !== '');
+    if (!modifiers.includes('public') || !modifiers.includes('static') || modifiers.includes('abstract')) return [];
+    const name = match[2];
+    if (name.startsWith('__')) return [];
+    const parameters = readParameterList(declaration, match[0].length - 1);
+    if (parameters === null) return [];
+    const returnMatch = new RegExp(
+      `^\\s*:\\s*(\\??)\\s*(\\\\?${PHP_IDENTIFIER}(?:\\\\${PHP_IDENTIFIER})*)\\s*(?=[{;]|$)`,
+    ).exec(declaration.slice(parameters.end + 1));
+    if (!returnMatch) return [];
+    const nullable = returnMatch[1];
+    const returnType = returnMatch[2];
+    const normalizedClass = className.replace(/^\\/, '');
+    const shortName = normalizedClass.slice(normalizedClass.lastIndexOf('\\') + 1);
+    const lowered = returnType.toLowerCase();
+    const isOwnType =
+      lowered === 'static' || lowered === 'self' || returnType === shortName || returnType.replace(/^\\/, '') === normalizedClass;
+    if (!isOwnType) return [];
+    return [`${name}(${parameters.text}): ${nullable}${returnType}`];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * WI-CORE-104 (R2b): glosario `Nombre → FQCN` de los imports usados en el contexto. Une los grupos en orden
+ * (el primero es el del target), quita el `\` inicial, descarta `excludeFqcns`, duplicados por FQCN y los FQCN de
+ * un solo segmento (clases globales) y se detiene en `maxEntries` (30). El `typeName` es el último segmento. No inventa nombres: solo entran valores
+ * con forma de FQCN. El parser PHP no incluye `use function` ni `use const` en `importsUsed`
+ * (`parseUseDeclaration` los excluye), así que no llegan aquí. Nunca lanza.
+ */
+export function buildPhpFqcnGlossary(input: {
+  importGroups: readonly (readonly string[])[];
+  excludeFqcns: ReadonlySet<string>;
+  maxEntries?: number;
+}): PhpFqcnGlossaryEntry[] {
+  try {
+    const maxEntries = input.maxEntries ?? MAX_PHP_FQCN_GLOSSARY_ENTRIES;
+    const fqcnShape = new RegExp(`^${PHP_IDENTIFIER}(?:\\\\${PHP_IDENTIFIER})*$`);
+    const seen = new Set<string>();
+    const glossary: PhpFqcnGlossaryEntry[] = [];
+    for (const group of input.importGroups) {
+      for (const raw of group) {
+        if (glossary.length >= maxEntries) return glossary;
+        if (typeof raw !== 'string') continue;
+        const fqcn = raw.trim().replace(/^\\+/, '');
+        // Un solo segmento (sin `\`) es una clase global/interna de PHP: la sección no las lista y `X → X` solo gasta tokens.
+        if (!fqcn.includes('\\') || !fqcnShape.test(fqcn) || input.excludeFqcns.has(fqcn) || seen.has(fqcn)) continue;
+        seen.add(fqcn);
+        glossary.push({ typeName: fqcn.slice(fqcn.lastIndexOf('\\') + 1), fqcn });
+      }
+    }
+    return glossary;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Lee la lista de parámetros desde `(` hasta su `)` de cierre, omitiendo atributos y comentarios. Devuelve el
+ * texto normalizado y el índice del `)` de cierre (WI-CORE-104 lo usa para leer el tipo de retorno).
+ */
+function readParameterList(content: string, open: number): { text: string; end: number } | null {
   const parameters: string[] = [];
   let current = '';
   let depth = 0;
@@ -317,10 +484,13 @@ function readParameterList(content: string, open: number): string | null {
       if (depth === 0) {
         if (char !== ')') return null;
         parameters.push(current);
-        return parameters
-          .map((parameter) => parameter.replace(/\s+/g, ' ').trim())
-          .filter((parameter) => parameter !== '')
-          .join(', ');
+        return {
+          text: parameters
+            .map((parameter) => parameter.replace(/\s+/g, ' ').trim())
+            .filter((parameter) => parameter !== '')
+            .join(', '),
+          end: index,
+        };
       }
       depth -= 1;
     } else if (char === ',' && depth === 0) {
@@ -345,18 +515,41 @@ function findStringEnd(content: string, start: number): number {
   return -1;
 }
 
-/**
- * Recorta por el final hasta que la sección renderizada cabe en `maxTokens`. WI-CORE-065: primero retira
- * firmas desde la última entrada hacia atrás (conserva nombres); después recorta entradas.
- */
-export function applyDependencyTokenCap(
-  entries: readonly PhpDependencyEntry[],
-  maxTokens: number = MAX_PHP_DEPENDENCY_TOKENS,
-): CappedPhpDependencies {
-  const kept = entries.map((entry) => ({ ...entry }));
-  let truncated = false;
-  const exceeds = (): boolean => countPhpDependencyTokens(renderPhpDependencySection(kept)) > maxTokens;
+export interface CappedPhpDependencySection {
+  entries: PhpDependencyEntry[];
+  glossary: PhpFqcnGlossaryEntry[];
+  truncated: boolean;
+  tokenCount: number;
+  text: string;
+}
 
+/**
+ * Recorta por el final hasta que la sección completa (dependencias + glosario) cabe en `maxTokens`.
+ * Orden (WI-CORE-104): (1) entradas del glosario desde la última; (2) fábricas, desde la última entrada
+ * (la línea conserva el aviso de constructor no público); (3) política vigente: entradas de profundidad 2
+ * desde la última (WI-CORE-066), firmas de constructor desde la última entrada (WI-CORE-065); (4) entradas
+ * desde la última. `tokenCount` y `text` son los de la sección resultante.
+ */
+export function capPhpDependencySection(
+  entries: readonly PhpDependencyEntry[],
+  glossary: readonly PhpFqcnGlossaryEntry[],
+  maxTokens: number = MAX_PHP_DEPENDENCY_TOKENS,
+): CappedPhpDependencySection {
+  const kept = entries.map((entry) => ({ ...entry }));
+  const keptGlossary = [...glossary];
+  let truncated = false;
+  const exceeds = (): boolean => countPhpDependencyTokens(renderFullSection(kept, keptGlossary)) > maxTokens;
+
+  while (keptGlossary.length > 0 && exceeds()) {
+    keptGlossary.pop();
+    truncated = true;
+  }
+  for (let index = kept.length - 1; index >= 0 && exceeds(); index -= 1) {
+    if (kept[index].factories !== undefined && kept[index].factories!.length > 0) {
+      kept[index].factories = [];
+      truncated = true;
+    }
+  }
   // WI-CORE-066: primero se retiran las de profundidad 2, de la última hacia la primera.
   for (let index = kept.length - 1; index >= 0 && exceeds(); index -= 1) {
     if (kept[index].via !== undefined) {
@@ -365,8 +558,9 @@ export function applyDependencyTokenCap(
     }
   }
   // Después, la política vigente sobre las directas: firmas de atrás hacia adelante, luego entradas.
+  // Con constructor no público la firma no se imprime, así que retirarla no recorta nada.
   for (let index = kept.length - 1; index >= 0 && exceeds(); index -= 1) {
-    if (kept[index].signature !== undefined) {
+    if (kept[index].signature !== undefined && kept[index].constructorVisibility === undefined) {
       delete kept[index].signature;
       truncated = true;
     }
@@ -375,10 +569,50 @@ export function applyDependencyTokenCap(
     kept.pop();
     truncated = true;
   }
+  const text = renderFullSection(kept, keptGlossary);
   return {
     entries: kept,
+    glossary: keptGlossary,
     truncated,
-    tokenCount: countPhpDependencyTokens(renderPhpDependencySection(kept)),
+    tokenCount: countPhpDependencyTokens(text),
+    text,
+  };
+}
+
+/** Solo dependencias (sin glosario): la política de recorte de WI-CORE-065/066 más las fábricas (WI-CORE-104). */
+export function applyDependencyTokenCap(
+  entries: readonly PhpDependencyEntry[],
+  maxTokens: number = MAX_PHP_DEPENDENCY_TOKENS,
+): CappedPhpDependencies {
+  const capped = capPhpDependencySection(entries, [], maxTokens);
+  return { entries: capped.entries, truncated: capped.truncated, tokenCount: capped.tokenCount };
+}
+
+/**
+ * WI-CORE-104 (R2b): sección final = dependencias de `base` (con R2a) y, después, el glosario de FQCN, todo
+ * bajo `maxTokens`. `base` puede ser null (sin dependencias): con glosario no vacío se crea una sección con
+ * `entries: []` y `unresolvedCount: 0`. Devuelve `base` sin cambios con glosario vacío y null si no queda nada
+ * que mostrar (sin base y el glosario se recortó entero).
+ */
+export function composePhpDependencySection(
+  base: PhpDependencySection | null,
+  glossary: readonly PhpFqcnGlossaryEntry[],
+  maxTokens: number = MAX_PHP_DEPENDENCY_TOKENS,
+): PhpDependencySection | null {
+  if (glossary.length === 0) return base;
+  const capped = capPhpDependencySection(
+    [...(base?.entries ?? []), ...(base?.transitiveEntries ?? [])],
+    glossary,
+    maxTokens,
+  );
+  if (base === null && capped.glossary.length === 0) return null;
+  return {
+    entries: capped.entries.filter((entry) => entry.via === undefined),
+    transitiveEntries: capped.entries.filter((entry) => entry.via !== undefined),
+    unresolvedCount: base?.unresolvedCount ?? 0,
+    truncated: (base?.truncated ?? false) || capped.truncated,
+    tokenCount: capped.tokenCount,
+    text: capped.text,
   };
 }
 

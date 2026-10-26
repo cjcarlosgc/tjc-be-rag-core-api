@@ -5,6 +5,10 @@ import type {
 } from '../retrieval/context-builder.service.js';
 import type { FunctionalRulesRetriever } from '../retrieval/functional-rules.retriever.js';
 import type { PhpDependencyContextService } from '../retrieval/php-dependency-context.service.js';
+import {
+  buildPhpFqcnGlossary,
+  composePhpDependencySection,
+} from '../retrieval/php-dependency-context.js';
 import type {
   GenerationContext,
   RetrievalTarget,
@@ -91,9 +95,10 @@ export async function acquireGenerationContext(
     functionalRules,
     dependencyContext,
   );
+  const finalContext = withPhpFqcnGlossary(input, retrieval, generationContext, dependencyContext);
   if (input.sufficiency) {
     const insufficiency = assessContextSufficiency({
-      generationContext,
+      generationContext: finalContext,
       retrievedRuleScenarioKeys: functionalRules.map((rule) => rule.scenarioKey),
       requiredScenarioKeys: input.sufficiency.requiredScenarioKeys,
     });
@@ -101,7 +106,38 @@ export async function acquireGenerationContext(
       throw insufficiency;
     }
   }
-  return { retrieval, generationContext };
+  return { retrieval, generationContext: finalContext };
+}
+
+/**
+ * WI-CORE-104 (R2b): solo PHP. Añade a la sección de dependencias el glosario de FQCN de los imports usados por
+ * el target y por los chunks seleccionados (excluye dependencias ya listadas y la clase declarante). Sin glosario
+ * devuelve exactamente el mismo `GenerationContext`. No cambia selección, ranking, `contextTokens` ni auditoría.
+ */
+function withPhpFqcnGlossary(
+  input: AcquireGenerationContextInput,
+  retrieval: Awaited<ReturnType<RetrievalService['retrieve']>>,
+  generationContext: GenerationContext,
+  dependencyContext: Awaited<ReturnType<PhpDependencyContextService['resolve']>>,
+): GenerationContext {
+  if (input.language !== 'php') return generationContext;
+  const targetChunks = retrieval.targetChunks;
+  const exclude = new Set<string>();
+  for (const entry of [...(dependencyContext?.entries ?? []), ...(dependencyContext?.transitiveEntries ?? [])]) {
+    exclude.add(entry.fqcn);
+  }
+  const declaringClass = targetChunks.find((chunk) => chunk.parentSymbolName)?.parentSymbolName;
+  if (declaringClass) exclude.add(declaringClass);
+  const glossary = buildPhpFqcnGlossary({
+    importGroups: [
+      targetChunks.flatMap((chunk) => chunk.importsUsed ?? []),
+      ...generationContext.relatedChunks.map((chunk) => chunk.importsUsed ?? []),
+    ],
+    excludeFqcns: exclude,
+  });
+  if (glossary.length === 0) return generationContext;
+  const section = composePhpDependencySection(dependencyContext, glossary);
+  return section === null ? generationContext : { ...generationContext, dependencyContext: section };
 }
 
 /** Ubicación PHP ya normalizada por el caller (`testNamespace` puede ser undefined, no null). */
