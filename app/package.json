@@ -29,6 +29,8 @@
     "contracts:generate": "node scripts/generate-contract-types.mjs",
     "contracts:check": "node scripts/generate-contract-types.mjs --check",
     "evidence:extract": "node scripts/extract-evidence.mjs",
+    "evidence:baseline": "node scripts/baseline-workspace.mjs",
+    "evidence:preflight": "node scripts/oe5-preflight.mjs",
     "lint:types": "oxlint --type-aware -A all -D typescript/no-floating-promises src/ test/"
   },
   "dependencies": {

@@ -18,8 +18,8 @@ Desde `tjc-be-rag-core-api/app`:
 
 ```bash
 npm run evidence:extract -- --out <carpeta> [--analysis-run <id>] [--experiment <id>] [--include-pii] [--allow-out-in-repo]
-# o directamente:
-node scripts/extract-evidence.mjs --help
+# o directamente (con pnpm 12 usa SIEMPRE esta forma: reenvía el `--` al script y falla con «argumento desconocido»):
+node scripts/extract-evidence.mjs --out <carpeta> --experiment <id>
 ```
 
 - `--out <carpeta>` (obligatoria): debe estar vacía o no existir, y por defecto no puede estar dentro del repositorio.
@@ -55,11 +55,34 @@ El script **no carga `.env`** ni `dotenv`. Si falta una variable de Storage, esa
 | `trace-9-links.json` | Los 9 enlaces del AnalysisRun en sentido directo y el **chequeo inverso** (cada consulta, filas que rompen el enlace y veredicto `PRESENT` / `NOT_APPLICABLE` / `INCONSISTENT`). |
 | `analysis-run.json`, `generated-tests.csv` | AnalysisRun, símbolos, retrievals, contextos, propuestas, ejecuciones del Sandbox y publicaciones (con la política de PII aplicada). |
 | `generated-tests/NN-<símbolo>.<ext>` | Test generado de cada propuesta, descargado de Storage. |
-| `experiment.json`, `repetitions.csv` | Experimento (`modelConfig` sin `endpoint`, `budget`, semilla, pares), repeticiones, intentos, tokens, tiempos y verificaciones. |
+| `experiment.json`, `repetitions.csv` | Experimento (`modelConfig` sin `endpoint`, `budget`, semilla, pares), repeticiones, intentos, tokens, tiempos y verificaciones. `repetitions.csv` termina con la columna informativa `envSuspect` (ver más abajo). |
 | `tests/<estrategia>/<repetición>-<intento>.<ext>` y `.meta.json` | Bytes **exactos** de `testContent` tal como están en la base, sin redactar, con su verificación. |
 | `sandbox-evidence.json` | **Copia redactada** de la evidencia del Sandbox y del reporte del runner. Los hashes persistidos se verifican sobre la base; los de la copia son independientes. |
 | `context-traces.json` | Trazas de contexto tal como se persistieron (fragmentos de hasta 2000 caracteres). |
+| `snapshot-manifest.json` | **Solo con `--experiment` y Storage configurado** (WI-CORE-105): clave, bytes y SHA-256 del `snapshot.zip` que recibió el Sandbox (`project-versions/<projectVersionId>/snapshot.zip`) y, por entrada, ruta, bytes y SHA-256; conteos por extensión y `skipped` (rutas inseguras, duplicadas o entradas enormes, sin descomprimir). Si falta, `manifest.json` declara la ausencia (`snapshot.zip (Storage)`) y `storage.snapshot` dice por qué (`not_found`, `too_large` con `--storage-max-bytes`, `error`…). |
 | `tabla70-autofill.json` | Solo las columnas automáticas de la Tabla 70 (Fecha, Proyecto/snapshot/Run y Tipo parcial); el resto queda manual. |
+
+### `envSuspect` (informativo; WI-CORE-105)
+
+Columna al final de `repetitions.csv` con los identificadores de las reglas que coinciden con el texto del error de la repetición (unidos por `;`; vacío si ninguna). **No es un veredicto, no puntúa y no excluye repeticiones de VT**: es una ayuda para separar a mano fallos de entorno de fallos de estrategia. Reglas declaradas ex ante en `evidence-extractor/env-suspect.mjs`: `ENV-01` archivo o recurso bajo `/app/` no encontrado (`Failed to open stream` / `No such file or directory`, solo `TEST_RUNTIME` o `COMPILATION`), `ENV-03` límite de memoria de PHP, `ENV-04` fallo de red o de resolución al instalar dependencias. No se marcan `runner results file is empty` (también lo produce un `Fatal error` de la estrategia, p. ej. métodos abstractos sin implementar) ni `Class "…" not found` (puede ser la estrategia). Son heurísticas de texto: falsos positivos y negativos posibles.
+
+### Baseline sobre el mismo conjunto de archivos (`baseline-workspace.mjs`; WI-CORE-105)
+
+```bash
+node scripts/baseline-workspace.mjs --checkout <dir> --manifest <snapshot-manifest.json> --out <dir>
+```
+
+Copia desde un checkout local **exactamente** los archivos del `snapshot-manifest.json` (lo que recibió el Sandbox: pool PHP más fixtures de texto, WI-CORE-102), verificando el SHA-256 de cada uno; los faltantes, los distintos y los que apuntan fuera del checkout no se copian y el código de salida es `1`; también sale con `1` si el manifiesto es parcial o vacío (`skipped`, entradas sin SHA-256 o sin entradas): la baseline no cubriría todo lo que recibió el Sandbox. Rutas del manifiesto con segmentos `..` o `.` se rechazan (código `2`) antes de crear `--out`. No usa red ni git: el checkout debe estar en el **HEAD del PR** y con `core.autocrlf=false`, o los hashes diferirán. Úsalo para que la baseline externa corra sobre lo mismo que ve el producto (en el v1 corrió sobre el repositorio completo y no era comparable).
+
+### Preflight por caso (`oe5-preflight.mjs`; WI-CORE-105)
+
+```bash
+node scripts/oe5-preflight.mjs before --core-url https://<core> --integration-url https://<integration> --wait-ms 90000
+node scripts/oe5-preflight.mjs after  --package <carpeta del extractor> [--expect-fixtures-min <n>] [--json <archivo fuera del paquete>]
+```
+
+- `before`: `GET <url>/health` de Core e Integration y espera HTTP 200 (con `--wait-ms` reintenta cada 5 s por el arranque en frío de Render). No imprime cabeceras ni cuerpos. No comprueba el SHA desplegado (el `/health` no lo expone; se mira con la CLI de Render), ni el digest de la imagen del Sandbox, ni `modelConfig` (solo existe tras crear el experimento): ver `harness/reports/oe5-v2-qualification-criterios.md`.
+- `after`: lista de comprobación **offline** sobre un paquete ya extraído: (a) 6 repeticiones efectivas (3 `RAG` + 3 `GENERALIST_AGENT`), (b) hashes sin discrepancias (`promptSha256` es siempre «no verificable» y se cuenta aparte), (c) `modelConfig` (`gpt-6-luna`/`medium`, `temperature` null) y `budget` (20/8000/120000) esperados, (d) `configuration.strategy` y parámetros de contexto esperados en las trazas RAG, (e) `snapshot-manifest.json` (⛔ si no tiene entradas, ⚠️ si es parcial —`skipped` o entradas sin SHA-256—, ✅ solo si es completo; con `--expect-fixtures-min`, un mínimo de fixtures), (f) `trace-9-links.json` (lee los veredictos de los 9 enlaces y del chequeo inverso: ⛔ ante `INCONSISTENT`, ⚠️ ante `NOT_APPLICABLE` —debe estar justificado—, ✅ si todos son `PRESENT`; ⚠️ si falta el archivo), (g) VT de las repeticiones no válidas etiquetado «estrategia» o «entorno sospechoso (revisar)» según `envSuspect`. Salida con ✅/⚠️/⛔; código de salida `1` si hay algún ⛔. Con `--json` escribe el informe estructurado fuera de la carpeta del paquete (no altera su sellado).
 
 ### Qué NO contiene (y el manifiesto lo declara)
 
@@ -107,4 +130,7 @@ Las pruebas usan dobles de la base y de Storage; no se conectan a nada. Corren c
 - Pseudonimizar no es anonimizar: la sal es pública y un valor corto puede reconstruirse por fuerza bruta. No compartas el paquete como si estuviera anonimizado.
 - **PII residual (sin cambio de comportamiento por defecto).** Estos campos de texto libre NO pasan por la política y se copian tal cual: `test_publications.failureMessage`, `analysis_runs.resultSummary`, `generated_test_proposals.failureSummary` y `generation`, `experiment_runs.failureMessage`, `analysis_contexts.omittedFunctionalRules`, `analysis_run_executions.failure`, los fragmentos de `context-traces.json` y `errorSummary`/`failure` de repeticiones (en copia redactada). Además, `repositoryName` + `prNumber` identifican el PR en un repositorio público: con ellos el login seudonimizado puede recuperarse en GitHub. Está listado en `manifest.json` → `piiPolicy.piiResidual`.
 - El tope de Storage se aplica después de la transferencia (ver garantías).
+- **`snapshot-manifest.json` es el objeto actual de Storage para esa ProjectVersion** (WI-CORE-105): la clave `project-versions/<projectVersionId>/snapshot.zip` se compone, no se lee de `project_versions.snapshotKey` (hoy coinciden, `snapshot-analysis-job.handler.ts`), y es lo que hay ahora en Storage, no necesariamente lo que existía en el instante del experimento si el análisis se reintentó. Un manifiesto con `skipped` o con entradas `sha256: null` es parcial: el baseline y el preflight lo marcan.
+- **`envSuspect` es heurístico:** `ENV-03` y `ENV-04` se evalúan con cualquier tipo de fallo, así que un bucle de memoria o un socket abierto por la estrategia pueden marcarse como entorno; solo informan, nunca puntúan ni excluyen.
+- **`oe5-preflight before`:** un `/health` en 200 solo prueba que el proceso despertó; no prueba que Core ya verifique el acceso a GitHub ni que Integration reciba webhooks (ver el runbook).
 - El manifiesto no puede probar su propia integridad (ver `manifest.sha256`).

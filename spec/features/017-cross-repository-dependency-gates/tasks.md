@@ -29,3 +29,4 @@
 - [x] **ST-CORE-120 · T-DONE · WI-CORE-100 · HU07, HU08, HU09, HU15:** suite OE3 de los casos C1–C6 y campos de auditoría de FK de Core (`app/src/ct/oe3-c1-c6.spec.ts`).
 - [x] **ST-CORE-121 · T-DONE · WI-CORE-100 · HU09, HU15:** prueba pg del índice único parcial de reglas ACTIVE (`app/src/ct/oe3-active-index.pg.spec.ts`).
 - [x] **ST-CORE-122 · T-DONE · WI-CORE-100 · HU07, HU08, HU15:** protocolo de verificación viva de OE3 (`harness/reports/oe3-protocolo-verificacion.md`).
+- [x] **ST-CORE-127 · T-DONE · WI-CORE-105 · HU12, HU15, HU17:** manifiesto del snapshot, baseline sobre el mismo conjunto, `ENV_SUSPECT` informativo y preflight por caso del Piloto v2 (herramientas de solo lectura en `app/scripts`, sin contrato); alcance en `harness/reports/wi-core-105-scope.md`.

@@ -26492,6 +26492,264 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-10-26T03:06:23.000Z"
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "sprint": "P2",
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "id": "WI-CORE-105",
+      "status": "W-DONE",
+      "title": "Manifiesto del snapshot, baseline sobre el mismo conjunto, ENV_SUSPECT informativo y preflight por caso del Piloto v2 (C3 y salvaguardas): herramientas de solo lectura en app/scripts, sin contrato",
+      "approved": true,
+      "storyIds": [
+        "HU12",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-127"
+      ],
+      "caseIds": [],
+      "specPaths": [
+        "harness/reports/wi-core-105-scope.md",
+        "spec/features/017-cross-repository-dependency-gates/tasks.md",
+        "harness/reports/wi-core-105-contract-sync-scope-review.md",
+        "harness/reports/oe5-v2-qualification-criterios.md",
+        "harness/reports/wi-core-105-technical-checks.md",
+        "harness/reports/wi-core-105-independent-review.md",
+        "harness/reports/wi-core-105-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-105 anade herramientas de solo lectura en app/scripts, no toca el binding.",
+          "report": "harness/reports/wi-core-105-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-105 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-105-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-25T22:00:00.000Z",
+        "note": "Alcance aprobado por el usuario en el chat de Core (2026-10-25, D-v2-1..6 y WI-CORE-102..105; D-v2-6: ENV_SUSPECT solo informativo); herramientas de solo lectura sin contrato; DEC-RAG-001 y DEC-VAL-001 PENDING no bloquean."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "leader",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Manifiesto del snapshot en el extractor (snapshot-manifest.json con SHA-256 por entrada, ausencia declarada), baseline-workspace.mjs sobre el mismo conjunto, columna informativa envSuspect (ENV-01/03/04) y oe5-preflight.mjs (before/after) como herramientas de solo lectura sin contrato; 7 mutaciones detectadas; lint, build y 3526 tests en verde (reproducidos por el leader); prueba de extremo a extremo del leader con un clon real de casbin (153 entradas, baseline exit 0 y exit 1 con SHA alterado)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/scripts/evidence-extractor/snapshot-manifest.mjs",
+              "app/scripts/evidence-extractor/baseline-workspace.mjs",
+              "app/scripts/evidence-extractor/env-suspect.mjs",
+              "app/scripts/evidence-extractor/preflight.mjs",
+              "app/scripts/evidence-extractor/index.mjs",
+              "app/scripts/evidence-extractor/experiment.mjs",
+              "app/scripts/baseline-workspace.mjs",
+              "app/scripts/oe5-preflight.mjs",
+              "app/package.json"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-105-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "CHANGES_REQUESTED",
+            "findings": [
+              "Ciclo 1: sin hallazgos altos. H1 (media) baseline y preflight (e) daban OK con un manifiesto parcial o vacio; H2 (media) la comprobacion (f) de los 9 enlaces solo verificaba presencia; H3 (baja) rutas con segmento . producian EEXIST y --out a medias; H5 (baja) mutaciones supervivientes; H4, H6 y H7 documentados."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-105-independent-review.md"
+            ],
+            "recommendedNextStep": "Corregir H1, H2, H3 y H5.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 corregido: baseline sale con 1 ante manifiesto parcial o vacio; preflight (e) 3 niveles y (f) lee veredictos de los 9 enlaces; segmento . rechazado y colisiones registradas; pruebas de redirect manual, tamano, wx y modos; 12 mutaciones detectadas; lint, build y 3556 tests en verde (reproducidos por el leader)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/scripts/evidence-extractor/snapshot-manifest.mjs",
+              "app/scripts/evidence-extractor/baseline-workspace.mjs",
+              "app/scripts/evidence-extractor/preflight.mjs"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-105-technical-checks.md"
+            ],
+            "recommendedNextStep": "Re-revision acotada del ciclo 2.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 2 APPROVED tras las correcciones de H1, H2, H3 y H5 (12 mutaciones detectadas, sin pruebas debilitadas); H4, H6 y H7 documentados en el README; observaciones bajas restantes sin impacto (flag wx y modo 0600 del --json sobreviven a la mutacion)."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-105-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "low"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-105",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-26T03:07:29.669Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-105",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T03:22:29.274Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-105",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T03:22:29.471Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-105",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T03:38:34.029Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-105-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-105-scope.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-105-contract-sync-scope-review.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-105-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-105-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-105-independent-review.md",
+          "harness/reports/wi-core-105-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-105-closure.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-105-scope.md",
+        "harness/reports/wi-core-105-technical-checks.md",
+        "harness/reports/wi-core-105-independent-review.md",
+        "harness/reports/wi-core-105-closure.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-26T03:38:36.000Z"
     }
   ],
   "activeWorkItem": null

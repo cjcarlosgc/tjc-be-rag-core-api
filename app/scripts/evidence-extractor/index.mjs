@@ -13,6 +13,7 @@ import { EXTRACTOR_INFO, PACKAGE_SCHEMA_VERSION, PackagePlan, finalizePackage, r
 import { runInReadOnlyTransaction } from './session.mjs';
 import { buildTabla70 } from './tabla70.mjs';
 import { UsageError } from './options.mjs';
+import { buildSnapshotManifest, isSnapshotManifestError } from './snapshot-manifest.mjs';
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -88,9 +89,21 @@ function readmeText({ generatedAt, analysisRunId, experimentId, includePii }) {
     'Archivos clave: manifest.json (ausencias y truncados), trace-9-links.json (9 enlaces e inverso),',
     'hash-verification.json, tests/ (bytes exactos de la BD), generated-tests/ (desde Storage),',
     'sandbox-evidence.json (COPIA redactada), experiment.json y repetitions.csv.',
+    'snapshot-manifest.json (solo con experimento y Storage): ruta, tamaño y SHA-256 de cada archivo del snapshot que',
+    'recibió el Sandbox (WI-CORE-105); si no se pudo obtener, queda como ausencia en manifest.json.',
     '',
   ].join('\n');
 }
+
+const SNAPSHOT_ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
+const SNAPSHOT_ABSENCE_TEXT = Object.freeze({
+  not_found: 'el objeto no existe en Storage (not_found)',
+  too_large: 'el objeto supera --storage-max-bytes (too_large); sube el tope para obtener el manifiesto',
+  error: 'error al descargar de Storage (error)',
+  invalid_zip: 'el objeto descargado no es un ZIP legible (invalid_zip)',
+  outside_prefix: 'la clave calculada queda fuera de project-versions/<id>/ (outside_prefix); no se descarga',
+  no_project_version: 'el experimento no tiene projectVersionId',
+});
 
 function storageReason(configured) {
   return configured ? 'error' : 'storage no configurado (SUPABASE_URL, SUPABASE_SECRET_KEY o SUPABASE_STORAGE_BUCKET ausentes)';
@@ -167,6 +180,38 @@ export async function buildExtractionPackage({ options, env, cwd, repoRoot, now,
     }
   }
 
+  // Snapshot que recibió el Sandbox (WI-CORE-105): clave determinista project-versions/<id>/snapshot.zip, solo `download`.
+  const snapshot = { requested: false, downloaded: false, reason: null, manifest: null };
+  if (experiment !== null) {
+    const projectVersionId = experiment.projectVersion?.projectVersionId ?? experiment.experiment.projectVersionId ?? null;
+    if (typeof projectVersionId !== 'string' || projectVersionId.length === 0) {
+      snapshot.reason = 'no_project_version';
+    } else if (!SNAPSHOT_ID_PATTERN.test(projectVersionId)) {
+      snapshot.reason = 'outside_prefix';
+    } else {
+      // La clave la compone el extractor (no sale de la base) bajo project-versions/<id>/; el id validado no puede
+      // escapar de ese prefijo.
+      const key = `project-versions/${projectVersionId}/snapshot.zip`;
+      if (!downloader) {
+        snapshot.reason = storageReason(false);
+      } else {
+        snapshot.requested = true;
+        const result = await downloader.download(key);
+        if (result.ok !== true) {
+          snapshot.reason = result.reason;
+        } else {
+          const manifest = buildSnapshotManifest(result.bytes, { projectVersionId, key });
+          if (isSnapshotManifestError(manifest)) {
+            snapshot.reason = manifest.reason;
+          } else {
+            snapshot.downloaded = true;
+            snapshot.manifest = manifest;
+          }
+        }
+      }
+    }
+  }
+
   const generatedAt = now().toISOString();
   const pii = createPiiPolicy({ includePii: options.includePii });
   const plan = new PackagePlan();
@@ -187,6 +232,11 @@ export async function buildExtractionPackage({ options, env, cwd, repoRoot, now,
   let experimentOut = null;
   if (experiment !== null) {
     experimentOut = buildExperimentPart({ plan, raw: experiment, trial, artifactsAvailable });
+    if (snapshot.manifest !== null) {
+      plan.addJson('snapshot-manifest.json', snapshot.manifest);
+    } else {
+      plan.absence('snapshot.zip (Storage)', SNAPSHOT_ABSENCE_TEXT[snapshot.reason] ?? snapshot.reason ?? 'no disponible', 'experiment');
+    }
   }
 
   for (const absence of STATIC_ABSENCES) plan.absence(absence.item, absence.reason, 'global');
@@ -256,6 +306,7 @@ export async function buildExtractionPackage({ options, env, cwd, repoRoot, now,
     maxObjectBytes: storageConfigured ? options.storageMaxBytes : null,
     objectsNotDownloaded: [...downloads.values()].filter((item) => item.ok !== true).map((item) => item.reason),
     objectsSkippedByPolicy: [...downloads.values()].filter((item) => item.reason === 'outside_prefix' || item.reason === 'too_large').length,
+    snapshot: { requested: snapshot.requested, downloaded: snapshot.downloaded, reason: snapshot.reason },
   };
 
   const entries = finalizePackage(plan, (files) => ({

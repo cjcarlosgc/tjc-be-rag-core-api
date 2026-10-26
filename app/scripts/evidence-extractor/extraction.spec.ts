@@ -3,12 +3,14 @@
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import AdmZip from 'adm-zip';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildExtractionPackage, computeSchemaGroups, ConfigError, STATIC_ABSENCES } from './index.mjs';
 import { ANALYSIS_CONTEXTS, ANALYSIS_RETRIEVALS, ANALYSIS_RUN_BY_ID, ANALYSIS_RUN_EXECUTIONS, ANALYSIS_SYMBOLS, CONTEXT_TRACES, GENERATED_TEST_PROPOSALS, INVERSE_CHECKS, PRISMA_MIGRATIONS_QUERY, PROJECT_VERSION, SCHEMA_GROUPS, TEST_PUBLICATIONS, artifactsQuery, experimentByIdQuery, probeColumnsQuery, probeTablesQuery, probedTableNames, repetitionsQuery } from './queries.mjs';
 import { NotFoundError } from './analysis.mjs';
 import { UsageError, parseArguments } from './options.mjs';
 import { canonicalJson, sha256Hex } from './util.mjs';
+import { parseCsv } from './preflight.mjs';
 
 const RUN = '3f2c0a10-0000-4000-8000-000000000001';
 const EXP = '3f2c0a10-0000-4000-8000-000000000002';
@@ -114,6 +116,10 @@ type Scenario = {
   migrationRows?: unknown[];
   foreignKey?: boolean;
   dotName?: boolean;
+  /** WI-CORE-105: sustituye el projectVersionId del experimento y de la versión del proyecto. */
+  projectVersionId?: string;
+  /** WI-CORE-105: errorSummary de la repetición GENERALIST_AGENT. */
+  agentErrorSummary?: string;
 };
 
 function columnsFor(scenario: Scenario) {
@@ -177,6 +183,11 @@ function resultSetFor(sql: string, scenario: Scenario, fixtures: ReturnType<type
 function createFakeDatabase(scenario: Scenario) {
   const statements: string[] = [];
   const fixtures = { ...fixtureAnalysis({ foreignKey: scenario.foreignKey, dotName: scenario.dotName }), ...fixtureExperiment() };
+  if (scenario.projectVersionId !== undefined) {
+    fixtures.projectVersion[0].projectVersionId = scenario.projectVersionId;
+    fixtures.experiment[0].projectVersionId = scenario.projectVersionId;
+  }
+  if (scenario.agentErrorSummary !== undefined) fixtures.repetitions[1].errorSummary = scenario.agentErrorSummary;
   const transaction = {
     async executeRaw(query: { sql: string }) {
       statements.push(query.sql);
@@ -201,19 +212,27 @@ function createFakeDatabase(scenario: Scenario) {
   return { statements, openDriver: () => async () => driver };
 }
 
-function createFakeStorage() {
-  const objects = new Map<string, Buffer>([[`analysis-runs/${RUN}/proposals/a1`, PROPOSAL_BYTES_1]]);
+type StorageObject = Buffer | { ok: false; reason: string };
+
+function createFakeStorage(extra: Record<string, StorageObject> = {}) {
+  const objects = new Map<string, StorageObject>([[`analysis-runs/${RUN}/proposals/a1`, PROPOSAL_BYTES_1], ...Object.entries(extra)]);
   const requested: string[] = [];
+  const created: { maxBytes: number }[] = [];
   return {
     requested,
-    create: () => ({
-      bucket: BUCKET,
-      async download(key: string) {
-        requested.push(key);
-        const bytes = objects.get(key);
-        return bytes ? { ok: true as const, bytes } : { ok: false as const, reason: 'not_found' };
-      },
-    }),
+    created,
+    create: (args: { maxBytes: number }) => {
+      created.push(args);
+      return {
+        bucket: BUCKET,
+        async download(key: string) {
+          requested.push(key);
+          const found = objects.get(key);
+          if (found === undefined) return { ok: false as const, reason: 'not_found' };
+          return Buffer.isBuffer(found) ? { ok: true as const, bytes: found } : found;
+        },
+      };
+    },
   };
 }
 
@@ -236,13 +255,14 @@ async function build(overrides: {
   env?: Record<string, string>;
   scenario?: Scenario;
   storage?: boolean;
+  storageObjects?: Record<string, StorageObject>;
   out?: string;
   repoRoot?: string;
 }) {
   const argv = overrides.argv ?? ['--out', overrides.out ?? OUT(), '--analysis-run', RUN, '--experiment', EXP];
   const options = parseArguments(argv);
   const database = createFakeDatabase(overrides.scenario ?? {});
-  const storage = createFakeStorage();
+  const storage = createFakeStorage(overrides.storageObjects);
   const result = await buildExtractionPackage({
     options,
     env: overrides.env ?? FULL_ENV,
@@ -361,7 +381,10 @@ describe('extracción completa de un AnalysisRun y un experimento (dobles)', () 
 
   it('descarga de Storage solo las propuestas del run y declara el objeto que no existe', async () => {
     const { result, storage } = await build({});
-    expect(storage.requested.sort()).toEqual([`analysis-runs/${RUN}/proposals/a1`, `analysis-runs/${RUN}/proposals/b2`].sort());
+    // WI-CORE-105: además se pide, con la misma lectura, el snapshot del experimento (project-versions/<id>/snapshot.zip).
+    expect(storage.requested.filter((key) => !key.startsWith('project-versions/')).sort()).toEqual(
+      [`analysis-runs/${RUN}/proposals/a1`, `analysis-runs/${RUN}/proposals/b2`].sort(),
+    );
     expect(result.summary.hashVerification['no verificable']).toBeGreaterThan(0);
   });
 
@@ -458,7 +481,7 @@ describe('computeSchemaGroups', () => {
 describe('endurecimiento de la salida y de Storage (SEC-05, SEC-06, SEC-07, DOC-01)', () => {
   it('no descarga una clave fuera del prefijo del run y lo declara como ausencia', async () => {
     const { result, storage } = await build({ scenario: { foreignKey: true } });
-    expect(storage.requested).toEqual([`analysis-runs/${RUN}/proposals/a1`]);
+    expect(storage.requested.filter((key) => !key.startsWith('project-versions/'))).toEqual([`analysis-runs/${RUN}/proposals/a1`]);
     const manifest = JSON.parse(entryOf(result.entries, 'manifest.json').toString('utf8'));
     const absence = manifest.absences.find((item: { item: string }) => item.item === `generated-tests: propuesta ${PROP2} (parse)`);
     expect(absence.reason).toMatch(/outside_prefix/);
@@ -503,3 +526,120 @@ describe('endurecimiento de la salida y de Storage (SEC-05, SEC-06, SEC-07, DOC-
   });
 });
 
+
+describe('manifiesto del snapshot y columna envSuspect (WI-CORE-105)', () => {
+  const SNAPSHOT_KEY = `project-versions/${PV}/snapshot.zip`;
+
+  function snapshotZip() {
+    const zip = new AdmZip();
+    zip.addFile('src/Money.php', Buffer.from('<?php\nclass Money {}\n'));
+    zip.addFile('examples/rbac_model.conf', Buffer.from('[request_definition]\n'));
+    zip.addFile('composer.json', Buffer.from('{}\n'));
+    return zip.toBuffer();
+  }
+
+  function manifestOf(entries: { path: string; bytes: Buffer }[]) {
+    return JSON.parse(entryOf(entries, 'manifest.json').toString('utf8'));
+  }
+
+  it('descarga project-versions/<id>/snapshot.zip y escribe snapshot-manifest.json en el paquete sellado', async () => {
+    const zip = snapshotZip();
+    const { result, storage } = await build({ storageObjects: { [SNAPSHOT_KEY]: zip } });
+    expect(storage.requested.filter((key) => key === SNAPSHOT_KEY)).toEqual([SNAPSHOT_KEY]);
+    const snapshot = JSON.parse(entryOf(result.entries, 'snapshot-manifest.json').toString('utf8'));
+    expect(snapshot).toMatchObject({ schema: 'snapshot-manifest', key: SNAPSHOT_KEY, zipSha256: sha256Hex(zip), entryCount: 3 });
+    expect(snapshot.entries.map((entry: { path: string }) => entry.path)).toEqual(['composer.json', 'examples/rbac_model.conf', 'src/Money.php']);
+
+    const manifest = manifestOf(result.entries);
+    const listed = manifest.files.find((file: { path: string }) => file.path === 'snapshot-manifest.json');
+    expect(listed.sha256).toBe(sha256Hex(entryOf(result.entries, 'snapshot-manifest.json')));
+    expect(entryOf(result.entries, 'hashes.txt').toString('utf8')).toContain('  snapshot-manifest.json\n');
+    expect(manifest.storage.snapshot).toEqual({ requested: true, downloaded: true, reason: null });
+    expect(manifest.absences.map((item: { item: string }) => item.item)).not.toContain('snapshot.zip (Storage)');
+    expect(entryOf(result.entries, 'README.txt').toString('utf8')).toContain('snapshot-manifest.json');
+  });
+
+  it('no cambia los campos existentes del informe storage', async () => {
+    const { result } = await build({ storageObjects: { [SNAPSHOT_KEY]: snapshotZip() } });
+    const storageReport = manifestOf(result.entries).storage;
+    expect(storageReport).toMatchObject({ configured: true, bucket: BUCKET, objectsRequested: 2, objectsDownloaded: 1, maxObjectBytes: 5 * 1024 * 1024 });
+    expect(storageReport.objectsNotDownloaded).toEqual(['not_found']);
+  });
+
+  it('pide el snapshot con el mismo tope --storage-max-bytes', async () => {
+    const { storage } = await build({
+      argv: ['--out', OUT(), '--experiment', EXP, '--storage-max-bytes', '2048'],
+      storageObjects: { [SNAPSHOT_KEY]: snapshotZip() },
+    });
+    expect(storage.created).toEqual([expect.objectContaining({ maxBytes: 2048 })]);
+  });
+
+  it.each([
+    ['not_found', undefined, /not_found/],
+    ['too_large', { ok: false as const, reason: 'too_large' }, /too_large/],
+    ['error', { ok: false as const, reason: 'error' }, /error/],
+    ['ZIP inválido', Buffer.from('no es un zip'), /invalid_zip/],
+  ])('declara la ausencia y no escribe el archivo si el snapshot es %s', async (_name, object, reasonPattern) => {
+    const { result } = await build({ storageObjects: object === undefined ? {} : { [SNAPSHOT_KEY]: object } });
+    expect(result.entries.some((entry) => entry.path === 'snapshot-manifest.json')).toBe(false);
+    const manifest = manifestOf(result.entries);
+    const absence = manifest.absences.find((item: { item: string }) => item.item === 'snapshot.zip (Storage)');
+    expect(absence.reason).toMatch(reasonPattern);
+    expect(absence.scope).toBe('experiment');
+    expect(manifest.storage.snapshot.downloaded).toBe(false);
+    expect(manifest.storage.snapshot.requested).toBe(true);
+  });
+
+  it('con Storage no configurado declara la ausencia y no descarga nada', async () => {
+    const { result, storage } = await build({ env: { DATABASE_URL: SECRET_URL }, storage: false });
+    expect(storage.requested).toEqual([]);
+    const manifest = manifestOf(result.entries);
+    const absence = manifest.absences.find((item: { item: string }) => item.item === 'snapshot.zip (Storage)');
+    expect(absence.reason).toMatch(/storage no configurado/);
+    expect(manifest.storage.snapshot).toEqual({ requested: false, downloaded: false, reason: expect.stringMatching(/storage no configurado/) });
+    expect(result.entries.some((entry) => entry.path === 'snapshot-manifest.json')).toBe(false);
+  });
+
+  it('un projectVersionId que escaparía del prefijo project-versions/<id>/ no se descarga', async () => {
+    const { result, storage } = await build({ scenario: { projectVersionId: '../otro/proyecto' } });
+    expect(storage.requested.some((key) => key.includes('snapshot.zip'))).toBe(false);
+    expect(storage.requested.some((key) => key.startsWith('project-versions/'))).toBe(false);
+    const manifest = manifestOf(result.entries);
+    expect(manifest.absences.find((item: { item: string }) => item.item === 'snapshot.zip (Storage)').reason).toMatch(/outside_prefix/);
+  });
+
+  it('sin experimento (solo AnalysisRun) no pide el snapshot ni declara su ausencia', async () => {
+    const { result, storage } = await build({ argv: ['--out', OUT(), '--analysis-run', RUN] });
+    expect(storage.requested.some((key) => key.startsWith('project-versions/'))).toBe(false);
+    expect(manifestOf(result.entries).absences.map((item: { item: string }) => item.item)).not.toContain('snapshot.zip (Storage)');
+    expect(manifestOf(result.entries).storage.snapshot).toEqual({ requested: false, downloaded: false, reason: null });
+  });
+
+  it('la lectura sigue siendo de solo lectura: el snapshot no añade sentencias a la base', async () => {
+    const { database } = await build({ storageObjects: { [SNAPSHOT_KEY]: snapshotZip() } });
+    expect(database.statements.filter((sql) => /snapshot/i.test(sql) && !/^SELECT|^WITH/.test(sql))).toEqual([]);
+    expect(database.statements.at(-2)).toBe('ROLLBACK');
+  });
+
+  it('repetitions.csv termina con la columna envSuspect (vacía si ninguna regla marca) sin alterar las demás', async () => {
+    const { result } = await build({});
+    const csv = parseCsv(entryOf(result.entries, 'repetitions.csv').toString('utf8'));
+    expect(csv.columns.at(-1)).toBe('envSuspect');
+    expect(csv.columns.at(-2)).toBe('verificacion');
+    expect(csv.rows).toHaveLength(2);
+    expect(csv.rows.map((row: Record<string, string>) => row.envSuspect)).toEqual(['', '']);
+    expect(csv.rows[0].repetitionId).toBe('rep-1');
+  });
+
+  it('marca ENV-01 en el CSV cuando el errorSummary lo cumple, pero no en experiment.json', async () => {
+    const { result } = await build({
+      scenario: { agentErrorSummary: 'file_get_contents(/app/examples/rbac_model.conf): Failed to open stream: No such file or directory' },
+    });
+    const csv = parseCsv(entryOf(result.entries, 'repetitions.csv').toString('utf8'));
+    const agent = csv.rows.find((row: Record<string, string>) => row.strategy === 'GENERALIST_AGENT');
+    expect(agent?.envSuspect).toBe('ENV-01');
+    expect(csv.rows.find((row: Record<string, string>) => row.strategy === 'RAG')?.envSuspect).toBe('');
+    const experiment = JSON.parse(entryOf(result.entries, 'experiment.json').toString('utf8'));
+    expect(JSON.stringify(experiment)).not.toContain('envSuspect');
+  });
+});

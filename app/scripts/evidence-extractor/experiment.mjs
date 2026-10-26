@@ -11,6 +11,7 @@ import {
 } from './hashes.mjs';
 import { canonicalJson, sha256Hex, toCsv } from './util.mjs';
 import { redactSecretsInText } from './redaction.mjs';
+import { detectEnvSuspect } from './env-suspect.mjs';
 
 /** Lectura completa del experimento. Las variantes de consulta dependen de las migraciones disponibles. */
 export async function collectExperiment(session, experimentId, { trial, artifactsAvailable }) {
@@ -70,13 +71,13 @@ export function normalizeArtifact(artifact) {
   return normalized;
 }
 
-const REPETITION_CSV_COLUMNS = [
+export const REPETITION_CSV_COLUMNS = [
   'repetitionId', 'strategy', 'repetition', 'attempt', 'state', 'compiled', 'executed', 'passed', 'valid', 'failureType',
   'errorSummary', 'generationDurationMs', 'executionDurationMs', 'totalDurationMs', 'inputTokens', 'outputTokens',
   'totalTokens', 'estimatedCost', 'retrievedChunks', 'selectedChunks', 'contextTokens', 'toolCalls', 'filesInspected',
   'pairId', 'pairPosition', 'technicallyEvaluable', 'sandboxTimedOut', 'startedAt', 'finishedAt', 'promptSha256',
   'artifactHash', 'sandboxExecutionId', 'sandboxRequestId', 'sandboxCorrelationId', 'testFile', 'testContentTruncated',
-  'verificacion',
+  'verificacion', 'envSuspect',
 ];
 
 function repetitionKey(repetition) {
@@ -241,7 +242,15 @@ export function buildExperimentPart({ plan, raw, trial, artifactsAvailable }) {
 
   plan.addText(
     'repetitions.csv',
-    toCsv(REPETITION_CSV_COLUMNS, repetitionRows.map((row) => ({ ...row, repetitionId: row.repetitionId }))),
+    toCsv(
+      REPETITION_CSV_COLUMNS,
+      repetitionRows.map((row) => ({
+        ...row,
+        repetitionId: row.repetitionId,
+        // WI-CORE-105: informativo (no es veredicto ni puntuación); reglas declaradas en env-suspect.mjs.
+        envSuspect: detectEnvSuspect({ failureType: row.failureType, errorSummary: row.errorSummary }).join(';'),
+      })),
+    ),
   );
 
   plan.addJson('context-traces.json', {
