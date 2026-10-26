@@ -5997,6 +5997,58 @@
           "report": "harness/reports/wi-core-106-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-107",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "Herramientas de evaluacion de retrieval OE2 (SE frente a SEM): volcados, muestreo con semilla, pooling con hoja ciega, comprobacion de chunks del Run de soporte y calculo de P/R con la GT congelada; solo lectura en app/scripts, sin contrato",
+      "storyIds": [
+        "HU05",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-129"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-106"
+      ],
+      "contractImpact": false,
+      "publishesContract": false,
+      "acceptanceCriteria": [
+        "Existe app/scripts/oe2.mjs con subcomandos dump-chunks, dump-results, compare-dumps, sample, support-files, pool y score (modulos en app/scripts/oe2/), solo lectura (sesion READ ONLY del extractor, consultas registradas, guardia lexica), sin dependencias nuevas, sin cargar .env ni imprimir credenciales, --out vacia o inexistente y fuera del repo, manifest.json con SHA-256 por archivo; sample es determinista por semilla y aplica la definicion ex ante de elegible (D-OE2-5); pool deduplica por (filePath, symbolQualifiedName), verifica la configuracion congelada y produce hojas ciegas sin modo, rank, score ni origen mas una llave aparte; score exige el SHA-256 de la GT, calcula P/R@5,10 de SE y SEM con una copia de computeRetrievalMetrics verificada por paridad, separa la calibracion y ofrece la sensibilidad del desempate.",
+        "Pruebas con fixtures sinteticos que corren en CI cubren cada subcomando (determinismo, ceguera, deduplicacion, errores de configuracion o de GT, casos de P/R a mano, reglas de --out, solo lectura) y la paridad con el producto; lint, build y test en verde; sin cambios en app/src, contratos, esquemas ni migraciones; revision independiente del reviewer con foco en ceguera, determinismo y solo lectura."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-107-scope.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "harness/reports/wi-core-107-contract-sync-scope-review.md",
+        "harness/reports/wi-core-107-technical-checks.md",
+        "harness/reports/wi-core-107-independent-review.md",
+        "harness/reports/wi-core-107-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-107 anade herramientas de evaluacion OE2 de solo lectura en app/scripts, no toca el binding.",
+          "report": "harness/reports/wi-core-107-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-107 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-107-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }
