@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CodeChunksRepository } from './code-chunks.repository.js';
+import { CodeChunksRepository, PhpDeclarationQueryLimitError } from './code-chunks.repository.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 
 describe('CodeChunksRepository.findBySymbol', () => {
@@ -255,5 +255,172 @@ describe('CodeChunksRepository.findPhpStaticMethodDeclarations (WI-CORE-104)', (
     await expect(repository.findPhpStaticMethodDeclarations('version-1', ['Pilot\\A'])).resolves.toEqual([
       { parentSymbolName: 'Pilot\\A', symbolName: 'Pilot\\A::of', content: 'public static function of(): static {}' },
     ]);
+  });
+});
+
+describe('CodeChunksRepository.findPhpTypeDeclarationParts (WI-CORE-106)', () => {
+  function makeRepository(rows: unknown[] = []) {
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const repository = new CodeChunksRepository({ codeChunk: { findMany } } as unknown as PrismaService);
+    return { findMany, repository };
+  }
+
+  const row = (overrides: Record<string, unknown>) => ({
+    symbolName: 'Pilot\\A',
+    symbolKind: 'CLASS',
+    filePath: 'src/A.php',
+    partIndex: 1,
+    content: 'abstract class A {',
+    importsUsed: [],
+    ...overrides,
+  });
+
+  it('does not query when the symbol list is empty', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await expect(repository.findPhpTypeDeclarationParts('version-1', [])).resolves.toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('is a bounded read-only query of all parts of PHP type chunks of one version, for the unique names', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await repository.findPhpTypeDeclarationParts('version-1', ['Pilot\\A', 'Pilot\\A', 'Pilot\\B']);
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      projectVersionId: 'version-1',
+      symbolKind: { in: ['CLASS', 'INTERFACE', 'TRAIT', 'ENUM'] },
+      symbolName: { in: ['Pilot\\A', 'Pilot\\B'] },
+      filePath: { endsWith: '.php' },
+    });
+    expect(findMany.mock.calls[0][0].where).not.toHaveProperty('partIndex');
+    expect(findMany.mock.calls[0][0].orderBy).toEqual([{ symbolName: 'asc' }, { filePath: 'asc' }, { partIndex: 'asc' }]);
+    expect(findMany.mock.calls[0][0].take).toBe(400);
+  });
+
+  it('returns the parts of each symbol ordered by partIndex even if the rows arrive out of order', async () => {
+    const { repository } = makeRepository([
+      row({ partIndex: 3, content: 'third' }),
+      row({ partIndex: 1, content: 'first', importsUsed: ['Pilot\\Dep'] }),
+      row({ partIndex: 2, content: 'second' }),
+      row({ symbolName: 'Pilot\\B', symbolKind: 'INTERFACE', filePath: 'src/B.php', content: 'interface B {' }),
+    ]);
+
+    await expect(repository.findPhpTypeDeclarationParts('version-1', ['Pilot\\A', 'Pilot\\B'])).resolves.toEqual([
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', partIndex: 1, content: 'first', importsUsed: ['Pilot\\Dep'] },
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', partIndex: 2, content: 'second', importsUsed: [] },
+      { symbolName: 'Pilot\\A', symbolKind: 'CLASS', partIndex: 3, content: 'third', importsUsed: [] },
+      { symbolName: 'Pilot\\B', symbolKind: 'INTERFACE', partIndex: 1, content: 'interface B {', importsUsed: [] },
+    ]);
+  });
+
+  it('omits a symbol declared in two different files (ambiguous) and keeps the others', async () => {
+    const { repository } = makeRepository([
+      row({ filePath: 'src/A.php' }),
+      row({ filePath: 'src/Other/A.php' }),
+      row({ symbolName: 'Pilot\\B', filePath: 'src/B.php', content: 'class B {' }),
+    ]);
+
+    const parts = await repository.findPhpTypeDeclarationParts('version-1', ['Pilot\\A', 'Pilot\\B']);
+
+    expect(parts.map((part) => part.symbolName)).toEqual(['Pilot\\B']);
+  });
+
+  it('omits a symbol declared with two different kinds even in the same file (ambiguous)', async () => {
+    const { repository } = makeRepository([
+      row({ symbolKind: 'CLASS' }),
+      row({ symbolKind: 'INTERFACE' }),
+      row({ symbolName: 'Pilot\\B', filePath: 'src/B.php' }),
+    ]);
+
+    const parts = await repository.findPhpTypeDeclarationParts('version-1', ['Pilot\\A', 'Pilot\\B']);
+
+    expect(parts.map((part) => part.symbolName)).toEqual(['Pilot\\B']);
+  });
+
+  it('skips rows without symbolName', async () => {
+    const { repository } = makeRepository([row({ symbolName: null })]);
+
+    await expect(repository.findPhpTypeDeclarationParts('version-1', ['Pilot\\A'])).resolves.toEqual([]);
+  });
+
+  it('throws PhpDeclarationQueryLimitError when the query reaches its row limit (possibly incomplete)', async () => {
+    const { repository } = makeRepository([row({ partIndex: 1 }), row({ partIndex: 2 })]);
+
+    await expect(repository.findPhpTypeDeclarationParts('version-1', ['Pilot\\A'], 2)).rejects.toBeInstanceOf(PhpDeclarationQueryLimitError);
+    await expect(repository.findPhpTypeDeclarationParts('version-1', ['Pilot\\A'], 3)).resolves.toHaveLength(2);
+  });
+});
+
+describe('CodeChunksRepository.findPhpMethodDeclarations (WI-CORE-106)', () => {
+  function makeRepository(rows: unknown[] = []) {
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const repository = new CodeChunksRepository({ codeChunk: { findMany } } as unknown as PrismaService);
+    return { findMany, repository };
+  }
+
+  const row = (overrides: Record<string, unknown>) => ({
+    parentSymbolName: 'Pilot\\A',
+    symbolName: 'Pilot\\A::run',
+    filePath: 'src/A.php',
+    content: 'public function run(): void {}',
+    ...overrides,
+  });
+
+  it('does not query when the class list is empty', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await expect(repository.findPhpMethodDeclarations('version-1', [])).resolves.toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('is a bounded read-only query of part 1 of PHP METHOD and CONSTRUCTOR chunks of one version', async () => {
+    const { findMany, repository } = makeRepository();
+
+    await repository.findPhpMethodDeclarations('version-1', ['Pilot\\A', 'Pilot\\A', 'Pilot\\B']);
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      projectVersionId: 'version-1',
+      symbolKind: { in: ['METHOD', 'CONSTRUCTOR'] },
+      parentSymbolName: { in: ['Pilot\\A', 'Pilot\\B'] },
+      filePath: { endsWith: '.php' },
+      partIndex: 1,
+    });
+    expect(findMany.mock.calls[0][0].orderBy).toEqual([{ parentSymbolName: 'asc' }, { filePath: 'asc' }, { symbolName: 'asc' }]);
+    expect(findMany.mock.calls[0][0].take).toBe(600);
+  });
+
+  it('returns parent, method name and content, skipping rows without parent', async () => {
+    const { repository } = makeRepository([
+      row({}),
+      row({ symbolName: 'Pilot\\A::stop', content: 'protected function stop(): void {}' }),
+      row({ parentSymbolName: null, symbolName: 'helper' }),
+    ]);
+
+    await expect(repository.findPhpMethodDeclarations('version-1', ['Pilot\\A'])).resolves.toEqual([
+      { parentSymbolName: 'Pilot\\A', symbolName: 'Pilot\\A::run', content: 'public function run(): void {}' },
+      { parentSymbolName: 'Pilot\\A', symbolName: 'Pilot\\A::stop', content: 'protected function stop(): void {}' },
+    ]);
+  });
+
+  it('omits a parent whose methods come from two different files (ambiguous) and keeps the others', async () => {
+    const { repository } = makeRepository([
+      row({ filePath: 'src/A.php' }),
+      row({ filePath: 'src/Other/A.php', symbolName: 'Pilot\\A::other' }),
+      row({ parentSymbolName: 'Pilot\\B', symbolName: 'Pilot\\B::run', filePath: 'src/B.php' }),
+    ]);
+
+    const methods = await repository.findPhpMethodDeclarations('version-1', ['Pilot\\A', 'Pilot\\B']);
+
+    expect(methods.map((method) => method.parentSymbolName)).toEqual(['Pilot\\B']);
+  });
+
+  it('throws PhpDeclarationQueryLimitError when the query reaches its row limit (possibly incomplete)', async () => {
+    const { repository } = makeRepository([row({}), row({ symbolName: 'Pilot\\A::stop' })]);
+
+    await expect(repository.findPhpMethodDeclarations('version-1', ['Pilot\\A'], 2)).rejects.toBeInstanceOf(PhpDeclarationQueryLimitError);
+    await expect(repository.findPhpMethodDeclarations('version-1', ['Pilot\\A'], 3)).resolves.toHaveLength(2);
   });
 });

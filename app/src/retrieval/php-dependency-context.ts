@@ -49,6 +49,17 @@ export interface PhpDependencySection {
   truncated: boolean;
   tokenCount: number;
   text: string;
+  /**
+   * WI-CORE-106: interno, no va a la traza ni al JSON persistido. Líneas `Owner::nombre(params): retorno` de los
+   * métodos abstractos sin implementar de la jerarquía de una clase declarante abstracta o interfaz. Ausente
+   * cuando no hay ninguna.
+   */
+  abstractObligations?: string[];
+  /**
+   * WI-CORE-106: interno; presente solo (con valor true) junto a `abstractObligations` cuando la jerarquía no se
+   * conoce por completo (trait, tipo fuera del índice o recorrido cortado) y el encabezado del bloque lo declara.
+   */
+  abstractObligationsUncertain?: boolean;
 }
 
 /** WI-CORE-066: FQCN resuelto desde el constructor de una dependencia directa (profundidad 2). */
@@ -90,6 +101,9 @@ export interface CappedPhpDependencies {
   tokenCount: number;
 }
 
+/** WI-CORE-106: máximo de métodos abstractos de la jerarquía que se listan (no activa `truncated`). */
+export const MAX_PHP_ABSTRACT_OBLIGATIONS = 12;
+
 export const MAX_PHP_DEPENDENCY_ENTRIES = 20;
 /** WI-CORE-104: tope de TODA la sección (dependencias, constructor no público/fábricas y glosario). Era 300. */
 export const MAX_PHP_DEPENDENCY_TOKENS = 500;
@@ -103,6 +117,12 @@ const FINAL_MARK = ' — final: no se puede mockear; usa una instancia real con 
 
 // WI-CORE-104: con constructor no público la marca de final no manda a usar `new`.
 const FINAL_MARK_WITHOUT_NEW = ' — final: no se puede mockear';
+
+const ABSTRACT_OBLIGATIONS_HEADER =
+  'Métodos abstractos sin implementar de la jerarquía (una subclase concreta debe implementarlos):';
+
+const ABSTRACT_OBLIGATIONS_UNCERTAIN_HEADER =
+  'Métodos abstractos sin implementar de la jerarquía (una subclase concreta debe implementarlos; la jerarquía no se conoce por completo —trait o tipo fuera del índice—: la lista puede ser incompleta o incluir alguno ya implementado):';
 
 const GLOSSARY_HEADER = 'Nombres completos (FQCN) de los tipos que aparecen en el código de contexto:';
 
@@ -209,8 +229,28 @@ export function renderPhpFqcnGlossary(glossary: readonly PhpFqcnGlossaryEntry[])
   return [GLOSSARY_HEADER, ...glossary.map((entry) => `- ${entry.typeName} → ${entry.fqcn}`)].join('\n');
 }
 
-function renderFullSection(entries: readonly PhpDependencyEntry[], glossary: readonly PhpFqcnGlossaryEntry[]): string {
-  return [renderPhpDependencySection(entries), renderPhpFqcnGlossary(glossary)].filter((part) => part !== '').join('\n\n');
+/**
+ * WI-CORE-106: bloque de obligaciones abstractas (líneas ya `Owner::firma`); vacío si no hay ninguna. Con
+ * `uncertain` el encabezado declara que la jerarquía no se conoce por completo.
+ */
+export function renderPhpAbstractObligationLines(lines: readonly string[], uncertain = false): string {
+  if (lines.length === 0) return '';
+  return [uncertain ? ABSTRACT_OBLIGATIONS_UNCERTAIN_HEADER : ABSTRACT_OBLIGATIONS_HEADER, ...lines.map((line) => `- ${line}`)].join('\n');
+}
+
+function renderFullSection(
+  entries: readonly PhpDependencyEntry[],
+  glossary: readonly PhpFqcnGlossaryEntry[],
+  abstractObligations: readonly string[] = [],
+  abstractObligationsUncertain = false,
+): string {
+  return [
+    renderPhpDependencySection(entries),
+    renderPhpAbstractObligationLines(abstractObligations, abstractObligationsUncertain),
+    renderPhpFqcnGlossary(glossary),
+  ]
+    .filter((part) => part !== '')
+    .join('\n\n');
 }
 
 /**
@@ -243,6 +283,29 @@ export function resolvePhpConstructorTypes(input: {
 }
 
 /**
+ * WI-CORE-106: FQCN de un nombre de tipo escrito en la cabecera de `ownerFqcn` (`extends`/`implements`), con las
+ * mismas reglas que el resto del módulo: un nombre con `\` inicial y uno importado con `use` se devuelven sin
+ * consultar el índice (el llamador comprueba después si el tipo existe); un nombre sin importar solo se resuelve
+ * al mismo namespace si el tipo está en `knownTypes`. Dan null los escalares, las clases globales de PHP que el
+ * módulo reconoce (p. ej. `Countable`), los nombres que empiezan por `namespace\` (relativos al namespace actual,
+ * que no se resuelven) y todo lo que no se pueda verificar. Nunca lanza.
+ */
+export function resolvePhpTypeName(
+  rawName: string,
+  input: { ownerFqcn: string; importsUsed: readonly string[]; knownTypes: ReadonlySet<string> },
+): string | null {
+  try {
+    if (typeof rawName !== 'string' || rawName.trim() === '') return null;
+    if (/^namespace\\/i.test(rawName.trim())) return null;
+    const context = buildContextFromImports(input.ownerFqcn, input.importsUsed, input.knownTypes);
+    const resolution = resolveName(rawName.trim(), context);
+    return resolution.kind === 'resolved' ? resolution.fqcn : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * WI-CORE-058 (INTEROP-2.15): true solo si la declaración es un enum (`symbolKind` ENUM) o si, tras
  * espacios, comentarios y atributos `#[...]`, empieza con modificadores que incluyen `final` y luego
  * `class` (`final class`, `final readonly class`, `readonly final class`). `abstract`, `readonly` sin
@@ -263,7 +326,7 @@ export function isFinalPhpDeclaration(content: string, symbolKind: string): bool
 }
 
 // Quita espacios, comentarios de línea (// y # sin [), de bloque y docblocks, y atributos #[...] iniciales.
-function stripLeadingPhpNoise(content: string): string {
+export function stripLeadingPhpNoise(content: string): string {
   let rest = content;
   for (let guard = 0; guard < 10_000; guard += 1) {
     rest = rest.replace(/^\s+/, '');
@@ -291,7 +354,7 @@ function stripLeadingPhpNoise(content: string): string {
 }
 
 /** Índice del `]` que cierra el `#[` inicial, con corchetes anidados y cadenas entre comillas. */
-function findAttributeEnd(text: string): number {
+export function findAttributeEnd(text: string): number {
   let depth = 0;
   let quote: string | null = null;
   for (let index = 1; index < text.length; index += 1) {
@@ -443,7 +506,7 @@ export function buildPhpFqcnGlossary(input: {
  * Lee la lista de parámetros desde `(` hasta su `)` de cierre, omitiendo atributos y comentarios. Devuelve el
  * texto normalizado y el índice del `)` de cierre (WI-CORE-104 lo usa para leer el tipo de retorno).
  */
-function readParameterList(content: string, open: number): { text: string; end: number } | null {
+export function readParameterList(content: string, open: number): { text: string; end: number } | null {
   const parameters: string[] = [];
   let current = '';
   let depth = 0;
@@ -506,7 +569,7 @@ function readParameterList(content: string, open: number): { text: string; end: 
 }
 
 /** Índice de la comilla de cierre de la cadena que empieza en `start`, o -1. */
-function findStringEnd(content: string, start: number): number {
+export function findStringEnd(content: string, start: number): number {
   const quote = content[start];
   for (let index = start + 1; index < content.length; index += 1) {
     if (content[index] === '\\') index += 1;
@@ -518,27 +581,37 @@ function findStringEnd(content: string, start: number): number {
 export interface CappedPhpDependencySection {
   entries: PhpDependencyEntry[];
   glossary: PhpFqcnGlossaryEntry[];
+  /** WI-CORE-106: obligaciones abstractas que sobreviven al tope (líneas `Owner::firma`). */
+  abstractObligations: string[];
+  /** WI-CORE-106: true solo si quedan obligaciones y la jerarquía era incierta. */
+  abstractObligationsUncertain: boolean;
   truncated: boolean;
   tokenCount: number;
   text: string;
 }
 
 /**
- * Recorta por el final hasta que la sección completa (dependencias + glosario) cabe en `maxTokens`.
- * Orden (WI-CORE-104): (1) entradas del glosario desde la última; (2) fábricas, desde la última entrada
- * (la línea conserva el aviso de constructor no público); (3) política vigente: entradas de profundidad 2
- * desde la última (WI-CORE-066), firmas de constructor desde la última entrada (WI-CORE-065); (4) entradas
- * desde la última. `tokenCount` y `text` son los de la sección resultante.
+ * Recorta por el final hasta que la sección completa (dependencias + obligaciones abstractas + glosario) cabe en
+ * `maxTokens`. Orden (WI-CORE-104, WI-CORE-106): (1) entradas del glosario desde la última; (2) fábricas, desde
+ * la última entrada (la línea conserva el aviso de constructor no público); (3) obligaciones abstractas desde la
+ * última firma (vacías, desaparece también el encabezado, también el de jerarquía incierta); (4) política vigente: entradas de profundidad 2
+ * desde la última (WI-CORE-066), firmas de constructor desde la última entrada (WI-CORE-065); (5) entradas
+ * desde la última. `tokenCount` cuenta el texto completo, encabezados incluidos, y `text` es el de la sección
+ * resultante. `truncated` es true si se recortó algo por tokens.
  */
 export function capPhpDependencySection(
   entries: readonly PhpDependencyEntry[],
   glossary: readonly PhpFqcnGlossaryEntry[],
   maxTokens: number = MAX_PHP_DEPENDENCY_TOKENS,
+  abstractObligations: readonly string[] = [],
+  abstractObligationsUncertain = false,
 ): CappedPhpDependencySection {
   const kept = entries.map((entry) => ({ ...entry }));
   const keptGlossary = [...glossary];
+  const keptObligations = [...abstractObligations];
   let truncated = false;
-  const exceeds = (): boolean => countPhpDependencyTokens(renderFullSection(kept, keptGlossary)) > maxTokens;
+  const exceeds = (): boolean =>
+    countPhpDependencyTokens(renderFullSection(kept, keptGlossary, keptObligations, abstractObligationsUncertain)) > maxTokens;
 
   while (keptGlossary.length > 0 && exceeds()) {
     keptGlossary.pop();
@@ -549,6 +622,11 @@ export function capPhpDependencySection(
       kept[index].factories = [];
       truncated = true;
     }
+  }
+  // WI-CORE-106: las obligaciones abstractas se recortan después de las fábricas, desde la última firma.
+  while (keptObligations.length > 0 && exceeds()) {
+    keptObligations.pop();
+    truncated = true;
   }
   // WI-CORE-066: primero se retiran las de profundidad 2, de la última hacia la primera.
   for (let index = kept.length - 1; index >= 0 && exceeds(); index -= 1) {
@@ -569,10 +647,12 @@ export function capPhpDependencySection(
     kept.pop();
     truncated = true;
   }
-  const text = renderFullSection(kept, keptGlossary);
+  const text = renderFullSection(kept, keptGlossary, keptObligations, abstractObligationsUncertain);
   return {
     entries: kept,
     glossary: keptGlossary,
+    abstractObligations: keptObligations,
+    abstractObligationsUncertain: abstractObligationsUncertain && keptObligations.length > 0,
     truncated,
     tokenCount: countPhpDependencyTokens(text),
     text,
@@ -592,7 +672,8 @@ export function applyDependencyTokenCap(
  * WI-CORE-104 (R2b): sección final = dependencias de `base` (con R2a) y, después, el glosario de FQCN, todo
  * bajo `maxTokens`. `base` puede ser null (sin dependencias): con glosario no vacío se crea una sección con
  * `entries: []` y `unresolvedCount: 0`. Devuelve `base` sin cambios con glosario vacío y null si no queda nada
- * que mostrar (sin base y el glosario se recortó entero).
+ * que mostrar (sin base y el glosario se recortó entero). WI-CORE-106: conserva las obligaciones abstractas de
+ * `base` (se recortan antes que las dependencias y después del glosario).
  */
 export function composePhpDependencySection(
   base: PhpDependencySection | null,
@@ -604,6 +685,8 @@ export function composePhpDependencySection(
     [...(base?.entries ?? []), ...(base?.transitiveEntries ?? [])],
     glossary,
     maxTokens,
+    base?.abstractObligations ?? [],
+    base?.abstractObligationsUncertain ?? false,
   );
   if (base === null && capped.glossary.length === 0) return null;
   return {
@@ -613,6 +696,8 @@ export function composePhpDependencySection(
     truncated: (base?.truncated ?? false) || capped.truncated,
     tokenCount: capped.tokenCount,
     text: capped.text,
+    ...(capped.abstractObligations.length > 0 ? { abstractObligations: capped.abstractObligations } : {}),
+    ...(capped.abstractObligationsUncertain ? { abstractObligationsUncertain: true } : {}),
   };
 }
 

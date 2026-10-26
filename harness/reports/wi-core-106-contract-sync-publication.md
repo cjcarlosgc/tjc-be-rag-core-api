@@ -1,0 +1,10 @@
+# WI-CORE-106 — publicación de Contract Sync
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Evento publicado en `harness/contract-sync/outbox/`: **`CS-CORE-20261026-001`** (`C-PENDING`, `breaking: false`, `sourceWorkItem: WI-CORE-106`, `sourceRevision 790888bfa18a4f2d432c65af9195e0474be19673`, el commit que contiene el contrato y el código). Un solo evento para `console`, `github-integration` y `sandbox`; `scopePaths`: `interoperability-contract.md`.
+
+Digests (sobre el árbol commiteado): `interoperability-contract.md` (INTEROP-2.24) `c03bbf72640c6f05eb6bffe46d67c401ed5de96e590e8f204d13537b176607a0` (digest posterior al ciclo 1 de revisión: nota de incertidumbre y regla de `private`; el primer informe del contract-reviewer citaba `b00fc9e1…`); sin cambio: `system-contract.md` (SYSTEM-2.16) `d0a492b4484c8883d65e709f76d8c7ff2462b0eb8c832649cf75723b9543ea77`, `github-integration-contract.md` (GH-INTEROP-1.9) `dedf00fa2f0f5be928cfaf1e5a12ff19f96e7579524a0a689757f1077bfc6e4e` y el árbol `spec/contracts/schemas/` `8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718`.
+
+El evento **subsume** `CS-CORE-20261025-002` (INTEROP-2.23, aún `C-PENDING` aunque Console ya espejó 2.23) y, por transitividad, `CS-CORE-20261025-001` (2.22): el re-espejo de `interoperability-contract.md` debe ir directo a INTEROP-2.24. Verificado en lectura (Core no edita otros repositorios): Console espeja hoy INTEROP-2.23 (`5de10cb7…`); GitHub Integration y Sandbox, INTEROP-2.21 (`7f946d55…`).
+
+Acción por consumidor (la entrega la hace cross): re-espejar byte a byte en un solo paso a 2.24; sin cambio de `schemas/` ni de `generated/`; Integration y Sandbox solo re-espejo documental; Console además etiqueta y tolera `BELOW_RELEVANCE_THRESHOLD` (ya pedido por `CS-CORE-20261025-001`). Un Core 2.24 no rompe a un consumidor que espeje 2.21, 2.23 o anteriores (el contrato exige ignorar campos desconocidos; ningún consumidor usa `dependencyContext` ni valida su tope). El estado del evento (`C-RESOLVED`) lo cambia cada consumidor con su evidencia.

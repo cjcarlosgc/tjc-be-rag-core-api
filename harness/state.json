@@ -26750,6 +26750,347 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-10-26T03:38:36.000Z"
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "sprint": "P2",
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "id": "WI-CORE-106",
+      "status": "W-DONE",
+      "title": "Obligaciones abstractas heredadas en la seccion de dependencias PHP (calibracion con smoke del Piloto v2): metodos abstractos sin implementar de la jerarquia de una clase declarante abstracta o interfaz, dentro del tope de 500 tokens (INTEROP-2.24 aditivo)",
+      "approved": true,
+      "storyIds": [
+        "HU05",
+        "HU10",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-128"
+      ],
+      "caseIds": [],
+      "specPaths": [
+        "harness/reports/wi-core-106-scope.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "harness/reports/wi-core-106-contract-sync-scope-review.md",
+        "harness/reports/oe5-v2-qualification-criterios.md",
+        "harness/reports/wi-core-106-technical-checks.md",
+        "harness/reports/wi-core-106-contract-review.md",
+        "harness/reports/wi-core-106-independent-review.md",
+        "harness/reports/wi-core-106-closure.md",
+        "harness/reports/wi-core-106-contract-sync-publication.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-106 cambia el contenido de la seccion de dependencias del prompt, no el binding.",
+          "report": "harness/reports/wi-core-106-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-106 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-106-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-25T22:00:00.000Z",
+        "note": "Alcance aprobado por el usuario en el chat de Core (2026-10-26, WI-CORE-106 con INTEROP-2.24 aditivo y parametros de Core); calibracion con smoke antes del congelamiento; DEC-RAG-001 y DEC-VAL-001 PENDING no bloquean."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "leader",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": "contract-reviewer",
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Bloque de metodos abstractos sin implementar de la jerarquia de una clase declarante abstracta o interfaz en la seccion de dependencias PHP (profundidad 3, maximo 12 firmas, resta de implementados, orden de recorte, traza sin cambio de forma); modulo puro php-class-hierarchy y dos consultas de solo lectura con tope; 8 mutaciones detectadas; lint, build y 3613 tests en verde (reproducidos por el leader) y prueba del leader contra Postgres real con una jerarquia tipo S1 (obligaciones exactas)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/retrieval/php-class-hierarchy.ts",
+              "app/src/retrieval/php-dependency-context.ts",
+              "app/src/retrieval/php-dependency-context.service.ts",
+              "app/src/project-versions/persistence/code-chunks.repository.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-106-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "contract-reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "INTEROP-2.24 documental y aditivo; sin campos nuevos; ningun consumidor usa dependencyContext ni valida su tope; delta del ciclo 1 (nota de incertidumbre y regla de private) verificado; digest final c03bbf72...; evento que subsume CS-CORE-20261025-002 y -001."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-106-contract-review.md"
+            ],
+            "recommendedNextStep": "Publicar el evento de Contract Sync.",
+            "executedBy": {
+              "agent": "contract-reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "CHANGES_REQUESTED",
+            "findings": [
+              "Ciclo 1: sin hallazgos altos. H1 falsos positivos por traits o padres fuera del indice y private del padre contado como implementado; H2 las dos consultas nuevas sin pruebas; H3 mutantes supervivientes; H4 criterio Q-i debil; H5 comentario impreciso."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-106-independent-review.md"
+            ],
+            "recommendedNextStep": "Corregir H1, H2, H3, H4 y H5.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "low"
+            }
+          },
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 1 corregido: aviso de incertidumbre en el encabezado (phpClassUsesTraits, tipo fuera del indice, recorrido cortado), private no implementa, 14 pruebas unitarias y un pg spec de las dos consultas, pruebas para los mutantes, resolvePhpTypeName rechaza namespace\\; 9 mutaciones detectadas; lint, build, 3648 tests y 10 specs pg en verde (reproducidos por el leader)."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/src/retrieval/php-class-hierarchy.ts",
+              "app/src/retrieval/php-dependency-context.ts",
+              "app/src/retrieval/php-dependency-context.service.ts",
+              "app/src/project-versions/persistence/code-chunks.repository.ts"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-106-technical-checks.md"
+            ],
+            "recommendedNextStep": "Re-revision del ciclo 2.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Ciclo 2 APPROVED tras corregir H1 (aviso de incertidumbre, private no implementa), H2 (pruebas unitarias y pg de las dos consultas), H3, H4 y H5; sin hallazgos medios ni altos; observaciones bajas sin impacto."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-106-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "low"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-PASSED",
+        "canonicalContractSynced": "G-PASSED",
+        "contractSyncPublished": "G-PASSED",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": true,
+        "publishesContract": true,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-106",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [],
+            "checkedAt": "2026-10-26T05:28:26.364Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-106",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T05:42:17.861Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-106",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T05:42:18.072Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-106",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [
+              "CS-CONSOLE-20261010-001",
+              "CS-GH-20260925-001",
+              "CS-GH-20260925-002",
+              "CS-GH-20260925-003",
+              "CS-GH-20260925-004",
+              "CS-GH-20260925-005",
+              "CS-GH-20260926-001",
+              "CS-GH-20260927-001",
+              "CS-GH-20261010-001",
+              "CS-GH-20261011-002",
+              "CS-GH-20261011-003",
+              "CS-SANDBOX-20261014-001"
+            ],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T06:06:15.084Z"
+          }
+        ],
+        "publishedSyncIds": [
+          "CS-CORE-20261026-001"
+        ],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-106-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-106-scope.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-106-contract-sync-scope-review.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-106-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-106-technical-checks.md"
+        ],
+        "contractReviewed": [
+          "harness/reports/wi-core-106-contract-review.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-106-independent-review.md",
+          "harness/reports/wi-core-106-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-106-closure.md"
+        ],
+        "canonicalContractSynced": [
+          "harness/reports/wi-core-106-contract-sync-publication.md"
+        ],
+        "contractSyncPublished": [
+          "harness/reports/wi-core-106-contract-sync-publication.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-106-scope.md",
+        "harness/reports/wi-core-106-technical-checks.md",
+        "harness/reports/wi-core-106-contract-review.md",
+        "harness/reports/wi-core-106-independent-review.md",
+        "harness/reports/wi-core-106-closure.md",
+        "harness/reports/wi-core-106-contract-sync-publication.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-26T06:06:17.000Z"
     }
   ],
   "activeWorkItem": null

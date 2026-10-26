@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CodeChunksRepository, type CodeChunkDependencyFields } from '../project-versions/persistence/code-chunks.repository.js';
 import {
-  applyDependencyTokenCap,
+  capPhpDependencySection,
   extractPhpConstructorSignature,
   extractPhpConstructorVisibility,
   extractPhpPublicStaticFactories,
@@ -9,13 +9,24 @@ import {
   MAX_PHP_DEPENDENCY_ENTRIES,
   MAX_PHP_DEPENDENCY_TOKENS,
   MAX_PHP_FACTORIES_PER_CLASS,
-  renderPhpDependencySection,
   resolvePhpConstructorTypes,
   resolvePhpDependencies,
+  resolvePhpTypeName,
   type PhpConstructorVisibility,
   type PhpDependencyEntry,
   type PhpDependencySection,
 } from './php-dependency-context.js';
+import {
+  computeInheritedAbstractObligations,
+  extractPhpAbstractMethod,
+  extractPhpImplementedMethodName,
+  extractPhpInterfaceMethodSignatures,
+  parsePhpTypeHeader,
+  phpClassUsesTraits,
+  type AncestorHierarchyInfo,
+  type PhpAbstractMethod,
+  type PhpTypeHeader,
+} from './php-class-hierarchy.js';
 
 /**
  * Sección de dependencias PHP. WI-CORE-104: el texto puede incluir el glosario de FQCN, que añade el pipeline
@@ -37,6 +48,11 @@ const MAX_FINAL_LOOKUPS = 20;
 const MAX_CONSTRUCTOR_LOOKUPS = 20;
 const MAX_TRANSITIVE_LOOKUPS = 20;
 const MAX_FACTORY_LOOKUPS = 20;
+/** WI-CORE-106: profundidad máxima de la jerarquía (interfaces/padres) y tipos por consulta. */
+const MAX_HIERARCHY_DEPTH = 3;
+const MAX_HIERARCHY_TYPES_PER_QUERY = 20;
+const MAX_HIERARCHY_PART_ROWS = 400;
+const MAX_HIERARCHY_METHOD_ROWS = 600;
 
 /**
  * Sección best-effort de dependencias PHP del código objetivo. Un fallo del repositorio no se
@@ -109,10 +125,23 @@ export class PhpDependencyContextService {
         knownTypes,
         declaringClass,
       );
-      const capped = applyDependencyTokenCap([...withSignatures, ...transitive.entries], MAX_PHP_DEPENDENCY_TOKENS);
+      // WI-CORE-106: obligaciones abstractas heredadas; solo para clase declarante abstracta o interfaz.
+      const obligations = await this.resolveAbstractObligations(
+        projectVersionId,
+        declaringClass,
+        fileChunks,
+        knownTypes,
+      );
+      const capped = capPhpDependencySection(
+        [...withSignatures, ...transitive.entries],
+        [],
+        MAX_PHP_DEPENDENCY_TOKENS,
+        obligations.lines,
+        obligations.uncertain,
+      );
       const kept = capped.entries;
 
-      if (kept.length === 0 && resolved.unresolvedCount === 0) return null;
+      if (kept.length === 0 && resolved.unresolvedCount === 0 && capped.abstractObligations.length === 0) return null;
 
       return {
         entries: kept.filter((entry) => entry.via === undefined),
@@ -120,12 +149,168 @@ export class PhpDependencyContextService {
         unresolvedCount: resolved.unresolvedCount,
         truncated: resolved.truncated || transitive.truncated || capped.truncated,
         tokenCount: capped.tokenCount,
-        text: renderPhpDependencySection(kept),
+        text: capped.text,
+        ...(capped.abstractObligations.length > 0 ? { abstractObligations: capped.abstractObligations } : {}),
+        ...(capped.abstractObligationsUncertain ? { abstractObligationsUncertain: true as const } : {}),
       };
     } catch (error) {
       const errorName = error instanceof Error ? error.name : 'UnknownError';
       this.logger.warn(`Sección de dependencias PHP omitida por error de repositorio: ${errorName}`);
       return null;
+    }
+  }
+
+  /**
+   * WI-CORE-106: líneas `Owner::nombre(params): retorno` de los métodos abstractos sin implementar de la jerarquía
+   * de la clase declarante, solo si es una clase `abstract` o una interfaz (clase concreta, cabecera ilegible o
+   * sin chunk de clase: nada). Recorre las interfaces y clases padre en anchura hasta profundidad 3 con el
+   * resolutor de nombres existente (solo tipos del índice; ciclos y duplicados se descartan; traits, enums y tipos
+   * ausentes del índice se ignoran). `uncertain` es true cuando la jerarquía no se conoce por completo: una clase
+   * de la cadena usa traits, un `extends`/`implements` no resuelve a un tipo del índice, o el recorrido se cortó por
+   * la profundidad 3 o por el tope de 20 tipos. Solo cuentan como implementados los métodos `public`/`protected`.
+   * Best-effort: un error de consulta no se propaga y deja la sección sin bloque.
+   */
+  private async resolveAbstractObligations(
+    projectVersionId: string,
+    declaringClass: string,
+    fileChunks: CodeChunkDependencyFields[],
+    knownTypes: ReadonlySet<string>,
+  ): Promise<{ lines: string[]; uncertain: boolean }> {
+    const none = { lines: [] as string[], uncertain: false };
+    try {
+      const declaringParts = fileChunks.filter(
+        (chunk) => (chunk.symbolKind === 'CLASS' || chunk.symbolKind === 'INTERFACE') && chunk.symbolName === declaringClass,
+      );
+      const declaringChunk = declaringParts[0];
+      if (declaringChunk === undefined) return none;
+      const header = parsePhpTypeHeader(declaringChunk.content);
+      if (header === null) return none;
+      const isInterface = header.kind === 'interface' && declaringChunk.symbolKind === 'INTERFACE';
+      const isAbstractClass = header.kind === 'class' && header.isAbstract && declaringChunk.symbolKind === 'CLASS';
+      if (!isInterface && !isAbstractClass) return none;
+
+      // Una clase declarante que usa traits puede recibir métodos que el índice no ve.
+      let uncertain = !isInterface && phpClassUsesTraits(declaringChunk.content);
+      const declaringImports = declaringParts.flatMap((chunk) => chunk.importsUsed ?? []);
+      let abstractMethods: PhpAbstractMethod[] = [];
+      const implementedMethodNames: string[] = [];
+      if (isInterface) {
+        abstractMethods = interfaceMethods(declaringParts.map((chunk) => chunk.content));
+      } else {
+        for (const chunk of fileChunks) {
+          if ((chunk.symbolKind !== 'METHOD' && chunk.symbolKind !== 'CONSTRUCTOR') || chunk.parentSymbolName !== declaringClass) {
+            continue;
+          }
+          const abstractMethod = extractPhpAbstractMethod(chunk.content);
+          if (abstractMethod !== null) {
+            abstractMethods.push(abstractMethod);
+            continue;
+          }
+          const name = extractPhpImplementedMethodName(chunk.content);
+          if (name !== null) implementedMethodNames.push(name);
+        }
+      }
+
+      const visited = new Set<string>([declaringClass]);
+      const nextFrontier = (parents: string[]): string[] => {
+        const frontier: string[] = [];
+        for (const fqcn of parents) {
+          if (visited.has(fqcn)) continue;
+          if (frontier.length >= MAX_HIERARCHY_TYPES_PER_QUERY) {
+            uncertain = true;
+            continue;
+          }
+          visited.add(fqcn);
+          frontier.push(fqcn);
+        }
+        return frontier;
+      };
+      const resolveParents = (owner: string, typeHeader: PhpTypeHeader, imports: readonly string[]): string[] => {
+        const resolved: string[] = [];
+        for (const rawName of [...typeHeader.extendsNames, ...typeHeader.implementsNames]) {
+          const fqcn = resolvePhpTypeName(rawName, { ownerFqcn: owner, importsUsed: imports, knownTypes });
+          // Clase interna de PHP, de vendor/ o no verificable: no se sabe qué métodos aporta.
+          if (fqcn === null) uncertain = true;
+          else resolved.push(fqcn);
+        }
+        return resolved;
+      };
+
+      const ancestors: AncestorHierarchyInfo[] = [];
+      let frontier = nextFrontier(resolveParents(declaringClass, header, declaringImports));
+      for (let level = 1; level <= MAX_HIERARCHY_DEPTH && frontier.length > 0; level += 1) {
+        const rows = await this.codeChunks.findPhpTypeDeclarationParts(projectVersionId, frontier, MAX_HIERARCHY_PART_ROWS);
+        const partsBySymbol = new Map<string, typeof rows>();
+        for (const row of rows) {
+          const list = partsBySymbol.get(row.symbolName) ?? [];
+          list.push(row);
+          partsBySymbol.set(row.symbolName, list);
+        }
+        const parents: string[] = [];
+        const levelClasses: Array<{ fqcn: string }> = [];
+        const levelAncestors = new Map<string, AncestorHierarchyInfo>();
+        for (const fqcn of frontier) {
+          const parts = [...(partsBySymbol.get(fqcn) ?? [])].sort((left, right) => left.partIndex - right.partIndex);
+          const first = parts[0];
+          const kind = first === undefined ? null : first.symbolKind === 'INTERFACE' ? 'interface' : first.symbolKind === 'CLASS' ? 'class' : null;
+          const typeHeader = first !== undefined && first.partIndex === 1 && kind !== null ? parsePhpTypeHeader(first.content) : null;
+          if (first === undefined || kind === null || typeHeader === null || typeHeader.kind !== kind) {
+            // Fuera del índice, ambiguo, trait/enum o cabecera ilegible: se ignora, pero la lista pierde certeza.
+            uncertain = true;
+            continue;
+          }
+          if (kind === 'class' && phpClassUsesTraits(first.content)) uncertain = true;
+          const imports = parts.flatMap((part) => part.importsUsed ?? []);
+          parents.push(...resolveParents(fqcn, typeHeader, imports));
+          const info: AncestorHierarchyInfo = {
+            name: shortName(fqcn),
+            kind,
+            level,
+            abstractMethods: kind === 'interface' ? interfaceMethods(parts.map((part) => part.content)) : [],
+            implementedMethodNames: [],
+          };
+          levelAncestors.set(fqcn, info);
+          if (kind === 'class') levelClasses.push({ fqcn });
+        }
+        if (levelClasses.length > 0) {
+          const methods = await this.codeChunks.findPhpMethodDeclarations(
+            projectVersionId,
+            levelClasses.map((entry) => entry.fqcn),
+            MAX_HIERARCHY_METHOD_ROWS,
+          );
+          for (const method of methods) {
+            const info = levelAncestors.get(method.parentSymbolName);
+            if (info === undefined || info.kind !== 'class') continue;
+            const abstractMethod = extractPhpAbstractMethod(method.content);
+            if (abstractMethod !== null) {
+              info.abstractMethods.push(abstractMethod);
+              continue;
+            }
+            const name = extractPhpImplementedMethodName(method.content);
+            if (name !== null) info.implementedMethodNames.push(name);
+          }
+        }
+        ancestors.push(...levelAncestors.values());
+        frontier = nextFrontier(parents);
+      }
+      // Quedaron ancestros sin visitar por el límite de profundidad.
+      if (frontier.length > 0) uncertain = true;
+
+      const computed = computeInheritedAbstractObligations({
+        declaring: {
+          name: shortName(declaringClass),
+          isAbstract: true,
+          implementedMethodNames,
+          abstractMethods,
+        },
+        ancestors,
+      });
+      const lines = computed.methods.map((method) => `${method.owner}::${method.signature}`);
+      return { lines, uncertain: lines.length > 0 && uncertain };
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.warn(`Obligaciones abstractas PHP omitidas por error de repositorio: ${errorName}`);
+      return none;
     }
   }
 
@@ -308,4 +493,18 @@ export class PhpDependencyContextService {
       return none;
     }
   }
+}
+
+function shortName(fqcn: string): string {
+  return fqcn.slice(fqcn.lastIndexOf('\\') + 1);
+}
+
+/** Métodos (nombre y firma) de las partes de una interfaz. */
+function interfaceMethods(contents: readonly string[]): PhpAbstractMethod[] {
+  return extractPhpInterfaceMethodSignatures(contents.join('\n'))
+    .map((signature) => {
+      const name = /^[A-Za-z_][A-Za-z0-9_]*/.exec(signature)?.[0];
+      return name === undefined ? null : { name, signature };
+    })
+    .filter((method): method is PhpAbstractMethod => method !== null);
 }

@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261026-001
+source: core
+sourceWorkItem: WI-CORE-106
+targets: [console, github-integration, sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.24 interoperability-contract.md sha256 c03bbf72640c6f05eb6bffe46d67c401ed5de96e590e8f204d13537b176607a0; SYSTEM-2.16 system-contract.md (sin cambio) sha256 d0a492b4484c8883d65e709f76d8c7ff2462b0eb8c832649cf75723b9543ea77; github-integration-contract.md (GH-INTEROP-1.9, sin cambio) sha256 dedf00fa2f0f5be928cfaf1e5a12ff19f96e7579524a0a689757f1077bfc6e4e; arbol spec/contracts/schemas/ con examples/ (sin cambio) sha256 8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718 (receta del arbol: cd spec/contracts/schemas && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256). WI-CORE-106 (calibracion con smoke del Piloto v2), alcance aprobado por el usuario el 2026-10-26, documental, aditivo y no incompatible: 6.7 Trazas de contexto describe que el texto de la seccion de dependencias PHP que entra al prompt puede incluir ademas (c) un bloque con los metodos abstractos sin implementar de la jerarquia de una clase declarante abstracta o interfaz (hasta 12 firmas, profundidad maxima 3; un metodo private no cuenta como implementado; si la jerarquia no se conoce por completo el encabezado lo declara); nada de eso se expone como campo (con solo ese bloque, entries es [] con tokenCount > 0) y el maximo de 500 tokens de tokenCount no cambia; la descripcion de truncated se ajusta (el maximo de 12 firmas no la activa); sin cambio de rutas, DTO, enums, codigos de error ni esquemas. Este evento SUBSUME a CS-CORE-20261025-002 (INTEROP-2.23) y, por transitividad, a CS-CORE-20261025-001 (INTEROP-2.22): el re-espejo de interoperability-contract.md debe ir directo a 2.24; Console espeja hoy 2.23 (5de10cb7...) e Integration y Sandbox 2.21 (7f946d55...).
+requiredAction:
+  - Re-espejar interoperability-contract.md byte a byte cruzando el digest, en UN solo paso directo a INTEROP-2.24 (subsume CS-CORE-20261025-002 y -001); sin cambio de schemas ni de generated/ (contracts:check debe seguir limpio); sin cambio de codigo en Integration ni Sandbox (solo re-espejo documental; ejecutar lint, build y test). Console: ademas del re-espejo, tolerar y etiquetar el motivo de descarte BELOW_RELEVANCE_THRESHOLD (types.ts, ragLabels.ts y fallback en RagSidePanel.tsx:103) conforme a CS-CORE-20261025-001; los campos layer, strategy y los demas de configuration son opcionales y dependencyContext.tokenCount puede llegar hasta 500. Core no resuelve los eventos de otros: cada consumidor registra su evidencia.
+sourceRevision: 790888bfa18a4f2d432c65af9195e0474be19673
+status: C-PENDING
