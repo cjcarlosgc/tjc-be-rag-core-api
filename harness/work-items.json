@@ -5780,7 +5780,7 @@
       "component": "CORE",
       "workItemType": "PRODUCT",
       "lane": "STANDARD",
-      "status": "W-IN_REVIEW",
+      "status": "W-DONE",
       "priority": "P1",
       "sprint": "P2",
       "title": "Context Builder por capas (C2 del Piloto v2): estrategia LAYERED por defecto para PHP (clase declarante, evidencia del target y relleno semantico con umbral dentro de maxContextTokens), RANKED opt-in, traza aditiva INTEROP-2.22",
@@ -5811,7 +5811,8 @@
         "harness/reports/wi-core-103-technical-checks.md",
         "harness/reports/wi-core-103-contract-review.md",
         "harness/reports/wi-core-103-independent-review.md",
-        "harness/reports/wi-core-103-closure.md"
+        "harness/reports/wi-core-103-closure.md",
+        "harness/reports/wi-core-103-contract-sync-publication.md"
       ],
       "contractSyncReview": [
         {

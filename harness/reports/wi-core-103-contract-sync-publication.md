@@ -1,0 +1,10 @@
+# WI-CORE-103 — publicación de Contract Sync
+Modelo: leader · configurado claude-sonnet-5-5 · atendido unknown · esfuerzo medium
+
+Evento publicado en `harness/contract-sync/outbox/`: **`CS-CORE-20261025-001`** (`C-PENDING`, `breaking: false`, `sourceWorkItem: WI-CORE-103`, `sourceRevision e4d6dd8bb02e3bb2d78b547cb3e41441a0511672`, el commit que contiene el contrato y el código). Un solo evento para `console`, `github-integration` y `sandbox`; `scopePaths`: `interoperability-contract.md`.
+
+Digests (sobre el árbol commiteado): `interoperability-contract.md` (INTEROP-2.22) `76f5e77431969995d359fb973f58c9d94ccd43c12c3429557e45806a72a29c43`; sin cambio: `system-contract.md` (SYSTEM-2.16) `d0a492b4484c8883d65e709f76d8c7ff2462b0eb8c832649cf75723b9543ea77`, `github-integration-contract.md` (GH-INTEROP-1.9) `dedf00fa2f0f5be928cfaf1e5a12ff19f96e7579524a0a689757f1077bfc6e4e` y el árbol `spec/contracts/schemas/` `8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718`.
+
+Acción por consumidor (la entrega la hace cross; Core no edita otros repositorios ni resuelve los eventos de otros): re-espejar `interoperability-contract.md` byte a byte **en un solo paso directo a INTEROP-2.22** (el evento **subsume** el INTEROP de `CS-CORE-20261024-004`, que sigue `C-PENDING` y deja `system-contract.md` en SYSTEM-2.16); sin cambio de `schemas/` ni de `generated/`. Integration y Sandbox: solo re-espejo documental. Console: además tolerar y etiquetar `BELOW_RELEVANCE_THRESHOLD` (`types.ts`, `ragLabels.ts` y fallback en `RagSidePanel.tsx:103`, que hoy mostraría vacío); `layer` y `strategy` son opcionales.
+
+Despliegue Core → Integration → Console: el Core nuevo no rompe a un Console que aún espeje 2.20/2.21 (el contrato exige ignorar campos desconocidos y el tipo cerrado de TypeScript no valida en ejecución), pero conviene el cambio de Console antes de capturar evidencia para que el Context Explorer etiquete bien. El estado del evento (`C-RESOLVED`) lo cambia cada consumidor con su evidencia.
