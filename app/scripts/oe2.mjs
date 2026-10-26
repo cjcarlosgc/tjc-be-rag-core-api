@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // WI-CORE-107: CLI de evaluación OE2 (retrieval SE frente a SEM). Documentación de uso en app/scripts/README.md.
 //   node scripts/oe2.mjs <subcomando> [opciones]
-// Subcomandos: dump-chunks, dump-results, compare-dumps, sample, support-files, pool, score.
+// Subcomandos: dump-chunks, dump-results, compare-dumps, sample, support-files, pool, score (WI-CORE-107) y
+// build-gt (WI-CORE-108).
 // Códigos de salida: 0 correcto; 1 error de ejecución, diferencias o incongruencias; 2 uso incorrecto.
 // Solo dump-chunks y dump-results leen la base (sesión de solo lectura). El script NO carga .env.
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -18,6 +19,7 @@ import { runSample } from './oe2/sample.mjs';
 import { runSupportFiles } from './oe2/support-files.mjs';
 import { runPool } from './oe2/pool.mjs';
 import { runScore } from './oe2/score.mjs';
+import { runBuildGt } from './oe2/build-gt.mjs';
 
 export const EXIT_OK = 0;
 export const EXIT_ERROR = 1;
@@ -34,6 +36,7 @@ const HANDLERS = Object.freeze({
   'support-files': runSupportFiles,
   pool: runPool,
   score: runScore,
+  'build-gt': runBuildGt,
 });
 
 /**

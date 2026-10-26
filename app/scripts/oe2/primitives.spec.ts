@@ -19,8 +19,8 @@ import { chunk, toJsonl } from './fixtures.mjs';
 const SHA = 'a'.repeat(64);
 
 describe('parseOe2Arguments', () => {
-  it('reconoce los siete subcomandos y la ayuda', () => {
-    expect(SUBCOMMANDS).toEqual(['dump-chunks', 'dump-results', 'compare-dumps', 'sample', 'support-files', 'pool', 'score']);
+  it('reconoce los ocho subcomandos (WI-CORE-108 añade build-gt) y la ayuda', () => {
+    expect(SUBCOMMANDS).toEqual(['dump-chunks', 'dump-results', 'compare-dumps', 'sample', 'support-files', 'pool', 'score', 'build-gt']);
     expect(parseOe2Arguments([]).help).toBe(true);
     expect(parseOe2Arguments(['--help']).help).toBe(true);
     expect(parseOe2Arguments(['sample', '--help']).help).toBe(true);
@@ -62,9 +62,9 @@ describe('parseOe2Arguments', () => {
   });
 
   it('pool fija --max-chars por defecto y exige un mínimo', () => {
-    const parsed = parseOe2Arguments(['pool', '--dump', 'c', '--sample', 's.csv', '--results', 'r', '--seed', 's', '--out', '/x']);
+    const parsed = parseOe2Arguments(['pool', '--dump', 'c', '--sample', 's.csv', '--results', 'r', '--seed', 's', '--guide', 'g.md', '--out', '/x']);
     expect(parsed.options.maxChars).toBe(6000);
-    expect(() => parseOe2Arguments(['pool', '--dump', 'c', '--sample', 's.csv', '--results', 'r', '--seed', 's', '--out', '/x', '--max-chars', '10'])).toThrow(/al menos 200/);
+    expect(() => parseOe2Arguments(['pool', '--dump', 'c', '--sample', 's.csv', '--results', 'r', '--seed', 's', '--guide', 'g.md', '--out', '/x', '--max-chars', '10'])).toThrow(/al menos 200/);
   });
 
   it('score exige un SHA-256 hexadecimal y lo normaliza a minúsculas', () => {

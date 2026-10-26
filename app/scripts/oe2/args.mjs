@@ -1,14 +1,42 @@
 // WI-CORE-107: lectura de argumentos del CLI `scripts/oe2.mjs`. Función pura: no toca el disco ni la red. Cada
 // subcomando declara sus opciones; una opción desconocida o repetida, o un valor ausente, es un error de uso (2).
+// WI-CORE-108: `pool --guide` (obligatorio), `--roles` en pool/score/build-gt y el subcomando `build-gt`.
 import { UsageError } from '../evidence-extractor/options.mjs';
 
 export const SUBCOMMANDS = Object.freeze([
-  'dump-chunks', 'dump-results', 'compare-dumps', 'sample', 'support-files', 'pool', 'score',
+  'dump-chunks', 'dump-results', 'compare-dumps', 'sample', 'support-files', 'pool', 'score', 'build-gt',
 ]);
+
+/** Roles del muestreo (`sample.csv`), en el orden canónico del sorteo. */
+export const ROLE_NAMES = Object.freeze(['calibracion', 'oficial', 'reserva']);
+/** Rol por defecto de `build-gt`: la verdad de terreno se construye solo para los targets oficiales. */
+export const BUILD_GT_DEFAULT_ROLES = Object.freeze(['oficial']);
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
 const INTEGER_PATTERN = /^[0-9]{1,6}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/i;
+
+/** Roles pedidos que no tienen ninguna fila en el sample (se avisan; no cambian el código de salida si queda otra). */
+export function rolesWithoutRows(roles, sampleRows) {
+  if (!Array.isArray(roles)) return [];
+  return roles.filter((role) => !sampleRows.some((row) => row.role === role));
+}
+
+/**
+ * Convierte el valor de `--roles` (lista separada por comas) en roles en orden canónico y sin duplicados. Sin valor
+ * devuelve `null` (todos los roles). Lista vacía, elemento vacío o rol desconocido: error de uso. No repite el valor.
+ */
+export function parseRoles(text) {
+  if (text === undefined || text === null) return null;
+  const tokens = String(text).split(',').map((token) => token.trim());
+  if (tokens.some((token) => token.length === 0)) {
+    throw new UsageError('--roles no puede estar vacío ni tener elementos vacíos (valores: calibracion, oficial, reserva)');
+  }
+  if (tokens.some((token) => !ROLE_NAMES.includes(token))) {
+    throw new UsageError('--roles tiene un rol desconocido (valores: calibracion, oficial, reserva)');
+  }
+  return ROLE_NAMES.filter((role) => tokens.includes(role));
+}
 
 /** Opciones admitidas por subcomando: `value` (texto), `repeat` (texto repetible), `int`, `flag` (booleana). */
 const SPEC = Object.freeze({
@@ -25,14 +53,19 @@ const SPEC = Object.freeze({
   },
   'support-files': { value: ['--sample', '--checkout'], flag: ['--allow-out-in-repo'], out: 'required' },
   pool: {
-    value: ['--dump', '--sample', '--results', '--seed'],
+    value: ['--dump', '--sample', '--results', '--seed', '--guide', '--roles'],
     int: ['--max-chars'],
     flag: ['--allow-out-in-repo'],
     out: 'required',
   },
   score: {
-    value: ['--results', '--gt', '--gt-sha256', '--sample'],
+    value: ['--results', '--gt', '--gt-sha256', '--sample', '--roles'],
     flag: ['--include-calibration', '--allow-out-in-repo'],
+    out: 'required',
+  },
+  'build-gt': {
+    value: ['--template', '--key', '--sample', '--sheets', '--roles'],
+    flag: ['--allow-out-in-repo'],
     out: 'required',
   },
 });
@@ -63,11 +96,17 @@ Subcomandos (WI-CORE-107, evaluación OE2 de retrieval; solo lectura salvo la es
                   [--official 12] [--exclude <archivo>] [--repo <nombre>]
   support-files   --sample <sample.csv> --checkout <carpeta> --out <carpeta>
   pool            --dump <chunks.jsonl> --sample <sample.csv> --results <carpeta> --seed <texto>
-                  --out <carpeta> [--max-chars 6000]
+                  --guide <guia.md> --out <carpeta> [--max-chars 6000] [--roles calibracion,oficial,reserva]
+                  (--guide es obligatorio: la guía de anotación la redacta el equipo y la tool solo la copia)
   score           --results <carpeta> --gt <gt.json> --gt-sha256 <hex> --sample <sample.csv> --out <carpeta>
-                  [--include-calibration]
+                  [--include-calibration] [--roles calibracion,oficial,reserva]
+  build-gt        --template <annotation-template.csv adjudicada> --key <key.json> --sample <sample.csv>
+                  --sheets <carpeta ciego/hojas del paquete entregado> --out <carpeta> [--roles oficial]
+                  (--sheets es obligatorio: comprueba que la llave y la plantilla son de la misma ejecución de pool;
+                  gt.json, gt.sha256, gt-summary.csv, manifest.json)
 
 Comunes: --allow-out-in-repo (permite --out dentro del repositorio). --out debe estar vacía o no existir.
+--roles sin valor usa todos los roles (pool, score) o «oficial» (build-gt).
 Variables: DATABASE_URL solo para dump-chunks y dump-results (el script NO carga .env).
 
 Códigos de salida: 0 correcto; 1 error de ejecución o diferencias/incongruencias; 2 uso incorrecto.
@@ -169,7 +208,9 @@ function validateCommand(command, options) {
       requireOption(options, 'sample', '--sample');
       requireOption(options, 'results', '--results');
       requireOption(options, 'seed', '--seed');
+      requireOption(options, 'guide', '--guide');
       if (options.maxChars < 200) throw new UsageError('--max-chars debe ser al menos 200');
+      options.roles = parseRoles(options.roles);
       break;
     case 'score':
       requireOption(options, 'results', '--results');
@@ -178,6 +219,14 @@ function validateCommand(command, options) {
       requireOption(options, 'sample', '--sample');
       if (!SHA256_PATTERN.test(options.gtSha256)) throw new UsageError('--gt-sha256 debe ser un SHA-256 hexadecimal');
       options.gtSha256 = options.gtSha256.toLowerCase();
+      options.roles = parseRoles(options.roles);
+      break;
+    case 'build-gt':
+      requireOption(options, 'template', '--template');
+      requireOption(options, 'key', '--key');
+      requireOption(options, 'sample', '--sample');
+      requireOption(options, 'sheets', '--sheets');
+      options.roles = options.roles === undefined ? [...BUILD_GT_DEFAULT_ROLES] : parseRoles(options.roles);
       break;
     default:
       break;

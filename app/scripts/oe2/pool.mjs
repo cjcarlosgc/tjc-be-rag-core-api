@@ -6,8 +6,12 @@
 //   clave/key.json              candidate_id -> origen SE/SEM (rank, score, relación), pertenencia al cierre.
 //   pool-summary.csv            recuentos agregados por target (sin procedencia por candidato).
 // Ceguera: nada de `ciego/` contiene SE, SEM, rank, score, relación estructural ni origen; esos datos solo van a clave/.
+// WI-CORE-108: `--guide` copia la guía de anotación (bytes sin tocar) a `ciego/GUIA.md`; la hoja solo la referencia.
+// `--roles` filtra las filas del sample que se procesan (las demás no generan comparación, hoja ni llave).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { UsageError } from '../evidence-extractor/options.mjs';
+import { rolesWithoutRows } from './args.mjs';
 import {
   Oe2DataError,
   compareCodeUnits,
@@ -132,13 +136,15 @@ function codeBlock(code) {
   return `${fence}php\n${code.endsWith('\n') ? code : `${code}\n`}${fence}\n`;
 }
 
-/** Texto de la hoja ciega de un target. Solo código, archivo, símbolo, tipo y candidate_id. */
-export function renderSheet({ index, targetId, target, candidates, maxChars }) {
+/**
+ * Texto de la hoja ciega de un target. Solo código, archivo, símbolo, tipo y candidate_id. La introducción es un
+ * puntero neutro a la guía (`ciego/GUIA.md`): no define relevancia; la define la guía, que redacta el equipo.
+ */
+export function renderSheet({ index, targetId, target, candidates, maxChars, guideSha256 }) {
   const lines = [
     `# Hoja ciega T${pad2(index)}`,
     '',
-    'Para cada candidato, indica si su código es necesario para entender o probar el target (sí o no) y el criterio del',
-    'protocolo que aplique. Usa solo esta hoja y el código que contiene.',
+    `Para cada candidato, registra tu decisión y el criterio según la guía \`ciego/GUIA.md\` (SHA-256 ${guideSha256}). Usa solo esta hoja y la guía.`,
     '',
     `Target: ${targetId}`,
     `- Archivo: ${target.filePath}`,
@@ -269,18 +275,45 @@ export function shuffleForTarget(pool, seed, targetId) {
   return shuffleInPlace([...pool], nextRaw);
 }
 
-/** Subcomando `pool`. */
+/**
+ * Términos de procedencia que la ceguera vigila (modo, rank, score, relación estructural, origen). La guía la escribe
+ * el equipo y la tool no la modifica: solo se avisa si aparecen, para que se revise antes de distribuirla.
+ */
+const GUIDE_BLIND_TERMS_UPPER = /\bSEM?\b|IMPORTED_BY|IMPORTS|SAME_NAMESPACE|FULLY_QUALIFIED|DECLARING/g;
+const GUIDE_BLIND_TERMS_LOWER = /\b(?:rank|score|estructural|structural|semantic|sem[aá]ntic[oa]s?|combined|selected|seleccionad[oa]s?|origen)\b/gi;
+
+/** Términos de procedencia que aparecen en la guía (distintos, en orden de unidades de código). */
+export function guideBlindTerms(guideText) {
+  const found = new Set();
+  for (const match of guideText.matchAll(GUIDE_BLIND_TERMS_UPPER)) found.add(match[0]);
+  for (const match of guideText.matchAll(GUIDE_BLIND_TERMS_LOWER)) found.add(match[0].toLowerCase());
+  return [...found].sort(compareCodeUnits);
+}
+
+/** Subcomando `pool`. `options.guide` es obligatorio; `options.roles` es `null` (todos) o una lista de roles. */
 export async function runPool({ options, cwd, repoRoot }) {
   const outDir = await resolveOe2OutputDir(options, { cwd, repoRoot });
+  if (typeof options.guide !== 'string' || options.guide.length === 0) {
+    throw new UsageError('falta --guide <guia.md> (la guía de anotación es obligatoria)');
+  }
+  // La guía se copia byte a byte: no se decodifica ni se normaliza (puede tener CRLF o bytes no UTF-8).
+  const guideBytes = await readFile(options.guide);
+  if (guideBytes.length === 0) throw new Oe2DataError('la guía de anotación está vacía');
+  const guideSha256 = sha256Hex(guideBytes);
   const { chunks, sha256: dumpSha256 } = await readChunksFile(options.dump);
   const sampleText = await readText(options.sample);
   const sampleRows = readSampleRows(sampleText);
+  const roles = options.roles ?? null;
+  const selectedRows = roles === null ? sampleRows : sampleRows.filter((row) => roles.includes(row.role));
+  if (selectedRows.length === 0) throw new UsageError('ninguna fila de sample.csv tiene los roles pedidos en --roles');
+  // Solo se exige comparación para las filas seleccionadas: las excluidas no generan hoja, plantilla ni llave.
   const comparisons = await loadComparisons(options.results);
   const typeIndex = buildTypeIndex(chunks);
   const groupsByIdentity = indexGroups(chunks);
   const seed = options.seed;
 
   const plan = new PackagePlan();
+  plan.addBytes('ciego/GUIA.md', guideBytes);
   const keyTargets = {};
   const summaryRows = [];
   const templateRows = [];
@@ -288,8 +321,8 @@ export async function runPool({ options, cwd, repoRoot }) {
   let truncatedBlocks = 0;
   let truncatedTypeCandidates = 0;
 
-  for (let index = 1; index <= sampleRows.length; index += 1) {
-    const row = sampleRows[index - 1];
+  for (let index = 1; index <= selectedRows.length; index += 1) {
+    const row = selectedRows[index - 1];
     const targetId = targetIdOf(row.filePath, row.qualifiedName);
     const targetIdentity = identityKey(row.filePath, row.qualifiedName);
     const targetGroup = (groupsByIdentity.get(targetIdentity) ?? []).find((group) => group.kind === row.kind);
@@ -332,6 +365,7 @@ export async function runPool({ options, cwd, repoRoot }) {
       },
       candidates,
       maxChars: options.maxChars,
+      guideSha256,
     }));
 
     const keyCandidates = {};
@@ -366,26 +400,34 @@ export async function runPool({ options, cwd, repoRoot }) {
     targets: keyTargets,
   }));
 
+  const blindTerms = guideBlindTerms(guideBytes.toString('utf8'));
   const written = await writeOe2Package(outDir, plan, 'pool', {
     chunksJsonlSha256: dumpSha256,
     sampleSha256: sha256Hex(sampleText),
     seedSha256: sha256Hex(seed),
+    guide: { path: 'ciego/GUIA.md', sha256: guideSha256, bytes: guideBytes.length },
+    rolesSelected: roles ?? 'todos',
+    targetsInSample: sampleRows.length,
     maxChars: options.maxChars,
-    targets: sampleRows.length,
+    targets: selectedRows.length,
     candidates: candidateTotal,
     truncatedBlocks,
     truncatedTypeCandidates,
     blindDirectory: 'ciego',
     keyDirectory: 'clave',
   });
-  return {
-    exitCode: 0,
-    lines: [
-      `Targets: ${sampleRows.length}. Candidatos en pool: ${candidateTotal}.`,
-      'Distribuye solo la carpeta ciego/ a los anotadores; clave/ queda aparte.',
-      `Archivos escritos: ${written.length}.`,
-    ],
-    outDir,
-  };
+  const lines = [
+    `Targets: ${selectedRows.length} de ${sampleRows.length} del sample (roles: ${roles === null ? 'todos' : roles.join(', ')}). Candidatos en pool: ${candidateTotal}.`,
+    `Guía copiada a ciego/GUIA.md (SHA-256 ${guideSha256}, ${guideBytes.length} bytes).`,
+  ];
+  if (blindTerms.length > 0) {
+    lines.push(`AVISO: la guía contiene términos de procedencia (${blindTerms.join(', ')}); revísala antes de distribuirla. La tool no la modifica.`);
+  }
+  const missingRoles = rolesWithoutRows(roles ?? [], sampleRows);
+  if (missingRoles.length > 0) {
+    lines.push(`AVISO: --roles pide ${missingRoles.join(', ')} y el sample no tiene filas de ese rol; no se procesan.`);
+  }
+  lines.push('Distribuye solo la carpeta ciego/ a los anotadores; clave/ queda aparte.', `Archivos escritos: ${written.length}.`);
+  return { exitCode: 0, lines, outDir };
 }
 

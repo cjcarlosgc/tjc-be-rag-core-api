@@ -83,8 +83,14 @@ async function buildPipeline(name: string, { seedSpecs = true, convertSpecs = CO
   return { dir, dump, sample: path.join(sampleOut, 'sample.csv'), results };
 }
 
+/** Guía de prueba (WI-CORE-108): texto neutro; las pruebas de bytes exactos viven en `guide-roles.spec.ts`. */
+const GUIDE_TEXT = '# Guía de prueba\n\nRegistra la decisión y el criterio R1…R5 para cada candidato.\n';
+let guidePath: string;
+
 beforeAll(async () => {
   scratch = await mkdtemp(path.join(os.tmpdir(), 'oe2-pool-'));
+  guidePath = path.join(scratch, 'GUIA-prueba.md');
+  await writeFile(guidePath, GUIDE_TEXT);
 });
 
 afterAll(async () => {
@@ -92,7 +98,7 @@ afterAll(async () => {
 });
 
 function poolOptions(pipeline: { dump: string; sample: string; results: string }, out: string, seed = 'semilla-pool', maxChars = 6000) {
-  return { dump: pipeline.dump, sample: pipeline.sample, results: pipeline.results, seed, maxChars, out, allowOutInRepo: false };
+  return { dump: pipeline.dump, sample: pipeline.sample, results: pipeline.results, seed, maxChars, guide: guidePath, out, allowOutInRepo: false, roles: null };
 }
 
 describe('pool: salidas y unión', () => {

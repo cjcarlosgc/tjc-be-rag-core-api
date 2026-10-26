@@ -4,6 +4,8 @@
 // La estadística inferencial no está aquí (la hace cross).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { UsageError } from '../evidence-extractor/options.mjs';
+import { rolesWithoutRows } from './args.mjs';
 import { Oe2DataError, compareCodeUnits, identityKey, readText } from './io-primitives.mjs';
 import { readSampleRows, loadComparisons, targetIdOf } from './pool.mjs';
 import {
@@ -183,6 +185,12 @@ export async function runScore({ options, cwd, repoRoot }) {
   }
   const comparisons = await loadComparisons(options.results);
 
+  // WI-CORE-108 (`--roles`): restringe las filas que se puntúan. La regla de «solo oficiales en scores.json» y la de
+  // `--include-calibration` no cambian. Sin `--roles`, se puntúan todas las filas (comportamiento de WI-CORE-107).
+  const roles = options.roles ?? null;
+  const selectedRows = roles === null ? sampleRows : sampleRows.filter((row) => roles.includes(row.role));
+  if (selectedRows.length === 0) throw new UsageError('ninguna fila de sample.csv tiene los roles pedidos en --roles');
+
   const officialRows = [];
   const noReportableRows = [];
   // La congruencia se comprueba en TODAS las comparaciones cargadas, no solo en las puntuadas.
@@ -190,7 +198,7 @@ export async function runScore({ options, cwd, repoRoot }) {
   for (const comparison of comparisons.values()) {
     issues.push(...checkCongruence(comparison.modes, `comparación ${comparison.comparisonId}`));
   }
-  for (const row of sampleRows) {
+  for (const row of selectedRows) {
     const isOfficial = row.role === 'oficial';
     if (!isOfficial && !options.includeCalibration) continue;
     const targetId = targetIdOf(row.filePath, row.qualifiedName);
@@ -244,14 +252,20 @@ export async function runScore({ options, cwd, repoRoot }) {
     sampleSha256: sha256Hex(sampleText),
     officialTargets: officialRows.length,
     includeCalibration: options.includeCalibration === true,
+    rolesSelected: roles ?? 'todos',
+    rowsSelected: selectedRows.length,
   });
-  return {
-    exitCode: 0,
-    lines: [
-      `Targets oficiales: ${officialRows.length}; puntuados: ${scoredOfficial.length}; NA: ${summary.na}.`,
-      `Congruencia de re-ranking en ${comparisons.size} comparaciones: 0 incongruencias.`,
-      `Archivos escritos: ${written.length}.`,
-    ],
-    outDir,
-  };
+  const lines = [
+    `Targets oficiales: ${officialRows.length}; puntuados: ${scoredOfficial.length}; NA: ${summary.na}.`,
+    `Congruencia de re-ranking en ${comparisons.size} comparaciones: 0 incongruencias.`,
+  ];
+  if (officialRows.length === 0) {
+    lines.push('AVISO: ninguna fila seleccionada es oficial; scores.json queda vacío (la calibración y la reserva solo se puntúan con --include-calibration, en el CSV no reportable).');
+  }
+  const missingRoles = rolesWithoutRows(roles ?? [], sampleRows);
+  if (missingRoles.length > 0) {
+    lines.push(`AVISO: --roles pide ${missingRoles.join(', ')} y el sample no tiene filas de ese rol; no se puntúan.`);
+  }
+  lines.push(`Archivos escritos: ${written.length}.`);
+  return { exitCode: 0, lines, outDir };
 }

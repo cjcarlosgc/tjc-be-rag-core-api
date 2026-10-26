@@ -41,6 +41,8 @@ describe('runCli: códigos de salida y ayuda', () => {
     const code = await runCli([], { stdout: io.stdout, stderr: io.stderr, env: {} });
     expect(code).toBe(0);
     expect(io.out.join('')).toContain('dump-chunks');
+    expect(io.out.join('')).toContain('build-gt');
+    expect(io.out.join('')).toContain('--guide');
     expect(io.out.join('')).toContain('Códigos de salida');
   });
 
