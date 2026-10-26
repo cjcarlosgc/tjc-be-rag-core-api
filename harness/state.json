@@ -27303,6 +27303,220 @@
       ],
       "blockedReason": null,
       "closedAt": "2026-10-26T16:51:33.000Z"
+    },
+    {
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "sprint": "P2",
+      "transversalPaths": [],
+      "deferredSyncIds": [],
+      "deferredSyncDigests": {},
+      "id": "WI-CORE-108",
+      "status": "W-DONE",
+      "title": "Herramientas OE2: guia de anotacion en las hojas ciegas (pool --guide), --roles en pool y score y subcomando build-gt (plantilla adjudicada y llave a gt.json con validacion); solo lectura en app/scripts, sin contrato",
+      "approved": true,
+      "storyIds": [
+        "HU05",
+        "HU15",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-130"
+      ],
+      "caseIds": [],
+      "specPaths": [
+        "harness/reports/wi-core-108-scope.md",
+        "spec/features/004-rag-retrieval-context/tasks.md",
+        "harness/reports/wi-core-108-contract-sync-scope-review.md",
+        "harness/reports/wi-core-108-technical-checks.md",
+        "harness/reports/wi-core-108-independent-review.md",
+        "harness/reports/wi-core-108-closure.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-108 anade herramientas de evaluacion OE2 de solo lectura en app/scripts, no toca el binding.",
+          "report": "harness/reports/wi-core-108-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-108 no cambia auth ni despliegue.",
+          "report": "harness/reports/wi-core-108-contract-sync-scope-review.md"
+        }
+      ],
+      "decisionGate": {
+        "checked": true,
+        "blockingDecisionIds": [],
+        "nonBlockingDecisionIds": [],
+        "checkedAt": "2026-10-25T22:00:00.000Z",
+        "note": "Sin decisiones DEC aplicables: herramientas de lectura en app/scripts; el alcance esta aprobado por el usuario en el chat de Core."
+      },
+      "execution": {
+        "leaderAgent": "leader",
+        "analysisAgent": "leader",
+        "implementationAgent": "implementer-high",
+        "contractReviewAgent": null,
+        "reviewAgent": "reviewer",
+        "handoffs": [
+          {
+            "agent": "implementer-high",
+            "status": "APPROVED",
+            "findings": [
+              "pool --guide obligatorio (copia byte a byte a ciego/GUIA.md, hash en el manifiesto, hoja con puntero neutro), --roles en pool y score, subcomando build-gt con validacion estricta y gt.json determinista; 43 pruebas nuevas (scripts 584, suite 3840 en verde, 125 pg omitidas), lint y build verdes; sin cambios en app/src, contratos ni migraciones."
+            ],
+            "blockers": [],
+            "filesAffected": [
+              "app/scripts/oe2/build-gt.mjs",
+              "app/scripts/oe2/pool.mjs",
+              "app/scripts/oe2/score.mjs",
+              "app/scripts/oe2/args.mjs",
+              "app/scripts/oe2.mjs",
+              "app/scripts/README.md",
+              "harness/reports/wi-core-108-technical-checks.md"
+            ],
+            "evidence": [
+              "harness/reports/wi-core-108-technical-checks.md"
+            ],
+            "recommendedNextStep": "Revision independiente.",
+            "executedBy": {
+              "agent": "implementer-high",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "high"
+            }
+          },
+          {
+            "agent": "reviewer",
+            "status": "APPROVED",
+            "findings": [
+              "Revision APPROVED con M-1 y M-2 corregidos (build-gt --sheets, prueba de independencia de --roles); re-revision del delta APPROVED; ceguera intacta."
+            ],
+            "blockers": [],
+            "filesAffected": [],
+            "evidence": [
+              "harness/reports/wi-core-108-independent-review.md"
+            ],
+            "recommendedNextStep": "Cerrar el WI.",
+            "executedBy": {
+              "agent": "reviewer",
+              "configuredModel": "claude-sonnet-5-5",
+              "servedModel": "claude-sonnet-5-5",
+              "effort": "medium"
+            }
+          }
+        ],
+        "reviewCycles": 1,
+        "maxReviewCycles": 2
+      },
+      "gates": {
+        "sddVerified": "G-PASSED",
+        "implementationCompleted": "G-PASSED",
+        "independentReviewPassed": "G-PASSED",
+        "technicalChecksPassed": "G-PASSED",
+        "contractReviewed": "G-NOT_APPLICABLE",
+        "canonicalContractSynced": "G-NOT_APPLICABLE",
+        "contractSyncPublished": "G-NOT_APPLICABLE",
+        "interopSyncChecked": "G-PASSED",
+        "noBlockingDecisions": "G-PASSED",
+        "retryLimitRespected": "G-PASSED"
+      },
+      "coordination": {
+        "contractImpact": false,
+        "publishesContract": false,
+        "pullCheckpoints": [
+          {
+            "checkpoint": "start",
+            "workItem": "WI-CORE-108",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T17:52:47.769Z"
+          },
+          {
+            "checkpoint": "implementation-delivery",
+            "workItem": "WI-CORE-108",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T18:05:08.122Z"
+          },
+          {
+            "checkpoint": "before-review",
+            "workItem": "WI-CORE-108",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T18:05:08.524Z"
+          },
+          {
+            "checkpoint": "before-done",
+            "workItem": "WI-CORE-108",
+            "relevantPendingSyncIds": [],
+            "acknowledgedSyncIds": [],
+            "resolvedSyncIds": [],
+            "deferredSyncIds": [],
+            "notRelevantSyncIds": [
+              "CS-20260920-001",
+              "CS-20260921-003"
+            ],
+            "checkedAt": "2026-10-26T18:23:47.252Z"
+          }
+        ],
+        "publishedSyncIds": [],
+        "pendingRelevantSyncIds": []
+      },
+      "gateEvidence": {
+        "sddVerified": [
+          "harness/reports/wi-core-108-scope.md"
+        ],
+        "noBlockingDecisions": [
+          "harness/reports/wi-core-108-scope.md"
+        ],
+        "implementationCompleted": [
+          "harness/reports/wi-core-108-technical-checks.md"
+        ],
+        "technicalChecksPassed": [
+          "harness/reports/wi-core-108-technical-checks.md"
+        ],
+        "independentReviewPassed": [
+          "harness/reports/wi-core-108-independent-review.md",
+          "harness/reports/wi-core-108-closure.md"
+        ],
+        "retryLimitRespected": [
+          "harness/reports/wi-core-108-closure.md"
+        ],
+        "interopSyncChecked": [
+          "harness/reports/wi-core-108-contract-sync-scope-review.md"
+        ]
+      },
+      "evidence": [
+        "harness/reports/wi-core-108-scope.md",
+        "harness/reports/wi-core-108-technical-checks.md",
+        "harness/reports/wi-core-108-independent-review.md",
+        "harness/reports/wi-core-108-closure.md",
+        "harness/reports/wi-core-108-contract-sync-scope-review.md"
+      ],
+      "blockedReason": null,
+      "closedAt": "2026-10-26T18:23:49.000Z"
     }
   ],
   "activeWorkItem": null
