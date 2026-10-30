@@ -1,4 +1,16 @@
 import type { AnalysisRun, AnalysisRunStatus, AnalysisSymbol } from '../../generated/prisma/client.js';
+import {
+  toExperimentCaptureReservationResponse,
+  type ExperimentCaptureReservationResponse,
+} from '../../experiment-captures/dto/experiment-capture.response.js';
+
+/**
+ * Run con la captura que lo reservó cargada (`RUN_EXPERIMENT_CAPTURE_INCLUDE`). Solo las lecturas que alimentan una
+ * respuesta la incluyen; el resto de Runs no la necesita.
+ */
+export type AnalysisRunWithCapture = AnalysisRun & {
+  experimentCapture?: { id: string; reservedAt: Date | null } | null;
+};
 
 export type SymbolChangeKind = 'DIRECTLY_CHANGED' | 'POTENTIALLY_IMPACTED';
 
@@ -35,6 +47,8 @@ export interface AnalysisRunSummaryResponse {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  /** WI-CORE-109 (HU18, INTEROP-2.25): captura armada que reservó este Run; null si no se reservó. */
+  experimentCapture: ExperimentCaptureReservationResponse | null;
 }
 
 export interface AnalysisRunDetailResponse extends AnalysisRunSummaryResponse {
@@ -65,7 +79,7 @@ function toPullRequestRefResponse(run: AnalysisRun): PullRequestRefResponse {
   };
 }
 
-export function toAnalysisRunSummaryResponse(run: AnalysisRun): AnalysisRunSummaryResponse {
+export function toAnalysisRunSummaryResponse(run: AnalysisRunWithCapture): AnalysisRunSummaryResponse {
   return {
     id: run.id,
     projectId: run.projectId,
@@ -77,6 +91,7 @@ export function toAnalysisRunSummaryResponse(run: AnalysisRun): AnalysisRunSumma
     createdAt: run.createdAt.toISOString(),
     updatedAt: run.updatedAt.toISOString(),
     completedAt: run.completedAt ? run.completedAt.toISOString() : null,
+    experimentCapture: toExperimentCaptureReservationResponse(run.experimentCapture),
   };
 }
 
@@ -91,7 +106,7 @@ export function toAnalysisSymbolResponse(symbol: AnalysisSymbol): AnalysisSymbol
 }
 
 export function toAnalysisRunDetailResponse(
-  run: AnalysisRun,
+  run: AnalysisRunWithCapture,
   symbols: AnalysisSymbol[],
 ): AnalysisRunDetailResponse {
   return {

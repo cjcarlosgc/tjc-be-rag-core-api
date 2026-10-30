@@ -249,6 +249,8 @@ model Project {
   functionalKnowledge FunctionalKnowledge[]
   /// 014 (HU59): registros de acceso; solo existen para Projects de organización.
   access              ProjectAccess[]
+  /// WI-CORE-109 (HU18): capturas armadas de experimentación del Project (como máximo una ARMED).
+  experimentCaptures  ExperimentCapture[]
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
@@ -355,6 +357,9 @@ model AnalysisRun {
   checkId                     String?
   /// WI-CORE-026 (DEC-TRACE-002; GH-INTEROP 1.3): instante en que GitHub Integration confirmó la creación del Check, aunque no devolviera id (204 transitorio). Independiente de checkId.
   checkPublishedAt            DateTime?
+  /// WI-CORE-109 (HU18, D1): captura armada que este Run consumió (reserva atómica). Null si no se reservó. Su presencia impide publicar Checks en el PR.
+  experimentCaptureId         String?                 @unique
+  experimentCapture           ExperimentCapture?      @relation(fields: [experimentCaptureId], references: [id], onDelete: Restrict)
   completedAt                 DateTime?
   createdAt                   DateTime                @default(now())
   updatedAt                   DateTime                @updatedAt
@@ -1034,6 +1039,40 @@ model RetrievalComparisonResult {
 
   @@unique([comparisonId, mode])
   @@map("retrieval_comparison_results")
+}
+
+/// WI-CORE-109 (HU18, INTEROP-2.25 §6.17): estado de la captura armada de experimentación.
+enum ExperimentCaptureStatus {
+  /// Esperando: el siguiente Run elegible del Project se reserva.
+  ARMED
+  /// Consumida por un Run (`reservedAnalysisRunId`).
+  RESERVED
+  /// Desarmada a mano antes de consumirse.
+  DISARMED
+}
+
+/// WI-CORE-109 (HU18): captura del próximo AnalysisRun elegible para experimentación confirmatoria.
+/// Como máximo una captura `ARMED` por Project: lo garantiza el índice único parcial
+/// `experiment_captures_one_armed_per_project_key` (`WHERE status = 'ARMED'`), que solo existe en la
+/// migración SQL (Prisma no lo modela). `reservedAnalysisRunId` es una referencia lógica (sin FK):
+/// la FK fuerte que enlaza captura y Run vive en `analysis_runs.experimentCaptureId`.
+model ExperimentCapture {
+  id                    String                  @id @default(uuid())
+  projectId             String
+  project               Project                 @relation(fields: [projectId], references: [id])
+  status                ExperimentCaptureStatus @default(ARMED)
+  armedByUserId         String
+  armedAt               DateTime                @default(now())
+  reservedAnalysisRunId String?
+  reservedAt            DateTime?
+  disarmedByUserId      String?
+  disarmedAt            DateTime?
+  analysisRun           AnalysisRun?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  @@index([projectId, createdAt])
+  @@map("experiment_captures")
 }
 
 model Job {

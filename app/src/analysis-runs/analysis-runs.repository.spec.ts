@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AnalysisRunsRepository } from './analysis-runs.repository.js';
+import { AnalysisRunsRepository, RUN_EXPERIMENT_CAPTURE_INCLUDE } from './analysis-runs.repository.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 
 function setup(transitionCount = 1) {
@@ -105,6 +105,7 @@ describe('AnalysisRunsRepository PR date classification', () => {
         pullRequestCreatedAt: { not: null },
         repositoryBindingEligible: true,
       }),
+      include: RUN_EXPERIMENT_CAPTURE_INCLUDE,
     });
     expect(findFirst).toHaveBeenNthCalledWith(2, {
       where: {
@@ -112,6 +113,7 @@ describe('AnalysisRunsRepository PR date classification', () => {
         pullRequestCreatedAt: { not: null },
         repositoryBindingEligible: true,
       },
+      include: RUN_EXPERIMENT_CAPTURE_INCLUDE,
     });
   });
 

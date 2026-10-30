@@ -15,6 +15,7 @@ import { RetrievalModule } from './retrieval/retrieval.module.js';
 import { GenerationModule } from './generation/generation.module.js';
 import { ExperimentsModule } from './experiments/experiments.module.js';
 import { RetrievalComparisonsModule } from './retrieval-comparisons/retrieval-comparisons.module.js';
+import { ExperimentCapturesModule } from './experiment-captures/experiment-captures.module.js';
 import { RepositoryBindingsModule } from './repository-bindings/repository-bindings.module.js';
 import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
 import { GithubWebhooksModule } from './github-webhooks/github-webhooks.module.js';
@@ -49,6 +50,7 @@ import { validateEnv } from './config/env.validation.js';
     GenerationModule,
     ExperimentsModule,
     RetrievalComparisonsModule,
+    ExperimentCapturesModule,
     RepositoryBindingsModule,
     AnalysisRunsModule,
     GithubWebhooksModule,

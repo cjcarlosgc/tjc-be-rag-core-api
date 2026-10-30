@@ -1,8 +1,8 @@
 # Contrato universal de interoperabilidad
 
-**Versión:** INTEROP-2.24
+**Versión:** INTEROP-2.25
 **Compatible con:** SYSTEM-2.16
-**Fecha de corte:** 2026-10-25
+**Fecha de corte:** 2026-10-30
 **Estado:** APROBADO salvo decisiones externas referenciadas explícitamente
 **Propietario canónico:** `tjc-be-rag-core-api/spec/contracts/interoperability-contract.md`
 
@@ -11,7 +11,7 @@ Este documento define el contrato HTTP operativo entre Developer Console, RAG Co
 ## 1. Compatibilidad y autoridad
 
 - El único disparador de análisis productivo es un PR/HEAD vinculado a un `AnalysisRun`. El snapshot ZIP interno se transfiere a Docker/Sandbox y no constituye una entrada manual.
-- `INTEROP-2.24` es la versión documental vigente (`WI-CORE-106`, alcance aprobado por el usuario el 2026-10-26, documental, aditivo y no incompatible): §6.7 describe que el texto de la sección de dependencias PHP que entra al prompt puede incluir además un bloque con los métodos abstractos sin implementar de la jerarquía de una clase declarante abstracta o interfaz. Sin cambio de campos, del máximo de 500 tokens de `tokenCount`, rutas, DTO, enums, códigos de error ni esquemas (`schemas/` no cambia). Subsume a `INTEROP-2.23`.
+- `INTEROP-2.25` es la versión documental vigente (`WI-CORE-109`, HU18, alcance aprobado por el usuario el 2026-10-30, aditiva y no incompatible): §6.17 define la **captura armada de experimentación** (`POST`, `GET` y `DELETE` de `/projects/{projectId}/experiment-captures`), `AnalysisRunSummaryResponse` (y por herencia el detalle) agrega el campo `experimentCapture` y se añaden los códigos `EXPERIMENT_CAPTURE_ALREADY_ARMED` y `EXPERIMENT_CAPTURE_NOT_ARMED`; el comportamiento de un Run no reservado no cambia. Sin cambio de `AnalysisRunStatus`, de los esquemas JSON de `schemas/` ni de otras rutas. `INTEROP-2.24` fue la versión documental vigente (`WI-CORE-106`, alcance aprobado por el usuario el 2026-10-26, documental, aditivo y no incompatible): §6.7 describe que el texto de la sección de dependencias PHP que entra al prompt puede incluir además un bloque con los métodos abstractos sin implementar de la jerarquía de una clase declarante abstracta o interfaz. Sin cambio de campos, del máximo de 500 tokens de `tokenCount`, rutas, DTO, enums, códigos de error ni esquemas (`schemas/` no cambia). Subsume a `INTEROP-2.23`.
 - `INTEROP-2.23` fue la versión documental vigente (`WI-CORE-104`, alcance aprobado por el usuario el 2026-10-25, documental, aditivo y no incompatible): §6.7 eleva el máximo documentado de `RagDependencyContextResponse.tokenCount` de 300 a 500 tokens y describe que el texto de la sección que entra al prompt incluye, además de las dependencias, la visibilidad del constructor y las fábricas públicas de los tipos con constructor no público y un glosario de nombres completos (FQCN) de los tipos que aparecen en el código de contexto; la forma de la respuesta no cambia (esos detalles no se exponen en la traza). Sin cambio de rutas, DTO, enums, códigos de error ni esquemas (`schemas/` no cambia). Subsume a `INTEROP-2.22`.
 - `INTEROP-2.22` fue la versión documental vigente (`WI-CORE-103`, alcance aprobado por el usuario el 2026-10-25, aditivo y no incompatible): §6.7 documenta, de la estrategia de contexto por capas, los campos opcionales `layer` de `RagCandidateNodeResponse` y `strategy`, `relevanceThreshold`, `declaringClassMaxTokens` y `targetEvidenceMaxTokens` de `configuration`, y el motivo de descarte `BELOW_RELEVANCE_THRESHOLD`. Sin cambio de rutas, DTO existentes, códigos de error ni esquemas (`schemas/` no cambia); los consumidores deben tolerar los valores y campos nuevos (las trazas anteriores no los tienen).
 - `INTEROP-2.21` fue la versión documental vigente (`WI-CORE-089`, alcance aprobado por el usuario el 2026-10-24, documental y no incompatible): §6.5 y §6.5.1 describen la configuración del LLM como comportamiento del adaptador configurado y no como parte del contrato; el modelo y el esfuerzo por defecto del adaptador de OpenAI quedan como hechos de ese adaptador. Sin cambio de rutas, DTO, enums, códigos de error ni esquemas (`schemas/` no cambia).
@@ -809,6 +809,7 @@ interface AnalysisRunSummaryResponse {
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
   completedAt: IsoDateTime | null
+  experimentCapture: { captureId: Id; reservedAt: IsoDateTime } | null // INTEROP-2.25 (§6.17): siempre presente; no nulo solo si el Run fue reservado por una captura armada
 }
 
 type SymbolChangeKind = 'DIRECTLY_CHANGED' | 'POTENTIALLY_IMPACTED'
@@ -1090,9 +1091,9 @@ Un recurso no visible conserva el `404` de su recurso (`PROJECT_NOT_FOUND`, etc.
 | Rol mínimo | Operaciones |
 |---|---|
 | Sin rol de Project (solo sesión GitHub válida) | `GET /workspaces`; `GET /integrations/github/repositories` (con `workspaceId`: pertenencia al workspace); `POST /integrations/github/repositories/verify-app-access` y `GET /integrations/github/repositories/{owner}/{repo}/branches` (exigen permiso `maintain`/`write`/`admin` sobre el repositorio); `POST /projects` (personal: cualquiera; organización: Admin de la organización). Sin sesión de usuario: `GET /health`. El receptor privado normalizado GH Integration→Core se rige por `GH-INTEROP-1.9` (§6.9), no es una operación pública sujeta a rol de Project ni de Console. |
-| Reader | `GET /projects`, `GET /projects/{projectId}`; `GET /projects/{projectId}/versions`; `GET /project-versions/{id}`, `.../results`, `.../test-inventory`; `GET /projects/{projectId}/integrations/github`; `GET /projects/{projectId}/analysis-runs`, `GET /analysis-runs`, `GET /analysis-runs/{id}`; `GET /action-required`, `GET /analysis-runs/{id}/context-questions`, `GET /projects/{projectId}/functional-knowledge`; `GET /analysis-runs/{id}/test-proposals`, `GET /test-publications/{id}`; `GET /experiments/{id}`, `.../results`, `GET /analysis-runs/{id}/experiments`; `GET /experiments/{id}/context-traces`, `GET /context-traces/{id}`, `.../discovered-files`; `GET /retrieval-comparisons/{id}`, `.../results`, `.../evidence`, `GET /analysis-runs/{id}/retrieval-comparisons`; `GET /analysis-runs/{id}/trace`, `GET /analysis-runs/{id}/evidence`, `GET /experiments/{id}/evidence`; suscripciones WebSocket `subscribe:project-version`, `subscribe:analysis-run` y `subscribe:experiment` (§6.6). |
+| Reader | `GET /projects`, `GET /projects/{projectId}`; `GET /projects/{projectId}/versions`; `GET /project-versions/{id}`, `.../results`, `.../test-inventory`; `GET /projects/{projectId}/integrations/github`; `GET /projects/{projectId}/analysis-runs`, `GET /analysis-runs`, `GET /analysis-runs/{id}`; `GET /action-required`, `GET /analysis-runs/{id}/context-questions`, `GET /projects/{projectId}/functional-knowledge`; `GET /analysis-runs/{id}/test-proposals`, `GET /test-publications/{id}`; `GET /experiments/{id}`, `.../results`, `GET /analysis-runs/{id}/experiments`; `GET /experiments/{id}/context-traces`, `GET /context-traces/{id}`, `.../discovered-files`; `GET /retrieval-comparisons/{id}`, `.../results`, `.../evidence`, `GET /analysis-runs/{id}/retrieval-comparisons`; `GET /analysis-runs/{id}/trace`, `GET /analysis-runs/{id}/evidence`, `GET /experiments/{id}/evidence`; suscripciones WebSocket `subscribe:project-version`, `subscribe:analysis-run` y `subscribe:experiment` (§6.6); `GET /projects/{projectId}/experiment-captures` (INTEROP-2.25) |
 | Writer | `POST /projects/{projectId}/integrations/github`, `POST .../enable`, `DELETE .../integrations/github` (pausa) (con la salvedad de que un Project sin repositorio, y uno con binding `REVOKED`, lo ve solo un Admin: reactivar un binding `REVOKED` lo hace un Admin); `POST /analysis-runs/{id}/test-publications`; `POST /experiments`; `POST /retrieval-comparisons`. |
-| Maintainer | `POST /analysis-runs/{id}/context-questions/{questionId}/answers` (incluye la abstención `UNKNOWN`, `DEC-FK-002`). |
+| Maintainer | `POST /analysis-runs/{id}/context-questions/{questionId}/answers` (incluye la abstención `UNKNOWN`, `DEC-FK-002`); `POST /projects/{projectId}/experiment-captures` y `DELETE /projects/{projectId}/experiment-captures/current` (INTEROP-2.25, HU18). |
 | Admin | `PATCH /projects/{projectId}`; `DELETE /projects/{projectId}`; `POST /projects` en una organización. |
 
 Notas de la matriz: (1) la validación nace del `AnalysisRun`; leer propuestas y Runs requiere Reader; (2) `GET /analysis-runs` y `GET /action-required` solo devuelven recursos de Projects visibles; (3) en un Project personal el creador es Admin; (4) el rol se exige al aceptar la petición, mientras que la automatización de un job aceptado se autoriza por la GitHub App; (5) default-deny: toda ruta autenticada declara su rol mínimo o una excepción explícita.
@@ -1388,6 +1389,36 @@ interface EvidenceBundleResponse {
 }
 ```
 
+### 6.17 Captura armada de experimentación (HU18, INTEROP-2.25)
+
+**Implementado en Core** (`WI-CORE-109`, 2026-10-30). Permite a un investigador reservar, sin elegir el caso después de ver resultados, el **siguiente AnalysisRun elegible** de un Project para experimentación confirmatoria. No cambia el protocolo ni los endpoints de experimentos (§6.5): un Run reservado admite `POST /experiments` igual que cualquier otro.
+
+```ts
+type ExperimentCaptureStatus = 'ARMED' | 'RESERVED' | 'DISARMED'
+
+interface ExperimentCaptureResponse {
+  captureId: Id
+  projectId: Id
+  status: ExperimentCaptureStatus
+  armedBy: string // id del usuario que armó la captura
+  armedAt: IsoDateTime
+  reservedAnalysisRunId: Id | null // solo en RESERVED
+  reservedAt: IsoDateTime | null
+  disarmedBy: string | null // solo en DISARMED
+  disarmedAt: IsoDateTime | null
+}
+```
+
+- `POST /projects/{projectId}/experiment-captures` -> `201 ExperimentCaptureResponse` (`status: 'ARMED'`). Sin cuerpo y sin `Idempotency-Key`. Rol mínimo **Maintainer** (Writer recibe `403`). Si el Project ya tiene una captura `ARMED`, `409 EXPERIMENT_CAPTURE_ALREADY_ARMED`. Un Project tiene como máximo una captura `ARMED`; puede armarse una nueva cuando la anterior está `RESERVED` o `DISARMED`.
+- `GET /projects/{projectId}/experiment-captures?cursor&limit` -> `200 Page<ExperimentCaptureResponse>`, la más reciente primero. Rol mínimo **Reader**.
+- `DELETE /projects/{projectId}/experiment-captures/current` -> `200 ExperimentCaptureResponse` (`status: 'DISARMED'`, con `disarmedBy` y `disarmedAt`). Rol mínimo **Maintainer**. Sin captura `ARMED`, `404 EXPERIMENT_CAPTURE_NOT_ARMED`. Un Project no visible conserva su `404 PROJECT_NOT_FOUND`.
+
+**Reserva.** Una captura `ARMED` se consume con el primer AnalysisRun **nuevo** del Project creado después de armarla desde GitHub (webhook de PR o su recuperación de metadatos) cuyo PR es **elegible** (posterior al binding, §6.9/§6.10) y no es borrador. La reserva es atómica: en una sola transacción la captura pasa a `RESERVED` (con `reservedAnalysisRunId` y `reservedAt`) y el Run recibe `experimentCapture: { captureId, reservedAt }`; dos Runs concurrentes no pueden consumir la misma captura. No la consumen un evento duplicado ni un HEAD sin cambios (no crean Run), un borrador, un PR anterior al vínculo, un evento no elegible ni los Runs creados antes de armar. Un HEAD nuevo del mismo PR crea otro Run, que ya no se reserva: el Run reservado queda `OBSOLETE` como cualquier otro y la captura sigue `RESERVED`. Si la reserva falla por un error interno, el Run se crea de forma normal y la captura sigue `ARMED`.
+
+**Run reservado.** Conserva todo el flujo de §6.10 (indexación, símbolos, Functional Knowledge, `ACTION_REQUIRED`, validación, propuestas y estados) pero **no publica ningún Check en el PR**, en ningún estado: `checkId` y `checkPublishedAt` permanecen nulos y Core no solicita Checks a GitHub Integration para él. No hay un estado nuevo de `AnalysisRunStatus`. Un Run que no fue reservado se comporta exactamente como antes.
+
+**Compatibilidad (INTEROP-2.25).** Aditivo: rutas y códigos nuevos y un campo de respuesta siempre presente (`experimentCapture`, `null` si el Run no fue reservado). Los consumidores deben tolerarlo. El campo también viaja en los eventos `analysis-run:update` (§6.6, que reutilizan el resumen); `schemas/realtime-events.schema.json` no lo declara y no es estricto, así que no cambia y el árbol `schemas/` queda igual. La reserva no emite por sí sola un `analysis-run:update`: el campo aparece en el siguiente evento del Run y en cualquier `GET`. Reservar un Run no impide la publicación **manual** de un companion PR (`POST /analysis-runs/{analysisRunId}/test-publications`, §6.12), que es una acción explícita de un usuario Writer y no un Check. Armar no exige que el Project tenga un repositorio vinculado: sin binding no hay Runs y la captura permanece `ARMED` hasta que se desarme. No hay ruta para reservar a mano un Run existente, expiración temporal ni más de una captura `ARMED` por Project.
+
 ## 7. Contrato RAG Core ↔ Test Execution Sandbox
 
 La integración es HTTP interna y asíncrona. RAG Core es el único consumidor. La forma normativa de los request y response de esta sección está en `schemas/sandbox-execution.schema.json` (§10); los bloques TypeScript siguientes la ilustran.
@@ -1583,7 +1614,7 @@ El Sandbox devuelve hechos y evidencia acotada. No devuelve `valid`, una estrate
 ## 8. Disponibilidad en INTEROP-2.2
 
 - `ProjectVersion` (§6.2) es una versión interna derivada del `AnalysisRun`; la comparación experimental (§6.5) conserva un flujo propio sobre el mismo snapshot.
-- Las operaciones 6.8-6.13 son contrato aprobado para implementar; 6.15 es contrato implementado en Core (`WI-CORE-022`); 6.16 (INTEROP-2.7) está implementado en Core: el trace (`WI-CORE-026`) y la exportación de evidencia (`WI-CORE-027`). Su disponibilidad efectiva se declara por componente en las features y tareas correspondientes; Core construye progresivamente las capacidades PR-driven.
+- Las operaciones 6.8-6.13 son contrato aprobado para implementar; 6.15 es contrato implementado en Core (`WI-CORE-022`); 6.16 (INTEROP-2.7) está implementado en Core: el trace (`WI-CORE-026`) y la exportación de evidencia (`WI-CORE-027`); 6.17 (INTEROP-2.25) está implementado en Core (`WI-CORE-109`). Su disponibilidad efectiva se declara por componente en las features y tareas correspondientes; Core construye progresivamente las capacidades PR-driven.
 - Developer Console conserva únicamente mocks alineados a INTEROP-2.2 y separados de live; no constituyen evidencia ni sustituyen endpoints de Core.
 - Core implementa el consumo de `PHP_LARAVEL_PHPUNIT` (`WI-CORE-013`, `WI-CORE-028`, `WI-CORE-029`). El Sandbox publicado implementa el equivalente de `NODE_TYPESCRIPT` con Jest/Vitest; `PHP_LARAVEL_PHPUNIT`, `phase` y `failureKind` los entrega el Sandbox según `CS-SANDBOX-20261009-001` y su estado de implementación se declara en ese componente.
 - La integración Core↔Sandbox actual continúa operativa bajo el subconjunto compatible de 1.6; la adopción completa de los campos 2.0 exige migración coordinada y contract tests en ambos backends.

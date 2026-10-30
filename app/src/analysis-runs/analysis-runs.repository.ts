@@ -32,6 +32,14 @@ export interface PullRequestRunGroup {
   prNumber: number;
 }
 
+/**
+ * WI-CORE-109 (HU18): la captura que consumió el Run, para `experimentCapture` del DTO. Las lecturas que alimentan
+ * una respuesta la incluyen en la misma consulta (sin N+1 en las listas).
+ */
+export const RUN_EXPERIMENT_CAPTURE_INCLUDE = {
+  experimentCapture: { select: { id: true, reservedAt: true } },
+} as const;
+
 @Injectable()
 export class AnalysisRunsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -76,6 +84,7 @@ export class AnalysisRunsRepository {
         repositoryBindingEligible: true,
         project: accessibleProject(userId),
       },
+      include: RUN_EXPERIMENT_CAPTURE_INCLUDE,
     });
   }
 
@@ -90,6 +99,7 @@ export class AnalysisRunsRepository {
         pullRequestCreatedAt: { not: null },
         repositoryBindingEligible: true,
       },
+      include: RUN_EXPERIMENT_CAPTURE_INCLUDE,
     });
   }
 
@@ -162,6 +172,7 @@ export class AnalysisRunsRepository {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: RUN_EXPERIMENT_CAPTURE_INCLUDE,
     });
   }
 
@@ -183,6 +194,7 @@ export class AnalysisRunsRepository {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: RUN_EXPERIMENT_CAPTURE_INCLUDE,
     });
   }
 

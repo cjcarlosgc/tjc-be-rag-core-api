@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import {
   AnalysisRunsRepository,
   type CreateAnalysisRunInput,
@@ -15,6 +15,7 @@ import type {
 } from '../generated/prisma/client.js';
 import type { Page } from '../common/dto/page.response.js';
 import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
+import { ExperimentCapturesRepository } from '../experiment-captures/persistence/experiment-captures.repository.js';
 
 export interface StartRunResult {
   run: AnalysisRun;
@@ -78,11 +79,14 @@ const TRANSITIONS: Record<AnalysisRunStatus, AnalysisRunStatus[]> = {
 
 @Injectable()
 export class AnalysisRunsService {
+  private readonly logger = new Logger(AnalysisRunsService.name);
+
   constructor(
     private readonly analysisRunsRepository: AnalysisRunsRepository,
     private readonly projectsRepository: ProjectsRepository,
     private readonly projectAccess: ProjectAccessService,
     private readonly realtime: AnalysisRunRealtimeEvents,
+    private readonly experimentCapturesRepository: ExperimentCapturesRepository,
   ) {}
 
   /**
@@ -105,7 +109,33 @@ export class AnalysisRunsService {
    * cambios, que devuelve el mismo Run existente-.
    */
   async startRunFromWebhook(input: CreateAnalysisRunInput): Promise<StartRunResult> {
-    return this.startRunInternal(input);
+    const result = await this.startRunInternal(input);
+
+    // WI-CORE-109 (HU18): solo un Run nuevo, elegible y no borrador puede consumir la captura armada. Se reserva
+    // ANTES de devolverlo, así que el llamador encola el snapshot después y ya ve la reserva.
+    if (!result.isNew || input.repositoryBindingEligible !== true || input.draft) {
+      return result;
+    }
+
+    return { run: await this.reserveExperimentCaptureIfArmed(result.run), isNew: true };
+  }
+
+  /**
+   * WI-CORE-109 (HU18): reserva atómica de la captura ARMED del Project para el Run recién creado. La creación del
+   * Run NUNCA falla por la captura: cualquier error se registra (sin datos sensibles) y el Run vuelve normal, con la
+   * captura todavía ARMED (la reserva es una transacción; un fallo a mitad revierte ambas escrituras).
+   */
+  private async reserveExperimentCaptureIfArmed(run: AnalysisRun): Promise<AnalysisRun> {
+    try {
+      const reservation = await this.experimentCapturesRepository.reserveIfArmed(run.projectId, run.id);
+      return reservation ? { ...run, experimentCaptureId: reservation.captureId } : run;
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : 'ErrorDesconocido';
+      this.logger.error(
+        `No se pudo evaluar la captura de experimentación para el AnalysisRun "${run.id}" (${reason}); el Run se crea sin reserva.`,
+      );
+      return run;
+    }
   }
 
   /**
