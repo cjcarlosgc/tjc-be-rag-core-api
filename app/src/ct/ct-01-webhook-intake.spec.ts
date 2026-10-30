@@ -11,6 +11,7 @@ import {
   type CreateAnalysisRunInput,
 } from '../analysis-runs/analysis-runs.repository.js';
 import { AnalysisRunsService } from '../analysis-runs/analysis-runs.service.js';
+import { ExperimentCapturesRepository } from '../experiment-captures/persistence/experiment-captures.repository.js';
 import { BindingLifecycleService } from '../access-sync/binding-lifecycle.service.js';
 import { OrganizationLifecycleService } from '../access-sync/organization-lifecycle.service.js';
 import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter.js';
@@ -122,6 +123,8 @@ describe('CT-01 recepción de eventos de Integration en Core', () => {
         { provide: ProjectsRepository, useValue: { findById: vi.fn() } },
         { provide: ProjectAccessService, useValue: { require: vi.fn() } },
         { provide: AnalysisRunRealtimeEvents, useValue: { runChanged: vi.fn().mockResolvedValue(undefined) } },
+        // WI-CORE-109: sin captura armada la reserva no encuentra fila y el Run se crea normal.
+        { provide: ExperimentCapturesRepository, useValue: { reserveIfArmed: vi.fn().mockResolvedValue(null) } },
         {
           provide: WebhookDeliveriesRepository,
           useValue: {

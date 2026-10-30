@@ -8,6 +8,7 @@ import { AppException } from '../common/errors/app.exception.js';
 import { ErrorCode } from '../common/errors/error-code.enum.js';
 import type { AnalysisRun, Project } from '../generated/prisma/client.js';
 import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
+import { ExperimentCapturesRepository } from '../experiment-captures/persistence/experiment-captures.repository.js';
 
 describe('AnalysisRunsService', () => {
   let service: AnalysisRunsService;
@@ -95,6 +96,8 @@ describe('AnalysisRunsService', () => {
         { provide: ProjectsRepository, useValue: projectsRepository },
         { provide: ProjectAccessService, useValue: projectAccess },
         { provide: AnalysisRunRealtimeEvents, useValue: realtime },
+        // WI-CORE-109: el embudo reserva la captura armada; sin captura armada no hace nada.
+        { provide: ExperimentCapturesRepository, useValue: { reserveIfArmed: vi.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 

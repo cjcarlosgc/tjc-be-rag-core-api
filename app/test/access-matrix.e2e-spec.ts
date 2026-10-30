@@ -7,6 +7,7 @@ import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter
 import { ExperimentsService } from '../src/experiments/experiments.service.js';
 import { ContextTracesService } from '../src/context-traces/context-traces.service.js';
 import { RetrievalComparisonsService } from '../src/retrieval-comparisons/retrieval-comparisons.service.js';
+import { ExperimentCapturesService } from '../src/experiment-captures/experiment-captures.service.js';
 import { EvidenceService } from '../src/evidence/evidence.service.js';
 import { GITHUB_ACCESS_PORT } from '../src/github-app/github-access.port.js';
 import { GithubAppAuthService } from '../src/github-app/github-app-auth.service.js';
@@ -139,6 +140,13 @@ const ROUTE_CASES: Record<string, RouteCase> = {
   },
   'PATCH /projects/{}': { url: (i) => `/projects/${i.projectId}`, body: () => ({ name: 'renamed' }), notFound: PROJECT_404 },
   'DELETE /projects/{}': { url: (i) => `/projects/${i.projectId}`, notFound: PROJECT_404 },
+  // WI-CORE-109 (INTEROP-2.25 §6.17): captura armada de experimentación.
+  'GET /projects/{}/experiment-captures': { url: (i) => `/projects/${i.projectId}/experiment-captures`, notFound: PROJECT_404 },
+  'POST /projects/{}/experiment-captures': { url: (i) => `/projects/${i.projectId}/experiment-captures`, notFound: PROJECT_404 },
+  'DELETE /projects/{}/experiment-captures/current': {
+    url: (i) => `/projects/${i.projectId}/experiment-captures/current`,
+    notFound: PROJECT_404,
+  },
 };
 
 /** Listados: sin recurso; `GET /projects`, `GET /analysis-runs` y `GET /action-required` solo devuelven lo visible. */
@@ -196,6 +204,13 @@ describe('Access matrix by route and role (HU59, HU60, HU63, HU64, corte 3 etapa
           getAnalysisRunEvidence: () => Promise.resolve({ schemaVersion: '1' }),
           getExperimentEvidence: () => Promise.resolve({ schemaVersion: '1' }),
           getRetrievalComparisonEvidence: () => Promise.resolve({ schemaVersion: '1' }),
+        })
+        // WI-CORE-109: la captura usa tablas que el Prisma en memoria no modela; aquí solo importa el guard.
+        .overrideProvider(ExperimentCapturesService)
+        .useValue({
+          arm: () => Promise.resolve({ captureId: 'c', status: 'ARMED' }),
+          list: () => Promise.resolve({ items: [], nextCursor: null }),
+          disarmCurrent: () => Promise.resolve({ captureId: 'c', status: 'DISARMED' }),
         })
         .overrideProvider(ContextTracesService)
         .useValue({

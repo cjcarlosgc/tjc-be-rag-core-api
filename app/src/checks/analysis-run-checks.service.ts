@@ -25,6 +25,12 @@ export class AnalysisRunChecksService {
   ) {}
 
   async publishForRun(run: AnalysisRun): Promise<void> {
+    // WI-CORE-109 (D1): un Run reservado por la captura de experimentación no publica Check en el PR.
+    if (run.experimentCaptureId) {
+      this.logReservedRun(run.id);
+      return;
+    }
+
     const conclusion = mapRunStatusToCheckConclusion(run.status);
 
     if (!conclusion) {
@@ -40,6 +46,12 @@ export class AnalysisRunChecksService {
         currentRun.status !== run.status ||
         currentRun.headSha !== run.headSha
       ) {
+        return;
+      }
+
+      // Segunda comprobación sobre el Run leído de la base: cubre a un llamador que pase un objeto sin el campo.
+      if (currentRun.experimentCaptureId) {
+        this.logReservedRun(currentRun.id);
         return;
       }
 
@@ -68,6 +80,11 @@ export class AnalysisRunChecksService {
       const message = error instanceof Error ? error.message : 'Error desconocido publicando el Check.';
       this.logger.warn(`No se pudo publicar el Check de GitHub para AnalysisRun ${run.id}: ${message}`);
     }
+  }
+
+  /** Informativo: el Run está reservado para experimentación y su conclusión no se publica como Check. */
+  private logReservedRun(runId: string): void {
+    this.logger.log(`AnalysisRun ${runId} reservado para experimentación: no se publica Check en el PR.`);
   }
 
   /** Best-effort: un fallo al escribir la marca no rompe el Run ni la publicación ya hecha en GitHub. */

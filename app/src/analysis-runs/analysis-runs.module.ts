@@ -12,6 +12,7 @@ import { RepositoryBindingsModule } from '../repository-bindings/repository-bind
 import { GithubAppModule } from '../github-app/github-app.module.js';
 import { PullRequestMetadataBackfillJobHandler } from './pull-request-metadata-backfill.job.handler.js';
 import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
+import { ExperimentCapturesModule } from '../experiment-captures/experiment-captures.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AnalysisRunRealtimeEvents } from './analysis-run-realtime.events.js';
     JobsModule,
     RepositoryBindingsModule,
     GithubAppModule,
+    ExperimentCapturesModule,
   ],
   controllers: [AnalysisRunsController],
   providers: [

@@ -72,6 +72,8 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   // WI-CORE-027 (INTEROP-2.7 §6.16): exportación de evidencia implementada en Core.
   entry('READER', 'GET', '/retrieval-comparisons/{id}/evidence', '.../evidence', 'READER'),
   entry('READER', 'GET', '/analysis-runs/{id}/retrieval-comparisons', 'GET /analysis-runs/{id}/retrieval-comparisons', 'READER'),
+  // WI-CORE-109 (INTEROP-2.25 §6.17): listado de capturas armadas, Reader.
+  entry('READER', 'GET', '/projects/{projectId}/experiment-captures', 'GET /projects/{projectId}/experiment-captures', 'READER'),
   // WI-CORE-026: trace operativo implementado en Core (INTEROP-2.7 §6.16).
   entry('READER', 'GET', '/analysis-runs/{id}/trace', 'GET /analysis-runs/{id}/trace', 'READER'),
   entry('READER', 'GET', '/analysis-runs/{id}/evidence', 'GET /analysis-runs/{id}/evidence', 'READER'),
@@ -89,6 +91,9 @@ export const INTEROP_ROLE_MATRIX: readonly MatrixEntry[] = [
   entry('WRITER', 'POST', '/retrieval-comparisons', 'POST /retrieval-comparisons', 'WRITER'),
   // Maintainer: responder preguntas funcionales y registrar UNKNOWN (DEC-FK-002) siguen en Maintainer.
   entry('MAINTAINER', 'POST', '/analysis-runs/{id}/context-questions/{questionId}/answers', 'POST /analysis-runs/{id}/context-questions/{questionId}/answers', 'MAINTAINER'),
+  // WI-CORE-109 (INTEROP-2.25 §6.17): armar y desarmar la captura de experimentación, Maintainer (D2).
+  entry('MAINTAINER', 'POST', '/projects/{projectId}/experiment-captures', 'POST /projects/{projectId}/experiment-captures', 'MAINTAINER'),
+  entry('MAINTAINER', 'DELETE', '/projects/{projectId}/experiment-captures/current', 'DELETE /projects/{projectId}/experiment-captures/current', 'MAINTAINER'),
   // Admin.
   entry('ADMIN', 'PATCH', '/projects/{projectId}', 'PATCH /projects/{projectId}', 'ADMIN'),
   entry('ADMIN', 'DELETE', '/projects/{projectId}', 'DELETE /projects/{projectId}', 'ADMIN'),
