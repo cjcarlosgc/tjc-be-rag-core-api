@@ -6101,6 +6101,59 @@
           "report": "harness/reports/wi-core-108-contract-sync-scope-review.md"
         }
       ]
+    },
+    {
+      "id": "WI-CORE-109",
+      "component": "CORE",
+      "workItemType": "PRODUCT",
+      "lane": "STANDARD",
+      "status": "W-DONE",
+      "priority": "P1",
+      "sprint": "P2",
+      "title": "HU18: captura armada del proximo PR elegible para experimentacion (POST/GET/DELETE de experiment-captures por Project, reserva atomica en la creacion del AnalysisRun desde GitHub, Run reservado sin Checks en el PR, campo experimentCapture en las respuestas de Run; INTEROP-2.25 aditivo)",
+      "storyIds": [
+        "HU18",
+        "HU17"
+      ],
+      "taskIds": [
+        "ST-CORE-131"
+      ],
+      "caseIds": [],
+      "dependsOn": [
+        "WI-CORE-108"
+      ],
+      "contractImpact": true,
+      "publishesContract": true,
+      "acceptanceCriteria": [
+        "Un Maintainer o Admin puede armar (POST), listar (GET) y desarmar (DELETE) la captura de experimentacion de un Project (Reader solo lista, Writer recibe 403, a lo sumo una captura ARMED por Project con indice unico parcial y 409 EXPERIMENT_CAPTURE_ALREADY_ARMED); el primer AnalysisRun nuevo, elegible (repositoryBindingEligible y no borrador) y creado despues de armar se reserva de forma atomica y la captura pasa a RESERVED en la misma transaccion; duplicados, borradores, PR anteriores al vinculo, HEAD sin cambios y Runs anteriores no la consumen; un fallo del reservador deja el Run normal y la captura ARMED.",
+        "Un Run reservado no publica ningun Check (publishForRun no llama a GitHub Integration y no escribe checkId), conserva el resto del flujo y admite POST /experiments como hoy; el camino sin captura queda identico; las respuestas de Run incluyen experimentCapture (nulo o poblado) con los esquemas de tiempo real coherentes; INTEROP-2.25 aditivo y Contract Sync publicado; pruebas con fixtures y pg para el indice parcial y la concurrencia; lint, build, contracts:check y test en verde; contract-reviewer y revision independiente del reviewer; sin push, PR, merge ni deploy."
+      ],
+      "specPaths": [
+        "harness/reports/wi-core-109-scope.md",
+        "spec/features/008-experimental-comparison/tasks.md",
+        "harness/reports/wi-core-109-contract-sync-scope-review.md",
+        "harness/reports/wi-core-109-technical-checks.md",
+        "harness/reports/wi-core-109-contract-review.md",
+        "harness/reports/wi-core-109-independent-review.md",
+        "harness/reports/wi-core-109-closure.md",
+        "harness/reports/wi-core-109-contract-sync-publication.md"
+      ],
+      "contractSyncReview": [
+        {
+          "eventId": "CS-20260920-001",
+          "sha256": "e5caa28faa910640306afc1f83fdc74a46310fdb4b5489a4ac5af88c1f034c6b",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Binding y lifecycle de Project/RepositoryBinding; WI-CORE-109 agrega la captura armada de experimentacion y no cambia el binding.",
+          "report": "harness/reports/wi-core-109-contract-sync-scope-review.md"
+        },
+        {
+          "eventId": "CS-20260921-003",
+          "sha256": "db3dd16b293d50820bea71cf17b53968164dc59fde3d7d7e7c397b50d2b86ac0",
+          "disposition": "NOT_RELEVANT",
+          "reason": "Autenticacion GitHub y orden de despliegue; WI-CORE-109 no cambia auth ni el orden de despliegue.",
+          "report": "harness/reports/wi-core-109-contract-sync-scope-review.md"
+        }
+      ]
     }
   ]
 }

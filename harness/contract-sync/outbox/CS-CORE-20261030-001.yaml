@@ -1,0 +1,13 @@
+type: CONTRACT_SYNC
+id: CS-CORE-20261030-001
+source: core
+sourceWorkItem: WI-CORE-109
+targets: [console, github-integration, sandbox]
+scopePaths: [spec/contracts/interoperability-contract.md]
+breaking: false
+changed:
+  - INTEROP-2.25 interoperability-contract.md sha256 b2f3845296451bd3e593c00cb1e5955029f3d77ef4d69d1fd9326d07f1fdb651; SYSTEM-2.16 system-contract.md (sin cambio) sha256 d0a492b4484c8883d65e709f76d8c7ff2462b0eb8c832649cf75723b9543ea77; github-integration-contract.md (GH-INTEROP-1.9, sin cambio) sha256 dedf00fa2f0f5be928cfaf1e5a12ff19f96e7579524a0a689757f1077bfc6e4e; arbol spec/contracts/schemas/ con examples/ (sin cambio) sha256 8079ab73887e3a74b2dba57fa5ae5c146e47eb21231f9965718a85a3a2619718 (receta del arbol: cd spec/contracts/schemas && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256). WI-CORE-109 (HU18), alcance aprobado por el usuario el 2026-10-30, aditivo y no incompatible: nueva 6.17 con POST/GET/DELETE de /projects/{projectId}/experiment-captures (Maintainer para armar y desarmar, Reader para listar), ExperimentCaptureResponse, errores EXPERIMENT_CAPTURE_ALREADY_ARMED (409) y EXPERIMENT_CAPTURE_NOT_ARMED (404); AnalysisRunSummaryResponse (y por herencia el detalle y analysis-run:update) agrega experimentCapture {captureId, reservedAt} | null siempre presente; un Run reservado no publica Check en el PR (la publicacion manual de companion PR no cambia). Sin cambio de AnalysisRunStatus, de otras rutas ni de schemas/. Este evento SUBSUME a CS-CORE-20261026-001 (INTEROP-2.24, documental): el re-espejo debe ir directo a 2.25; Console espeja hoy 2.23 e Integration y Sandbox 2.21.
+requiredAction:
+  - Console: re-espejar interoperability-contract.md byte a byte (digest arriba) en UN paso directo a INTEROP-2.25; tipar experimentCapture en AnalysisRunSummaryResponse como { captureId: string; reservedAt: string } | null (tolerar ausencia en mocks y trazas anteriores) y los tipos de ExperimentCaptureResponse; sin UI en este corte (WI de Console aparte); incluir lo pendiente de CS-CORE-20261026-001 (BELOW_RELEVANCE_THRESHOLD, dependencyContext hasta 500); sin cambio de schemas ni generated/ (contracts:check limpio); lint, build y test. GitHub Integration y Sandbox: re-espejar byte a byte en UN paso directo a 2.25; sin cambio de codigo (Core no solicita el Check de un Run reservado y no hay contrato nuevo con ellos); lint, build y test. Cada consumidor registra su evidencia; Core no resuelve eventos ajenos.
+sourceRevision: 55bf4241431329a50db4ab85676b68c5888c01b8
+status: C-PENDING
